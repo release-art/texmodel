@@ -5,7 +5,7 @@ import logging
 import pathlib
 from collections.abc import Sequence
 
-from .errors import ValidationError
+from texmodel.errors import ValidationError
 
 logger = logging.getLogger(__name__)
 

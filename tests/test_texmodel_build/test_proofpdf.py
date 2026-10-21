@@ -4,10 +4,10 @@ import pathlib
 import pikepdf
 import pytest
 
-from texmodel import testkit
-from texmodel._internal.proofpdf import ProofPdf
-from texmodel.diagnostics import Severity
-from texmodel.verify import Profile, registered, verify_file
+from texmodel_build import testkit
+from texmodel_build._internal.proofpdf import ProofPdf
+from texmodel_build.diagnostics import Severity
+from texmodel_build.verify import Profile, registered, verify_file
 
 
 @pytest.fixture

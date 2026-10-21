@@ -22,7 +22,6 @@ class CompileResult:
     image: str | None = None  # None: ran on the host, not in the reference image
     image_digest: str | None = None
     image_revision: str | None = None
-    cache_hit: bool = False
 
     @property
     def ok(self) -> bool:

@@ -3,8 +3,7 @@ import pathlib
 import pytest
 
 from texmodel import drift
-from texmodel.bundle import Item, missing, prove, stale, write
-from texmodel.compiler import Compiler
+from texmodel.bundle import Item, missing, stale, write
 from texmodel.errors import DeclarationError
 
 
@@ -52,17 +51,6 @@ def test_stale_compares_content_not_timestamps(items, tmp_path):
     assert stale(items, out) == ()
     (out / "Face.ttf").write_bytes(b"other")
     assert stale(items, out) == (items[1],)
-
-
-def test_prove_builds_the_bundle_with_no_roots_or_fonts(toolchain, tmp_path):
-    (tmp_path / "b").mkdir()
-    (tmp_path / "b" / "main.tex").write_text("x")
-    roots = (tmp_path,)
-    comp = Compiler(roots=roots, font_dirs=roots, cache_dir=tmp_path / "c")
-    result = prove(tmp_path / "b", "main.tex", comp, tmp_path / "out")
-    assert result.ok
-    call = next(c for c in toolchain.calls if "-interaction=nonstopmode" in c)
-    assert not any(a.startswith(("OSFONTDIR", "OPENTYPEFONTS")) for a in call)
 
 
 def test_drift_reports_stale_missing_orphaned_and_old_versions(tmp_path):

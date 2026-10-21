@@ -26,10 +26,6 @@ def build_env(
         "max_print_line": "10000",
         "error_line": "254",
         "half_error_line": "238",
-        # Paranoid file access, and no shell escape even if a document asks (Z2).
-        "openin_any": "r",
-        "openout_any": "p",
-        "shell_escape": "f",
     }
     if rooted == "":
         del env["OPENTYPEFONTS"], env["TTFONTS"]

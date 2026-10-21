@@ -1,7 +1,7 @@
 """The compile suite (V3): the real driver, latexmk and LuaTeX in the reference image.
 
 Skipped without Docker and an image that has latexmk; TEXMODEL_REQUIRE_TEX=1 (CI) makes that a failure (V5).
-The image comes from TEXMODEL_TEST_IMAGE, else `[tool.texmodel] image`.
+The image comes from TEXMODEL_TEST_IMAGE, else `[tool.texmodel-build] image`.
 """
 
 import os
@@ -11,9 +11,9 @@ import tomllib
 
 import pytest
 
-from texmodel import diagnostics as d
-from texmodel.compiler import Compiler
-from texmodel.errors import ToolchainError
+from texmodel_build import diagnostics as d
+from texmodel_build.compiler import Compiler
+from texmodel_build.errors import ToolchainError
 
 TEX = pathlib.Path(__file__).parent.parent / "fixtures" / "tex"
 ROOT = pathlib.Path(__file__).parents[2]
@@ -24,7 +24,7 @@ pytestmark = [pytest.mark.tex, pytest.mark.timeout(300)]
 def _image() -> str:
     if image := os.environ.get("TEXMODEL_TEST_IMAGE"):
         return image
-    return tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["texmodel"]["image"]
+    return tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["texmodel-build"]["image"]
 
 
 @pytest.fixture(scope="session")
@@ -120,12 +120,10 @@ def test_asset_roots_are_searched_in_order(compiler, tmp_path):
     assert "/work/roots/0/part.tex" in log and "/work/roots/1/part.tex" not in log  # container paths, earlier wins
 
 
-def test_cache_hit_and_clean(compiler, tmp_path):
-    comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, cache_dir=tmp_path / "cache")
+def test_clean(compiler, tmp_path):
+    comp = Compiler(image=compiler.image, font_cache=compiler.font_cache)
     src = doc(tmp_path, "ok.tex")
-    assert not comp.compile(src, tmp_path / "o1").cache_hit
-    hit = comp.compile(src, tmp_path / "o2")
-    assert hit.cache_hit and hit.pdf and hit.pdf.is_file()
+    assert comp.compile(src, tmp_path / "o1").ok
     comp.clean(src, tmp_path / "o1")
     assert not (tmp_path / "o1" / "ok.aux").exists() and (tmp_path / "o1" / "ok.pdf").exists()
     comp.clean(src, tmp_path / "o1", everything=True)
@@ -137,3 +135,11 @@ def test_recompiling_an_unchanged_document_in_place_is_ok(compiler, tmp_path):
     first = compiler.compile(src, tmp_path / "out")
     again = compiler.compile(src, tmp_path / "out")
     assert first.ok and again.ok and again.passes == 0 and again.pdf == first.pdf
+
+
+def test_the_generated_sty_of_the_fixture_package_compiles(compiler, tmp_path):
+    """texmodel's own output builds: render, commit, then `\\usepackage` it and typeset."""
+    golden = TEX.parent / "acme_cards" / "generated"
+    comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(golden,))
+    result = comp.compile(doc(tmp_path, "uses_acme.tex"), tmp_path / "out")
+    assert result.ok and result.pages == 1 and not result.errors

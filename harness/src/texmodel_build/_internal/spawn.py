@@ -32,5 +32,5 @@ def spawn(argv: Sequence[str], *, cwd: pathlib.Path | None, env: dict[str, str],
     except subprocess.TimeoutExpired as exc:
         return Proc(-1, text(exc.stdout), text(exc.stderr), timed_out=True)
     except FileNotFoundError as exc:
-        raise ToolchainError(f"{argv[0]}: not found", code="TM-T001", hint="run `texmodel doctor`") from exc
+        raise ToolchainError(f"{argv[0]}: not found", code="TM-T001", hint="run `texmodel-build doctor`") from exc
     return Proc(done.returncode, done.stdout, done.stderr)

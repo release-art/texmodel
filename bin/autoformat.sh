@@ -4,6 +4,7 @@ cd "${PROJECT_ROOT}"
 
 DIRS=(
     "src"
+    "harness"
     "tests"
 )
 

@@ -818,6 +818,12 @@ template strings for bodies (TeX braces fight interpolation).
 
 ## 18. Package structure
 
+Two distributions in one repository, released in lockstep (decided 2026-10-21): `texmodel` (`src/`), the rendering
+core, which never spawns a process; and `texmodel-build` (`harness/`, import `texmodel_build`), the optional compile and
+verify side (§7, §8), configured in `[tool.texmodel-build]`. Consumers that already pin a toolchain in an image (as the
+owner's do) need only the first. The compile cache, container sandbox flags and `bundle.prove` described in §7 and §12 were
+built and then removed: the images carry reproducibility, and the container is the environment, not a sandbox.
+
 Convention (decided 2026-10-21, as pydantic and proof-pdf do): public API is the top-level
 modules of `texmodel/`; private implementation lives in `texmodel/_internal/`. A test lists
 the public modules, so a new top-level module is a deliberate API decision (I1). The tree

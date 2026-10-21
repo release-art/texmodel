@@ -22,7 +22,6 @@ class BuildSummary:
     def lines(self) -> list[str]:
         return [
             f"{'ok    ' if r.ok else 'FAILED'} {name}: {len(r.errors)} error(s), {r.pages} page(s), {r.seconds}s"
-            + (" [cache hit]" if r.cache_hit else "")
             for name, r in self.results.items()
         ]
 

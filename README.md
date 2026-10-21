@@ -3,105 +3,123 @@
 [![CI](https://github.com/release-art/texmodel/actions/workflows/ci.yml/badge.svg)](https://github.com/release-art/texmodel/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A typed, declarative, verifiable model layer for LaTeX, in the spirit of an ORM: define the interface of a document
-family once in Python types, write macro bodies as real TeX, and derive the rest (the `.sty`, JSON Schema, reference docs,
-tests, migrations, a strict document API, structured compile results) from that one declaration.
+Declare a LaTeX document family once in Python types; get plain, readable, git-trackable `.sty` source out of it. The output
+is ordinary TeX: commit it, diff it, compile it with whatever LaTeX setup you already have.
 
-> **Status: pre-alpha, not on PyPI.** Only the compile engine (stage A1 of the [plan](docs/texmodel-plan.md)) exists. The
-> model layer (components, types, `.sty` generation, schema) is designed but not started.
+> **Status: pre-alpha, not on PyPI.** One component kind (`Command`) renders to a `.sty` today. Environments, values,
+> `Doc` trees, schema export and migrations are designed (see [the plan](docs/texmodel-plan.md)) but not built.
 
-## What works today
+This repository holds two packages, released in lockstep:
 
-`texmodel` compiles a `.tex` file you wrote with `latexmk` and LuaLaTeX, and reports what happened as data instead of
-log text.
+| Package | What it is |
+|---|---|
+| **`texmodel`** (`src/`) | The library: declare components, render deterministic TeX, check that committed output is current. No TeX needed, no processes spawned. |
+| **`texmodel-build`** (`harness/`) | Optional: a thin `latexmk` driver with typed log diagnostics, and verifier plugins for built PDFs. Use it if you want compile results as data; your own `latexmk` or image works just as well. |
 
-- **Runs in the reference container** (`releaseart/lualatex-python:latest`, built from
-  [proofpress](https://github.com/release-art/proofpress)) with no network, a read-only root filesystem, dropped
-  capabilities, and memory, CPU, process and time limits. `--local` runs on your machine instead.
-- **Typed diagnostics** with stable codes, parsed from the log: undefined control sequences (`TM-X010`), missing glyphs
-  (`TM-X011`, an error by default), overfull boxes (`TM-X012`), missing files (`TM-X013`), package errors (`TM-X014`),
-  undefined references (`TM-X018`), and a fallback for any other TeX error (`TM-X020`). A failed compile whose log explains
-  nothing is reported as `TM-X099`, never as silence.
-- **Convergence**: when the document never settles within `--passes`, the `.aux` entries that keep changing are named
-  (`TM-X030`).
-- **Reproducible mode** (`--epoch N` pins `SOURCE_DATE_EPOCH`): two builds give byte-identical PDFs.
-- **A content-addressed cache** keyed on sources, asset roots, image id and settings. A new image is a miss.
-- **Ordered asset roots** (`--root`, earlier wins) with a report of what a root shadows.
-- **Build targets** declared in `pyproject.toml`, built in parallel.
-
-```zsh
-pdm install                                   # Python 3.15; Docker for the container (or --local with latexmk installed)
-
-texmodel doctor                               # what this machine and the configured image can do
-texmodel compile doc.tex                      # exit 0 ok, 1 errors in the document, 3 tool or image missing
-texmodel compile doc.tex --json --epoch 1700000000
-texmodel build -j 4                           # every [tool.texmodel.targets.*]
-texmodel clean doc.tex --all
-```
-
-Configuration lives in `pyproject.toml`; there is no second manifest.
-
-```toml
-[tool.texmodel]
-prefix = "ac"
-image = "releaseart/lualatex-python:latest"   # omit to run on the host
-
-[tool.texmodel.targets.card]
-source = "card.tex"
-```
-
-From Python:
+## texmodel
 
 ```python
-import pathlib
-from texmodel import Compiler
+# acme_cards/__init__.py
+from texmodel.components import Command
+from texmodel.package import Package
+from texmodel.types import Text
 
-result = Compiler(image="releaseart/lualatex-python:latest", epoch=1700000000).compile(
-    pathlib.Path("doc.tex"), pathlib.Path(".texmodel/build/doc")
-)
-for d in result.diagnostics:
-    print(d.severity, d.code, d.file, d.line, d.message)
-result.raise_for_status()   # CompileError carrying every diagnostic
+pkg = Package("acme-cards", prefix="ac", version="1.4.0", date="2026/10/21")
+
+@pkg.command
+class Fact(Command):
+    """One short sentence under the title."""
+    text: Text
+
+@pkg.command
+class Slot(Command):
+    """A labelled paragraph; the label prints as its heading."""
+    text: Text
+    label: Text | None = None      # optional: keyword-only, TeX's one optional argument
 ```
 
-A failed compile is a result, not an exception: check `result.ok`, or call `raise_for_status()`.
+The body is TeX in a file named after the class, beside it (`acme_cards/fact.tex`), or an inline `body="..."` for a line
+or two. `#text` is the argument named `text`:
 
-### Notes
+```latex
+\par\noindent #text\par\vspace{2mm}
+```
 
-- The image is `latest` on purpose; every result records the image tag, id and revision, so builds stay traceable.
-- The image must contain `latexmk`. Until [proofpress](https://github.com/release-art/proofpress) releases one that does,
-  the container compile tests need a derived image (`FROM releaseart/lualatex-python` plus `tlmgr install latexmk`), and the
-  `tex` CI job is allowed to fail.
-- Reads are restricted, not paranoid, because paranoid reads break luaotfload; the container's read-only mounts are the
-  boundary. Whether a hostile `\directlua` can read outside them is an open item (plan Z2).
+```toml
+# pyproject.toml
+[tool.texmodel]
+prefix = "ac"
+package = "acme_cards:pkg"
+output = "generated"
+```
+
+```zsh
+texmodel build     # writes generated/acme-cards.sty
+texmodel check     # exit 1 if a committed generated file is stale, missing or orphaned
+```
+
+```latex
+% generated/acme-cards.sty (excerpt)
+% One short sentence under the title.
+% from acme_cards.Fact (body: fact.tex)
+\newcommand{\acFact}[1]{%
+\par\noindent #1\par\vspace{2mm}
+}
+```
+
+- **Deterministic**: no timestamps or hashes; the header records the generator version (`generated with texmodel X.Y.Z`),
+  so `check` can say "written by 0.1.0, current is 0.2.0".
+- **Checked early**: a bad declaration is refused when the class is defined, with a stable code (`TM-M0xx`) and the class
+  named: more than one optional argument, a name that is not a TeX control word, a missing or ambiguous body, a `#name` that
+  is not a field, an argument the body never uses, unbalanced braces, a name collision.
+- **Typed**: `Fact("A soft woof.")` type-checks; fields are `Text` or `Text | None`.
+
+`texmodel.bundle` copies a manifest of files and refuses if any is missing (`stale` compares bytes, not timestamps);
+`texmodel.drift` is what `check` uses.
+
+## texmodel-build
+
+```zsh
+texmodel-build doctor                       # tools on this machine, and what the configured image has
+texmodel-build compile doc.tex              # exit 0 ok, 1 errors in the document, 3 tool or image missing
+texmodel-build compile doc.tex --json --epoch 1700000000 --root generated
+texmodel-build build -j 4                   # every [tool.texmodel-build.targets.*]
+texmodel-build verify out/*.pdf             # verifier plugins; anything unconfirmable fails
+```
+
+```toml
+[tool.texmodel-build]
+image = "releaseart/lualatex-python:latest"   # runs `docker run` over it; omit to run on this machine
+```
+
+- The compile log becomes typed diagnostics with stable codes: undefined control sequences (`TM-X010`), missing glyphs
+  (`TM-X011`), overfull boxes (`TM-X012`), missing files (`TM-X013`), package errors (`TM-X014`), undefined references
+  (`TM-X018`), non-convergence with the `.aux` entries that keep moving (`TM-X030`), and a fallback so no failure is silent.
+- Reproducibility is the image's job (`--epoch` pins `SOURCE_DATE_EPOCH`); there is no sandbox or cache here.
+- `texmodel-build verify` runs plugins from the `texmodel_build.verifiers` entry-point group. `pip install
+  'texmodel-build[proof-pdf]'` adds [proof-pdf](https://github.com/release-art/proofpress). A verifier that cannot run, a
+  file that cannot be opened and a profile that selects nothing are failures; the only excuse is a declared `exempt` glob.
+- The image must contain `latexmk`; until [proofpress](https://github.com/release-art/proofpress) publishes one that does,
+  the container tests use a derived image and the `tex` CI job is allowed to fail.
 
 ## Where it is going
 
-The plan has three stages with go/no-go gates. See [docs/texmodel-plan.md](docs/texmodel-plan.md) for the requirements and
-[docs/texmodel-research-notes.md](docs/texmodel-research-notes.md) for the reasoning behind them.
-
-| Stage | Contents | State |
+| Step | Contents | State |
 |---|---|---|
-| A0 | repo, standards, errors, config, CLI shell, `doctor` | done |
-| A1 | the compile engine described above | built; Gate A waits for an image with `latexmk` |
-| A2 | verifier plugins, drift `check`, `bundle`/`install` | next |
-| B | types, components, bodies, `.sty` generation, `Doc` trees, schema | after Gate A |
-| C | migrations, adoption of hand-written TeX, a standard library, print extra, docs, 1.0 | after Gate B |
-
-## Public API
-
-The top-level modules of `texmodel` are public: `compiler`, `config`, `diagnostics`, `engines`, `errors`, `result`, `roots`,
-`targets` and `cli`. Everything under `texmodel._internal` may change at any time.
+| A | build harness: compile, typed diagnostics, verifier plugins, drift, bundle | built |
+| B | rendering core: types, `Command`/`Environment`/`Value`, `.sty`, `Doc` trees, schema | `Command` → `.sty` and `build`/`check` done |
+| C | migrations, adopting hand-written TeX, a standard library, docs, 1.0 | after B |
 
 ## Development
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). In short: `bin/autoformat.sh` (ruff, pyright strict, import-linter) and `bin/test.sh`
-(pytest, 100% coverage gate). The container compile suite is `pytest -m tex`; it skips without an image that has `latexmk`,
-and `TEXMODEL_REQUIRE_TEX=1` turns that skip into a failure. `TEXMODEL_TEST_IMAGE` overrides the image.
+See [CONTRIBUTING.md](CONTRIBUTING.md). `bin/autoformat.sh` runs ruff, strict pyright and import-linter over both packages;
+`bin/test.sh` runs pytest with a 100% coverage gate. The container compile suite is `pytest -m tex`; it skips without an
+image that has `latexmk`, and `TEXMODEL_REQUIRE_TEX=1` turns that skip into a failure (`TEXMODEL_TEST_IMAGE` sets the image).
 
-Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
+Public API is the top-level modules of each package; everything under `_internal` may change. Report vulnerabilities as
+described in [SECURITY.md](SECURITY.md).
 
 ## Licence
 
-[MIT](LICENSE). The reference images carry their own licences (Ghostscript is AGPL); texmodel runs them as a separate
-process and ships none of their code.
+[MIT](LICENSE). The reference images carry their own licences (Ghostscript is AGPL); `texmodel-build` runs them as a
+separate process and ships none of their code.

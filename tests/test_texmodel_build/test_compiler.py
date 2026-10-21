@@ -1,17 +1,17 @@
-import dataclasses
 import json
 import pathlib
 
 import pytest
 
-from texmodel import (
+from texmodel.errors import DeclarationError
+from texmodel_build import (
     compiler as compiler_module,
     diagnostics as d,
 )
-from texmodel._internal import spawn as spawn_module
-from texmodel._internal.spawn import Proc
-from texmodel.compiler import Compiler, Limits
-from texmodel.errors import CompileError, DeclarationError, ToolchainError
+from texmodel_build._internal import spawn as spawn_module
+from texmodel_build._internal.spawn import Proc
+from texmodel_build.compiler import Compiler
+from texmodel_build.errors import CompileError, ToolchainError
 
 from .conftest import OK_LOG, FakeToolchain
 
@@ -38,17 +38,17 @@ def test_local_compile_builds_a_safe_argv_in_the_source_dir(toolchain, src, tmp_
     assert result.engine_version.startswith("This is LuaHBTeX")
 
 
-def test_container_compile_is_sandboxed_and_mounts_read_only(toolchain, src, tmp_path):
+def test_container_compile_mounts_sources_read_only_and_runs_as_the_user(toolchain, src, tmp_path):
     root = tmp_path / "assets"
     root.mkdir()
-    comp = Compiler(image="img:1", roots=(root,), font_cache=tmp_path / "fonts", limits=Limits(memory="1g", cpus=1.5))
+    comp = Compiler(image="img:1", roots=(root,), font_cache=tmp_path / "fonts")
     result = comp.compile(src, tmp_path / "out")
     assert result.ok and result.image == "img:1" and result.image_revision == "deadbeefcafe"
     assert result.image_digest and result.image_digest.startswith("sha256:")
     argv = latexmk_call(toolchain)
     joined = " ".join(argv)
-    for flag in ("--network none", "--read-only", "--cap-drop ALL", "no-new-privileges", "--memory 1g", "--cpus 1.5"):
-        assert flag in joined
+    assert "--user" in argv and "-w /work/src" in joined and "--rm" in argv
+    assert not {"--network", "--read-only", "--cap-drop", "--memory"} & set(argv)  # the image is the environment
     assert "--entrypoint latexmk img:1" in joined
     mounts = [a for a in argv if a.startswith("type=bind")]
     assert any("target=/work/src" in m and m.endswith("readonly") for m in mounts)
@@ -117,13 +117,12 @@ def test_stale_output_from_an_earlier_run_is_not_reported_as_this_runs(toolchain
     assert result.log is None and result.pdf is None and not result.ok
 
 
-def test_timeout_is_a_result_not_cached_and_kills_the_container(toolchain, src, tmp_path):
+def test_timeout_is_a_result_and_kills_the_container(toolchain, src, tmp_path):
     toolchain.timed_out = True
-    comp = Compiler(image="img", cache_dir=tmp_path / "cache", limits=Limits(timeout=7))
+    comp = Compiler(image="img", timeout=7)
     result = comp.compile(src, tmp_path / "out")
     assert not result.ok and "timed out after 7s" in result.diagnostics[0].message
     assert any(c[:2] == ["docker", "kill"] for c in toolchain.calls)
-    assert not (tmp_path / "cache").exists() or not list((tmp_path / "cache").iterdir())
 
 
 def test_non_convergence_reports_the_aux_entries_that_still_move(toolchain, src, tmp_path):
@@ -142,34 +141,6 @@ def test_non_convergence_with_no_visible_aux_change(toolchain, src, tmp_path, mo
     monkeypatch.setattr(compiler_module, "aux_diff", lambda a, b: ())
     result = Compiler().compile(src, tmp_path / "out")
     assert "nothing in .aux" in next(x for x in result.diagnostics if isinstance(x, d.NotConverged)).message
-
-
-def test_cache_hit_returns_the_stored_result_and_skips_the_compile(toolchain, src, tmp_path):
-    comp = Compiler(cache_dir=tmp_path / "cache")
-    first = comp.compile(src, tmp_path / "o1")
-    assert not first.cache_hit and toolchain.runs == 1
-    second = comp.compile(src, tmp_path / "o2")
-    assert second.cache_hit and toolchain.runs == 1
-    assert (
-        second.pdf == tmp_path / "o2" / "a.pdf" and second.pdf is not None and second.pdf.read_bytes() == b"%PDF-fake"
-    )
-    assert second.diagnostics == first.diagnostics
-    src.write_text("changed")  # any source change is a miss
-    assert not comp.compile(src, tmp_path / "o3").cache_hit
-    assert not comp.compile(src, tmp_path / "o4", use_cache=False).cache_hit
-    toolchain.inspect = ("sha256:" + "cd" * 32, "x")  # a new image digest is a miss (C12)
-    fresh = dataclasses.replace(comp, image="img")
-    assert not fresh.compile(src, tmp_path / "o5").cache_hit
-
-
-def test_a_failed_but_complete_compile_is_cached_too(toolchain, src, tmp_path):
-    toolchain.log = None
-    toolchain.write_pdf = False
-    toolchain.returncode = 1
-    comp = Compiler(cache_dir=tmp_path / "cache")
-    assert not comp.compile(src, tmp_path / "o1").ok
-    hit = comp.compile(src, tmp_path / "o2")
-    assert hit.cache_hit and hit.pdf is None and toolchain.runs == 1
 
 
 @pytest.mark.parametrize(("code", "image"), [(127, None), (127, "img"), (125, "img")])
@@ -247,7 +218,7 @@ def test_the_real_spawn_runs_argv_without_a_shell_and_reports_timeouts_and_missi
 
 def test_result_round_trips_as_json(toolchain, src, tmp_path):
     result = Compiler(image="img").compile(src, tmp_path / "out")
-    from texmodel.result import CompileResult
+    from texmodel_build.result import CompileResult
 
     assert CompileResult.from_dict(json.loads(json.dumps(result.to_dict()))) == result
     assert result.probes == {} and result.errors == ()
@@ -275,6 +246,7 @@ def test_font_dirs_become_osfontdir_and_halt_on_error_a_flag(toolchain, src, tmp
 
 
 def test_recompiling_into_an_up_to_date_outdir_is_still_ok(toolchain, src, tmp_path):
+    toolchain.up_to_date = True
     comp = Compiler()
     first = comp.compile(src, tmp_path / "out")
     again = comp.compile(src, tmp_path / "out")  # latexmk runs no pass: nothing changed

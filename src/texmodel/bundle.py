@@ -1,9 +1,9 @@
 """`bundle` and `install` (G5): copy a manifest of files somewhere, refuse if any is missing, check it is current.
 
 An `Item` is one file: where it comes from, where it goes (relative to the destination), and why. Where things go is
-the caller's policy (a typeface must sit at a document's root because luaotfload reads no search path; a package can sit
-anywhere kpathsea looks), so this module decides nothing about layout. A bundle is **proven** self-contained by building
-it with no asset roots and no font directories: see `prove`.
+the caller's policy (a typeface must sit at a document's root because luaotfload reads no search path; a package can
+sit anywhere kpathsea looks), so this module decides nothing about layout. To prove a bundle self-contained, compile it
+with no asset roots and no font directories (texmodel-build can).
 """
 
 import dataclasses
@@ -11,9 +11,7 @@ import pathlib
 import shutil
 from collections.abc import Mapping, Sequence
 
-from .compiler import Compiler
 from .errors import DeclarationError
-from .result import CompileResult
 
 
 @dataclasses.dataclass(frozen=True)
@@ -69,9 +67,3 @@ def write(
         target.write_text(text, encoding="utf-8")
         written.append(target)
     return tuple(written)
-
-
-def prove(bundle: pathlib.Path, main: str, compiler: Compiler, outdir: pathlib.Path) -> CompileResult:
-    """Build `bundle/main` with no asset roots and no font directories: it must stand on what it carries."""
-    bare = dataclasses.replace(compiler, roots=(), font_dirs=(), cache_dir=None)
-    return bare.compile(bundle / main, outdir)

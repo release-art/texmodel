@@ -2,10 +2,10 @@ import os
 
 import pytest
 
-from texmodel._internal.env import build_env
-from texmodel.engines import ENGINES, LUALATEX, get_engine
 from texmodel.errors import DeclarationError, ValidationError
-from texmodel.roots import resolve, shadowing
+from texmodel_build._internal.env import build_env
+from texmodel_build.engines import ENGINES, LUALATEX, get_engine
+from texmodel_build.roots import resolve, shadowing
 
 
 def test_env_is_hermetic_and_orders_the_search_path():
@@ -14,7 +14,7 @@ def test_env_is_hermetic_and_orders_the_search_path():
     assert env["OPENTYPEFONTS"] == "/r/0:/r/1:" and env["TTFONTS"] == env["OPENTYPEFONTS"]
     assert (env["SOURCE_DATE_EPOCH"], env["FORCE_SOURCE_DATE"]) == ("1700000000", "1")
     assert env["TEXMFVAR"] == env["TEXMFCACHE"] == "/cache"
-    assert env["shell_escape"] == "f" and env["openout_any"] == "p" and env["max_print_line"] == "10000"
+    assert env["max_print_line"] == "10000"  # the log is parsed, so never hard-wrapped
 
 
 def test_env_without_roots_epoch_or_cache_sets_none_of_them(monkeypatch):

@@ -1,10 +1,11 @@
 import json
+import shutil
 
 import pytest
 from typer.testing import CliRunner
 
-from texmodel import cli
-from texmodel.targets import build_targets
+from texmodel_build import cli
+from texmodel_build.targets import build_targets
 
 runner = CliRunner()
 
@@ -13,8 +14,9 @@ runner = CliRunner()
 def project(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "pyproject.toml").write_text(
-        '[tool.texmodel]\nprefix = "t"\nimage = "img:1"\n'
-        '[tool.texmodel.targets.card]\nsource = "card.tex"\n[tool.texmodel.targets.deck]\nsource = "deck.tex"\n'
+        '[tool.texmodel-build]\nimage = "img:1"\n'
+        '[tool.texmodel-build.targets.card]\nsource = "card.tex"\n'
+        '[tool.texmodel-build.targets.deck]\nsource = "deck.tex"\n'
     )
     for name in ("card", "deck", "other"):
         (tmp_path / f"{name}.tex").write_text("x")
@@ -24,12 +26,10 @@ def project(tmp_path, monkeypatch):
 def test_compile_human_output_and_exit_codes(toolchain, project):
     ok = runner.invoke(cli.app, ["compile", "card.tex"])
     assert ok.exit_code == 0 and "ok " in ok.stdout and "1 pages" in ok.stdout
-    again = runner.invoke(cli.app, ["compile", "card.tex"])
-    assert "[cache hit]" in again.stdout
     toolchain.log = (
         "./card.tex:2: Undefined control sequence.\nl.2 \\x\n(1 page)\nOutput written on card.pdf (1 page, 9 bytes).\n"
     )
-    bad = runner.invoke(cli.app, ["compile", "card.tex", "--no-cache"])
+    bad = runner.invoke(cli.app, ["compile", "card.tex"])
     assert bad.exit_code == 1 and "TM-X010" in bad.stdout and "FAILED" in bad.stdout
 
 
@@ -73,7 +73,7 @@ def test_missing_tools_exit_3_with_a_hint(toolchain, project):
 
 
 def test_bad_config_exits_2(toolchain, project):
-    (project / "pyproject.toml").write_text('[tool.texmodel]\nprefix = "t"\nbogus = 1\n')
+    (project / "pyproject.toml").write_text("[tool.texmodel-build]\nbogus = 1\n")
     result = runner.invoke(cli.app, ["compile", "card.tex"])
     assert result.exit_code == 2 and "TM-D002" in result.stderr
 
@@ -91,7 +91,7 @@ def test_build_runs_declared_targets(toolchain, project):
     assert result.exit_code == 0 and "ok     card" in result.stdout and "ok     deck" in result.stdout
     assert (project / ".texmodel" / "build" / "deck" / "deck.pdf").exists()
     only = runner.invoke(cli.app, ["build", "deck"])
-    assert "[cache hit]" in only.stdout and "card" not in only.stdout
+    assert only.exit_code == 0 and "deck" in only.stdout and "card" not in only.stdout
     toolchain.log = "./deck.tex:1: Boom\n"
     assert runner.invoke(cli.app, ["build", "deck", "--local"]).exit_code == 1
 
@@ -99,7 +99,7 @@ def test_build_runs_declared_targets(toolchain, project):
 def test_build_refuses_unknown_or_missing_targets(toolchain, project):
     unknown = runner.invoke(cli.app, ["build", "nope"])
     assert unknown.exit_code == 2 and "TM-D012" in unknown.stderr
-    (project / "pyproject.toml").write_text('[tool.texmodel]\nprefix = "t"\n')
+    (project / "pyproject.toml").write_text("[tool.texmodel-build]\n")
     none = runner.invoke(cli.app, ["build"])
     assert none.exit_code == 2 and "TM-D011" in none.stderr
     (project / "pyproject.toml").unlink()
@@ -107,8 +107,8 @@ def test_build_refuses_unknown_or_missing_targets(toolchain, project):
 
 
 def test_build_targets_summary_lines(toolchain, project):
-    from texmodel.compiler import Compiler
-    from texmodel.config import Target
+    from texmodel_build.compiler import Compiler
+    from texmodel_build.config import Target
 
     summary = build_targets([Target(name="a", source="card.tex")], Compiler(), root=project, outdir=project / "o")
     assert summary.ok and summary.lines()[0].startswith("ok     a: 0 error(s), 1 page(s)")
@@ -124,7 +124,7 @@ def test_clean_command(toolchain, project):
 
 
 def test_doctor_probes_the_configured_image(toolchain, project, monkeypatch):
-    monkeypatch.setattr(cli.shutil, "which", lambda name: None)  # nothing on the host, the image is enough
+    monkeypatch.setattr(shutil, "which", lambda name: None)  # nothing on the host, the image is enough
     result = runner.invoke(cli.app, ["doctor"])
     assert (
         result.exit_code == 0 and "image   img:1: This is LuaHBTeX" in result.stdout and "latexmk 4.87" in result.stdout
@@ -136,7 +136,7 @@ def test_doctor_probes_the_configured_image(toolchain, project, monkeypatch):
 
 
 def test_doctor_reports_an_unusable_image(toolchain, project, monkeypatch):
-    monkeypatch.setattr(cli.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(shutil, "which", lambda name: f"/bin/{name}")
     toolchain.image_missing = True
     result = runner.invoke(cli.app, ["doctor"])
     assert result.exit_code == 3 and "image   img:1:" in result.stdout and "docker pull img:1" in result.stdout

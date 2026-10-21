@@ -5,10 +5,10 @@ import pathlib
 import pytest
 from typer.testing import CliRunner
 
-from texmodel import cli, testkit
-from texmodel.diagnostics import Severity
-from texmodel.errors import ToolchainError
-from texmodel.verify import Finding, Profile, exemption, expand_targets, registered, verify_file, verify_files
+from texmodel_build import cli, testkit
+from texmodel_build.diagnostics import Severity
+from texmodel_build.errors import ToolchainError
+from texmodel_build.verify import Finding, Profile, exemption, expand_targets, registered, verify_file, verify_files
 
 runner = CliRunner()
 
@@ -119,8 +119,9 @@ def project(tmp_path, monkeypatch):
     fake = Fake("fake", [Finding("c", Severity.ERROR, "bad", page=1)])
     monkeypatch.setattr(cli, "registered", lambda: {"fake": fake})
     (tmp_path / "pyproject.toml").write_text(
-        '[tool.texmodel]\nprefix = "t"\n[tool.texmodel.exempt]\n"manual.pdf" = "never printed"\n'
-        '[tool.texmodel.profiles.print]\nchecks = ["fake"]\n[tool.texmodel.profiles.print.options.fake]\nx = 1\n'
+        '[tool.texmodel-build.exempt]\n"manual.pdf" = "never printed"\n'
+        '[tool.texmodel-build.profiles.print]\nchecks = ["fake"]\n'
+        "[tool.texmodel-build.profiles.print.options.fake]\nx = 1\n"
     )
     (tmp_path / "ok.pdf").write_bytes(b"x")
     (tmp_path / "manual.pdf").write_bytes(b"x")

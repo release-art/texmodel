@@ -6,28 +6,13 @@ import tomllib
 from typing import Any
 
 from .errors import DeclarationError
-from .verify import Profile
-
-
-@dataclasses.dataclass(frozen=True, kw_only=True)
-class Target:
-    """A named build (C10): `[tool.texmodel.targets.<name>]`. `variant` and `profile` are carried for later layers."""
-
-    name: str
-    source: str
-    engine: str = "lualatex"
-    variant: str = ""
-    profile: str = ""  # verifier profile (A2)
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Config:
     prefix: str
-    engine: str = "lualatex"
-    image: str = ""
-    targets: dict[str, Target] = dataclasses.field(default_factory=dict[str, Target])
-    profiles: dict[str, Profile] = dataclasses.field(default_factory=dict[str, Profile])
-    exempt: dict[str, str] = dataclasses.field(default_factory=dict[str, str])  # glob -> reason (V5)
+    package: str = ""  # "module:attribute" of the Package to build
+    output: str = "generated"  # where `texmodel build` writes, relative to pyproject.toml
 
 
 def load_config(pyproject: pathlib.Path) -> Config:
@@ -41,12 +26,6 @@ def load_config(pyproject: pathlib.Path) -> Config:
             f"unknown [tool.texmodel] keys: {unknown}", code="TM-D002", hint=f"known: {sorted(known)}"
         )
     try:
-        targets = {name: Target(name=name, **body) for name, body in table.pop("targets", {}).items()}
-        profiles = {name: _profile(name, body) for name, body in table.pop("profiles", {}).items()}
-        return Config(**table, targets=targets, profiles=profiles)
+        return Config(**table)
     except TypeError as exc:
         raise DeclarationError(f"[tool.texmodel]: {exc}", code="TM-D003") from exc
-
-
-def _profile(name: str, body: dict[str, Any]) -> Profile:
-    return Profile(name=name, checks=tuple(body.get("checks", ())), options=body.get("options", {}))

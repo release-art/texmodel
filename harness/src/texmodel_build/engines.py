@@ -3,9 +3,10 @@
 import dataclasses
 from collections.abc import Callable
 
+from texmodel.errors import DeclarationError
+
 from ._internal.logparse import parse_log
 from .diagnostics import Diagnostic
-from .errors import DeclarationError
 
 
 @dataclasses.dataclass(frozen=True)

@@ -1,8 +1,9 @@
-"""The compiler (C1). It starts processes only through `_internal.spawn`, the one module allowed to (C3, import-linter).
+"""A thin compiler (C1): runs `latexmk` over a `.tex` and returns a typed `CompileResult`.
 
-Argv lists only (never a shell string), shell escape off, intermediates out of tree (C7), `latexmk` as the single rerun
-strategy (C8). With an `image` the compile runs in the reference container: no network, read-only root, only the output
-directory (and the font cache) writable, sources and asset roots mounted read-only, resource limits (Z2).
+It starts processes only through `_internal.spawn`, the one module allowed to (import-linter). Argv lists only (never a
+shell string), shell escape off, intermediates out of tree (C7), `latexmk` as the single rerun strategy. Reproducibility
+is the image's job: with an `image` the compile runs `docker run` over it with the sources mounted read-only and the
+output directory writable; without one it runs the tools on this machine (for instance, when already inside the image).
 """
 
 import dataclasses
@@ -15,14 +16,15 @@ import time
 import uuid
 from collections.abc import Sequence
 
-from ._internal import cache as compile_cache
+from texmodel.errors import DeclarationError
+
 from ._internal.converge import aux_diff
 from ._internal.env import build_env
 from ._internal.logparse import page_count
 from ._internal.spawn import Proc, spawn
 from .diagnostics import Diagnostic, NotConverged, Severity, Unexplained
 from .engines import LUALATEX, Engine
-from .errors import DeclarationError, ToolchainError
+from .errors import ToolchainError
 from .result import CompileResult
 
 logger = logging.getLogger(__name__)
@@ -37,14 +39,6 @@ _INTERMEDIATE = ("aux", "log", "fls", "fdb_latexmk", "out", "toc", "lof", "lot",
 _TOOLS = ("kpsewhich", "gs", "verapdf")  # probed besides the engine and latexmk, to report capability gaps
 _REFERENCE_PATHS = {"src": "/work/src", "out": "/work/out", "cache": "/cache"}
 _TAIL = 8
-
-
-@dataclasses.dataclass(frozen=True, kw_only=True)
-class Limits:
-    memory: str = "2g"
-    cpus: float = 2.0
-    pids: int = 256
-    timeout: float = 300.0  # seconds, wall clock
 
 
 @dataclasses.dataclass(frozen=True)
@@ -66,18 +60,17 @@ def _tail(text: str) -> str:
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Compiler:
-    """Compile settings in one place. `image=None` runs on the host; a tag runs in the reference container (C8)."""
+    """Compile settings in one place. `image=None` runs on this machine; a tag runs in that image."""
 
     engine: Engine = LUALATEX
     image: str | None = None
     roots: tuple[pathlib.Path, ...] = ()  # ordered asset roots, earlier wins (C4)
     font_dirs: tuple[pathlib.Path, ...] = ()  # found by family name (OSFONTDIR), not by path
     halt_on_error: bool = False  # stop at the first error; the default reports every one
-    cache_dir: pathlib.Path | None = None  # compile cache (C12); None disables it
     font_cache: pathlib.Path | None = None  # persistent luaotfload cache; without it every container run rebuilds it
     max_passes: int = 5
     epoch: int | None = None  # reproducible mode (C6): pins SOURCE_DATE_EPOCH
-    limits: Limits = Limits()
+    timeout: float = 300.0  # seconds, wall clock; the container is killed when it passes
 
     @functools.cached_property
     def _fonts(self) -> pathlib.Path | None:
@@ -129,7 +122,7 @@ class Compiler:
 
     # -- compiling ---------------------------------------------------------------------------------------
 
-    def compile(self, source: pathlib.Path, outdir: pathlib.Path, *, use_cache: bool = True) -> CompileResult:
+    def compile(self, source: pathlib.Path, outdir: pathlib.Path) -> CompileResult:
         source, outdir = source.resolve(), outdir.resolve()
         if not source.is_file():
             raise DeclarationError(f"{source}: no such file", code="TM-X001")
@@ -141,20 +134,6 @@ class Compiler:
             )
         versions = self.check_ready()
         info = self.image_info
-        key = None
-        if self.cache_dir and use_cache:
-            env = sorted(self._env(self._locations(source, outdir)).items())
-            args = [self.engine.name, str(self.max_passes), versions.latexmk_version, versions.engine_version, str(env)]
-            key = compile_cache.cache_key(
-                source,
-                (*self.roots, *self.font_dirs),
-                image_digest=info.digest if info else None,
-                args=args,
-                epoch=self.epoch,
-            )
-            if hit := compile_cache.load(self.cache_dir, key, outdir):
-                return hit
-
         outdir.mkdir(parents=True, exist_ok=True)
         started = time.time()
         proc = self._latexmk(source, outdir)
@@ -172,7 +151,7 @@ class Compiler:
         if _UNSTABLE.search(proc.stdout + proc.stderr):  # latexmk says it on stderr
             diagnostics.append(self._not_converged(source, outdir, passes))
         if proc.timed_out:
-            diagnostics.append(Unexplained(message=f"timed out after {self.limits.timeout:g}s"))
+            diagnostics.append(Unexplained(message=f"timed out after {self.timeout:g}s"))
         elif (proc.returncode != 0 or not has_pdf) and not any(d.severity is Severity.ERROR for d in diagnostics):
             tail = _tail(proc.stdout + proc.stderr)
             diagnostics.append(
@@ -193,8 +172,6 @@ class Compiler:
             image_digest=info.digest if info else None,
             image_revision=info.revision if info else None,
         )
-        if key and self.cache_dir and not proc.timed_out:  # only complete results are stored
-            compile_cache.store(self.cache_dir, key, result)
         return result
 
     def clean(self, source: pathlib.Path, outdir: pathlib.Path, *, everything: bool = False) -> None:
@@ -227,7 +204,7 @@ class Compiler:
         proc = self._tool("latexmk", args, source, outdir)
         if proc.returncode == 127 or (self.image and proc.returncode == 125):
             raise ToolchainError(
-                f"could not run latexmk: {_tail(proc.stderr)}", code="TM-T004", hint="run `texmodel doctor`"
+                f"could not run latexmk: {_tail(proc.stderr)}", code="TM-T004", hint="run `texmodel-build doctor`"
             )
         return proc
 
@@ -279,7 +256,7 @@ class Compiler:
         if self._fonts:
             self._fonts.mkdir(parents=True, exist_ok=True)
         if not self.image:
-            return spawn([tool, *argv], cwd=source.parent, env={**self._host_env(), **env}, timeout=self.limits.timeout)
+            return spawn([tool, *argv], cwd=source.parent, env={**self._host_env(), **env}, timeout=self.timeout)
         name = f"texmodel-{uuid.uuid4().hex[:12]}"
         mounts = [(source.parent, loc["src"], True), (outdir, loc["out"], False)]
         mounts += [(r.resolve(), p, True) for r, p in zip(self.roots, roots, strict=True)]
@@ -289,7 +266,7 @@ class Compiler:
         if self._fonts:
             mounts.append((self._fonts, loc["cache"], False))
         docker = self._docker(name, mounts, env, tool)
-        proc = spawn([*docker, *argv], cwd=None, env=self._host_env(), timeout=self.limits.timeout)
+        proc = spawn([*docker, *argv], cwd=None, env=self._host_env(), timeout=self.timeout)
         if proc.timed_out:
             spawn(["docker", "kill", name], cwd=None, env=self._host_env(), timeout=30)
         return proc
@@ -303,11 +280,7 @@ class Compiler:
     ) -> list[str]:
         assert self.image
         argv = [
-            "docker", "run", "--rm", "--name", name,
-            "--network", "none", "--read-only", "--tmpfs", "/tmp",
-            "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-            "--memory", self.limits.memory, "--cpus", str(self.limits.cpus), "--pids-limit", str(self.limits.pids),
-            "--user", f"{os.getuid()}:{os.getgid()}", "-w", "/work/src", "-e", "HOME=/tmp",
+            "docker", "run", "--rm", "--name", name, "--user", f"{os.getuid()}:{os.getgid()}", "-w", "/work/src",
         ]  # fmt: skip
         for host, target, readonly in mounts:
             if "," in str(host):
@@ -319,13 +292,12 @@ class Compiler:
 
     def _sh(self, script: str) -> Proc:
         if self.image:
-            docker = [
-                "docker", "run", "--rm", "--network", "none", "--read-only", "--tmpfs", "/tmp", "--entrypoint", "sh",
-                self.image, "-c", script,
-            ]  # fmt: skip
+            docker = ["docker", "run", "--rm", "--entrypoint", "sh", self.image, "-c", script]
             proc = spawn(docker, cwd=None, env=self._host_env(), timeout=120)
         else:
             proc = spawn(["sh", "-c", script], cwd=None, env=self._host_env(), timeout=120)
         if proc.returncode != 0:
-            raise ToolchainError(f"probe failed: {_tail(proc.stderr)}", code="TM-T005", hint="run `texmodel doctor`")
+            raise ToolchainError(
+                f"probe failed: {_tail(proc.stderr)}", code="TM-T005", hint="run `texmodel-build doctor`"
+            )
         return proc

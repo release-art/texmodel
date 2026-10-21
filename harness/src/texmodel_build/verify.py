@@ -1,8 +1,8 @@
 """Verifier plugins (V4, V5, L1): checks over a built file, discovered through entry points.
 
 A verifier is any object with a `name`, an `unavailable(options)` that says why it cannot run here (or `None`), and a
-`verify(path, options)` returning findings. Register it in the `texmodel.verifiers` entry-point group, as a callable
-that returns the verifier.
+`verify(path, options)` returning findings. Register it in the `texmodel_build.verifiers` entry-point group, as a
+callable that returns the verifier.
 
 The rule that matters is V5, **unconfirmable means failure**: a verifier that cannot run, a file that cannot be opened,
 a plugin that crashes, and a profile that selects nothing are all errors, never skips. The only way to excuse a file is
@@ -20,7 +20,7 @@ from typing import Any, Protocol
 from .diagnostics import Severity
 from .errors import ToolchainError
 
-GROUP = "texmodel.verifiers"
+GROUP = "texmodel_build.verifiers"
 
 
 @dataclasses.dataclass(frozen=True)
