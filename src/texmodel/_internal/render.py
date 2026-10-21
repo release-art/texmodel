@@ -5,11 +5,19 @@ Output is a pure function of the declaration: no timestamps, no hashes, no dict 
 
 import dataclasses
 import re
+from collections.abc import Mapping, Sequence
 
 from ..errors import DeclarationError
+from ..types import Colour, Length
 
 _HOLE = re.compile(r"##|#(?P<name>[A-Za-z_]\w*)|#(?P<digit>\d)")
 _CONTROL_WORD = re.compile(r"[A-Z][A-Za-z]*")
+_TOKEN = re.compile(r"%[^\n]*|\\(?P<word>[A-Za-z@]+)|\\.", re.DOTALL)  # comment | control word | control symbol
+
+
+def snake(name: str) -> str:
+    """`FactGap` -> `fact_gap`."""
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -29,6 +37,18 @@ class Spec:
     origin: str  # "fact.tex" or "inline", for the provenance comment
     qualname: str  # module.Class, for the provenance comment
     unused: tuple[str, ...] = ()
+
+
+@dataclasses.dataclass(frozen=True)
+class ValueSpec:
+    """What the renderer needs to know about one `Value`: its type is its default's type, which decides the TeX."""
+
+    name: str  # the class name
+    doc: str
+    default: Length | Colour | bool
+    kind: str  # "Length" | "Colour" | "Bool", for the provenance comment
+    qualname: str
+    needs: tuple[str, ...]  # packages it needs (M14)
 
 
 def check_name(name: str, what: str) -> None:
@@ -113,10 +133,50 @@ def render_command(prefix: str, spec: Spec) -> str:
     return "\n".join(lines)
 
 
-def render_package(name: str, version: str, date: str, description: str, stamp: str, commands: str) -> str:
+def colour_name(prefix: str, name: str) -> str:
+    """`Ink` -> `ac-ink`, `BrandRed` -> `ac-brand-red` (T5); a different namespace from control sequences."""
+    return f"{prefix}-{snake(name).replace('_', '-')}"
+
+
+def bool_names(prefix: str, name: str) -> tuple[str, ...]:
+    """The control sequences `\\newif\\if<prefix><name>` defines besides the conditional itself."""
+    return (f"{prefix}{name}true", f"{prefix}{name}false")
+
+
+def render_value(prefix: str, spec: ValueSpec) -> str:
+    d, control = spec.default, f"{prefix}{spec.name}"
+    if isinstance(d, Length):
+        decl = [f"\\newlength{{\\{control}}}", f"\\setlength{{\\{control}}}{{{d}}}"]
+    elif isinstance(d, bool):
+        decl = [f"\\newif\\if{control}", f"\\{control}{'true' if d else 'false'}"]
+    else:
+        decl = [f"\\definecolor{{{colour_name(prefix, spec.name)}}}{{{d.model}}}{{{d}}}"]
+    lines = [f"% {line}".rstrip() for line in spec.doc.splitlines()]
+    return "\n".join([*lines, f"% from {spec.qualname} (value: {spec.kind})", *decl])
+
+
+def check_references(prefix: str, spec: Spec, declared: Mapping[str, str]) -> None:
+    """Every `\\<prefix>Name` in a body is declared in the package (M8, G2); internals and other names are not ours."""
+    public = re.compile(rf"{prefix}[A-Z][A-Za-z]*")
+    for m in _TOKEN.finditer(spec.body):
+        word = m["word"]
+        if word and public.fullmatch(word) and word not in declared:
+            raise DeclarationError(
+                f"{spec.qualname}: body uses \\{word}, which no command or value of this package declares",
+                code="TM-M015",
+                path=spec.name,
+                hint="declare it, or fix the name",
+            )
+
+
+def render_package(
+    name: str, version: str, date: str, description: str, stamp: str, requires: Sequence[str], body: str
+) -> str:
+    packages = "".join(f"\\RequirePackage{{{p}}}\n" for p in requires)
     return (
         f"% {name}.sty -- {stamp}. Do not edit; run `texmodel build`.\n"
         "\\NeedsTeXFormat{LaTeX2e}\n"
         f"\\ProvidesPackage{{{name}}}[{date} v{version} {description or name}]\n"
-        f"\n{commands}\n"
+        f"{chr(10) + packages if packages else ''}"
+        f"\n{body}\n"
     )

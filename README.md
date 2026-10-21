@@ -20,11 +20,26 @@ This repository holds two packages, released in lockstep:
 
 ```python
 # acme_cards/__init__.py
-from texmodel.components import Command
+from texmodel.components import Command, Value
 from texmodel.package import Package
-from texmodel.types import Text
+from texmodel.types import CMYK, Bool, Colour, Length, Text
 
 pkg = Package("acme-cards", prefix="ac", version="1.4.0", date="2026/10/21")
+
+@pkg.value
+class FactGap(Value[Length]):
+    """Space under each fact."""
+    default = Length("2mm")
+
+@pkg.value
+class Ink(Value[Colour]):
+    """The text colour."""
+    default = CMYK(0, 0, 0, 0.95)
+
+@pkg.value
+class Compact(Value[Bool]):
+    """Tighten the layout."""
+    default = False
 
 @pkg.command
 class Fact(Command):
@@ -42,8 +57,14 @@ The body is TeX in a file named after the class, beside it (`acme_cards/fact.tex
 or two. `#text` is the argument named `text`:
 
 ```latex
-\par\noindent #text\par\vspace{2mm}
+\par\noindent{\color{ac-ink}#text}\par\vspace{\acFactGap}
+\ifacCompact\vspace{-\acFactGap}\fi
 ```
+
+A `Value[T]` needs no body: its type decides the declaration (`Length` -> `\newlength` + `\setlength`, `Colour` ->
+`\definecolor` named `ac-ink`, `Bool` -> `\newif`), and its `default` is an instance of `T`. Packages a value needs
+(`xcolor` for colours) are `\RequirePackage`d once, sorted. A body that names an undeclared `\acThing` is refused when
+`render()` / `texmodel check` runs (not at registration, since a body may name a component declared after it).
 
 ```toml
 # pyproject.toml
@@ -60,11 +81,16 @@ texmodel check     # exit 1 if a committed generated file is stale, missing or o
 
 ```latex
 % generated/acme-cards.sty (excerpt)
-% One short sentence under the title.
-% from acme_cards.Fact (body: fact.tex)
-\newcommand{\acFact}[1]{%
-\par\noindent #1\par\vspace{2mm}
-}
+\RequirePackage{xcolor}
+
+% Space under each fact.
+% from acme_cards.FactGap (value: Length)
+\newlength{\acFactGap}
+\setlength{\acFactGap}{2mm}
+
+% The text colour.
+% from acme_cards.Ink (value: Colour)
+\definecolor{ac-ink}{cmyk}{0,0,0,0.95}
 ```
 
 - **Deterministic**: no timestamps or hashes; the header records the generator version (`generated with texmodel X.Y.Z`),
@@ -72,7 +98,7 @@ texmodel check     # exit 1 if a committed generated file is stale, missing or o
 - **Checked early**: a bad declaration is refused when the class is defined, with a stable code (`TM-M0xx`) and the class
   named: more than one optional argument, a name that is not a TeX control word, a missing or ambiguous body, a `#name` that
   is not a field, an argument the body never uses, unbalanced braces, a name collision.
-- **Typed**: `Fact("A soft woof.")` type-checks; fields are `Text` or `Text | None`.
+- **Typed**: `Fact("A soft woof.")` type-checks; fields are `Text` or `Text | None`; values are `Length`, `CMYK`/`RGB`/`Gray` (components in [0, 1], no conversion between models) or `bool`.
 
 `texmodel.bundle` copies a manifest of files and refuses if any is missing (`stale` compares bytes, not timestamps);
 `texmodel.drift` is what `check` uses.

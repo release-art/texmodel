@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `Value[T]` components (plan M1a, T4, T5): `texmodel.components.Value[Length | Colour | Bool]` renders `\newlength` +
+  `\setlength`, `\definecolor` (`ac-ink`, `ac-brand-red`) or `\newif`; `texmodel.types` gains `Length`, `CMYK`, `RGB`, `Gray`,
+  `Colour`, `Bool`. `needs_packages` is data on the component and the `.sty` emits the sorted union as `\RequirePackage`
+  lines (M14). Bodies naming an undeclared `\<prefix>Name` are refused at `render()` / `texmodel check` (`TM-M015`);
+  new codes `TM-M012`-`TM-M017`. Output change: `Package.render()` emits `\RequirePackage` after `\ProvidesPackage` when
+  a component needs one; the fixture golden gains three values.
 - Rendering core (plan B, first slice): `texmodel.components.Command`, `texmodel.package.Package`, `texmodel.types.Text`.
   A command is a class; its fields are its arguments (an optional field is keyword-only and TeX's one optional argument),
   its body is TeX in `<name>.tex` beside it or inline. `Package.render()` writes a deterministic `.sty` with a provenance

@@ -9,6 +9,7 @@ import pathlib
 import shutil
 import tomllib
 
+import pikepdf
 import pytest
 
 from texmodel_build import diagnostics as d
@@ -143,3 +144,16 @@ def test_the_generated_sty_of_the_fixture_package_compiles(compiler, tmp_path):
     comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(golden,))
     result = comp.compile(doc(tmp_path, "uses_acme.tex"), tmp_path / "out")
     assert result.ok and result.pages == 1 and not result.errors
+
+
+def test_the_three_value_kinds_compile_and_the_cmyk_colour_reaches_the_pdf(compiler, tmp_path):
+    """A Length, a Colour and a Bool from the generated `.sty` are usable in a document (M1a); CMYK stays CMYK (T5)."""
+    golden = TEX.parent / "acme_cards" / "generated"
+    comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(golden,))
+    result = comp.compile(doc(tmp_path, "uses_values.tex"), tmp_path / "out")
+    assert result.ok and result.pages == 1 and not result.errors and result.pdf
+    with pikepdf.open(result.pdf) as pdf:
+        page = pdf.pages[0]
+        page.contents_coalesce()
+        content = page.Contents.read_bytes()  # pyright: ignore[reportAttributeAccessIssue]
+    assert b"0 0 0 0.95 k" in content

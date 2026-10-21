@@ -1,10 +1,31 @@
 """A small package used by the tests: the committed `generated/acme-cards.sty` is its golden output."""
 
-from texmodel.components import Command
+from texmodel.components import Command, Value
 from texmodel.package import Package
-from texmodel.types import Text
+from texmodel.types import CMYK, Bool, Colour, Length, Text
 
 pkg = Package("acme-cards", prefix="ac", version="1.4.0", date="2026/10/21", description="Cards for Acme")
+
+
+@pkg.value
+class FactGap(Value[Length]):
+    """Space under each fact."""
+
+    default = Length("2mm")
+
+
+@pkg.value
+class Ink(Value[Colour]):
+    """The text colour."""
+
+    default = CMYK(0, 0, 0, 0.95)
+
+
+@pkg.value
+class Compact(Value[Bool]):
+    """Tighten the layout."""
+
+    default = False
 
 
 @pkg.command

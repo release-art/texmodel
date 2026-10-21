@@ -2,6 +2,22 @@
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{acme-cards}[2026/10/21 v1.4.0 Cards for Acme]
 
+\RequirePackage{xcolor}
+
+% Space under each fact.
+% from acme_cards.FactGap (value: Length)
+\newlength{\acFactGap}
+\setlength{\acFactGap}{2mm}
+
+% The text colour.
+% from acme_cards.Ink (value: Colour)
+\definecolor{ac-ink}{cmyk}{0,0,0,0.95}
+
+% Tighten the layout.
+% from acme_cards.Compact (value: Bool)
+\newif\ifacCompact
+\acCompactfalse
+
 % The subject's name, set as the title.
 % from acme_cards.Name (body: name.tex)
 \newcommand{\acName}[1]{%
@@ -11,7 +27,8 @@
 % One short sentence under the title.
 % from acme_cards.Fact (body: fact.tex)
 \newcommand{\acFact}[1]{%
-\par\noindent #1\par\vspace{2mm}
+\par\noindent{\color{ac-ink}#1}\par\vspace{\acFactGap}
+\ifacCompact\vspace{-\acFactGap}\fi
 }
 
 % A labelled paragraph; the label prints as its heading.

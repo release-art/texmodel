@@ -135,4 +135,5 @@ dev = [
     "towncrier>=24.8",
     "mutmut>=3.0",
     "proof-pdf>=0.3.3",
+    "hypothesis>=6",
 ]
