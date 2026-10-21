@@ -8,6 +8,8 @@ import pytest
 from texmodel import compiler
 from texmodel._internal.spawn import Proc
 
+driver_proc = Proc
+
 PROBE_OK = (
     "Latexmk, John Collins, 15 June 2025. Version 4.87\n@@\n"
     "This is LuaHBTeX, Version 1.22.0 (TeX Live 2025)\n@@\nkpsewhich\ngs\n"
@@ -28,6 +30,7 @@ class FakeToolchain:
         self.image_missing = False
         self.latexmk_returncode: int | None = None  # overrides returncode for the clean call
         self.runs = 0
+        self.up_to_date = True  # like latexmk: outputs already current in the outdir mean no pass runs
 
     def __call__(self, argv, *, cwd, env, timeout):  # noqa: ANN001, ANN204
         argv = list(argv)
@@ -44,6 +47,9 @@ class FakeToolchain:
             return Proc(self.latexmk_returncode or 0, "", "")
         out = self._outdir(argv)
         stem = pathlib.Path(argv[-1]).stem
+        pdf_there = (out / f"{stem}.pdf").is_file() and (out / f"{stem}.log").is_file()
+        if self.up_to_date and pdf_there and self.log is not None and self.write_pdf and self.returncode == 0:
+            return driver_proc(0, f"Latexmk: All targets ({out / (stem + '.pdf')}) are up-to-date\n", "")
         self.runs += 1
         if self.timed_out:
             return Proc(-1, "partial", "", timed_out=True)

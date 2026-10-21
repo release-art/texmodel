@@ -130,3 +130,10 @@ def test_cache_hit_and_clean(compiler, tmp_path):
     assert not (tmp_path / "o1" / "ok.aux").exists() and (tmp_path / "o1" / "ok.pdf").exists()
     comp.clean(src, tmp_path / "o1", everything=True)
     assert not (tmp_path / "o1" / "ok.pdf").exists()
+
+
+def test_recompiling_an_unchanged_document_in_place_is_ok(compiler, tmp_path):
+    src = doc(tmp_path, "ok.tex")
+    first = compiler.compile(src, tmp_path / "out")
+    again = compiler.compile(src, tmp_path / "out")
+    assert first.ok and again.ok and again.passes == 0 and again.pdf == first.pdf

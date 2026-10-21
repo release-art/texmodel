@@ -18,6 +18,7 @@ from .engines import get_engine
 from .errors import DeclarationError, TexmodelError, ToolchainError
 from .result import CompileResult
 from .targets import build_targets
+from .verify import FileReport, Profile, expand_targets, registered, verify_files
 
 logger = logging.getLogger(__name__)
 
@@ -224,6 +225,69 @@ def build(
     for line in summary.lines():
         typer.echo(line)
     if not summary.ok:
+        raise typer.Exit(1)
+
+
+def _show_report(report: FileReport) -> None:
+    if report.exempt is not None:
+        typer.echo(f"exempt  {report.path}: {report.exempt}")
+        return
+    typer.echo(f"{'ok     ' if report.ok else 'FAILED'} {report.path}")
+    for f in report.findings:
+        page = f" (page {f.page})" if f.page is not None else ""
+        typer.echo(f"  {f.severity.value:7} [{f.check}]{page} {f.message}")
+
+
+@app.command()
+@_exits
+def verify(
+    paths: Annotated[list[pathlib.Path], typer.Argument(help="Files, or directories (every PDF beneath).")],
+    check: Annotated[
+        list[str] | None, typer.Option(help="Verifier to run. Repeatable. Default: the profile's, else all.")
+    ] = None,
+    profile: Annotated[str | None, typer.Option(help="A [tool.texmodel.profiles.<name>] table.")] = None,
+    exempt: Annotated[
+        list[str] | None, typer.Option(help="GLOB=reason: out of scope, listed with the reason, never fails.")
+    ] = None,
+    exclude: Annotated[
+        list[str] | None, typer.Option(help="Glob (relative to a directory argument) to drop silently.")
+    ] = None,
+    jobs: Annotated[int, typer.Option("--jobs", "-j")] = 1,
+    as_json: AsJson = False,
+) -> None:
+    """Run verifier plugins over built files. Anything that cannot be confirmed fails (exit 1)."""
+    config = _config()
+    if profile:
+        if config is None or profile not in config.profiles:
+            raise DeclarationError(
+                f"unknown profile {profile!r}", code="TM-D013", hint="add [tool.texmodel.profiles.<name>]"
+            )
+        chosen = config.profiles[profile]
+    else:
+        chosen = Profile()
+    if check:
+        chosen = dataclasses.replace(chosen, checks=tuple(check))
+    exemptions = {**(config.exempt if config else {}), **dict(e.split("=", 1) for e in exempt or [])}
+    reports = verify_files(expand_targets(paths, exclude or []), chosen, registered(), exemptions, jobs=jobs)
+    if as_json:
+        typer.echo(
+            json.dumps(
+                [
+                    {
+                        "path": str(r.path),
+                        "ok": r.ok,
+                        "exempt": r.exempt,
+                        "findings": [{**dataclasses.asdict(f), "severity": f.severity.value} for f in r.findings],
+                    }
+                    for r in reports
+                ],
+                indent=2,
+            )
+        )
+    else:
+        for report in reports:
+            _show_report(report)
+    if not all(r.ok for r in reports):
         raise typer.Exit(1)
 
 

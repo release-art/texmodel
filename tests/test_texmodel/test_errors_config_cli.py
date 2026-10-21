@@ -91,3 +91,16 @@ def test_a_bad_target_is_a_declaration_error(tmp_path):
     with pytest.raises(errors.DeclarationError) as info:
         load_config(f)
     assert info.value.code == "TM-D003"
+
+
+def test_profiles_and_exemptions_are_read_from_config(tmp_path):
+    f = tmp_path / "pyproject.toml"
+    f.write_text(
+        '[tool.texmodel]\nprefix = "a"\n[tool.texmodel.exempt]\n"*.pdf" = "why"\n'
+        '[tool.texmodel.profiles.print]\nchecks = ["proof-pdf"]\n'
+        "[tool.texmodel.profiles.print.options.proof-pdf]\nsafe_mm = 3\n"
+    )
+    config = load_config(f)
+    assert config.exempt == {"*.pdf": "why"}
+    assert config.profiles["print"].checks == ("proof-pdf",)
+    assert config.profiles["print"].options == {"proof-pdf": {"safe_mm": 3}}

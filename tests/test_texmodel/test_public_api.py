@@ -4,7 +4,10 @@ import pkgutil
 
 import texmodel
 
-PUBLIC = {"cli", "compiler", "config", "diagnostics", "engines", "errors", "result", "roots", "targets"}
+PUBLIC = {
+    "bundle", "cli", "compiler", "config", "diagnostics", "drift", "engines", "errors", "result", "roots", "targets",
+    "testkit", "verify",
+}  # fmt: skip
 
 
 def test_only_the_public_modules_sit_at_the_top_level():

@@ -28,6 +28,8 @@ from .result import CompileResult
 logger = logging.getLogger(__name__)
 
 _RUN = re.compile(r"Run number (\d+) of rule")
+# latexmk found nothing out of date and ran no pass: the outputs from an earlier run are current.
+_UP_TO_DATE = re.compile(r"All targets \(.*\) are up-to-date|Nothing to do")
 _UNSTABLE = re.compile(r"Maximum runs of .+ reached without getting stable files")
 _VERSION = re.compile(r"Version (\S+)")
 _INTERMEDIATE = ("aux", "log", "fls", "fdb_latexmk", "out", "toc", "lof", "lot", "bbl", "blg", "idx", "ind", "ilg",
@@ -69,6 +71,8 @@ class Compiler:
     engine: Engine = LUALATEX
     image: str | None = None
     roots: tuple[pathlib.Path, ...] = ()  # ordered asset roots, earlier wins (C4)
+    font_dirs: tuple[pathlib.Path, ...] = ()  # found by family name (OSFONTDIR), not by path
+    halt_on_error: bool = False  # stop at the first error; the default reports every one
     cache_dir: pathlib.Path | None = None  # compile cache (C12); None disables it
     font_cache: pathlib.Path | None = None  # persistent luaotfload cache; without it every container run rebuilds it
     max_passes: int = 5
@@ -142,7 +146,11 @@ class Compiler:
             env = sorted(self._env(self._locations(source, outdir)).items())
             args = [self.engine.name, str(self.max_passes), versions.latexmk_version, versions.engine_version, str(env)]
             key = compile_cache.cache_key(
-                source, self.roots, image_digest=info.digest if info else None, args=args, epoch=self.epoch
+                source,
+                (*self.roots, *self.font_dirs),
+                image_digest=info.digest if info else None,
+                args=args,
+                epoch=self.epoch,
             )
             if hit := compile_cache.load(self.cache_dir, key, outdir):
                 return hit
@@ -153,7 +161,8 @@ class Compiler:
         diagnostics: list[Diagnostic] = []
         stem = source.stem
         log, pdf = outdir / f"{stem}.log", outdir / f"{stem}.pdf"
-        fresh = log.is_file() and log.stat().st_mtime >= started - 1  # not a leftover from an earlier run
+        current = bool(_UP_TO_DATE.search(proc.stdout))
+        fresh = log.is_file() and (current or log.stat().st_mtime >= started - 1)  # not a leftover from a failed run
         text = log.read_text(encoding="utf-8", errors="replace") if fresh else ""
         diagnostics.extend(self.engine.parse_log(text))
         pages = page_count(text)
@@ -208,6 +217,7 @@ class Compiler:
             *self.engine.latexmk_args,
             "-interaction=nonstopmode",
             "-file-line-error",
+            *(["-halt-on-error"] if self.halt_on_error else []),
             "-outdir={out}",
             "-e",
             f"$max_repeat={int(self.max_passes)};",
@@ -236,18 +246,25 @@ class Compiler:
     def _locations(self, source: pathlib.Path, outdir: pathlib.Path) -> dict[str, str | list[str]]:
         if self.image:
             roots = [f"/work/roots/{i}" for i, _ in enumerate(self.roots)]
-            return {**_REFERENCE_PATHS, "roots": roots, "cache": _REFERENCE_PATHS["cache"] if self.font_cache else ""}
+            fonts = [f"/work/fonts/{i}" for i, _ in enumerate(self.font_dirs)]
+            return {
+                **_REFERENCE_PATHS,
+                "roots": roots,
+                "fonts": fonts,
+                "cache": _REFERENCE_PATHS["cache"] if self.font_cache else "",
+            }
         return {
             "src": str(source.parent),
             "out": str(outdir),
             "roots": [str(r.resolve()) for r in self.roots],
+            "fonts": [str(f.resolve()) for f in self.font_dirs],
             "cache": str(self._fonts) if self._fonts else "",
         }
 
     def _env(self, loc: dict[str, str | list[str]]) -> dict[str, str]:
-        roots = loc["roots"]
-        assert isinstance(roots, list)
-        return build_env(roots=roots, epoch=self.epoch, cache=str(loc["cache"]) or None)
+        roots, fonts = loc["roots"], loc["fonts"]
+        assert isinstance(roots, list) and isinstance(fonts, list)
+        return build_env(roots=roots, fonts=fonts, epoch=self.epoch, cache=str(loc["cache"]) or None)
 
     def _host_env(self) -> dict[str, str]:
         return {k: os.environ[k] for k in ("PATH", "HOME", "DOCKER_HOST", "DOCKER_CONFIG") if k in os.environ}
@@ -266,6 +283,9 @@ class Compiler:
         name = f"texmodel-{uuid.uuid4().hex[:12]}"
         mounts = [(source.parent, loc["src"], True), (outdir, loc["out"], False)]
         mounts += [(r.resolve(), p, True) for r, p in zip(self.roots, roots, strict=True)]
+        fonts = loc["fonts"]
+        assert isinstance(fonts, list)
+        mounts += [(f.resolve(), p, True) for f, p in zip(self.font_dirs, fonts, strict=True)]
         if self._fonts:
             mounts.append((self._fonts, loc["cache"], False))
         docker = self._docker(name, mounts, env, tool)

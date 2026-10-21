@@ -7,6 +7,7 @@ from collections.abc import Sequence
 def build_env(
     *,
     roots: Sequence[str],
+    fonts: Sequence[str] = (),
     epoch: int | None = None,
     cache: str | None = None,
     inherit: Sequence[str] = (),
@@ -32,6 +33,8 @@ def build_env(
     }
     if rooted == "":
         del env["OPENTYPEFONTS"], env["TTFONTS"]
+    if fonts:
+        env["OSFONTDIR"] = os.pathsep.join(fonts)  # families a document names but never paths
     if cache:
         env["TEXMFVAR"] = env["TEXMFCACHE"] = cache
     if epoch is not None:

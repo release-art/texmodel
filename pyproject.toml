@@ -16,8 +16,14 @@ dependencies = [
     "typer>=0.27.3",
 ]
 
+[project.optional-dependencies]
+proof-pdf = ["proof-pdf>=0.3.3"]
+
 [project.scripts]
 texmodel = "texmodel.cli:app"
+
+[project.entry-points."texmodel.verifiers"]
+proof-pdf = "texmodel._internal.proofpdf:ProofPdf"
 
 [project.urls]
 Homepage = "https://github.com/release-art/texmodel"
@@ -118,4 +124,5 @@ dev = [
     "pip-audit>=2.7",
     "towncrier>=24.8",
     "mutmut>=3.0",
+    "proof-pdf>=0.3.3",
 ]

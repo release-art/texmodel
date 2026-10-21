@@ -258,3 +258,26 @@ def test_probes_are_measurements_in_the_log(toolchain, src, tmp_path):
     toolchain.log = "texmodel:probe:fact.height=11.2mm\n" + OK_LOG
     result = Compiler().compile(src, tmp_path / "out")
     assert result.ok and result.probes == {"fact.height": "11.2mm"} and result.probe("fact.height") == "11.2mm"
+
+
+def test_font_dirs_become_osfontdir_and_halt_on_error_a_flag(toolchain, src, tmp_path):
+    fonts = tmp_path / "fonts"
+    fonts.mkdir()
+    local = Compiler(font_dirs=(fonts,), halt_on_error=True)
+    local.compile(src, tmp_path / "o1")
+    argv = latexmk_call(toolchain)
+    assert "-halt-on-error" in argv
+    boxed = Compiler(image="img", font_dirs=(fonts,)).compile(src, tmp_path / "o2")
+    assert boxed.ok
+    call = [c for c in toolchain.calls if "-interaction=nonstopmode" in c][-1]
+    assert "OSFONTDIR=/work/fonts/0" in " ".join(call) and "-halt-on-error" not in call
+    assert any("target=/work/fonts/0" in a and a.endswith("readonly") for a in call)
+
+
+def test_recompiling_into_an_up_to_date_outdir_is_still_ok(toolchain, src, tmp_path):
+    comp = Compiler()
+    first = comp.compile(src, tmp_path / "out")
+    again = comp.compile(src, tmp_path / "out")  # latexmk runs no pass: nothing changed
+    assert toolchain.runs == 1 and again.passes == 0
+    assert again.ok and again.pdf == first.pdf and again.pages == first.pages
+    assert again.diagnostics == first.diagnostics
