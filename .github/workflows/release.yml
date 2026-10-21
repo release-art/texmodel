@@ -29,7 +29,7 @@ jobs:
           pdm build
       # The Sigstore action pip-installs its own tooling into whatever `python` is on PATH; its dependency pydantic-core
       # has no 3.15 wheels yet and fails to build from source. The wheel we ship is already built, so sign under 3.13.
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Sign artifacts with Sigstore
