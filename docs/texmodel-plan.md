@@ -356,8 +356,9 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   - Open: font set and ICC profiles in the images are unconfirmed (the image has ~100
     fonts, no system ICC directory); the framework ships its own open-licence test
     fonts and ICC profile as assets rather than relying on the image's.
-  - Open: the `lualatex-python` AGPL label vs the project's own licence — confirm
-    they are compatible before the framework is distributed.
+  - Licence: texmodel is MIT (decided 2026-10-21). The image's AGPL label covers the
+    image (Ghostscript), not the Python package, which only runs the image as a separate
+    process; confirm that reading before the framework is distributed.
 - C9 **Asset licence classes** (`open | embed-only | no-redistribute | no-service`,
   fixed enum): `bundle` refuses `no-redistribute`; a compile context
   (`internal | service`) refuses `no-service` assets.
@@ -753,7 +754,7 @@ texmodel check --tex         # compile suite + verifiers in the reference contai
   1 s; building a 100-component package under 2 s; schema export for it under 1 s;
   `texmodel --help` under 300 ms (lazy imports). Budgets are revisited, not silently
   loosened.
-- W3 **Platforms.** Python 3.12 to the newest release; TeX-less layers on Linux and
+- W3 **Platforms.** Python 3.15 only (decided 2026-10-21, as the reference images ship 3.15); TeX-less layers on Linux and
   macOS (Windows best-effort); compiling is via the reference container on any host.
 - W4 **Documentation (Diataxis).** A tutorial (first package in fifteen minutes), how-to
   guides (add a component; adopt a hand-written class; cut a release; write a verifier
@@ -826,7 +827,7 @@ texmodel-print/   geometry, conformance, print verifiers, policy presets
 ```
 
 An import-linter contract keeps `core/types/rules` free of I/O; `engine` is the only
-module that spawns processes. Python ≥ 3.12.
+module that spawns processes. Python 3.15 (W3).
 
 ---
 
@@ -927,7 +928,9 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | Staged phasing with Gate A and Gate B | decided (proposed 2026-10-21) |
 | Lua file access from `\directlua` inside the sandbox | open — verify in B2 |
 | Mutation-testing tool and score floor | open — pick in A0 |
-| Image font/ICC content, and licence compatibility with the `lualatex-python` AGPL label | open — check in A1 |
+| Project licence: MIT | decided 2026-10-21 |
+| Python 3.15 only | decided 2026-10-21 |
+| Image font/ICC content, and the MIT-vs-AGPL-image reading (C8) | open — check in A1 |
 | Snapshot library vs own `bless` | open — evaluate in C3 |
 | Exact list of built-in rule codes | open — B0 |
 

@@ -12,7 +12,12 @@ classifiers = [
     "Typing :: Typed",
 ]
 requires-python = ">=3.15,<3.16"
-dependencies = []
+dependencies = [
+    "typer>=0.27.3",
+]
+
+[project.scripts]
+texmodel = "texmodel.cli:app"
 
 [project.urls]
 Homepage = "https://github.com/release-art/texmodel"
@@ -39,7 +44,21 @@ forced-separate = ["tests"]
 
 [tool.pyright]
 include = ["src", "tests"]
+strict = ["src"]
 pythonVersion = "3.15"
+
+[tool.texmodel]
+prefix = "tm"
+
+[tool.importlinter]
+root_package = "texmodel"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "only cli prints and formats"
+type = "forbidden"
+source_modules = ["texmodel.errors", "texmodel.config"]
+forbidden_modules = ["typer", "texmodel.cli"]
 
 [tool.pdm]
 distribution = true
@@ -59,7 +78,7 @@ requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
 [tool.pytest.ini_options]
-addopts = "-v -l --color=yes --cov=texmodel --cov-report term-missing --no-cov-on-fail"
+addopts = "-v -l --color=yes --cov=texmodel --cov-report term-missing --cov-fail-under=100 --no-cov-on-fail"
 pythonpath = ["src"]
 testpaths = ["tests"]
 timeout = 15
@@ -72,4 +91,6 @@ dev = [
     "pytest-timeout>=2.4.0",
     "ruff>=0.17.1",
     "pyright>=1.1.414",
+    "import-linter>=2.0",
+    "pip-audit>=2.7",
 ]

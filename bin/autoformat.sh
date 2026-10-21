@@ -10,3 +10,4 @@ DIRS=(
 pdm run ruff format "${DIRS[@]}"
 pdm run ruff check --fix  "${DIRS[@]}"
 pdm run pyright
+pdm run lint-imports
