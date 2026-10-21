@@ -340,12 +340,14 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
     reads the final `.log` and `.fdb_latexmk` itself for typed diagnostics and the
     pass count. No second rerun implementation. `doctor` fails clearly if `latexmk`
     is missing, and reports its version; `CompileResult` records that version too.
-  - Install route for the image build (Debian base, same as the owner's): try
-    `apt-get install --no-install-recommends latexmk` first, after
-    `apt-get install --dry-run` confirms it pulls in no Debian TeX packages (a second
-    TeX tree on `PATH` would shadow `/opt/texlive`). If it does, fall back to
-    `tlmgr --repository <2025 historic mirror> install latexmk` (TeX Live 2025 is
-    frozen, so a plain `tlmgr install` against the live repository does not work).
+  - Install route (confirmed 2026-10-21 against `/Users/ilo/Devel/Release.art/proofpress`,
+    which builds and releases the images): `latexmk` is a TeX Live package, absent from
+    both images (`tlmgr info latexmk` says not installed). Add `latexmk` to
+    `docker/texlive-packages.txt` there; the build already installs that list from the
+    frozen 2025 `tlnet-final` mirror, so no apt route and no second TeX tree. Perl is
+    already installed for tlmgr. Add a `command -v latexmk` check to `bin/docker/smoke.sh`.
+    texmodel does not build images; this is a change in the proofpress repo, then a
+    released tag that texmodel pins.
   - Tags are pinned by exact version in `[tool.texmodel]` (`image = "releaseart/lualatex-python:0.3.2"`);
     `latest` is never used in CI. Every `CompileResult` records the image tag, its
     `org.opencontainers.image.revision` label, and TeX Live/engine versions.
@@ -356,9 +358,10 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   - Open: font set and ICC profiles in the images are unconfirmed (the image has ~100
     fonts, no system ICC directory); the framework ships its own open-licence test
     fonts and ICC profile as assets rather than relying on the image's.
-  - Licence: texmodel is MIT (decided 2026-10-21). The image's AGPL label covers the
-    image (Ghostscript), not the Python package, which only runs the image as a separate
-    process; confirm that reading before the framework is distributed.
+  - Licence: texmodel is MIT (decided 2026-10-21). Only `lualatex-python` and `full`
+    carry AGPL (they redistribute Ghostscript); `releaseart/lualatex` is LPPL/GPL only.
+    texmodel runs the image as a separate process and ships none of it, so its own
+    licence is unaffected; confirm that reading before the framework is distributed.
 - C9 **Asset licence classes** (`open | embed-only | no-redistribute | no-service`,
   fixed enum): `bundle` refuses `no-redistribute`; a compile context
   (`internal | service`) refuses `no-service` assets.
@@ -840,7 +843,7 @@ the work is staged and each gate is a real go/no-go, not a formality.
 
 | Step | Deliverable | Covers | Exit test |
 |---|---|---|---|
-| A0 | repo, standards, API skeleton, errors, logging, `[tool.texmodel]`, CLI shell, `doctor` | I, E, W, U0 | gates green; `doctor` probes the image |
+| A0 | repo, standards, API skeleton, errors, logging, `[tool.texmodel]`, CLI shell, `doctor` | I, E, W, U0 | gates green; `doctor` probes the image. **Done 2026-10-21** except the image probe, which moves to A1 (only `engine` may spawn processes) |
 | A1 | engine: `latexmk` driver, container integration, typed diagnostics, hermetic env, reproducible mode, build cache, `clean` | C1-C4, C6-C8, C10, C12 | compile suite green in CI; two builds byte-identical |
 | A2 | verifier plugin API + built-ins, drift `check`, `bundle`/`install`, entry-point plugins | V4, V5, G5, G6, L1 | unconfirmable ⇒ fail demonstrated |
 
