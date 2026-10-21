@@ -44,3 +44,11 @@
 \newcommand{\acRule}{%
 \par\noindent\rule{\linewidth}{0.4pt}\par
 }
+
+% The back face of a card.
+% from acme_cards.CardBack (body: card_back.begin.tex + card_back.end.tex)
+\newenvironment{acCardBack}{%
+\begin{minipage}[t]{\linewidth}
+}{%
+\end{minipage}
+}

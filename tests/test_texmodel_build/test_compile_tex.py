@@ -157,3 +157,24 @@ def test_the_three_value_kinds_compile_and_the_cmyk_colour_reaches_the_pdf(compi
         page.contents_coalesce()
         content = page.Contents.read_bytes()  # pyright: ignore[reportAttributeAccessIssue]
     assert b"0 0 0 0.95 k" in content
+
+
+def test_a_generated_document_with_hostile_text_compiles(compiler, tmp_path, monkeypatch):
+    """The whole path: `Package.document()` escapes the TeX specials, so awkward text does not break the build."""
+    monkeypatch.syspath_prepend(str(TEX.parent))
+    import acme_cards  # pyright: ignore[reportMissingImports]
+
+    hostile = "50% of $5 & #1 _x_ {y} ~ ^ \\ \\input{nothing} ] }"
+    card = acme_cards.CardBack(
+        acme_cards.Name("Golden Retriever"),
+        acme_cards.Fact(hostile),
+        acme_cards.Fact("Friendly and loyal."),
+        acme_cards.Slot(hostile, label="a]b"),
+    )
+    src = tmp_path / "src" / "card.tex"
+    src.parent.mkdir()
+    src.write_text(acme_cards.pkg.document(card, settings=[acme_cards.Compact(True)], options=["a4paper"]))
+    golden = TEX.parent / "acme_cards" / "generated"
+    comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(golden,))
+    result = comp.compile(src, tmp_path / "out")
+    assert result.ok and result.pages == 1 and not result.errors

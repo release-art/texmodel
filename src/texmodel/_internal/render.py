@@ -8,7 +8,7 @@ import re
 from collections.abc import Mapping, Sequence
 
 from ..errors import DeclarationError
-from ..types import Colour, Length
+from ..types import Colour, Length, Raw, balanced, escape
 
 _HOLE = re.compile(r"##|#(?P<name>[A-Za-z_]\w*)|#(?P<digit>\d)")
 _CONTROL_WORD = re.compile(r"[A-Z][A-Za-z]*")
@@ -24,6 +24,7 @@ def snake(name: str) -> str:
 class Arg:
     name: str
     optional: bool = False  # TeX's one optional argument: always first, empty when absent
+    raw: bool = False  # a `Raw` field passes through; a `Text` field is escaped (T3)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -36,6 +37,20 @@ class Spec:
     body: str
     origin: str  # "fact.tex" or "inline", for the provenance comment
     qualname: str  # module.Class, for the provenance comment
+    unused: tuple[str, ...] = ()
+
+
+@dataclasses.dataclass(frozen=True)
+class EnvSpec:
+    """What the renderer needs to know about one environment: two bodies, begin and end."""
+
+    name: str
+    doc: str
+    args: tuple[Arg, ...]
+    begin: str
+    end: str
+    origin: str  # "card_back.begin.tex + card_back.end.tex" or "inline", for the provenance comment
+    qualname: str
     unused: tuple[str, ...] = ()
 
 
@@ -66,7 +81,7 @@ def tex_arguments(args: tuple[Arg, ...]) -> tuple[Arg, ...]:
     return (*(a for a in args if a.optional), *(a for a in args if not a.optional))
 
 
-def rewrite_body(spec: Spec) -> str:
+def rewrite_body(spec: Spec | EnvSpec, body: str) -> str:
     """Replace `#name` with its `#k`; `##` stays; unknown names, `#1` and unused arguments are refused."""
     position = {a.name: i for i, a in enumerate(tex_arguments(spec.args), start=1)}
     used: set[str] = set()
@@ -89,7 +104,7 @@ def rewrite_body(spec: Spec) -> str:
         used.add(m["name"])
         return f"#{position[m['name']]}"
 
-    text = _HOLE.sub(sub, spec.body)
+    text = _HOLE.sub(sub, body)
     if unused := sorted(set(position) - used - set(spec.unused)):
         raise DeclarationError(
             f"{spec.qualname}: body never uses {unused}; use them, or list them in unused=(...)",
@@ -99,38 +114,66 @@ def rewrite_body(spec: Spec) -> str:
     return text
 
 
-def check_braces(spec: Spec) -> None:
-    """Balanced braces, ignoring escapes and comments: an unbalanced body would swallow the rest of the file."""
-    depth = 0
-    i, text = 0, spec.body
-    while i < len(text):
-        c = text[i]
-        if c == "\\":
-            i += 1  # the escaped character is not a brace
-        elif c == "%":
-            while i < len(text) and text[i] != "\n":
-                i += 1
-        elif c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-            if depth < 0:
-                break
-        i += 1
-    if depth != 0:
+def check_braces(spec: Spec | EnvSpec, *bodies: str) -> None:
+    """Balanced braces: an unbalanced body would swallow the rest of the file."""
+    if not all(balanced(b) for b in bodies):
         raise DeclarationError(f"{spec.qualname}: unbalanced braces in the body", code="TM-M011", path=spec.name)
 
 
+def signature(args: tuple[Arg, ...]) -> str:
+    n = len(args)
+    return f"[{n}]" + ("[]" if any(a.optional for a in args) else "") if n else ""
+
+
+def _comment(doc: str) -> list[str]:
+    return [f"% {line}".rstrip() for line in doc.splitlines()]
+
+
 def render_command(prefix: str, spec: Spec) -> str:
-    check_braces(spec)
-    body = rewrite_body(spec).replace("\r\n", "\n").rstrip()
-    n = len(spec.args)
-    signature = f"[{n}]" + ("[]" if any(a.optional for a in spec.args) else "") if n else ""
-    lines = [f"% {line}".rstrip() for line in spec.doc.splitlines()]
-    lines += [f"% from {spec.qualname} (body: {spec.origin})", f"\\newcommand{{\\{prefix}{spec.name}}}{signature}{{%"]
-    lines += body.splitlines()
-    lines.append("}")
+    check_braces(spec, spec.body)
+    body = rewrite_body(spec, spec.body).replace("\r\n", "\n").rstrip()
+    lines = _comment(spec.doc)
+    lines += [
+        f"% from {spec.qualname} (body: {spec.origin})",
+        f"\\newcommand{{\\{prefix}{spec.name}}}{signature(spec.args)}{{%",
+    ]
+    return "\n".join([*lines, *body.splitlines(), "}"])
+
+
+def render_environment(prefix: str, spec: EnvSpec) -> str:
+    """`\\newenvironment`: arguments belong to the begin body; the end body runs after them and cannot read them."""
+    check_braces(spec, spec.begin, spec.end)
+    if hole := _HOLE.search(spec.end.replace("##", "")):
+        raise DeclarationError(
+            f"{spec.qualname}: the end body uses {hole.group(0)}; TeX gives it no arguments; use them in begin",
+            code="TM-M018",
+            path=spec.name,
+        )
+    begin = rewrite_body(spec, spec.begin).replace("\r\n", "\n").rstrip()
+    end = spec.end.replace("\r\n", "\n").rstrip()
+    lines = _comment(spec.doc)
+    lines += [
+        f"% from {spec.qualname} (body: {spec.origin})",
+        f"\\newenvironment{{{prefix}{spec.name}}}{signature(spec.args)}{{%",
+        *begin.splitlines(),
+        "}{%",
+        *end.splitlines(),
+        "}",
+    ]
     return "\n".join(lines)
+
+
+def argument(arg: Arg, value: object) -> str:
+    """One call argument. `Text` is escaped, `Raw` passes through; a `]` in the optional one is wrapped (T3)."""
+    text = value.tex if isinstance(value, Raw) else escape(str(value))
+    if not arg.optional:
+        return f"{{{text}}}"
+    return f"[{{{text}}}]" if "]" in text else f"[{text}]"
+
+
+def arguments(args: tuple[Arg, ...], values: Mapping[str, object]) -> str:
+    """`[Sound]{A soft woof.}`: the optional argument first, and left out when it is `None`."""
+    return "".join(argument(a, values[a.name]) for a in tex_arguments(args) if values[a.name] is not None)
 
 
 def colour_name(prefix: str, name: str) -> str:
@@ -143,22 +186,34 @@ def bool_names(prefix: str, name: str) -> tuple[str, ...]:
     return (f"{prefix}{name}true", f"{prefix}{name}false")
 
 
+def setting(prefix: str, name: str, value: Length | Colour | bool) -> str:
+    """The line that gives a value its content: the default in the `.sty`, a document's `settings=` in the `.tex`."""
+    control = f"{prefix}{name}"
+    if isinstance(value, Length):
+        return f"\\setlength{{\\{control}}}{{{value}}}"
+    if isinstance(value, bool):
+        return f"\\{control}{'true' if value else 'false'}"
+    return f"\\definecolor{{{colour_name(prefix, name)}}}{{{value.model}}}{{{value}}}"
+
+
 def render_value(prefix: str, spec: ValueSpec) -> str:
     d, control = spec.default, f"{prefix}{spec.name}"
-    if isinstance(d, Length):
-        decl = [f"\\newlength{{\\{control}}}", f"\\setlength{{\\{control}}}{{{d}}}"]
-    elif isinstance(d, bool):
-        decl = [f"\\newif\\if{control}", f"\\{control}{'true' if d else 'false'}"]
-    else:
-        decl = [f"\\definecolor{{{colour_name(prefix, spec.name)}}}{{{d.model}}}{{{d}}}"]
-    lines = [f"% {line}".rstrip() for line in spec.doc.splitlines()]
-    return "\n".join([*lines, f"% from {spec.qualname} (value: {spec.kind})", *decl])
+    decl = (
+        [f"\\newlength{{\\{control}}}"]
+        if isinstance(d, Length)
+        else [f"\\newif\\if{control}"]
+        if isinstance(d, bool)
+        else []
+    )
+    return "\n".join(
+        [*_comment(spec.doc), f"% from {spec.qualname} (value: {spec.kind})", *decl, setting(prefix, spec.name, d)]
+    )
 
 
-def check_references(prefix: str, spec: Spec, declared: Mapping[str, str]) -> None:
+def check_references(prefix: str, spec: Spec | EnvSpec, text: str, declared: Mapping[str, str]) -> None:
     """Every `\\<prefix>Name` in a body is declared in the package (M8, G2); internals and other names are not ours."""
     public = re.compile(rf"{prefix}[A-Z][A-Za-z]*")
-    for m in _TOKEN.finditer(spec.body):
+    for m in _TOKEN.finditer(text):
         word = m["word"]
         if word and public.fullmatch(word) and word not in declared:
             raise DeclarationError(

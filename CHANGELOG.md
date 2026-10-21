@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `texmodel render module:attr [-o out.tex]` writes a document (a `str` from `Package.document()`, or a function returning
+  one). An invalid document prints every violation with its code and path and exits 2 (`TM-D024` for a non-document).
+- Documents (plan T3, M1a, M4, D1, D1a, D2, E2): `Package.document(*nodes, settings=, options=)` renders a complete `.tex`;
+  `Command` and `Environment` instances `render()` and `validate()`. `Text` fields are escaped (`texmodel.types.escape`);
+  `Raw` is a distinct, brace-balanced type for TeX that must pass through. `Environment` renders `\newenvironment` from
+  `<name>.begin.tex` / `<name>.end.tex` (or `begin=` / `end=`); its `children = [Name, Fact * (2, 3), ...]` grammar is checked
+  by `validate()`, which returns every `Violation` with a path (`TM-C001`-`C003`, `C006`, `C007`) and is raised as an
+  `ExceptionGroup` by rendering. `repr()` of a node is the constructor expression. New codes `TM-M018`-`M020`, `TM-P004`.
+  Output change: the fixture golden gains an environment.
 - `Value[T]` components (plan M1a, T4, T5): `texmodel.components.Value[Length | Colour | Bool]` renders `\newlength` +
   `\setlength`, `\definecolor` (`ac-ink`, `ac-brand-red`) or `\newif`; `texmodel.types` gains `Length`, `CMYK`, `RGB`, `Gray`,
   `Colour`, `Bool`. `needs_packages` is data on the component and the `.sty` emits the sorted union as `\RequirePackage`

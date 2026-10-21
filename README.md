@@ -20,7 +20,7 @@ This repository holds two packages, released in lockstep:
 
 ```python
 # acme_cards/__init__.py
-from texmodel.components import Command, Value
+from texmodel.components import Command, Environment, Value
 from texmodel.package import Package
 from texmodel.types import CMYK, Bool, Colour, Length, Text
 
@@ -51,6 +51,11 @@ class Slot(Command):
     """A labelled paragraph; the label prints as its heading."""
     text: Text
     label: Text | None = None      # optional: keyword-only, TeX's one optional argument
+
+@pkg.environment
+class CardBack(Environment):
+    """The back face of a card."""
+    children = [Name, Fact * (2, 3), Slot * (0, 3)]   # order and counts; `* "?"`, `* "*"`, `* "+"` also work
 ```
 
 The body is TeX in a file named after the class, beside it (`acme_cards/fact.tex`), or an inline `body="..."` for a line
@@ -66,6 +71,18 @@ A `Value[T]` needs no body: its type decides the declaration (`Length` -> `\newl
 (`xcolor` for colours) are `\RequirePackage`d once, sorted. A body that names an undeclared `\acThing` is refused when
 `render()` / `texmodel check` runs (not at registration, since a body may name a component declared after it).
 
+An environment's bodies are `card_back.begin.tex` and `card_back.end.tex` (or `begin=` / `end=`). A document is plain
+Python; `Text` fields are escaped, a `Raw` field passes TeX through, and everything wrong is reported at once:
+
+```python
+tex = pkg.document(
+    CardBack(Name("Rex"), Fact("Friendly & loyal."), Fact("50% of $5")),
+    settings=[FactGap(Length("3mm"))],       # values for the whole document
+    options=["a4paper"],
+)
+CardBack(Fact("x")).validate()   # [Violation(TM-C002 ...), Violation(TM-C001 path='CardBack/Fact[0]' ...)]
+```
+
 ```toml
 # pyproject.toml
 [tool.texmodel]
@@ -76,6 +93,7 @@ output = "generated"
 
 ```zsh
 texmodel build     # writes generated/acme-cards.sty
+texmodel render docs:card   # writes card.tex from `card = pkg.document(...)` (or a function returning one); -o to choose
 texmodel check     # exit 1 if a committed generated file is stale, missing or orphaned
 ```
 
@@ -98,7 +116,7 @@ texmodel check     # exit 1 if a committed generated file is stale, missing or o
 - **Checked early**: a bad declaration is refused when the class is defined, with a stable code (`TM-M0xx`) and the class
   named: more than one optional argument, a name that is not a TeX control word, a missing or ambiguous body, a `#name` that
   is not a field, an argument the body never uses, unbalanced braces, a name collision.
-- **Typed**: `Fact("A soft woof.")` type-checks; fields are `Text` or `Text | None`; values are `Length`, `CMYK`/`RGB`/`Gray` (components in [0, 1], no conversion between models) or `bool`.
+- **Typed**: `Fact("A soft woof.")` type-checks; fields are `Text`, `Raw` or either `| None`; values are `Length`, `CMYK`/`RGB`/`Gray` (components in [0, 1], no conversion between models) or `bool`.
 
 `texmodel.bundle` copies a manifest of files and refuses if any is missing (`stale` compares bytes, not timestamps);
 `texmodel.drift` is what `check` uses.

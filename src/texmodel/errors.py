@@ -1,5 +1,7 @@
 """The error hierarchy (E1): every error carries a stable code, a path into the Doc and a fix hint."""
 
+import dataclasses
+
 
 class TexmodelError(Exception):
     """Base of every error texmodel (and texmodel-build) raises."""
@@ -21,3 +23,16 @@ class ValidationError(TexmodelError):
 
 class MigrationError(TexmodelError):
     """A spec cannot be migrated to the current schema."""
+
+
+@dataclasses.dataclass(frozen=True)
+class Violation:
+    """One broken rule in a Doc (D5, E2): `validate()` returns them all; raising APIs raise an `ExceptionGroup`."""
+
+    code: str
+    path: str
+    message: str
+    hint: str = ""
+
+    def error(self) -> ValidationError:
+        return ValidationError(self.message, code=self.code, path=self.path, hint=self.hint)

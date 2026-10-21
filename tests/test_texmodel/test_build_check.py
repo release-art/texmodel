@@ -69,3 +69,44 @@ def test_bad_package_declarations_exit_2_with_a_code(project, package, code):
     for command in ("build", "check"):
         result = runner.invoke(cli.app, [command])
         assert result.exit_code == 2 and code in result.stderr
+
+
+def _module(project, text):
+    (project / "mydocs.py").write_text("from acme_cards import *\n" + text)
+
+
+@pytest.fixture
+def docs(project):
+    yield project
+    import sys
+
+    sys.modules.pop("mydocs", None)
+
+
+def test_render_writes_a_document_from_a_str_or_a_function(docs):
+    _module(
+        docs,
+        "card = pkg.document(CardBack(Name('Rex'), Fact('50% of $5'), Fact('b')))\n"
+        "def other():\n    return pkg.document(Fact('x'))\n",
+    )
+    first = runner.invoke(cli.app, ["render", "mydocs:card"])
+    assert first.exit_code == 0 and first.stdout.strip() == "wrote card.tex"
+    assert "\\acFact{50\\% of \\$5}" in (docs / "card.tex").read_text()
+    second = runner.invoke(cli.app, ["render", "mydocs:other", "-o", "out/deep/o.tex"])
+    assert second.exit_code == 0 and "\\acFact{x}" in (docs / "out" / "deep" / "o.tex").read_text()
+
+
+def test_render_reports_every_violation_and_writes_nothing(docs):
+    _module(docs, "def bad():\n    return pkg.document(CardBack(), Name(1), options=['a]b'])\n")
+    result = runner.invoke(cli.app, ["render", "mydocs:bad"])
+    assert result.exit_code == 2 and not (docs / "bad.tex").exists()
+    err = result.stderr
+    assert err.count("error TM-") == 4 and "TM-C002 at CardBack" in err and "TM-C006" in err and "hint:" in err
+
+
+def test_render_refuses_what_is_not_a_document(docs):
+    _module(docs, "number = 3\ndef boom():\n    raise ExceptionGroup('x', [ValueError('not ours')])\n")
+    for spec, code in (("mydocs:number", "TM-D024"), ("mydocs:missing", "TM-D021"), ("nocolon", "TM-D020")):
+        result = runner.invoke(cli.app, ["render", spec])
+        assert result.exit_code == 2 and code in result.stderr
+    assert runner.invoke(cli.app, ["render", "mydocs:boom"]).exit_code != 0  # a foreign error group is not swallowed

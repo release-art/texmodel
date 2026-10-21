@@ -5,14 +5,14 @@ import importlib.metadata
 import logging
 import pathlib
 from collections.abc import Callable
-from typing import Any
+from typing import Annotated, Any
 
 import typer
 
-from ._internal.loader import load_package
+from ._internal.loader import load_document, load_package
 from .config import Config, load_config
 from .drift import check_drift
-from .errors import DeclarationError, TexmodelError
+from .errors import DeclarationError, TexmodelError, ValidationError
 from .package import Package, generator_version
 
 app = typer.Typer(pretty_exceptions_enable=False, help="Typed models for LaTeX.", no_args_is_help=True)
@@ -38,13 +38,24 @@ def version() -> None:
 def _exits(fn: Callable[..., None]) -> Callable[..., None]:
     """Errors print once, to stderr, with their code and hint; exit 2."""
 
+    def report(exc: TexmodelError) -> None:
+        where = f" at {exc.path}" if exc.path and isinstance(exc, ValidationError) else ""
+        typer.echo(f"error {exc.code}{where}: {exc}" + (f"\n  hint: {exc.hint}" if exc.hint else ""), err=True)
+
     @functools.wraps(fn)
     def wrapper(*args: Any, **kwargs: Any) -> None:
         try:
             fn(*args, **kwargs)
         except TexmodelError as exc:
-            typer.echo(f"error {exc.code}: {exc}" + (f"\n  hint: {exc.hint}" if exc.hint else ""), err=True)
+            report(exc)
             raise typer.Exit(2) from exc
+        except ExceptionGroup as group:  # an invalid document: every violation, not the first (E2)
+            problems = [e for e in group.exceptions if isinstance(e, TexmodelError)]
+            if len(problems) != len(group.exceptions):
+                raise
+            for exc in problems:
+                report(exc)
+            raise typer.Exit(2) from group
 
     return wrapper
 
@@ -69,6 +80,20 @@ def build() -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
         typer.echo(f"wrote {path.relative_to(root)}")
+
+
+@app.command()
+@_exits
+def render(
+    document: Annotated[str, typer.Argument(help="module:attribute: a str from Package.document(), or a function.")],
+    output: Annotated[pathlib.Path | None, typer.Option("--output", "-o", help="Default <attribute>.tex.")] = None,
+) -> None:
+    """Write a document to a .tex file. An invalid document reports every violation and exits 2."""
+    target = output or pathlib.Path(f"{document.partition(':')[2]}.tex")
+    text = load_document(document, pathlib.Path.cwd())
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+    typer.echo(f"wrote {target}")
 
 
 @app.command()

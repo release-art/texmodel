@@ -1,6 +1,6 @@
 """A small package used by the tests: the committed `generated/acme-cards.sty` is its golden output."""
 
-from texmodel.components import Command, Value
+from texmodel.components import Command, Environment, Value
 from texmodel.package import Package
 from texmodel.types import CMYK, Bool, Colour, Length, Text
 
@@ -53,3 +53,10 @@ class Slot(Command):
 @pkg.command
 class Rule(Command, body=r"\par\noindent\rule{\linewidth}{0.4pt}\par"):
     """A thin horizontal rule."""
+
+
+@pkg.environment
+class CardBack(Environment):
+    """The back face of a card."""
+
+    children = [Name, Fact * (2, 3), Slot * (0, 3)]

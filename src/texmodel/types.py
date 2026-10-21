@@ -11,7 +11,7 @@ from decimal import Decimal
 from fractions import Fraction
 from typing import Annotated, ClassVar, Final
 
-from .errors import DeclarationError
+from .errors import DeclarationError, ValidationError
 
 
 class _TextMarker:
@@ -21,6 +21,59 @@ class _TextMarker:
 
 TEXT: Final = _TextMarker()
 Text = Annotated[str, TEXT]
+
+
+_ESCAPES = str.maketrans(
+    {
+        "\\": r"\textbackslash{}",
+        "&": r"\&",
+        "%": r"\%",
+        "$": r"\$",
+        "#": r"\#",
+        "_": r"\_",
+        "{": r"\{",
+        "}": r"\}",
+        "~": r"\textasciitilde{}",
+        "^": r"\textasciicircum{}",
+    }
+)
+
+
+def escape(text: str) -> str:
+    """`Text` on render (T3): every TeX special becomes its literal; one pass, so output is never re-escaped."""
+    return text.translate(_ESCAPES)
+
+
+def balanced(tex: str) -> bool:
+    """Braces balance, ignoring escaped ones and comments: unbalanced TeX would swallow what follows it."""
+    depth = 0
+    i = 0
+    while i < len(tex):
+        c = tex[i]
+        if c == "\\":
+            i += 1  # the escaped character is not a brace
+        elif c == "%":
+            while i < len(tex) and tex[i] != "\n":
+                i += 1
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth < 0:
+                return False
+        i += 1
+    return depth == 0
+
+
+@dataclasses.dataclass(frozen=True)
+class Raw:
+    """TeX passed through unescaped, only where a field is declared `Raw` (T3). A distinct class, never a `str`."""
+
+    tex: str
+
+    def __post_init__(self) -> None:
+        if not balanced(self.tex):
+            raise ValidationError("Raw: unbalanced braces", code="TM-C007", hint="close every { and } in the TeX")
 
 
 # --- Values (T2, T4, T5): what a `Value[T]` holds. Immutable, validated on construction, stable to format. ---
