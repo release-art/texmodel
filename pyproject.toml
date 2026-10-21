@@ -60,6 +60,19 @@ type = "forbidden"
 source_modules = ["texmodel.errors", "texmodel.config"]
 forbidden_modules = ["typer", "texmodel.cli"]
 
+[tool.towncrier]
+package = "texmodel"
+package_dir = "src"
+directory = "changes"
+filename = "CHANGELOG.md"
+issue_format = ""
+start_string = "## [Unreleased]\n"
+
+[tool.mutmut]
+paths_to_mutate = ["src/texmodel/"]
+tests_dir = ["tests/"]
+pytest_add_cli_args = ["--no-cov"]
+
 [tool.pdm]
 distribution = true
 
@@ -93,4 +106,6 @@ dev = [
     "pyright>=1.1.414",
     "import-linter>=2.0",
     "pip-audit>=2.7",
+    "towncrier>=24.8",
+    "mutmut>=3.0",
 ]

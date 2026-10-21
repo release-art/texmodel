@@ -248,3 +248,5 @@ tmp/
 
 .vscode/
 .pdm-python
+
+mutants/

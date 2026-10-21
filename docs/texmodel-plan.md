@@ -927,7 +927,7 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | Config in `pyproject.toml` (`[tool.texmodel]`), no separate manifest | decided |
 | Staged phasing with Gate A and Gate B | decided (proposed 2026-10-21) |
 | Lua file access from `\directlua` inside the sandbox | open — verify in B2 |
-| Mutation-testing tool and score floor | open — pick in A0 |
+| Mutation testing: mutmut (runs on 3.15, `pdm run mutmut run`); score floor | tool decided 2026-10-21; floor open until `core`/`types`/`rules` exist (first run: 42 of 60 killed, survivors are message strings and hints) |
 | Project licence: MIT | decided 2026-10-21 |
 | Python 3.15 only | decided 2026-10-21 |
 | Image font/ICC content, and the MIT-vs-AGPL-image reading (C8) | open — check in A1 |

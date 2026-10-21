@@ -14,6 +14,7 @@ TOOLS = {
     "lualatex": "no compiling (make --to pdf)",
     "latexmk": "no compiling: the single rerun strategy (C8)",
     "kpsewhich": "no package probing",
+    "docker": "no reference container (C8)",
     "gs": "no PDF/A or PDF/X checks (Ghostscript)",
     "verapdf": "no PDF/A checks",
 }
