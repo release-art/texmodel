@@ -33,7 +33,7 @@ rules known only to the author; errors that surface as log text far from the cau
 - O2 Type-checked construction; untrusted text escaped by type.
 - O3 Structural validity checked before any TeX runs.
 - O4 Compilation returns structured results.
-- O5 Every layer is testable; TeX layers are testable in a pinned container.
+- O5 Every layer is testable; TeX layers are testable in the reference container.
 - O6 Strict, stable specs: JSON Schema 2020-12 (OpenAPI 3.1 embeddable), versioned,
   migratable.
 - O7 Deterministic output: same input, byte-identical `.tex`/`.sty`.
@@ -348,13 +348,22 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
     already installed for tlmgr. Add a `command -v latexmk` check to `bin/docker/smoke.sh`.
     texmodel does not build images; this is a change in the proofpress repo, then a
     released tag that texmodel pins.
-  - Tags are pinned by exact version in `[tool.texmodel]` (`image = "releaseart/lualatex-python:0.3.2"`);
-    `latest` is never used in CI. Every `CompileResult` records the image tag, its
-    `org.opencontainers.image.revision` label, and TeX Live/engine versions.
+  - The image is `releaseart/lualatex-python:latest`, not pinned (decided 2026-10-21, reversing
+    the earlier pin-by-version rule): texmodel follows the images, and proofpress is the same
+    owner's project. Reproducibility comes from recording, not pinning: every `CompileResult`
+    carries the image tag, its image id and its `org.opencontainers.image.revision` label,
+    and the compile cache key includes the image id, so a new `latest` is a cache miss and
+    never serves stale output. Goldens re-bless when the image moves. `[tool.texmodel] image`
+    can still name a version for a project that wants one.
   - `doctor` verifies the image by running a probe (engine, `kpsewhich` of required
     packages, tool presence) and reports capability gaps (e.g. "no verapdf: PDF/A
     checks unavailable") rather than assuming.
-  - Bumping the pin is a deliberate change that re-blesses goldens in one reviewed PR.
+  - Findings from building A1: with the image's read-only root, `HOME=/tmp` is a tmpfs, so
+    luaotfload rebuilt its font database on every run; the driver mounts a persistent cache
+    (`TEXMFVAR`/`TEXMFCACHE`), one directory per image digest. `openin_any=p` (paranoid
+    reads) breaks luaotfload, so reads use `r` (restricted) and only `openout_any=p` is
+    paranoid: the read boundary is the container's mounts, not TeX's settings. latexmk
+    reports non-convergence on stderr. The pass count is the highest `Run number N`.
   - Open: font set and ICC profiles in the images are unconfirmed (the image has ~100
     fonts, no system ICC directory); the framework ships its own open-licence test
     fonts and ICC profile as assets rather than relying on the image's.
@@ -540,7 +549,7 @@ file access. The framework must be safe to feed untrusted data.
   mounted read-only, with CPU, memory and wall-clock limits; shell escape is off and a
   generated hermetic `texmf.cnf` sets paranoid file access (`openin_any`,
   `openout_any`). Whether Lua file access from `\directlua` is contained by these
-  settings is **unverified**: step B2 includes a verification task, and the
+  settings is **unverified** (and `openin_any=p` is known not to work with luaotfload, see C8): step B2 includes a verification task, and the
   requirement stands as "a `Raw` body cannot read outside the declared roots, and the
   test suite proves it".
 - Z3 **Injection corpus.** A shipped corpus of hostile strings (`\input{/etc/passwd}`,
@@ -809,6 +818,13 @@ template strings for bodies (TeX braces fight interpolation).
 
 ## 18. Package structure
 
+Convention (decided 2026-10-21, as pydantic and proof-pdf do): public API is the top-level
+modules of `texmodel/`; private implementation lives in `texmodel/_internal/`. A test lists
+the public modules, so a new top-level module is a deliberate API decision (I1). The tree
+below is the target shape; as built so far, `compiler`, `engines`, `roots`, `targets`,
+`result`, `diagnostics`, `config`, `errors`, `cli` are public and `logparse`, `converge`,
+`env`, `cache`, `spawn` are `_internal`.
+
 ```
 texmodel/
   core/      components, Package, namespace, registry, placement       (no I/O)
@@ -844,7 +860,7 @@ the work is staged and each gate is a real go/no-go, not a formality.
 | Step | Deliverable | Covers | Exit test |
 |---|---|---|---|
 | A0 | repo, standards, API skeleton, errors, logging, `[tool.texmodel]`, CLI shell, `doctor` | I, E, W, U0 | gates green; `doctor` probes the image. **Done 2026-10-21** except the image probe, which moves to A1 (only `engine` may spawn processes) |
-| A1 | engine: `latexmk` driver, container integration, typed diagnostics, hermetic env, reproducible mode, build cache, `clean` | C1-C4, C6-C8, C10, C12 | compile suite green in CI; two builds byte-identical |
+| A1 | engine: `latexmk` driver, container integration, typed diagnostics, hermetic env, reproducible mode, build cache, `clean` | C1-C4, C6-C8, C10, C12 | compile suite green in CI; two builds byte-identical. **Built 2026-10-21**: suite passes locally in a derived image (`releaseart/lualatex-python` + `tlmgr install latexmk`) with byte-identical reproducible builds; the CI job is `continue-on-error` until proofpress releases an image with `latexmk` (change prepared, uncommitted there) |
 | A2 | verifier plugin API + built-ins, drift `check`, `bundle`/`install`, entry-point plugins | V4, V5, G5, G6, L1 | unconfirmable ⇒ fail demonstrated |
 
 **Gate A.** Both consumers delete their own driver/install/verify code in favour of
@@ -921,7 +937,7 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | Licence classes: fixed small enum | decided |
 | `Snippet` targets: `tex` + `text` in v1 | decided |
 | Strict colour: no implicit conversion, explicit guarded variants | decided |
-| Reference container: the `releaseart/lualatex` and `releaseart/lualatex-python` images, pinned by version | decided |
+| Reference container: the `releaseart/lualatex` and `releaseart/lualatex-python` images, `latest` (not pinned) | decided 2026-10-21 |
 | `latexmk` baked into the images and used as the single rerun strategy (no own loop) | decided |
 | Project and package name: `texmodel` (alternatives considered: texcontract, typedtex, texspec) | decided |
 | API surface, error hierarchy (`ExceptionGroup`), plugins via entry points | decided |
@@ -950,7 +966,7 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 - **Two consumers pull policy in opposite directions.** Mitigation: policy is data on
   the package; the core has no colour or naming opinion beyond "no implicit conversion".
 - **Toolchain variance / image upkeep.** Mitigation: reference container is the source
-  of truth; versions recorded in every result; pin bumps are one reviewed change.
+  of truth; versions and image id recorded in every result; goldens re-bless when `latest` moves.
 - **Layout bugs that compile.** Mitigation: goldens, PDF verifiers, `try`; typed holes
   and free tests close injection and arity classes, not taste.
 - **Schema cannot express every rule.** Mitigation: a documented residue list, covered by

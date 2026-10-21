@@ -1,5 +1,7 @@
 """The single error hierarchy (E1): every error carries a stable code, a path into the Doc and a fix hint."""
 
+from .diagnostics import Diagnostic
+
 
 class TexmodelError(Exception):
     """Base of every error texmodel raises."""
@@ -20,7 +22,11 @@ class ValidationError(TexmodelError):
 
 
 class CompileError(TexmodelError):
-    """A compile failed (raised by `CompileResult.raise_for_status`)."""
+    """A compile failed (raised by `CompileResult.raise_for_status`); `diagnostics` carries every finding."""
+
+    def __init__(self, message: str, *, diagnostics: tuple[Diagnostic, ...] = (), **kwargs: str) -> None:
+        super().__init__(message, **kwargs)
+        self.diagnostics = diagnostics
 
 
 class VerifyError(TexmodelError):

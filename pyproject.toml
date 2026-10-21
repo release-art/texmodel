@@ -49,6 +49,7 @@ pythonVersion = "3.15"
 
 [tool.texmodel]
 prefix = "tm"
+image = "releaseart/lualatex-python:latest"
 
 [tool.importlinter]
 root_package = "texmodel"
@@ -59,6 +60,14 @@ name = "only cli prints and formats"
 type = "forbidden"
 source_modules = ["texmodel.errors", "texmodel.config"]
 forbidden_modules = ["typer", "texmodel.cli"]
+
+[[tool.importlinter.contracts]]
+name = "only _internal.spawn starts processes"
+type = "forbidden"
+source_modules = ["texmodel"]
+forbidden_modules = ["subprocess"]
+allow_indirect_imports = true
+ignore_imports = ["texmodel._internal.spawn -> subprocess"]
 
 [tool.towncrier]
 package = "texmodel"
@@ -95,6 +104,7 @@ addopts = "-v -l --color=yes --cov=texmodel --cov-report term-missing --cov-fail
 pythonpath = ["src"]
 testpaths = ["tests"]
 timeout = 15
+markers = ["tex: needs the reference image with latexmk (skipped without it; TEXMODEL_REQUIRE_TEX=1 makes that a failure)"]
 
 [dependency-groups]
 dev = [

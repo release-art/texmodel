@@ -250,3 +250,5 @@ tmp/
 .pdm-python
 
 mutants/
+
+.texmodel/
