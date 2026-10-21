@@ -31,9 +31,7 @@ jobs:
 
 
   tex:
-    # The compile suite (V3) in the reference image. Not yet a gate (continue-on-error): releaseart/lualatex-python has
-    # no latexmk until proofpress releases it. Then delete the next line (plan A3). The image is `latest`, pulled fresh.
-    continue-on-error: true
+    # The compile suite (V3) in the reference image, pulled fresh: `latest` is the image. A required gate (plan A3).
     runs-on: ubuntu-latest
     env:
       PDM_NON_INTERACTIVE: 1

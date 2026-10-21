@@ -99,8 +99,7 @@ image = "releaseart/lualatex-python:latest"   # runs `docker run` over it; omit 
 - `texmodel-build verify` runs plugins from the `texmodel_build.verifiers` entry-point group. `pip install
   'texmodel-build[proof-pdf]'` adds [proof-pdf](https://github.com/release-art/proofpress). A verifier that cannot run, a
   file that cannot be opened and a profile that selects nothing are failures; the only excuse is a declared `exempt` glob.
-- The image must contain `latexmk`; until [proofpress](https://github.com/release-art/proofpress) publishes one that does,
-  the container tests use a derived image and the `tex` CI job is allowed to fail.
+- The image must contain `latexmk` (`releaseart/lualatex-python` has it since proofpress v0.3.4); `doctor` reports it if not.
 
 ## Where it is going
 
