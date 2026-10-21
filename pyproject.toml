@@ -1,0 +1,121 @@
+[project]
+name = "texmodel"
+dynamic = ["version"]
+description = "Typed document-family models rendered to TeX."
+authors = [{name = "Ilja Orlovs", email = "ilja@release.art"}]
+license = "MIT"
+license-files = ["LICENSE"]
+readme = "README.md"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.15",
+    "Typing :: Typed",
+]
+requires-python = ">=3.15,<3.16"
+dependencies = [
+    "typer>=0.27.3",
+]
+
+[project.scripts]
+texmodel = "texmodel.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/release-art/texmodel"
+Repository = "https://github.com/release-art/texmodel"
+
+[tool.ruff]
+target-version = "py315"
+lint.select = ["A", "B", "C", "E", "F", "I", "W", "N", "C4", "T20", "PTH"]
+lint.ignore = ["N802"]
+line-length = 120
+
+[tool.ruff.format]
+line-ending = "lf"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "E402"]
+
+[tool.ruff.lint.isort]
+order-by-type = true
+combine-as-imports = true
+force-wrap-aliases = true
+known-first-party = ["texmodel"]
+forced-separate = ["tests"]
+
+[tool.pyright]
+include = ["src", "tests"]
+strict = ["src"]
+pythonVersion = "3.15"
+
+[tool.texmodel]
+prefix = "tm"
+image = "releaseart/lualatex-python:latest"
+
+[tool.importlinter]
+root_package = "texmodel"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "only cli prints and formats"
+type = "forbidden"
+source_modules = ["texmodel.errors", "texmodel.config"]
+forbidden_modules = ["typer", "texmodel.cli"]
+
+[[tool.importlinter.contracts]]
+name = "only _internal.spawn starts processes"
+type = "forbidden"
+source_modules = ["texmodel"]
+forbidden_modules = ["subprocess"]
+allow_indirect_imports = true
+ignore_imports = ["texmodel._internal.spawn -> subprocess"]
+
+[tool.towncrier]
+package = "texmodel"
+package_dir = "src"
+directory = "changes"
+filename = "CHANGELOG.md"
+issue_format = ""
+start_string = "## [Unreleased]\n"
+
+[tool.mutmut]
+paths_to_mutate = ["src/texmodel/"]
+tests_dir = ["tests/"]
+pytest_add_cli_args = ["--no-cov"]
+
+[tool.pdm]
+distribution = true
+
+# The version is the git tag (v1.2.3); no tag falls back to 0.0.0.
+[tool.pdm.version]
+source = "scm"
+tag_regex = '^v(?P<version>\d+\.\d+\.\d+.*)$'
+fallback_version = "0.0.0"
+
+[tool.pdm.build]
+package-dir = "src"
+includes = ["src/texmodel"]
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pytest.ini_options]
+addopts = "-v -l --color=yes --cov=texmodel --cov-report term-missing --cov-fail-under=100 --no-cov-on-fail"
+pythonpath = ["src"]
+testpaths = ["tests"]
+timeout = 15
+markers = ["tex: needs the reference image with latexmk (skipped without it; TEXMODEL_REQUIRE_TEX=1 makes that a failure)"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "pytest-mock>=3.16.0",
+    "pytest-timeout>=2.4.0",
+    "ruff>=0.17.1",
+    "pyright>=1.1.414",
+    "import-linter>=2.0",
+    "pip-audit>=2.7",
+    "towncrier>=24.8",
+    "mutmut>=3.0",
+]

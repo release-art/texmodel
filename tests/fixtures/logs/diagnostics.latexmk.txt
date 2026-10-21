@@ -1,0 +1,83 @@
+Rc files read:
+  NONE
+Latexmk: This is Latexmk, John Collins, 15 June 2025. Version 4.87.
+No existing .aux file, so I'll make a simple one, and require run of *latex.
+Latexmk: applying rule 'pdflatex'...
+Rule 'pdflatex':  Reasons for rerun
+Category 'other':
+  Rerun of 'pdflatex' forced or previously required:
+    Reason or flag: 'Initial setup'
+
+------------
+Run number 1 of rule 'pdflatex'
+------------
+------------
+Running 'lualatex --no-shell-escape  -interaction=nonstopmode -file-line-error -recorder -output-directory="/work/out"  "bad.tex"'
+------------
+This is LuaHBTeX, Version 1.22.0 (TeX Live 2025) 
+(./bad.tex
+LaTeX2e <2025-11-01>
+L3 programming layer <2026-01-19>
+ (/opt/texlive/texmf-dist/tex/latex/base/article.cls
+Document Class: article 2025/01/22 v1.4n Standard LaTeX document class
+(/opt/texlive/texmf-dist/tex/latex/base/size10.clo)) (/opt/texlive/texmf-dist/tex/latex/fontspec/fontspec.sty (/opt/texlive/texmf-dist/tex/latex/l3packages/xparse/xparse.sty (/opt/texlive/texmf-dist/tex/latex/l3kernel/expl3.sty (/opt/texlive/texmf-dist/tex/latex/l3backend/l3backend-luatex.def))) (/opt/texlive/texmf-dist/tex/latex/fontspec/fontspec-luatex.sty (/opt/texlive/texmf-dist/tex/latex/base/fontenc.sty) (/opt/texlive/texmf-dist/tex/latex/fontspec/fontspec.cfg))) (/work/out/bad.aux)
+./bad.tex:5: Undefined control sequence.
+l.5 \undefinedmacro
+                   {x}
+
+LaTeX Warning: Reference `later' on page 1 undefined on input line 6.
+
+
+Overfull \hbox (114.97337pt too wide) detected at line 6
+\TU/TeXGyreTermes(0)/m/n/10 wide wide wide wide wide wide
+Missing character: There is no 𝔸 (U+1D538) in font "name:TeX Gyre Termes:mode=node;script=latn;language=dflt;+tlig;"!
+Missing character: There is no ᚠ (U+16A0) in font "name:TeX Gyre Termes:mode=node;script=latn;language=dflt;+tlig;"!
+Missing character: There is no 𝔸 (U+1D538) in font "name:TeX Gyre Termes:mode=node;script=latn;language=dflt;+tlig;"!
+Missing character: There is no ᚠ (U+16A0) in font "name:TeX Gyre Termes:mode=node;script=latn;language=dflt;+tlig;"!
+[1{/opt/texlive/texmf-var/fonts/map/pdftex/updmap/pdftex.map}
+Missing character: There is no 𝔸 (U+1D538) in font "name:TeX Gyre Termes:mode=node;script=latn;language=dflt;+tlig;"!
+Missing character: There is no ᚠ (U+16A0) in font "name:TeX Gyre Termes:mode=node;script=latn;language=dflt;+tlig;"!
+] (/work/out/bad.aux)
+
+LaTeX Warning: There were undefined references.
+
+
+LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
+
+)
+(see the transcript file for additional information)
+ 411 words of node memory still in use:
+   3 hlist, 1 vlist, 1 rule, 2 glue, 3 kern, 1 glyph, 4 attribute, 49 glue_spec, 4 attribute_list, 1 write nodes
+   avail lists: 1:1,2:48,3:18,4:1,5:23,6:4,7:160,9:26
+</opt/texlive/texmf-dist/fonts/opentype/public/tex-gyre/texgyretermes-bold.otf></opt/texlive/texmf-dist/fonts/opentype/public/tex-gyre/texgyretermes-regular.otf>
+Output written on bad.pdf (1 page, 5830 bytes).
+Transcript written on bad.log.
+Latexmk: Getting log file '/work/out/bad.log'
+Latexmk: Examining '/work/out/bad.fls'
+Latexmk: Examining '/work/out/bad.log'
+Latexmk: References changed.
+Latexmk: Log file says output to 'bad.pdf'
+Latexmk: Using bibtex to make bibliography file(s).
+Latexmk: ====Undefined refs and citations with line #s in .tex file:
+  Reference `later' on page 1 undefined on input line 6
+  Missing character: There is no 𝔸 (U+1D538) in font "name:TeX Gyre Termes:mode=node;script=latn;language=dflt;+tlig;"!
+  Missing character: There is no ᚠ (U+16A0) in font "name:TeX Gyre Termes:mode=node;script=latn;language=dflt;+tlig;"!
+  Missing character: There is no 𝔸 (U+1D538) in font "name:TeX Gyre Termes:mode=node;script=latn;language=dflt;+tlig;"!
+  Missing character: There is no ᚠ (U+16A0) in font "name:TeX Gyre Termes:mode=node;script=latn;language=dflt;+tlig;"!
+  Missing character: There is no 𝔸 (U+1D538) in font "name:TeX Gyre Termes:mode=node;script=latn;language=dflt;+tlig;"!
+  Missing character: There is no ᚠ (U+16A0) in font "name:TeX Gyre Termes:mode=node;script=latn;language=dflt;+tlig;"!
+Latexmk: Summary of warnings from last run of *latex:
+  Latex failed to resolve 1 reference(s)
+  =====Latex reported missing or unavailable character(s).
+=====See log file for details.
+Latexmk: Errors, so I did not complete making targets
+Latexmk: Sometimes, the -f option can be used to get latexmk
+  to try to force complete processing.
+  But normally, you will need to correct the file(s) that caused the
+  error, and then rerun latexmk.
+  In some cases, it is best to clean out generated files before rerunning
+  latexmk after you've corrected the files.
+Collected error summary (may duplicate other messages):
+  pdflatex: Command for 'pdflatex' gave return code 1
+      Refer to '/work/out/bad.log' and/or above output for details
+

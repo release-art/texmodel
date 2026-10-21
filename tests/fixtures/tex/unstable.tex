@@ -1,0 +1,12 @@
+\documentclass{article}
+\makeatletter
+\newcounter{texmodelk}
+% The .aux is read before this hook runs, so each pass sees the previous pass's number and writes one more.
+\AtBeginDocument{%
+  \@ifundefined{texmodelrun}{\gdef\texmodelrun{0}}{}%
+  \setcounter{texmodelk}{\texmodelrun}\addtocounter{texmodelk}{1}}
+\AtEndDocument{\immediate\write\@auxout{\string\gdef\string\texmodelrun{\thetexmodelk}}}
+\makeatother
+\begin{document}
+Never settles.
+\end{document}
