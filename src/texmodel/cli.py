@@ -3,9 +3,12 @@
 import dataclasses
 import importlib.metadata
 import json
+import logging
 import shutil
 
 import typer
+
+logger = logging.getLogger(__name__)
 
 app = typer.Typer(pretty_exceptions_enable=False, help="Typed models for LaTeX.", no_args_is_help=True)
 
@@ -33,8 +36,14 @@ def probe_tools() -> list[ToolStatus]:
 
 
 @app.callback()
-def main() -> None:
+def main(verbose: int = typer.Option(0, "--verbose", "-v", count=True, help="-v info, -vv debug (to stderr).")) -> None:
     """Typed models for LaTeX."""
+    if verbose:
+        handler = logging.StreamHandler()  # stderr; stdout carries results only
+        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+        log = logging.getLogger("texmodel")
+        log.addHandler(handler)
+        log.setLevel(logging.DEBUG if verbose > 1 else logging.INFO)
 
 
 @app.command()
@@ -47,6 +56,8 @@ def version() -> None:
 def doctor(as_json: bool = typer.Option(False, "--json", help="Machine-readable output.")) -> None:
     """Report what this machine can do. Exit 3 when a required tool is missing."""
     tools = probe_tools()
+    for t in tools:
+        logger.debug("probe %s -> %s", t.name, t.path)
     if as_json:
         typer.echo(json.dumps([dataclasses.asdict(t) for t in tools], indent=2))
     else:

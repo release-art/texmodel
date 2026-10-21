@@ -1,4 +1,5 @@
 import json
+import logging
 
 import pytest
 from typer.testing import CliRunner
@@ -55,3 +56,16 @@ def test_doctor_ok_when_tools_present(monkeypatch):
 
 def test_version():
     assert runner.invoke(cli.app, ["version"]).exit_code == 0
+
+
+def test_verbose_logs_to_stderr_not_stdout(monkeypatch):
+    log = logging.getLogger("texmodel")
+    monkeypatch.setattr(log, "handlers", list(log.handlers))
+    monkeypatch.setattr(log, "level", log.level)
+    monkeypatch.setattr(cli.shutil, "which", lambda name: f"/bin/{name}")
+    result = runner.invoke(cli.app, ["-vv", "doctor", "--json"])
+    assert "DEBUG texmodel.cli: probe lualatex -> /bin/lualatex" in result.stderr
+    assert json.loads(result.stdout)  # stdout is still clean JSON
+    assert log.level == logging.DEBUG
+    assert runner.invoke(cli.app, ["-v", "version"]).exit_code == 0
+    assert log.level == logging.INFO
