@@ -252,3 +252,6 @@ tmp/
 mutants/
 
 .texmodel/
+
+# test fixtures are real captured TeX logs
+!tests/fixtures/logs/*.log
