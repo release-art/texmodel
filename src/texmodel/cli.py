@@ -2,6 +2,7 @@
 
 import functools
 import importlib.metadata
+import json
 import logging
 import pathlib
 from collections.abc import Callable
@@ -15,6 +16,7 @@ from .errors import DeclarationError, TexmodelError, ValidationError
 from .package import Package, generator_version
 from .plan import Plan
 from .pointer import load_document, load_package
+from .spec import json_schema
 
 app = typer.Typer(pretty_exceptions_enable=False, help="Typed models for LaTeX.", no_args_is_help=True)
 
@@ -93,6 +95,23 @@ def _write(rendered: str | Plan, target: pathlib.Path) -> None:
 
 @app.command()
 @_exits
+def schema() -> None:
+    """Write the JSON Schema of the package's data (every component and value) to `schema_output`."""
+    root, config, package = _project()
+    if not config.schema_output:
+        raise DeclarationError(
+            "no schema_output declared", code="TM-D033", hint='set [tool.texmodel] schema_output = "schema.json"'
+        )
+    path = root / config.schema_output
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(json_schema(package), indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    typer.echo(f"wrote {path.relative_to(root)}")
+
+
+@app.command()
+@_exits
 def render(
     document: Annotated[
         str | None,
@@ -144,6 +163,10 @@ def _check_generated(root: pathlib.Path, config: Config, package: Package) -> bo
     for label, names in (("stale", drift.stale), ("missing", drift.missing), ("orphaned", drift.orphaned)):
         for name in names:
             typer.echo(f"{label:8} {config.output}/{name}")
+    plan = package.render_plan()
+    for name in drift.stale:  # a stale file is named by component, as a document is
+        for e in plan.edits((out / name).read_text(encoding="utf-8", errors="replace")):
+            typer.echo(f"{e.kind.value:8} {config.output}/{name} {e.path}: {e.found or e.expected}")
     for note in drift.notes:
         typer.echo(f"note     {note}")
     if drift.stale or drift.missing or drift.orphaned:
@@ -165,8 +188,7 @@ def _check_documents(root: pathlib.Path, config: Config) -> bool:
             failed = True
         elif isinstance(rendered, Plan):
             for e in rendered.edits(committed.read_text(encoding="utf-8")):
-                what = "added" if not e.expected else "removed" if not e.found else "changed"
-                typer.echo(f"{what:8} {name} {e.path}: {e.found or e.expected}")
+                typer.echo(f"{e.kind.value:8} {name} {e.path}: {e.found or e.expected}")
                 failed = True
         elif committed.read_text(encoding="utf-8") != rendered:
             typer.echo(f"stale    {name}")

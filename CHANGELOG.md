@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Package schema and renamed fields (C4, §21a 15): `json_schema(pkg)` and `texmodel schema` (`[tool.texmodel] schema_output`,
+  `TM-D033`); `field(renamed_from="old")` loads the old key, `to_dict` writes the new, the schema has `x-renamed-from`. A
+  child's schema requires its `"type"` constant, so data matches one component.
+- Source maps for the `.sty` (D1, §21a 11): `Package.render_plan()` gives every line the path of its component or value
+  (`header`, `requires`, `Fact`); `texmodel check` names a hand-edited `.sty` line by component. `Edit.kind` (`EditKind`)
+  says added, removed or changed, so a blank line is not misread.
 - Typed preamble entries (C2, §21a 10): `PassOption`, `InputPath`, `GraphicsPath`, `RequireMetadata` in `texmodel.preamble`;
   `PreambleSlots` accepts them beside `Raw`, and one in the wrong slot is `TM-C008`.
 - Grammar escape hatches (B3, §21a 4): `Anywhere(X)` grammar term and the `Passthrough(Raw)` node; `TM-M029` when a kind is

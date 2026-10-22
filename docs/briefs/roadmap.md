@@ -226,7 +226,9 @@ backslash-escaped, `\\`, non-ASCII left as is) and is TeX-safe when emitted insi
 `Value[Raw]` for a setting whose value is TeX (rendered `\renewcommand{\x}{<raw>}`, Raw's brace check). Both support
 `from_dict`/schema. **Not** `List` (needs a decision, X4).
 
-## C4. Package-level schema and renames (plan 15)
+## C4. Package-level schema and renames (plan 15) — built 2026-10-22
+
+Built with `jsonschema` added as a dev dependency; a child's `"type"` is a required constant in its schema.
 
 **Depends on.** Nothing. **Touches.** `spec.py`, `components.py`, `package.py`, `cli.py`, tests.
 **Decisions made.** `json_schema(pkg)` returns one schema with `$defs` for every registered component and value;
@@ -237,7 +239,7 @@ rename round trip.
 
 ---
 
-## D1. Source maps for generated `.sty` (plan 11)
+## D1. Source maps for generated `.sty` (plan 11) — built 2026-10-22
 
 **Depends on.** Nothing. **Touches.** `package.py`, `plan.py`, `cli.py`, `_internal/render.py`, tests.
 **Decisions made.** `Package.render_plan()` returns a `Plan` with one path per component (`Fact`, `FactGap`) and `header` /
@@ -269,6 +271,6 @@ list with the `tlmgr install` line. Exit 3 if any are missing. No network use.
 
 ## Suggested order
 
-0, then A1, A4, B1, B2, C2, B3, C3 (built), A2, C4, D1, D2, A3, and C1 last (low priority). A1 first because three batches need its references; the rest are
+0, then A1, A4, B1, B2, C2, B3, C3, C4, D1 (all built), and next A2, D2, A3, with C1 last (low priority). A1 first because three batches need its references; the rest are
 ordered so that batches touching `cli.py`/`package.py` do not run at the same time. Between batches: run the gates, read the
 report, then start the next.

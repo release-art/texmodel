@@ -1041,7 +1041,8 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
     slots declared by the package (D3). Original: Slots are three tuples of `Raw`. Ideas: typed entries (`PassOption`, `InputPath`, `GraphicsPath`), the
     ordering rules in the plan's G3 as lints (input path before the package, graphics path after), and slots declared by
     the package (D3).
-11. **Source maps beyond documents.** A `.sty` render could carry a plan too, so a `Package` diagnostic or a hand edit to a
+11. **Source maps beyond documents.** Built 2026-10-22 (D1) as `Package.render_plan()` and path-named `.sty` drift in `check`.
+    Open: mapping a compile log's `.sty` line to a component (the harness takes `plan=` for documents only). Original: A `.sty` render could carry a plan too, so a `Package` diagnostic or a hand edit to a
     generated `.sty` names the component.
 12. **Declared-only variants.** If a consumer mixes generated and adopted components in one package, `adopted=True` on the package
     is too coarse; the alternative is a per-component marker. Revisit with the second consumer.
@@ -1052,9 +1053,8 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
     names missing packages for a given `.sty`. PDF/X-4 and PDF/A-2b output was never compiled in the test; an ICC profile
     has to be supplied at test time.
 15. **Spec round trip** (`to_dict` / `from_dict`): first version built 2026-10-22 as `texmodel.spec` on pydantic (data shape: a child
-    names its component with `"type"`; environments take `content`; error paths as `validate()`). Open: `Doc` with migrations
-    (X), `renamed_from` aliases, data-to-component mapping (item 16), `json_schema` for a whole package,
-    and walking pydantic's field info for docs and constraints instead of our own `_arguments` (not needed for TeX signatures).
+    names its component with `"type"`; environments take `content`; error paths as `validate()`). Built 2026-10-22 (C4): `renamed_from`, `json_schema(pkg)`,
+    `texmodel schema`. Open: `Doc` with migrations (X), data-to-component mapping (item 16), and walking pydantic's field info for docs and constraints instead of our own `_arguments` (not needed for TeX signatures).
 16. **Data-driven rendering (the workflow the first consumer wants).** Run `texmodel` on a card data file (TOML, or Python
     dicts/structs) against the project's templates and get the documents, with no hand-written converter:
     `texmodel render --data cards.toml <pointer>`. Needs: `Doc.from_dict()` / `to_dict()` (spec round trip, D2, with

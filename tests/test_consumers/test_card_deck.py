@@ -5,6 +5,7 @@ the `.tex`, and regex checks over that text. Its data is made up.
 """
 
 import re
+from typing import Any
 
 import pytest
 from card_deck import convert, legacy, model
@@ -173,3 +174,19 @@ def test_the_cards_round_trip_through_data_and_the_schema_covers_the_grammar():
     schema = json_schema(model.Card, comments=[model.CardHeader])
     assert set(schema["$defs"]) >= {"CardFront", "CardBack", "LabelledSlot", "TalkAboutMe", "CardHeader", "Comment"}
     assert schema["$defs"]["TalkAboutMe"]["required"] == ["question"]
+
+
+def test_the_package_schema_accepts_what_to_dict_writes_for_every_card_and_refuses_a_wrong_child():
+    import jsonschema
+
+    from texmodel.spec import json_schema, to_dict
+
+    schema = json_schema(model.pkg, comments=[model.CardHeader]) | {"$ref": "#/$defs/Card"}
+    validator = jsonschema.Draft202012Validator(schema)
+    jsonschema.Draft202012Validator.check_schema(schema)
+    for card in convert.nodes():
+        assert validator.is_valid(dict[str, Any](to_dict(card)))
+    data = dict[str, Any](to_dict(model.Card(model.CardHeader("Fox", "1"), *convert.nodes()[0].content)))
+    assert validator.is_valid(data)
+    data["content"] = [{"type": "LabelledSlot", "text": "x"}]  # a child the grammar does not list
+    assert not validator.is_valid(data)

@@ -4,6 +4,8 @@ import pytest
 from typer.testing import CliRunner
 
 from texmodel import cli
+from texmodel.drift import stamp
+from texmodel.package import Package, generator_version
 
 from .conftest import FIXTURES
 
@@ -153,3 +155,31 @@ def test_render_names_the_file_after_the_last_part_of_the_pointer(pointers):
     )
     result = runner.invoke(cli.app, ["render", "deckmod:Docs.card()"])
     assert result.exit_code == 0 and (pointers / "card.tex").is_file()
+
+
+def test_check_names_the_component_of_a_hand_edited_line_in_the_sty(project):
+    runner.invoke(cli.app, ["build"])
+    sty = project / "gen" / "acme-cards.sty"
+    sty.write_text(sty.read_text().replace(r"\newcommand{\acFact}[1]{%", r"\newcommand{\acFact}[1]{% x", 1))
+    out = runner.invoke(cli.app, ["check"]).stdout
+    assert (
+        r"changed  gen/acme-cards.sty Fact: \newcommand{\acFact}[1]{% x" in out and "stale    gen/acme-cards.sty" in out
+    )
+    sty.write_text(sty.read_text().replace("\n\n", "\n", 1))  # the blank line before the first item is gone too
+    assert "removed  gen/acme-cards.sty requires: " in runner.invoke(cli.app, ["check"]).stdout  # a blank line
+
+
+def test_the_sty_plan_has_a_path_per_component_and_its_text_is_the_sty(project, monkeypatch):
+    monkeypatch.syspath_prepend(str(project))
+    from acme_cards import pkg  # pyright: ignore[reportMissingImports]
+
+    plan = pkg.render_plan()
+    assert plan.text == pkg.render() and plan.path_of(1).startswith("header") and plan.lines[3].path == "requires"
+    assert {x.path for x in plan.lines} >= {"header", "requires", "Fact", "CardBack"}
+    assert plan.edits(plan.text) == []
+    empty = Package("empty-demo", prefix="em")
+    assert (
+        empty.render()
+        == "".join([f"% empty-demo.sty -- {stamp(generator_version())}. Do not edit; run `texmodel build`.\n"])
+        + "\\NeedsTeXFormat{LaTeX2e}\n\\ProvidesPackage{empty-demo}[1970/01/01 v0.0.0 empty-demo]\n\n\n"
+    )

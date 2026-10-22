@@ -144,7 +144,8 @@ package = "acme_cards.decks:Decks.birds"      # or "acme_cards.decks:make_packag
 ```zsh
 texmodel build     # writes generated/acme-cards.sty
 texmodel render docs:card   # writes card.tex from `card = pkg.document(...)` (or a function returning one); -o to choose
-texmodel check     # exit 1 if a committed generated file is stale, missing or orphaned
+texmodel check     # exit 1 if a committed generated file is stale, missing or orphaned; a stale line names its component
+                   # (`changed generated/acme-cards.sty Fact: ...`)
 ```
 
 ```latex
@@ -282,6 +283,18 @@ json_schema(Card)    # JSON Schema of what from_dict accepts
 
 Everything wrong comes at once as an `ExceptionGroup` of `ValidationError` (`TM-C020`), each with a path such as
 `Card/CardBack[1]/LeadFact[2].text`.
+
+### A schema for the package's data
+
+`texmodel schema` writes `json_schema(pkg)` to `[tool.texmodel] schema_output`: one JSON Schema with a `$defs` entry for every
+command and environment (a child is told apart by its `"type"` constant) and `Value.<Name>` for every value, for editors and
+validators of the TOML or JSON that `from_dict` reads. A renamed field keeps loading under its old key:
+
+```python
+class Fact(Command):
+    '''One fact.'''
+    text: Text = field(renamed_from="body")       # {"body": "..."} loads; to_dict writes "text"; the schema has x-renamed-from
+```
 
 ### Checking committed documents
 

@@ -29,6 +29,7 @@ class Arg:
     raw: bool = False  # a `Raw` field passes through; a `Text` field is escaped (T3)
     choice: type[Choice] | None = None  # a closed set: the member's value is the TeX (T1)
     pdf: bool = False  # a `PdfString`: PDF-escaped, then inert to TeX (§21a 9)
+    renamed_from: str | None = None  # the field's old name in data (§21a 15)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -264,14 +265,15 @@ def check_references(prefix: str, spec: Spec | EnvSpec, text: str, declared: Map
         )
 
 
-def render_package(
-    name: str, version: str, date: str, description: str, stamp: str, requires: Sequence[str], body: str
-) -> str:
-    packages = "".join(f"\\RequirePackage{{{p}}}\n" for p in requires)
-    return (
-        f"% {name}.sty -- {stamp}. Do not edit; run `texmodel build`.\n"
-        "\\NeedsTeXFormat{LaTeX2e}\n"
-        f"\\ProvidesPackage{{{name}}}[{date} v{version} {description or name}]\n"
-        f"{chr(10) + packages if packages else ''}"
-        f"\n{body}\n"
-    )
+def header_lines(name: str, version: str, date: str, description: str, stamp: str) -> list[str]:
+    """The first three lines of a generated `.sty`."""
+    return [
+        f"% {name}.sty -- {stamp}. Do not edit; run `texmodel build`.",
+        "\\NeedsTeXFormat{LaTeX2e}",
+        f"\\ProvidesPackage{{{name}}}[{date} v{version} {description or name}]",
+    ]
+
+
+def require_lines(requires: Sequence[str]) -> list[str]:
+    """The `\\RequirePackage` lines, each preceded by nothing and the block by a blank line."""
+    return [f"\\RequirePackage{{{p}}}" for p in requires]

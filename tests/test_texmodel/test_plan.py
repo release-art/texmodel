@@ -4,7 +4,7 @@ import pytest
 
 from texmodel.components import Command, Environment, Value
 from texmodel.package import Package, PreambleSlots
-from texmodel.plan import Edit, Plan
+from texmodel.plan import Edit, EditKind, Plan
 from texmodel.types import Length, Raw, Text
 
 
@@ -75,9 +75,13 @@ def test_edits_name_changed_removed_and_added_lines():
     plan = pkg.plan(box(item("a"), item("b")))
     lines = plan.text.splitlines()
     changed = plan.text.replace(r"\smItem{a}", r"\smItem{A}")
-    assert plan.edits(changed) == [Edit("Box[0]/Item[0]", r"\smItem{a}", r"\smItem{A}")]
-    assert plan.edits("\n".join(x for x in lines if "{b}" not in x)) == [Edit("Box[0]/Item[1]", r"\smItem{b}", "")]
-    assert plan.edits(plan.text.replace(r"\end{document}", "x\n\\end{document}")) == [Edit("Box[0]", "", "x")]
+    assert plan.edits(changed) == [Edit("Box[0]/Item[0]", r"\smItem{a}", r"\smItem{A}", EditKind.CHANGED)]
+    assert plan.edits("\n".join(x for x in lines if "{b}" not in x)) == [
+        Edit("Box[0]/Item[1]", r"\smItem{b}", "", EditKind.REMOVED)
+    ]
+    assert plan.edits(plan.text.replace(r"\end{document}", "x\n\\end{document}")) == [
+        Edit("Box[0]", "", "x", EditKind.ADDED)
+    ]
     assert plan.edits(plan.text) == []
 
 

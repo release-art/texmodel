@@ -7,6 +7,7 @@ compile log names the component, not a line number.
 
 import dataclasses
 import difflib
+import enum
 import json
 from collections.abc import Iterator
 
@@ -19,13 +20,21 @@ class Line:
     tex: str
 
 
+@enum.unique
+class EditKind(enum.Enum):
+    ADDED = "added"  # in the file, not in the plan
+    REMOVED = "removed"  # in the plan, not in the file
+    CHANGED = "changed"
+
+
 @dataclasses.dataclass(frozen=True)
 class Edit:
-    """One difference: `expected` is empty for an added line, `found` for a removed one."""
+    """One difference. `kind` says which side lacks the line: a blank line has no text to tell by."""
 
     path: str
     expected: str
     found: str
+    kind: EditKind
 
 
 def node_lines(node: Node, path: str) -> Iterator[Line]:
@@ -71,7 +80,8 @@ class Plan:
             for k in range(max(i2 - i1, j2 - j1)):
                 was = self.lines[i1 + k] if i1 + k < i2 else None
                 path = was.path if was else self.lines[i2 - 1].path  # an added line belongs to the line before it
-                out.append(Edit(path, was.tex if was else "", found[j1 + k] if j1 + k < j2 else ""))
+                kind = EditKind.CHANGED if was and j1 + k < j2 else EditKind.REMOVED if was else EditKind.ADDED
+                out.append(Edit(path, was.tex if was else "", found[j1 + k] if j1 + k < j2 else "", kind))
         return out
 
     def to_json(self) -> str:

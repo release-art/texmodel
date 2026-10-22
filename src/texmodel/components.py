@@ -238,6 +238,13 @@ class _Node(metaclass=_Meta):
         return _render(self)  # pyright: ignore[reportArgumentType]
 
 
+def _as_field(given: object) -> "dataclasses.Field[object]":
+    """A default or a `field(...)` as a dataclass field."""
+    if isinstance(given, dataclasses.Field):
+        return typing.cast("dataclasses.Field[object]", given)
+    return typing.cast("dataclasses.Field[object]", dataclasses.field(default=given))
+
+
 def _build(cls: type[_Node], unused: Sequence[str], *, init: bool) -> None:
     """Turn a declared class into a frozen dataclass whose fields are its arguments."""
     cls.__tm_doc__ = doc = _document(cls)
@@ -245,13 +252,22 @@ def _build(cls: type[_Node], unused: Sequence[str], *, init: bool) -> None:
     # Optional fields are keyword-only (M2): mark them before the dataclass is built.
     for name in inspect.get_annotations(cls):
         if name in cls.__dict__ and not name.startswith("__"):
-            setattr(cls, name, dataclasses.field(default=cls.__dict__[name], kw_only=True))
+            spec = _as_field(cls.__dict__[name])
+            if spec.default is not dataclasses.MISSING:
+                spec.kw_only = True
+            setattr(cls, name, spec)
     dataclasses.dataclass(frozen=True, init=init, repr=False)(cls)
     cls.__doc__ = doc
     cls.__tm_args__ = _arguments(cls)  # pyright: ignore[reportArgumentType]
 
 
-@dataclass_transform(frozen_default=True)
+def field(*, renamed_from: str, default: Any = dataclasses.MISSING) -> Any:  # noqa: ANN401  # as dataclasses.field
+    """A field that data (`from_dict`) may still name `renamed_from`: `to_dict` and the schema use the field's name, the
+    old key loads, and the schema records it as `x-renamed-from` (§21a 15). `default` makes it optional."""
+    return dataclasses.field(default=default, metadata={"renamed_from": renamed_from})
+
+
+@dataclass_transform(frozen_default=True, field_specifiers=(field,))
 class Command(_Node):
     """A TeX command (`\\newcommand`) whose arguments are the class's fields."""
 
@@ -422,6 +438,7 @@ def _arguments(cls: type[Command] | type[Environment]) -> tuple[Arg, ...]:
                 raw=kind == "raw",
                 choice=choice,
                 pdf=kind == "pdf",
+                renamed_from=f.metadata.get("renamed_from"),
             )
         )
     if sum(a.optional for a in args) > 1:

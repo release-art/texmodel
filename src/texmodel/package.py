@@ -17,10 +17,11 @@ from ._internal.render import (
     bool_names,
     check_references,
     colour_name,
+    header_lines,
     render_command,
     render_environment,
-    render_package,
     render_value,
+    require_lines,
     setting,
     signature,
     undeclared,
@@ -100,6 +101,7 @@ class Package:
         self._controls: dict[str, str] = {}  # control sequence -> qualname of its declarer
         self._calls: list[type] = []  # components its bodies call, in order (§21a 17)
         self._colours: dict[str, str] = {}  # colour name -> qualname; its own namespace
+        self._classes: list[type] = []  # every registered class, in registration order
 
     def _add(self, spec: Spec | EnvSpec | ValueSpec, *claims: tuple[dict[str, str], str, str]) -> None:
         """Claim names (table, key, how to show it); a collision is an error here, not at \\begin{document} (M7)."""
@@ -122,6 +124,7 @@ class Package:
         control = self.prefix + spec.name
         self._add(spec, (self._controls, control, f"\\{control}"))
         cls.__tm_prefix__, cls.__tm_package__ = self.prefix, self
+        self._classes.append(cls)
         return cls
 
     def environment[E: type[Environment]](self, cls: E) -> E:
@@ -132,6 +135,7 @@ class Package:
         control = self.prefix + spec.name
         self._add(spec, (self._controls, control, f"\\{control}"))
         cls.__tm_prefix__, cls.__tm_package__ = self.prefix, self
+        self._classes.append(cls)
         return cls
 
     def value[V: type[AnyValue]](self, cls: V) -> V:
@@ -156,7 +160,13 @@ class Package:
             claims = [(self._colours, name, f"colour {name}")]
         self._add(spec, *claims)
         cls.__tm_prefix__ = self.prefix
+        self._classes.append(cls)
         return cls
+
+    @property
+    def registered(self) -> tuple[type, ...]:
+        """Every registered command, environment and value class, in registration order."""
+        return tuple(self._classes)
 
     @property
     def depends_on(self) -> tuple["Package", ...]:
@@ -180,7 +190,13 @@ class Package:
             dependency._check_cycles((*path, self))  # noqa: SLF001
 
     def render(self, *, version: str | None = None) -> str:
-        """The `.sty` text. `version` is the generator's, recorded in the header; default the installed texmodel's.
+        """The `.sty` text, that of `render_plan(version=)`."""
+        return self.render_plan(version=version).text
+
+    def render_plan(self, *, version: str | None = None) -> Plan:
+        """The `.sty` as lines with provenance (§21a 11): `header`, `requires`, then one path per component or value
+        (`Fact`, `FactGap`); the blank line before an item is the item's. `version` is the generator's, recorded in the
+        header; default the installed texmodel's.
 
         Body references are checked here, not at registration: a body may name a component declared after it, so the
         family is only complete once someone asks for output (`files()` and `texmodel check` both do) (M8, G2).
@@ -195,16 +211,20 @@ class Package:
                 check_references(self.prefix, s, s.body, self._controls)
             elif isinstance(s, EnvSpec):
                 check_references(self.prefix, s, s.begin + "\n" + s.end, self._controls)
-        body = "\n\n".join(self._render_item(s) for s in self._items)
-        return render_package(
-            self.name,
-            self.version,
-            self.date,
-            self.description,
-            stamp(version or generator_version()),
-            self.required_packages,
-            body,
-        )
+        head = header_lines(self.name, self.version, self.date, self.description, stamp(version or generator_version()))
+        requires = require_lines(self.required_packages)
+        lines = [
+            *(Line("header", tex) for tex in head),
+            Line("requires", ""),
+            *(Line("requires", tex) for tex in requires),
+            *([Line("requires", "")] if requires else []),
+        ]
+        if not self._items:
+            lines.append(Line("requires", ""))  # the file ends with the empty body's own blank line
+        for n, s in enumerate(self._items):
+            text = self._render_item(s).splitlines()
+            lines += [Line(s.name, ""), *(Line(s.name, tex) for tex in text)] if n else [Line(s.name, t) for t in text]
+        return Plan(tuple(lines))
 
     def _render_item(self, s: Spec | EnvSpec | ValueSpec) -> str:
         if isinstance(s, ValueSpec):
