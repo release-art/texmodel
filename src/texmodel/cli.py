@@ -14,6 +14,7 @@ from .config import Config, load_config
 from .drift import check_drift
 from .errors import DeclarationError, TexmodelError, ValidationError
 from .package import Package, generator_version
+from .plan import Plan
 
 app = typer.Typer(pretty_exceptions_enable=False, help="Typed models for LaTeX.", no_args_is_help=True)
 
@@ -90,20 +91,20 @@ def render(
     document: Annotated[
         str,
         typer.Argument(
-            help="Pointer (module:object, module:ns.object, module:getter()) to a str from Package.document()."
+            help="Pointer (module:object, module:getter()) to a str or Plan from Package.document() / plan()."
         ),
     ],
     output: Annotated[pathlib.Path | None, typer.Option("--output", "-o", help="Default <attribute>.tex.")] = None,
 ) -> None:
     """Write a document to a .tex file. An invalid document reports every violation and exits 2."""
     target = output or pathlib.Path(f"{document.partition(':')[2].removesuffix('()').rpartition('.')[2]}.tex")
-    text = load_document(document, pathlib.Path.cwd())
+    rendered = load_document(document, pathlib.Path.cwd())
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(text, encoding="utf-8")
+    target.write_text(rendered.text if isinstance(rendered, Plan) else rendered, encoding="utf-8")
     typer.echo(f"wrote {target}")
 
 
-def _check_interface(root: pathlib.Path, config: Config, package: Package) -> None:
+def _check_interface(root: pathlib.Path, config: Config, package: Package) -> bool:
     """An adopted package (M9): every declared component is defined in `sources` with its declared signature."""
     paths = sorted(p for glob in config.sources for p in root.glob(glob) if p.is_file())
     if not paths:
@@ -115,20 +116,12 @@ def _check_interface(root: pathlib.Path, config: Config, package: Package) -> No
     violations = package.check_interface(*(p.read_text(encoding="utf-8", errors="replace") for p in paths))
     for v in violations:
         typer.echo(f"{v.code} {v.path}: {v.message}")
-    if violations:
-        raise typer.Exit(1)
-    typer.echo(f"ok: {len(paths)} source file(s) define what {package.name} declares")
+    if not violations:
+        typer.echo(f"ok: {len(paths)} source file(s) define what {package.name} declares")
+    return bool(violations)
 
 
-@app.command()
-@_exits
-def check() -> None:
-    """Fail if a generated file is stale, missing or orphaned, or an adopted package's interface drifted. Exit 0 ok, 1
-    drift."""
-    root, config, package = _project()
-    if package.adopted:
-        _check_interface(root, config, package)
-        return
+def _check_generated(root: pathlib.Path, config: Config, package: Package) -> bool:
     out = root / config.output
     drift = check_drift(package.files(), out, owned=("*.sty",), version=generator_version())
     for label, names in (("stale", drift.stale), ("missing", drift.missing), ("orphaned", drift.orphaned)):
@@ -138,5 +131,42 @@ def check() -> None:
         typer.echo(f"note     {note}")
     if drift.stale or drift.missing or drift.orphaned:
         typer.echo("run `texmodel build` and commit the result", err=True)
-        raise typer.Exit(1)
+        return True
     typer.echo("ok: generated files are current")
+    return False
+
+
+def _check_documents(root: pathlib.Path, config: Config) -> bool:
+    """Each committed document against what the model renders now, by path (like `terraform plan`): a changed, removed
+    or added line names the component that writes it, so a hand edit and a stale render read the same."""
+    failed = False
+    for name, pointer in sorted(config.documents.items()):
+        rendered = load_document(pointer, root)
+        committed = root / name
+        if not committed.is_file():
+            typer.echo(f"missing  {name}")
+            failed = True
+        elif isinstance(rendered, Plan):
+            for e in rendered.edits(committed.read_text(encoding="utf-8")):
+                what = "added" if not e.expected else "removed" if not e.found else "changed"
+                typer.echo(f"{what:8} {name} {e.path}: {e.found or e.expected}")
+                failed = True
+        elif committed.read_text(encoding="utf-8") != rendered:
+            typer.echo(f"stale    {name}")
+            failed = True
+    if config.documents and not failed:
+        typer.echo(f"ok: {len(config.documents)} document(s) match the model")
+    if failed:
+        typer.echo("run `texmodel render` and commit the result", err=True)
+    return failed
+
+
+@app.command()
+@_exits
+def check() -> None:
+    """Fail if a generated file is stale, missing or orphaned, an adopted package's interface drifted, or a document
+    differs from what the model renders. Exit 0 ok, 1 drift."""
+    root, config, package = _project()
+    failed = _check_interface(root, config, package) if package.adopted else _check_generated(root, config, package)
+    if _check_documents(root, config) or failed:
+        raise typer.Exit(1)

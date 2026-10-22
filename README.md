@@ -206,6 +206,17 @@ json_schema(Card)    # JSON Schema of what from_dict accepts
 Everything wrong comes at once as an `ExceptionGroup` of `ValidationError` (`TM-C020`), each with a path such as
 `Card/CardBack[1]/LeadFact[2].text`.
 
+### Checking committed documents
+
+```toml
+[tool.texmodel.documents]
+"deck.tex" = "deck.build:plan()"       # committed file = pointer to a Plan (or a str) the model renders
+```
+
+`texmodel check` renders each pointer from today's model and compares it with the committed file, like `terraform plan`:
+for a `Plan` every difference names the component that writes the line (`changed  deck.tex Card[1]/CardBack[1]/LabelledSlot[3]: ...`),
+so a hand edit and a stale render read the same; a `str` is compared whole. Exit 1 on any difference; `texmodel render` rewrites.
+
 ### Where a line came from
 
 `pkg.plan(...)` takes the arguments of `pkg.document(...)` and returns a `Plan`: every output line with the path of what wrote it

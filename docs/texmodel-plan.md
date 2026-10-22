@@ -968,6 +968,7 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | Consumer evidence lives in a committed snapshot (`tests/consumers/`); the one `consumer` test reads the live deck read-only and is skipped without it | decided 2026-10-22 |
 | A source map is a `Plan`: output lines with the path that wrote each; the baseline for hand-edit detection is its JSON, stored beside the committed file | decided 2026-10-22 |
 | A closed set is a `Choice` enum whose member values are the TeX (`Raw` passes through, `str` is escaped); data names a member by name | decided 2026-10-22 |
+| Documents are checked against the model's render, with no baseline file (`[tool.texmodel.documents]`, like `terraform plan`); hand edit and config change are not told apart | decided 2026-10-22 |
 | Pydantic v2 is a dependency, used at the data boundary only (`texmodel.spec`: `from_dict`, `to_dict`, `json_schema`); component classes stay stdlib frozen dataclasses; default (lax) coercion; its errors are mapped to `Violation` / `ValidationError` with `TM-C020` and `validate()`-style paths | decided 2026-10-22 |
 | Python-only authoring; TOML/YAML frontend | parked, not planned |
 | Renames via `renamed_from` → pydantic aliases + release record | decided |
@@ -1011,8 +1012,10 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
 4. **Grammar escape hatches.** Ordered runs cannot say "this item may appear anywhere, any number of times" (a section
    header) or hold a raw child (a layout `\vspace`). Ideas: an `Anywhere(X)` term; a `Raw` node allowed in a grammar by
    declaration; interleaving of two runs. Without it a model cannot match a generator's layout, only its text.
-5. **Baseline workflow in the CLI.** `texmodel render` could write `<doc>.plan.json` beside the `.tex`, and `texmodel check`
-   compare a committed document with its plan (hand edits by path, config changes by path). Today the tests do it.
+5. **Documents in the CLI.** Built 2026-10-22 without a baseline file (the model is the reference, as in `terraform plan`):
+   `[tool.texmodel.documents]` maps a committed `.tex` to a pointer returning a `Plan`; `texmodel check` names each difference
+   by component path. Open: telling a hand edit from a config change needs the old render (a saved plan or git); passing a
+   plan pointer to `texmodel-build compile` so diagnostics print paths; `texmodel render` for every configured document at once.
 6. **Hand-edit semantics.** The old regex tool separated a hand edit from a config change, matched cards by id, ignored a
    triage tool's marker comment, and produced the config edit that imports a hand edit. Ideas: keyed children (path by id,
    not position), a declared "comment marker to ignore" on the plan comparison, and an `import` hook that maps a path to a

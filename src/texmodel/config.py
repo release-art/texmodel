@@ -3,7 +3,7 @@
 import dataclasses
 import pathlib
 import tomllib
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from .errors import DeclarationError
@@ -14,6 +14,8 @@ class Config:
     prefix: str
     package: str = ""  # pointer to the Package to build: "module:object", "module:ns.object" or "module:getter()"
     output: str = "generated"  # where `texmodel build` writes, relative to pyproject.toml
+    # committed .tex -> pointer to what renders it
+    documents: Mapping[str, str] = dataclasses.field(default_factory=dict[str, str])
     sources: Sequence[str] = ()  # globs of the hand-written TeX an adopted package declares (M9), from pyproject.toml
 
 

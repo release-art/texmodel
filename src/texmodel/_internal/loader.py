@@ -8,6 +8,7 @@ from typing import Any
 
 from ..errors import DeclarationError
 from ..package import Package
+from ..plan import Plan
 
 _POINTER = re.compile(
     r"(?P<module>[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*):(?P<attr>[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)(?P<call>\(\))?"
@@ -43,14 +44,14 @@ def load_package(spec: str, root: pathlib.Path) -> Package:
     return package
 
 
-def load_document(spec: str, root: pathlib.Path) -> str:
-    """The `.tex` text: the attribute is a `str` (from `Package.document()`), or a function that returns one."""
+def load_document(spec: str, root: pathlib.Path) -> str | Plan:
+    """The document: a `str` (`Package.document()`) or a `Plan` (`Package.plan()`), or a function returning one."""
     obj = _load(spec, root, "the module:attribute you passed")
     text = obj() if callable(obj) else obj
-    if not isinstance(text, str):
+    if not isinstance(text, str | Plan):
         raise DeclarationError(
             f"{spec!r} is a {type(text).__name__}, not a document",
             code="TM-D024",
-            hint="point at a str from Package.document(), or a function returning one",
+            hint="point at a str or Plan from Package.document() / plan(), or a function returning one",
         )
     return text

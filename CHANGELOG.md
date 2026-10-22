@@ -47,6 +47,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `texmodel.types.Choice` (T1): a closed set as a field type. A member's value is the TeX it stands for, a `Raw` (passes
   through) or a `str` (escaped); data names a member by its name and `to_dict` writes it back; the schema lists the names.
   A mixed or aliased set is refused at declaration (`TM-M024`); `validate()` names the choices (`TM-C003`).
+- `texmodel check` also compares committed documents with what the model renders now (`[tool.texmodel.documents]`, committed
+  file to pointer). A pointer may return a `Plan`: a changed, removed or added line is reported with the path of the component
+  that writes it. `texmodel render` accepts a `Plan` too. There is no baseline file: the model is the reference.
 - `Package.plan(...)` (B2, D2): the document as `Plan`, lines with the path of what wrote them. `Plan.edits(text)` finds changed,
   removed and added lines by path, `path_of(n)` maps an output line (a log's `input line`) to its path, and `to_json` /
   `from_json` store it as a baseline beside the committed file. New module `texmodel.plan`.
