@@ -4,41 +4,31 @@ Findings behind `texmodel-plan.md`, kept so the reasoning survives the move into
 project repo. Everything here was observed on 2026-10-21 unless a source is cited.
 Nothing was built or run beyond read-only inspection.
 
-## 1. `brainyboo-brand` LaTeX and deck-schema generation (the first consumer)
+## 1. A generated package family with a deck schema (the first consumer)
 
-- "openapi" there is a **JSON Schema 2020-12** deck spec
-  (`derived/schema/<version>/deck.schema.json`, 2,040 lines) generated from pydantic
-  models in `src/brainy_boo_brand/latex/schema.py`; OpenAPI 3.1-compatible, no endpoints.
-- Spec shape: `{brand_version, series, options, settings, cards[front, back]}`,
-  discriminated by series; `x-latex-*` annotations carry macro, call template, argument
-  types, placement, region order and a document skeleton.
-- Generated `.sty` family (~5.7k lines, six files) from `tokens.json` through string
-  templates and ~70 `.tex` fragments. Drift guards: G26 (fragments may not declare public
-  names), G27 (schema byte-checked; earlier releases' examples migrate and validate).
-  The family is also checked whole for undeclared control sequences.
-- Strengths: one surface model (`surface.py`) and one argument declaration
-  (`arguments.py`) feed `.sty`, schema, docs; series grammar enforced by *what exists*;
-  migrations replayed from earlier examples.
-- Gaps: **nothing converts a validated spec to `.tex`**; `edu-game-books` builds
-  `deck.tex` from Jinja with hardcoded macros and grammar counts, then regex-parses its
-  own output (`deck_tex_drift.py`, 423 lines); nothing consumes `deck.schema.json`; fit is
-  only knowable by typesetting; no TeX in CI; migrations assumed compatible by default.
-- One apparent inconsistency to verify: the Jinja comment says "3 labelled slots" while
-  the condition is `loop.index > 4`.
+- The "openapi" there is a **JSON Schema 2020-12** deck spec generated from pydantic models; OpenAPI 3.1-compatible, no
+  endpoints.
+- Spec shape: version, series, options, settings, cards (front, back), discriminated by series; `x-latex-*` annotations
+  carry the macro, call template, argument types, placement, region order and a document skeleton.
+- The generated `.sty` family (about 5.7k lines, six files) comes from a token file through string templates and about 70
+  `.tex` fragments. Drift guards: fragments may not declare public names; the schema is byte-checked; earlier releases'
+  examples migrate and validate. The family is also checked whole for undeclared control sequences.
+- Strengths: one surface model and one argument declaration feed the `.sty`, the schema and the docs; the series grammar is
+  enforced by *what exists*; migrations are replayed from earlier examples.
+- Gaps: **nothing converts a validated spec to `.tex`**; the deck generator builds `.tex` from Jinja with hardcoded macros and
+  grammar counts, then regex-parses its own output (a drift module of about 400 lines); nothing consumes the schema; fit is
+  only knowable by typesetting; no TeX in CI; migrations are assumed compatible by default.
+- One apparent inconsistency to verify: a template comment says "3 labelled slots" while the condition is `loop.index > 4`.
 
-## 2. Release.art brand folder (the second consumer)
+## 2. A second brand folder (the second consumer)
 
-`brand/` is only a token pack and guidelines; the LaTeX machinery is in
-`src/release_art_cli/{latex,disclosure,pdfverify}`, `sources/latex/`, `derived/latex/`.
-It is a **second independent implementation of the same pattern**: generated `.sty` from
-tokens (committed, drift-guarded), compile driver (`ratex`/`ralatex` mirror
-`bbtex`/`bblatex`), install and bundle, a PDF verifier, an enforceable naming policy.
-Differences that shaped the plan: document classes (card with bleed, A4 report, Beamer
-deck), CMYK and RGB variants of one name set, spot-colour separations, commercial
-non-redistributable fonts, statutory text composed once for several targets, richer
-verification (PDF/X-4 identity, TAC, rich-black, overprint, veraPDF), about 1,100 lines of
-**hand-written** classes beside one generated `.sty`. Application specifics were
-deliberately kept out of the plan; only workflow-level requirements were generalised.
+It holds only a token pack and guidelines; the LaTeX machinery is in a CLI package and two source trees. It is a **second
+independent implementation of the same pattern**: generated `.sty` from tokens (committed, drift-guarded), a compile driver,
+install and bundle, a PDF verifier, an enforceable naming policy. Differences that shaped the plan: document classes (card
+with bleed, A4 report, Beamer deck), CMYK and RGB variants of one name set, spot-colour separations, commercial
+non-redistributable fonts, statutory text composed once for several targets, richer verification (PDF/X-4 identity, TAC,
+rich-black, overprint, veraPDF), about 1,100 lines of **hand-written** classes beside one generated `.sty`. Application
+specifics were deliberately kept out of the plan; only workflow-level requirements were generalised.
 
 ## 3. Demand
 
