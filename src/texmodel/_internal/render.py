@@ -5,13 +5,13 @@ Output is a pure function of the declaration: no timestamps, no hashes, no dict 
 
 import dataclasses
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any, cast
 
 from ..body import HOLE, Hole, Library, Syntax
 from ..errors import DeclarationError
 from ..interface import BRACE, SQUARE, Body, BodyKind, Delimiter, Gap, SlotGroup
-from ..types import Colour, Length, Raw, balanced, escape
+from ..types import Claim, Colour, Length, Raw, ValueKind, balanced, escape
 from .values import unprotected, value_ok, value_text
 
 _HOLE = re.compile(rf"{HOLE.pattern}|#(?P<digit>\d)")
@@ -84,17 +84,15 @@ class EnvSpec:
 
 @dataclasses.dataclass(frozen=True)
 class ValueSpec:
-    """What the renderer needs to know about one `Value`: its type is its default's type, which decides the TeX."""
+    """What the renderer needs to know about one `Value`: its kind decides the TeX."""
 
     name: str  # the class name
     doc: str
-    default: (
-        Length | Colour | bool | str | Raw | None
-    )  # None: a `Value[Text]` / `Value[Raw]` the hand-written package defines, or a `Value[Length]` with none
-    kind: str  # "Length" | "Colour" | "Bool" | "Toggle" | "Text" | "Raw", for the provenance comment
+    default: object | None  # None: a `Value[Text]` / `Value[Raw]` the hand-written package defines, or a bare length
+    kind: ValueKind
     qualname: str
-    needs: tuple[str, ...]  # packages it needs (M14)
-    colour: str | None = None  # a colour's name when it is not `<prefix>-<kebab>` (`colour_name = "bbInk"`)
+    needs: tuple[str, ...]  # packages it needs (M14): its kind's and the class's own
+    alias: str | None = None  # the name the class gives itself (`colour_name = "bbInk"`)
     meta: Mapping[str, object] = dataclasses.field(default_factory=dict[str, object])  # the schema's `x-` keys
 
 
@@ -361,59 +359,101 @@ def colour_name(prefix: str, name: str) -> str:
     return f"{prefix}-{snake(name).replace('_', '-')}"
 
 
-def bool_names(prefix: str, name: str) -> tuple[str, ...]:
-    """The control sequences `\\newif\\if<prefix><name>` defines besides the conditional itself."""
-    return (f"{prefix}{name}true", f"{prefix}{name}false")
+def _controls(*suffixes: str) -> Callable[[str, str, str | None], tuple[Claim, ...]]:
+    r"""The claims of a kind that takes `\<prefix><Name>` and `\<prefix><Name><suffix>` for each suffix."""
+    return lambda prefix, name, _alias: tuple(
+        ("control", c, f"\\{c}") for c in (f"{prefix}{name}", *(f"{prefix}{name}{x}" for x in suffixes))
+    )
 
 
-def setting(
-    prefix: str,
-    name: str,
-    value: Length | Colour | bool | str | Raw,
-    *,
-    colour: str | None = None,
-    toggle: bool = False,
-) -> str:
-    """The line that gives a value its content: the default in the `.sty`, a document's `settings=` in the `.tex`.
-    `colour` names a colour that is not `<prefix>-<kebab>`; `toggle` writes a bool as an etoolbox toggle."""
-    control = f"{prefix}{name}"
-    if isinstance(value, Raw):
-        return f"\\renewcommand{{\\{control}}}{{{value.tex}}}"
-    if isinstance(value, str):
-        return f"\\renewcommand{{\\{control}}}{{{escape(value)}}}"
-    if isinstance(value, Length):
-        return f"\\setlength{{\\{control}}}{{{value}}}"
-    if isinstance(value, bool):
-        word = "true" if value else "false"
-        return f"\\toggle{word}{{{control}}}" if toggle else f"\\{control}{word}"
-    return f"\\definecolor{{{colour or colour_name(prefix, name)}}}{{{value.model}}}{{{value}}}"
+def _colour_claims(prefix: str, name: str, alias: str | None) -> tuple[Claim, ...]:
+    colour = alias or colour_name(prefix, name)
+    return (("colour", colour, f"colour {colour}"),)
+
+
+def _declared(
+    first: Callable[[str], list[str]], setting: Callable[[str, str, Any, str | None], str]
+) -> Callable[[str, str, Any, str | None], list[str]]:
+    """A definition that declares the name, then sets the default if there is one."""
+    return lambda prefix, name, default, alias: [
+        *first(f"{prefix}{name}"),
+        *([] if default is None else [setting(prefix, name, default, alias)]),
+    ]
+
+
+def _renew(prefix: str, name: str, value: Any, _alias: str | None) -> str:  # noqa: ANN401
+    return f"\\renewcommand{{\\{prefix}{name}}}{{{value.tex if isinstance(value, Raw) else escape(value)}}}"
+
+
+def _new(prefix: str, name: str, value: Any, _alias: str | None) -> list[str]:  # noqa: ANN401
+    return [f"\\newcommand{{\\{prefix}{name}}}{{{value.tex if isinstance(value, Raw) else escape(value)}}}"]
+
+
+def _set_flag(prefix: str, name: str, value: Any, _alias: str | None) -> str:  # noqa: ANN401
+    return f"\\{prefix}{name}{'true' if value else 'false'}"
+
+
+def _set_colour(prefix: str, name: str, value: Any, alias: str | None) -> str:  # noqa: ANN401
+    return f"\\definecolor{{{alias or colour_name(prefix, name)}}}{{{value.model}}}{{{value}}}"
+
+
+def _set_length(prefix: str, name: str, value: Any, _alias: str | None) -> str:  # noqa: ANN401
+    return f"\\setlength{{\\{prefix}{name}}}{{{value}}}"
+
+
+LENGTH = ValueKind(
+    "Length",
+    Length,
+    "string",
+    _controls(),
+    _declared(lambda c: [f"\\newlength{{\\{c}}}"], _set_length),
+    _set_length,
+    may_omit=True,
+    bare=True,
+)
+COLOUR = ValueKind(
+    "Colour",
+    Colour,
+    "string",
+    _colour_claims,
+    _declared(lambda _c: [], _set_colour),
+    _set_colour,
+    needs=("xcolor",),
+    named=True,
+)
+BOOL = ValueKind(
+    "Bool",
+    bool,
+    "boolean",
+    _controls("true", "false"),
+    _declared(lambda c: [f"\\newif\\if{c}"], _set_flag),
+    _set_flag,
+)
+TEXT_KIND = ValueKind(
+    "Text",
+    str,
+    "string",
+    _controls(),
+    _new,
+    _renew,
+    may_omit=True,
+    adoptable=True,
+)
+RAW_KIND = ValueKind(
+    "Raw",
+    Raw,
+    "string",
+    _controls(),
+    _new,
+    _renew,
+    may_omit=True,
+    adoptable=True,
+)
 
 
 def render_value(prefix: str, spec: ValueSpec) -> str:
-    d, control = spec.default, f"{prefix}{spec.name}"
-    if isinstance(d, Raw):
-        return "\n".join(
-            [*_comment(spec.doc), f"% from {spec.qualname} (value: Raw)", f"\\newcommand{{\\{control}}}{{{d.tex}}}"]
-        )
-    if isinstance(d, str):
-        return "\n".join(
-            [
-                *_comment(spec.doc),
-                f"% from {spec.qualname} (value: Text)",
-                f"\\newcommand{{\\{control}}}{{{escape(d)}}}",
-            ]
-        )
-    decl = (
-        [f"\\newlength{{\\{control}}}"]
-        if spec.kind == "Length"
-        else [f"\\newtoggle{{{control}}}"]
-        if spec.kind == "Toggle"
-        else [f"\\newif\\if{control}"]
-        if isinstance(d, bool)
-        else []
-    )
-    given = [] if d is None else [setting(prefix, spec.name, d, colour=spec.colour, toggle=spec.kind == "Toggle")]
-    return "\n".join([*_comment(spec.doc), f"% from {spec.qualname} (value: {spec.kind})", *decl, *given])
+    lines = spec.kind.declare(prefix, spec.name, spec.default, spec.alias)
+    return "\n".join([*_comment(spec.doc), f"% from {spec.qualname} (value: {spec.kind.name})", *lines])
 
 
 def undeclared(prefix: str, text: str, declared: Mapping[str, str]) -> list[str]:

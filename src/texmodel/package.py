@@ -16,10 +16,8 @@ from ._internal.render import (
     EnvSpec,
     Spec,
     ValueSpec,
-    bool_names,
     canonical,
     check_references,
-    colour_name,
     header_lines,
     lint_library,
     render_command,
@@ -27,7 +25,6 @@ from ._internal.render import (
     render_library,
     render_value,
     require_lines,
-    setting,
     signature,
     undeclared,
 )
@@ -39,7 +36,7 @@ from .errors import DeclarationError, Violation
 from .plan import Line, Plan, node_lines
 from .preamble import Entry, PdfInfo, RequireMetadata, tex_of
 from .testing import Component, stub_tex
-from .types import Length, Raw, balanced
+from .types import Raw, balanced
 
 _NAME = re.compile(r"[a-z][a-z0-9-]*")
 _PREFIX = re.compile(r"[a-z]*")  # empty: the package of a standard TeX library, whose names carry none
@@ -221,25 +218,19 @@ class Package:
     def value[V: type[AnyValue]](self, cls: V) -> V:
         """Register a value class: `\\newlength`, `\\definecolor`, `\\newif` or `\\newcommand` by its type (M1a)."""
         spec = value_spec_of(cls)
-        if self.adopted and spec.kind not in ("Text", "Raw"):
+        if self.adopted and not spec.kind.adoptable:
             raise DeclarationError(
                 f"{cls.__qualname__}: an adopted package can declare a Value[Text] or Value[Raw] only",
                 code="TM-P005",
                 path=spec.name,
                 hint="declare a length, colour or flag the hand-written package defines as a Command with no arguments",
             )
-        if spec.default is None and not self.adopted and spec.kind != "Length":
+        if spec.default is None and not self.adopted and not spec.kind.bare:
             raise DeclarationError(f"{cls.__qualname__}: no default", code="TM-M013", path=spec.name)
-        control = self.prefix + spec.name
-        if isinstance(spec.default, Length | str | Raw | None):
-            claims = [(self._controls, control, f"\\{control}")]
-        elif spec.kind == "Toggle":
-            claims = [(self._controls, control, f"\\{control}")]
-        elif isinstance(spec.default, bool):
-            claims = [(self._controls, c, f"\\{c}") for c in (control, *bool_names(self.prefix, spec.name))]
-        else:
-            name = spec.colour or colour_name(self.prefix, spec.name)
-            claims = [(self._colours, name, f"colour {name}")]
+        tables = {"control": self._controls, "colour": self._colours}
+        claims = [
+            (tables[table], key, shown) for table, key, shown in spec.kind.claims(self.prefix, spec.name, spec.alias)
+        ]
         self._add(spec, *claims)
         cls.__tm_prefix__ = self.prefix
         self._classes.append(cls)
@@ -435,13 +426,7 @@ class Package:
             return [
                 Line(
                     f"settings[{i}]",
-                    setting(
-                        type(v).__tm_prefix__,
-                        type(v).__name__,
-                        v.value,
-                        colour=type(v).colour_name,
-                        toggle=type(v).__tm_kind__ == "Toggle",
-                    ),
+                    type(v).__tm_kind__.setting(type(v).__tm_prefix__, type(v).__name__, v.value, type(v).colour_name),
                 )
                 for i, v in enumerate(settings)
                 if isinstance(v.value, str | Raw) == text

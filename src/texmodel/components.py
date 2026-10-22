@@ -70,6 +70,11 @@ from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar, dataclass_transform, overload
 
 from ._internal.render import (
+    BOOL,
+    COLOUR,
+    LENGTH,
+    RAW_KIND,
+    TEXT_KIND,
     Arg,
     EnvSpec,
     Spec,
@@ -103,7 +108,7 @@ from .body import (
 )
 from .errors import DeclarationError, Violation
 from .interface import BRACE, RAW_BODY, SQUARE, ArgOptions, BodyKind, Gap, arg, body_of
-from .types import CMYK, RGB, TEXT, TOGGLE, Choice, Colour, Gray, Length, Raw, Text
+from .types import TEXT, Choice, Colour, Length, Raw, Text, ValueKind
 
 type Node = Command | Environment | Passthrough | Comment
 Resolved = TexRaw | Ref | Comment | Group | Seq | Cs | Lit | Hole
@@ -753,13 +758,7 @@ def env_spec_of(
     )
 
 
-_KINDS = {
-    Length: "Length",
-    Colour: "Colour",
-    bool: "Bool",
-    str: "Text",
-    Raw: "Raw",
-}  # the closed set `Value[T]` accepts (T2); a `Toggle` is a `bool` whose kind reads "Toggle"
+_KINDS: dict[object, ValueKind] = {Length: LENGTH, Colour: COLOUR, bool: BOOL, str: TEXT_KIND, Raw: RAW_KIND}
 
 
 class Value[T]:
@@ -771,16 +770,13 @@ class Value[T]:
     colour_name: ClassVar[str | None] = None  # a `Value[Colour]`'s name when it is not `<prefix>-<kebab>` (`"bbInk"`)
     meta: ClassVar[Mapping[str, object]] = {}  # the schema's `x-` keys on this value
     __tm_doc__: ClassVar[str]
-    __tm_kind__: ClassVar[str]
-    __tm_type__: ClassVar[type | types.UnionType]
+    __tm_kind__: ClassVar[ValueKind]
     __tm_prefix__: ClassVar[str]
 
     def __init__(self, value: T) -> None:
         """A document's setting for this value (D1a): `FactGap(Length("3mm"))`, checked against the declared type."""
-        if not isinstance(value, type(self).__tm_type__):
-            raise DeclarationError(
-                f"{type(self).__name__}({value!r}): expected a {type(self).__tm_kind__}", code="TM-M014"
-            )
+        if not isinstance(value, kind := type(self).__tm_kind__.python):
+            raise DeclarationError(f"{type(self).__name__}({value!r}): expected a {kind}", code="TM-M014")
         self.value = value
 
     def __repr__(self) -> str:
@@ -794,31 +790,27 @@ class Value[T]:
             None,
         )
         marks = typing.get_args(arg)[1:] if typing.get_origin(arg) is typing.Annotated else ()
-        toggle = TOGGLE in marks
-        if TEXT in marks:
-            arg = str  # Text
-        elif toggle:
-            arg = bool
-        if arg not in _KINDS:
+        kind = next((m for m in marks if isinstance(m, ValueKind)), TEXT_KIND if TEXT in marks else _KINDS.get(arg))
+        if kind is None:
             raise DeclarationError(
-                f"{cls.__qualname__}: base must be Value of Length, Colour, Bool, Toggle, Text or Raw, not {arg!r}",
+                f"{cls.__qualname__}: base must be Value of Length, Colour, Bool, Text or Raw, or of a package's own "
+                f"kind (etoolbox's Toggle), not {arg!r}",
                 code="TM-M012",
                 path=cls.__name__,
             )
-        if "default" not in cls.__dict__ and arg not in (str, Raw, Length):  # a length may be computed later
+        if "default" not in cls.__dict__ and not kind.may_omit:
             raise DeclarationError(f"{cls.__qualname__}: no default", code="TM-M013", path=cls.__name__)
-        if cls.colour_name is not None and arg is not Colour:
+        if cls.colour_name is not None and not kind.named:
             raise DeclarationError(
                 f"{cls.__qualname__}: colour_name belongs to a Value[Colour]", code="TM-M012", path=cls.__name__
             )
         default = cls.__dict__.get("default")
-        if default is not None and not isinstance(default, arg):
+        if default is not None and not isinstance(default, kind.python):
             raise DeclarationError(
-                f"{cls.__qualname__}: default {default!r} is not a {_KINDS[arg]}", code="TM-M014", path=cls.__name__
+                f"{cls.__qualname__}: default {default!r} is not a {kind.name}", code="TM-M014", path=cls.__name__
             )
-        implied = ("xcolor",) if isinstance(default, (CMYK, RGB, Gray)) else ("etoolbox",) if toggle else ()
-        cls.__tm_doc__, cls.__tm_kind__, cls.__tm_type__ = doc, "Toggle" if toggle else _KINDS[arg], arg
-        cls.needs_packages = tuple(sorted({*cls.needs_packages, *implied}))
+        cls.__tm_doc__, cls.__tm_kind__ = doc, kind
+        cls.needs_packages = tuple(sorted({*cls.needs_packages, *kind.needs}))
 
 
 type AnyValue = Value[Length] | Value[Colour] | Value[bool] | Value[Text] | Value[Raw]

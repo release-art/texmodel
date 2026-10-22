@@ -197,16 +197,6 @@ def _annotate(schema: dict[str, Any], classes: Iterable[type], comments: Iterabl
     _requires_type(schema)
 
 
-_VALUE_TYPES = {
-    "Length": "string",
-    "Colour": "string",
-    "Bool": "boolean",
-    "Toggle": "boolean",
-    "Text": "string",
-    "Raw": "string",
-}
-
-
 def _package_schema(package: Package, comments: tuple[type[Comment], ...]) -> dict[str, Any]:
     """One schema for a package: a `$defs` entry per command and environment, and `Value.<Name>` per value."""
     nodes = [c for c in package.registered if issubclass(c, Command | Environment)]
@@ -226,7 +216,7 @@ def _package_schema(package: Package, comments: tuple[type[Comment], ...]) -> di
             schema["$defs"][f"Value.{cls.__name__}"] = {
                 "title": cls.__name__,
                 "description": cls.__tm_doc__,
-                "type": _VALUE_TYPES[cls.__tm_kind__],
+                "type": cls.__tm_kind__.json_type,
                 **_x_keys(cls.meta),
             }
     _annotate(schema, nodes, comments)

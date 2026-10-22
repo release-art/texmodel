@@ -8,9 +8,11 @@ import dataclasses
 import enum
 import math
 import re
+import types
+from collections.abc import Callable
 from decimal import Decimal
 from fractions import Fraction
-from typing import TYPE_CHECKING, Annotated, ClassVar, Final
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Final
 
 from .errors import DeclarationError, ValidationError
 
@@ -27,12 +29,32 @@ TEXT: Final = _TextMarker()
 Text = Annotated[str, TEXT]
 
 
-class _ToggleMarker:
-    def __repr__(self) -> str:
-        return "Toggle"
+type Claim = tuple[
+    str, str, str
+]  # a name a value takes: its namespace ("control" | "colour"), the name, how to show it
 
 
-TOGGLE: Final = _ToggleMarker()  # marks `texmodel.std.etoolbox.Toggle`, which a `Value` reads as an etoolbox toggle
+@dataclasses.dataclass(frozen=True)
+class ValueKind:
+    """What a `Value[T]` is: the type it holds, the names it claims, the TeX that declares and sets it. The built-in
+    kinds (length, colour, flag, text, raw) are in the renderer; a package adds its own, as etoolbox's `Toggle` does.
+    Give it to `Annotated[T, kind]` and `Value[...]` of that is the kind.
+
+    `declare(prefix, name, default, alias)` is the definition lines (`default` may be None), `setting(...)` the one line
+    that sets a value (a document's `settings=`); `alias` is the class's `colour_name`.
+    """
+
+    name: str  # "Length", "Toggle": shown in provenance comments and errors
+    python: type | types.UnionType  # what a value is an instance of
+    json_type: str
+    claims: Callable[[str, str, str | None], tuple[Claim, ...]]
+    declare: Callable[[str, str, Any, str | None], list[str]]
+    setting: Callable[[str, str, Any, str | None], str]
+    needs: tuple[str, ...] = ()  # packages it needs (M14)
+    named: bool = False  # the class may rename it (`colour_name`)
+    may_omit: bool = False  # the class may leave `default` out (an adopted `Text` / `Raw`; a length computed later)
+    bare: bool = False  # a package may declare it without a default
+    adoptable: bool = False  # an adopted package may declare it
 
 
 class _PdfMarker:

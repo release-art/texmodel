@@ -8,7 +8,7 @@ from texmodel.interface import arg
 from texmodel.package import Package
 from texmodel.spec import json_schema
 from texmodel.std.etoolbox import Toggle
-from texmodel.types import RGB, TOGGLE, Colour, Length, Raw, Text
+from texmodel.types import RGB, Colour, Length, Raw, Text
 
 
 def test_colour_name_replaces_the_derived_name():
@@ -86,4 +86,4 @@ def test_meta_reaches_the_schema():
     d = json_schema(p)["$defs"]["Pic"]
     assert d["x-audience"] == "deck"
     assert d["properties"]["src"]["description"] == "The file." and d["properties"]["src"]["x-type"] == "file"
-    assert d["properties"]["alt"]["x-audience"] == "tools" and repr(TOGGLE) == "Toggle"
+    assert d["properties"]["alt"]["x-audience"] == "tools"
