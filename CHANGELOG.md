@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Typed preamble entries (C2, §21a 10): `PassOption`, `InputPath`, `GraphicsPath`, `RequireMetadata` in `texmodel.preamble`;
+  `PreambleSlots` accepts them beside `Raw`, and one in the wrong slot is `TM-C008`.
+- Grammar escape hatches (B3, §21a 4): `Anywhere(X)` grammar term and the `Passthrough(Raw)` node; `TM-M029` when a kind is
+  both ordered and floating. `from_dict`, `to_dict` and `json_schema` know `Passthrough`.
+- `PdfString` field type and `Value[Raw]` (C3, §21a 9, 1).
 - `Overset` (B2, `TM-X031`): `[tool.texmodel-build.measures.<name>]` (`package`, `pattern` with the groups `item`, `needs`,
   `has`, `kind = "fit"`) types a package's "does not fit" warning; `texmodel:probe:fit.<item>=<needs>/<has>` gives the same.
   A bad rule is refused when the config is read (`TM-D032`). With a plan, `Overset.path` names the component.

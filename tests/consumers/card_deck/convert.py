@@ -9,6 +9,7 @@ from typing import Any
 
 from texmodel.package import PreambleSlots
 from texmodel.plan import Plan
+from texmodel.preamble import InputPath
 from texmodel.types import Raw
 
 from . import legacy, model
@@ -28,7 +29,7 @@ def text(value: str) -> str:
 def preamble(project: dict[str, Any]) -> PreambleSlots:
     return PreambleSlots(
         before_class=(Raw(r"\def\deckBeforeClass{yes}"),),
-        before_package=(Raw(r"\makeatletter\def\input@path{{res/}}\makeatother"),),
+        before_package=(InputPath("res/"),),
         after_package=(
             *(Raw(rf"\newcommand{{{label.value.tex}}}{{{model.SHOWN[label]}}}") for label in model.SlotLabel),
         ),

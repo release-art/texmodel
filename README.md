@@ -203,7 +203,10 @@ texmodel check     # TM-C010: declared, not defined; TM-C011: defined with anoth
 `Package.document(..., preamble=PreambleSlots(before_class=, before_package=, after_package=))` places `Raw` TeX where the
 document needs it: `before_class` for `\DocumentMetadata`, `before_package` for `\input@path`, `after_package` for
 `\graphicspath` and per-document `\renewcommand`s. A public name of the package used there (`\cdSafeInset`) that no
-component declares is refused with its path (`TM-M015`, `preamble.after_package[0]`). `tests/consumers/card_deck/` is a
+component declares is refused with its path (`TM-M015`, `preamble.after_package[0]`). Typed entries render to one `Raw` and know
+their slot: `PassOption("xcolor", "table")`, `InputPath("res/")` (`before_package`), `GraphicsPath("images/")` (`after_package`,
+the current directory first unless `include_cwd=False`) and `RequireMetadata(lang="en-GB")` (`before_class`); one in another
+slot is `TM-C008`. `tests/consumers/card_deck/` is a
 complete example: a hand-written package, the generator it replaces and a 3-card deck.
 
 ### A text setting
@@ -219,6 +222,24 @@ pkg.document(card, settings=[DeckName("R&D")])    # \renewcommand{\acDeckName}{R
 
 A generated package defines `\newcommand{\acDeckName}{Untitled}`; for an adopted one `texmodel check` expects the hand-written
 package to define the macro with no arguments. Length, colour and flag settings are written in the document body as before.
+
+A `Value[Raw]` is the same for a setting that is TeX (`\newcommand{\acFooter}{\textit{draft}}`, renewed by `settings=[Footer(Raw(...))]`).
+A `PdfString` field holds text for the inside of a PDF string: it is written as `\detokenize{...}` with `( ) \` and every TeX
+special as an octal escape (`\050`), so a parenthesis cannot cut the string short and `%` or `_` cannot break the TeX.
+
+### Layout that is not a component
+
+```python
+class Page(Environment):
+    '''A page.'''
+    children = [Name, Anywhere(Heading), Fact.times(2, 3), Passthrough.times.any()]
+
+Page(Name("Rex"), Heading("Facts"), Fact("a"), Passthrough(Raw(r"\vspace{1mm}")), Fact("b"))
+```
+
+`Anywhere(Heading)` allows zero or more of that component anywhere among the other children; it is not counted against the
+ordered terms and the kind cannot also be an ordered term (`TM-M029`). `Passthrough(Raw(...))` writes its TeX as it is and is
+accepted only where a grammar lists it.
 
 ### A closed set of values
 

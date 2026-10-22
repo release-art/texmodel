@@ -15,6 +15,7 @@ PUBLIC = {
     "package",
     "plan",
     "pointer",
+    "preamble",
     "spec",
     "types",
 }

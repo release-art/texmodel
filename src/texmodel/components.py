@@ -80,9 +80,9 @@ from ._internal.render import (
 )
 from .body import Comment, Hole, Ref, RefKind, TemplateRef, TexRaw, Whitespace, join, pieces_of
 from .errors import DeclarationError, Violation
-from .types import CMYK, RGB, TEXT, Choice, Colour, Gray, Length, Raw, Text
+from .types import CMYK, PDF, RGB, TEXT, Choice, Colour, Gray, Length, Raw, Text
 
-type Node = Command | Environment | Comment
+type Node = Command | Environment | Passthrough | Comment
 Source = tuple[tuple[TexRaw | Ref | Comment, ...], str]  # a body's pieces and where they came from
 
 
@@ -96,6 +96,17 @@ class Repeat:
 
     def __str__(self) -> str:
         return f"{self.lo}-{'any' if self.hi is None else self.hi} {self.kind.__name__}"
+
+
+@dataclasses.dataclass(frozen=True)
+class Anywhere:
+    """A grammar term (B3): zero or more `kind` between any two other terms and at both ends, in any number of
+    places: `children = [Name, Anywhere(Heading), Fact.times(2, 3)]`. The kind may not also be an ordered term."""
+
+    kind: type
+
+    def __str__(self) -> str:
+        return f"{self.kind.__name__} anywhere"
 
 
 class _Times:
@@ -264,9 +275,9 @@ class Environment(_Node):
     """A TeX environment (`\\newenvironment`): fields are its arguments, positional arguments its children."""
 
     content: tuple[Node, ...]
-    children: ClassVar[Sequence[type | Repeat]] = ()  # the grammar: components in order, with counts (M4)
+    children: ClassVar[Sequence[type | Repeat | Anywhere]] = ()  # the grammar: components in order, with counts (M4)
     __tm_inline__: ClassVar[tuple[Source | None, Source | None]]
-    __tm_grammar__: ClassVar[tuple[Repeat, ...]]
+    __tm_grammar__: ClassVar[tuple[Repeat | Anywhere, ...]]
 
     def __init_subclass__(cls, *, unused: Sequence[str] = (), **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -293,6 +304,16 @@ class Environment(_Node):
         object.__setattr__(self, "content", content)
         for name, f in fields.items():
             object.__setattr__(self, name, args.get(name, f.default))
+
+
+@dataclasses.dataclass(frozen=True, repr=False)
+class Passthrough(_Node):
+    """TeX written as it is (B3): a layout `\\vspace` between components. It claims no control sequence; a grammar must
+    list it (`Passthrough.times.any()`, or `Anywhere(Passthrough)`) before an environment accepts one."""
+
+    tex: Raw
+    __tm_args__: ClassVar[tuple[Arg, ...]] = (Arg("tex", raw=True),)
+    __tm_doc__: ClassVar[str] = "TeX written as it is."
 
 
 type ArgValue = Hole | Raw | str | Choice
@@ -344,30 +365,38 @@ def _ref_text(ref: Ref, owner: str) -> str:
     }[ref.kind]
 
 
-def _repr(node: Command | Environment) -> str:
+def _repr(node: Command | Environment | Passthrough) -> str:
     """The constructor expression that rebuilds the node (D1): required fields positional, optional ones by keyword."""
     shown = [repr(c) for c in node.content] if isinstance(node, Environment) else []
     for a in type(node).__tm_args__:
         v = getattr(node, a.name)
         if a.optional and v is not None:
             shown.append(f"{a.name}={v!r}")
-        elif not a.optional and isinstance(node, Command):
+        elif not a.optional and not isinstance(node, Environment):
             shown.append(repr(v))
     return f"{type(node).__name__}({', '.join(shown)})"
 
 
-def _grammar(cls: type[Environment]) -> tuple[Repeat, ...]:
-    terms: list[Repeat] = []
+def _grammar(cls: type[Environment]) -> tuple[Repeat | Anywhere, ...]:
+    terms: list[Repeat | Anywhere] = []
     for item in cls.__dict__.get("children", ()):
-        if isinstance(item, type) and issubclass(item, Command | Environment):
+        if isinstance(item, type) and issubclass(item, Command | Environment | Passthrough):
             item = Repeat(item, 1, 1)
-        if not isinstance(item, Repeat):
+        if not isinstance(item, Repeat | Anywhere) or not issubclass(item.kind, _Node):
             raise DeclarationError(
                 f"{cls.__qualname__}: children must be components, optionally multiplied; got {item!r}",
                 code="TM-M020",
                 path=cls.__name__,
             )
         terms.append(item)
+    floating = {t.kind for t in terms if isinstance(t, Anywhere)}
+    if both := sorted(t.kind.__name__ for t in terms if isinstance(t, Repeat) and t.kind in floating):
+        raise DeclarationError(
+            f"{cls.__qualname__}: {both} is both an ordered term and Anywhere",
+            code="TM-M029",
+            path=cls.__name__,
+            hint="a kind is one or the other",
+        )
     return tuple(terms)
 
 
@@ -381,12 +410,20 @@ def _arguments(cls: type[Command] | type[Environment]) -> tuple[Arg, ...]:
         if kind is None:
             raise DeclarationError(
                 f"{cls.__qualname__}.{f.name}: unsupported type {hints[f.name]!r}; "
-                "use Text, Raw or a Choice, or one of them | None",
+                "use Text, PdfString, Raw or a Choice, or one of them | None",
                 code="TM-M004",
                 path=f"{cls.__name__}.{f.name}",
             )
         choice = _choice(cls, f.name, kind) if isinstance(kind, type) else None
-        args.append(Arg(f.name, optional=f.default is not dataclasses.MISSING, raw=kind == "raw", choice=choice))
+        args.append(
+            Arg(
+                f.name,
+                optional=f.default is not dataclasses.MISSING,
+                raw=kind == "raw",
+                choice=choice,
+                pdf=kind == "pdf",
+            )
+        )
     if sum(a.optional for a in args) > 1:
         raise DeclarationError(
             f"{cls.__qualname__}: more than one optional argument (TeX's \\newcommand allows one)",
@@ -418,36 +455,48 @@ def _kind(hint: Any) -> str | type[Choice] | None:
     ]
     if members and all(typing.get_origin(m) is typing.Annotated and TEXT in typing.get_args(m)[1:] for m in members):
         return "text"
+    if members and all(typing.get_origin(m) is typing.Annotated and PDF in typing.get_args(m)[1:] for m in members):
+        return "pdf"
     if len(members) == 1 and isinstance(members[0], type) and issubclass(members[0], Choice):
         return members[0]
     return "raw" if members and all(m is Raw for m in members) else None
 
 
-def _violations(node: Command | Environment, path: str) -> list[Violation]:
+def _violations(node: Command | Environment | Passthrough, path: str) -> list[Violation]:
     cls = type(node)
     out: list[Violation] = []
     for a in cls.__tm_args__:
         v = getattr(node, a.name)
         if not (v is None and a.optional or isinstance(v, a.choice or (Raw if a.raw else str))):
-            want = f"one of {list(a.choice.__members__)}" if a.choice else "Raw" if a.raw else "Text"
+            want = (
+                f"one of {list(a.choice.__members__)}"
+                if a.choice
+                else "Raw"
+                if a.raw
+                else "PdfString"
+                if a.pdf
+                else "Text"
+            )
             out.append(Violation("TM-C003", f"{path}.{a.name}", f"{a.name}: expected {want}, got {v!r}"))
     if isinstance(node, Environment):
         out += _grammar_violations(node, path)
         for i, child in enumerate(node.content):
-            if isinstance(child, Command | Environment):  # pyright: ignore[reportUnnecessaryIsInstance]
+            if isinstance(child, Command | Environment | Passthrough):  # pyright: ignore[reportUnnecessaryIsInstance]
                 out += _violations(child, f"{path}/{type(child).__name__}[{i}]")
     return out
 
 
 def _grammar_violations(node: Environment, path: str) -> list[Violation]:
-    """Match the children against the grammar: each term takes its run of that component, in order. A `Comment` is
-    skipped, and every path keeps the child's real position."""
+    """Match the children against the grammar: each term takes its run of that component, in order. A `Comment` and
+    a child of an `Anywhere` kind are skipped (B3), and every path keeps the child's real position."""
     grammar = type(node).__tm_grammar__
-    content = [(j, c) for j, c in enumerate(node.content) if not isinstance(c, Comment)]
+    floating = {t.kind for t in grammar if isinstance(t, Anywhere)}
+    ordered = [t for t in grammar if isinstance(t, Repeat)]
+    content = [(j, c) for j, c in enumerate(node.content) if not isinstance(c, Comment) and type(c) not in floating]
     allowed = ", ".join(map(str, grammar)) or "nothing"
     out: list[Violation] = []
     i = 0
-    for term in grammar:
+    for term in ordered:
         n = 0
         while i < len(content) and (term.hi is None or n < term.hi) and type(content[i][1]) is term.kind:
             i, n = i + 1, n + 1
@@ -470,7 +519,7 @@ def _grammar_violations(node: Environment, path: str) -> list[Violation]:
     return out
 
 
-def _render(node: Command | Environment) -> str:
+def _render(node: Command | Environment | Passthrough) -> str:
     if violations := _violations(node, type(node).__name__):
         raise ExceptionGroup(f"invalid {type(node).__name__}", [v.error() for v in violations])
     return _emit(node)
@@ -479,6 +528,8 @@ def _render(node: Command | Environment) -> str:
 def _emit(node: Node) -> str:
     if isinstance(node, Comment):
         return node.render()
+    if isinstance(node, Passthrough):
+        return node.tex.tex
     cls = type(node)
     name = f"{_prefix(cls)}{cls.__name__}"
     args = arguments(cls.__tm_args__, {a.name: getattr(node, a.name) for a in cls.__tm_args__})
@@ -558,7 +609,13 @@ def env_spec_of(
     )
 
 
-_KINDS = {Length: "Length", Colour: "Colour", bool: "Bool", str: "Text"}  # the closed set `Value[T]` accepts (T2)
+_KINDS = {
+    Length: "Length",
+    Colour: "Colour",
+    bool: "Bool",
+    str: "Text",
+    Raw: "Raw",
+}  # the closed set `Value[T]` accepts (T2)
 
 
 class Value[T]:
@@ -594,11 +651,11 @@ class Value[T]:
             arg = str  # Text
         if arg not in _KINDS:
             raise DeclarationError(
-                f"{cls.__qualname__}: base must be Value of Length, Colour, Bool or Text, not {arg!r}",
+                f"{cls.__qualname__}: base must be Value of Length, Colour, Bool, Text or Raw, not {arg!r}",
                 code="TM-M012",
                 path=cls.__name__,
             )
-        if "default" not in cls.__dict__ and arg is not str:
+        if "default" not in cls.__dict__ and arg not in (str, Raw):
             raise DeclarationError(f"{cls.__qualname__}: no default", code="TM-M013", path=cls.__name__)
         default = cls.__dict__.get("default")
         if default is not None and not isinstance(default, arg):
@@ -610,7 +667,10 @@ class Value[T]:
         cls.needs_packages = tuple(sorted({*cls.needs_packages, *implied}))
 
 
-def value_spec_of(cls: type[Value[Length] | Value[Colour] | Value[bool] | Value[Text]]) -> ValueSpec:
+type AnyValue = Value[Length] | Value[Colour] | Value[bool] | Value[Text] | Value[Raw]
+
+
+def value_spec_of(cls: type[AnyValue]) -> ValueSpec:
     return ValueSpec(
         cls.__name__,
         cls.__tm_doc__,

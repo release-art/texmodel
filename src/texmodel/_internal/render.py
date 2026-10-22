@@ -10,7 +10,7 @@ from typing import cast
 
 from ..body import Hole
 from ..errors import DeclarationError
-from ..types import Choice, Colour, Length, Raw, balanced, escape
+from ..types import Choice, Colour, Length, Raw, balanced, escape, pdf_escape
 
 _HOLE = re.compile(r"##|#(?P<name>[A-Za-z_]\w*)|#(?P<digit>\d)")
 _CONTROL_WORD = re.compile(r"[A-Z][A-Za-z]*")
@@ -28,6 +28,7 @@ class Arg:
     optional: bool = False  # TeX's one optional argument: always first, empty when absent
     raw: bool = False  # a `Raw` field passes through; a `Text` field is escaped (T3)
     choice: type[Choice] | None = None  # a closed set: the member's value is the TeX (T1)
+    pdf: bool = False  # a `PdfString`: PDF-escaped, then inert to TeX (§21a 9)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -65,8 +66,10 @@ class ValueSpec:
 
     name: str  # the class name
     doc: str
-    default: Length | Colour | bool | str | None  # None: a `Value[Text]` whose default the hand-written package has
-    kind: str  # "Length" | "Colour" | "Bool" | "Text", for the provenance comment
+    default: (
+        Length | Colour | bool | str | Raw | None
+    )  # None: a `Value[Text]` or `Value[Raw]` whose default the hand-written package has
+    kind: str  # "Length" | "Colour" | "Bool" | "Text" | "Raw", for the provenance comment
     qualname: str
     needs: tuple[str, ...]  # packages it needs (M14)
 
@@ -173,7 +176,14 @@ def argument(arg: Arg, value: object) -> str:
     """One call argument. `Text` is escaped, `Raw` passes through; a `]` in the optional one is wrapped (T3)."""
     if isinstance(value, Choice):
         value = value.value
-    text = f"#{value.name}" if isinstance(value, Hole) else value.tex if isinstance(value, Raw) else escape(str(value))
+    if isinstance(value, Hole):
+        text = f"#{value.name}"
+    elif isinstance(value, Raw):
+        text = value.tex
+    elif arg.pdf:
+        text = f"\\detokenize{{{pdf_escape(str(value))}}}"
+    else:
+        text = escape(str(value))
     if not arg.optional:
         return f"{{{text}}}"
     return f"[{{{text}}}]" if "]" in text else f"[{text}]"
@@ -194,9 +204,11 @@ def bool_names(prefix: str, name: str) -> tuple[str, ...]:
     return (f"{prefix}{name}true", f"{prefix}{name}false")
 
 
-def setting(prefix: str, name: str, value: Length | Colour | bool | str) -> str:
+def setting(prefix: str, name: str, value: Length | Colour | bool | str | Raw) -> str:
     """The line that gives a value its content: the default in the `.sty`, a document's `settings=` in the `.tex`."""
     control = f"{prefix}{name}"
+    if isinstance(value, Raw):
+        return f"\\renewcommand{{\\{control}}}{{{value.tex}}}"
     if isinstance(value, str):
         return f"\\renewcommand{{\\{control}}}{{{escape(value)}}}"
     if isinstance(value, Length):
@@ -208,6 +220,10 @@ def setting(prefix: str, name: str, value: Length | Colour | bool | str) -> str:
 
 def render_value(prefix: str, spec: ValueSpec) -> str:
     d, control = spec.default, f"{prefix}{spec.name}"
+    if isinstance(d, Raw):
+        return "\n".join(
+            [*_comment(spec.doc), f"% from {spec.qualname} (value: Raw)", f"\\newcommand{{\\{control}}}{{{d.tex}}}"]
+        )
     if isinstance(d, str):
         return "\n".join(
             [

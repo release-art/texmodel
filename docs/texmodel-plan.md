@@ -958,6 +958,7 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | Environment: fields are keyword arguments, children positional; `children` is the grammar, `.content` the instance's children | decided 2026-10-22 |
 | `Package.document(...)` renders a `.tex`; values are set by `Value` instances in `settings=` | decided 2026-10-22 |
 | `texmodel render module:attr` writes a document to a file | decided 2026-10-22 |
+| `Anywhere` kinds are removed before ordered matching, so a kind is ordered or floating, never both (`TM-M029`) | decided 2026-10-22 |
 | `Comment` subclasses are passed to `from_dict` / `json_schema` as `comments=[...]`, not found by name; a body line starting with `%` is not scanned for `#name` holes | decided 2026-10-22 |
 | Hole syntax `#name`; internals free but must resolve | decided |
 | Documents are constructor trees (not `with` builders) | decided |
@@ -1003,7 +1004,7 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 From running Gate B on a real card deck and its hand-written package family (private; `tests/consumers/card_deck/` keeps the
 shape with made-up data). Ordered by how much the consumer missed them. Each is a candidate, not a decision.
 
-1. **Typed settings and labels.** `Choice` (the enum field type) is built 2026-10-22; `Value[Text]` too (2026-10-22); open: `List`, and `Value[Raw]`. Today a per-deck text setting is an
+1. **Typed settings and labels.** `Choice` (the enum field type) is built 2026-10-22; `Value[Text]` too (2026-10-22); `Value[Raw]` too (2026-10-22, C3); open: `List`. Today a per-deck text setting is an
    argument-less adopted Command whose value is `Raw` in the preamble, and a slot label is a `Raw` field fed by a consumer enum.
    `Enum` would also give a closed set of labels to validate and to export.
 2. **Typed over-set: `Measure` (C5).** Built 2026-10-22 as `Overset` (B2): config rules and the `fit.` probe. Open: other
@@ -1013,7 +1014,8 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
 3. **Automatic diagnostic mapping.** Built 2026-10-22: `Compiler.compile(..., plan=)` adds `path` to every diagnostic located in
    the source (C11); the CLI passes a plan with `--plan` or a target's `plan =` (B1). Open: a package warning's `input line N`
    has no file, so one raised inside another file is mislabelled (the log's file stack is not recovered: TeX wraps log lines); diagnostics from `.sty` files get no path.
-4. **Grammar escape hatches.** Ordered runs cannot say "this item may appear anywhere, any number of times" (a section
+4. **Grammar escape hatches.** Built 2026-10-22 (B3): `Anywhere(X)`, `Passthrough`. Open: interleaving of two runs; a
+   `Passthrough`'s TeX is not checked for undeclared names of the package. Original idea: Ordered runs cannot say "this item may appear anywhere, any number of times" (a section
    header) or hold a raw child (a layout `\vspace`). Ideas: an `Anywhere(X)` term; a `Raw` node allowed in a grammar by
    declaration; interleaving of two runs. Without it a model cannot match a generator's layout, only its text.
 5. **Documents in the CLI.** Built 2026-10-22 without a baseline file (the model is the reference, as in `terraform plan`):
@@ -1030,9 +1032,11 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
 8. **Adoption scanner reach.** Reads `\newcommand`, `\providecommand`, `\newenvironment` only: not `\NewDocumentCommand`,
    `\DeclareRobustCommand`, defaults other than the first argument, or `\newcommand*` forms with unusual spacing. Also: names
    the package defines that the model does not declare (present-but-undeclared, M9), and renewals of declared names (M10).
-9. **PDF-string safety.** A deck's PDF Info string was cut inside a parenthesis, which silently swallowed the rest of the
+9. **PDF-string safety.** Built 2026-10-22 (C3) as `PdfString` (octal escapes inside `\detokenize`; compiled in a tex test). Open:
+   hex strings for non-ASCII, UTF-16 for the Info dictionary. Original: A deck's PDF Info string was cut inside a parenthesis, which silently swallowed the rest of the
    dictionary. Idea: a `PdfString` type that escapes and balances; `Text` is TeX-escaped, not PDF-escaped.
-10. **Preamble.** Slots are three tuples of `Raw`. Ideas: typed entries (`PassOption`, `InputPath`, `GraphicsPath`), the
+10. **Preamble.** Built 2026-10-22 (C2): `PassOption`, `InputPath`, `GraphicsPath`, `RequireMetadata`, slot lint `TM-C008`. Open:
+    slots declared by the package (D3). Original: Slots are three tuples of `Raw`. Ideas: typed entries (`PassOption`, `InputPath`, `GraphicsPath`), the
     ordering rules in the plan's G3 as lints (input path before the package, graphics path after), and slots declared by
     the package (D3).
 11. **Source maps beyond documents.** A `.sty` render could carry a plan too, so a `Package` diagnostic or a hand edit to a

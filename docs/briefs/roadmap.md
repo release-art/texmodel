@@ -175,7 +175,7 @@ tests, README.
 **Tests.** Real-format log text from the synthetic `card_deck` package; bad regex refused at config load (`TM-D0xx`); both
 sources produce the same diagnostic.
 
-## B3. Grammar escape hatches (plan 4)
+## B3. Grammar escape hatches (plan 4) — built 2026-10-22
 
 **Depends on.** Nothing. **Touches.** `components.py`, `spec.py`, `plan.py`, tests, README.
 **Decisions made.**
@@ -205,7 +205,9 @@ add scanner complexity otherwise.
 - A renewal of a declared name in the sources is a note (`TM-C013`, M10).
 **Tests.** Table of declaration forms; unmodelled forms reported, not accepted; config key.
 
-## C2. Typed preamble entries (plan 10)
+## C2. Typed preamble entries (plan 10) — built 2026-10-22
+
+Built in `texmodel/preamble.py`; `PassOption` is allowed in `before_class` or `before_package`, `RequireMetadata` only in `before_class`.
 
 **Depends on.** Nothing. **Touches.** `package.py` (or a new `preamble.py`), tests, README.
 **Decisions made.** Entries are frozen dataclasses that render to one `Raw`: `PassOption(package, option)`,
@@ -214,7 +216,9 @@ group kept explicit (`include_cwd=True` default), `RequireMetadata(**entries)` f
 accept `Raw | entry`. G3 ordering lints: `InputPath` must be in `before_package`, `GraphicsPath` in `after_package` (`TM-C008`).
 **Tests.** Rendered text; ordering refusals; plan paths unchanged in shape.
 
-## C3. Small types (plan 1, 9)
+## C3. Small types (plan 1, 9) — built 2026-10-22
+
+`PdfString` escapes to octal inside `\detokenize` (compiled in a tex test); `Value[Raw]` also allowed in adopted packages.
 
 **Depends on.** Nothing. **Touches.** `types.py`, `components.py`, `spec.py`, tests.
 **Decisions made.** `PdfString`: a field type that escapes for a PDF literal string (balanced parentheses required or
@@ -265,6 +269,6 @@ list with the `tlmgr install` line. Exit 3 if any are missing. No network use.
 
 ## Suggested order
 
-0, then A1, A4, B1, B2 (built), C2, A2, B3, C3, C4, D1, D2, A3, and C1 last (low priority). A1 first because three batches need its references; the rest are
+0, then A1, A4, B1, B2, C2, B3, C3 (built), A2, C4, D1, D2, A3, and C1 last (low priority). A1 first because three batches need its references; the rest are
 ordered so that batches touching `cli.py`/`package.py` do not run at the same time. Between batches: run the gates, read the
 report, then start the next.

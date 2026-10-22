@@ -27,6 +27,14 @@ TEXT: Final = _TextMarker()
 Text = Annotated[str, TEXT]
 
 
+class _PdfMarker:
+    def __repr__(self) -> str:
+        return "PdfString"
+
+
+PDF: Final = _PdfMarker()
+PdfString = Annotated[str, PDF]  # text for the inside of a PDF literal string, see `pdf_escape`
+
 _ESCAPES = str.maketrans(
     {
         "\\": r"\textbackslash{}",
@@ -46,6 +54,18 @@ _ESCAPES = str.maketrans(
 def escape(text: str) -> str:
     """`Text` on render (T3): every TeX special becomes its literal; one pass, so output is never re-escaped."""
     return text.translate(_ESCAPES)
+
+
+_PDF_SAFE = re.compile(r"[\\(){}%#&$_^~\x00-\x1f\x7f]")
+
+
+def pdf_escape(text: str) -> str:
+    """`PdfString` on render (§21a 9): the body of a PDF literal string that cannot end early. Every character that
+    ends or opens a string (`\\ ( )`), or that TeX would read as markup (`% # & $ _ ^ ~ { }`), or that is a control
+    character, becomes a three-digit octal escape (`\\050`); a space after a space too, since TeX reads a run of
+    spaces as one. Other characters, non-ASCII included, stay as they are. Emitted inside `\\detokenize{}`."""
+    out = _PDF_SAFE.sub(lambda m: f"\\{ord(m[0]):03o}", text)
+    return re.sub(r"(?<= ) ", r"\\040", out)
 
 
 def balanced(tex: str) -> bool:

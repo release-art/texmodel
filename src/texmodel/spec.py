@@ -22,7 +22,7 @@ from typing import Annotated, Any
 import pydantic
 
 from .body import Comment
-from .components import Command, Environment, Node
+from .components import Command, Environment, Node, Passthrough
 from .errors import ValidationError, Violation
 from .types import Choice, Raw
 
@@ -49,9 +49,7 @@ def _model(cls: type[Environment], comments: tuple[type[Comment], ...]) -> type[
         members: list[Any] = []
         for t in cls.__tm_grammar__:
             kind = t.kind
-            members.append(
-                kind if issubclass(kind, Command) else _model(typing.cast(type[Environment], kind), comments)
-            )
+            members.append(_model(kind, comments) if issubclass(kind, Environment) else kind)
         members += map(_comment_model, (Comment, *comments))
         tagged = tuple(Annotated[m, pydantic.Tag(m.__name__)] for m in members)
         fields: dict[str, Any] = {"content": (list[Annotated[typing.Union[tagged], pydantic.Discriminator(_tag)]], ...)}  # noqa: UP007
@@ -64,7 +62,7 @@ def _model(cls: type[Environment], comments: tuple[type[Comment], ...]) -> type[
 
 
 def _node(value: Any) -> Node:  # noqa: ANN401  # an instance of a model built at run time, or a Command
-    if isinstance(value, Command):
+    if isinstance(value, Command | Passthrough):
         return value
     cls: type[Environment] | type[Comment] = value.__tm_cls__
     if issubclass(cls, Comment):

@@ -8,7 +8,7 @@ import dataclasses
 import importlib.metadata
 import re
 import typing
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 
 from ._internal.render import (
     EnvSpec,
@@ -27,11 +27,12 @@ from ._internal.render import (
 )
 from ._internal.scan import scan_declarations
 from .body import Whitespace
-from .components import Command, Environment, Node, Value, env_spec_of, spec_of, value_spec_of
+from .components import AnyValue, Command, Environment, Node, env_spec_of, spec_of, value_spec_of
 from .drift import stamp
 from .errors import DeclarationError, Violation
 from .plan import Line, Plan, node_lines
-from .types import Colour, Length, Raw, Text
+from .preamble import Entry, tex_of
+from .types import Length, Raw
 
 _NAME = re.compile(r"[a-z][a-z0-9-]*")
 _PREFIX = re.compile(r"[a-z]+")
@@ -41,16 +42,27 @@ _DATE = re.compile(r"\d{4}/\d{2}/\d{2}")  # \ProvidesPackage's date slot: YYYY/M
 
 @dataclasses.dataclass(frozen=True)
 class PreambleSlots:
-    """TeX a document places around its class and package lines (D3), each slot a tuple of `Raw` in order.
+    """TeX a document places around its class and package lines (D3), each slot a tuple of `Raw` or a typed entry
+    (`InputPath`, `GraphicsPath`, `PassOption`, `RequireMetadata`; one in a slot it does not belong in is `TM-C008`).
 
     `before_class` is where `\\DocumentMetadata` must go; `before_package` is for what the package needs when it
     loads (`\\input@path`, package options); `after_package` is for what needs it loaded (`\\graphicspath`,
     per-document `\\renewcommand`s). Public names of the package used here must be declared (M8).
     """
 
-    before_class: tuple[Raw, ...] = ()
-    before_package: tuple[Raw, ...] = ()
-    after_package: tuple[Raw, ...] = ()
+    before_class: tuple[Raw | Entry, ...] = ()
+    before_package: tuple[Raw | Entry, ...] = ()
+    after_package: tuple[Raw | Entry, ...] = ()
+
+    def items(self) -> Iterator[tuple[str, int, Raw | Entry]]:
+        """Every item with its slot name and index, in document order: the path is `preamble.<slot>[<index>]`."""
+        for slot, found in (
+            ("before_class", self.before_class),
+            ("before_package", self.before_package),
+            ("after_package", self.after_package),
+        ):
+            for i, item in enumerate(found):
+                yield slot, i, item
 
 
 def generator_version() -> str:
@@ -122,12 +134,12 @@ class Package:
         cls.__tm_prefix__, cls.__tm_package__ = self.prefix, self
         return cls
 
-    def value[V: type[Value[Length] | Value[Colour] | Value[bool] | Value[Text]]](self, cls: V) -> V:
+    def value[V: type[AnyValue]](self, cls: V) -> V:
         """Register a value class: `\\newlength`, `\\definecolor`, `\\newif` or `\\newcommand` by its type (M1a)."""
         spec = value_spec_of(cls)
-        if self.adopted and spec.kind != "Text":
+        if self.adopted and spec.kind not in ("Text", "Raw"):
             raise DeclarationError(
-                f"{cls.__qualname__}: an adopted package can declare a Value[Text] only",
+                f"{cls.__qualname__}: an adopted package can declare a Value[Text] or Value[Raw] only",
                 code="TM-P005",
                 path=spec.name,
                 hint="declare a length, colour or flag the hand-written package defines as a Command with no arguments",
@@ -135,7 +147,7 @@ class Package:
         if spec.default is None and not self.adopted:
             raise DeclarationError(f"{cls.__qualname__}: no default", code="TM-M013", path=spec.name)
         control = self.prefix + spec.name
-        if isinstance(spec.default, Length | str | None):
+        if isinstance(spec.default, Length | str | Raw | None):
             claims = [(self._controls, control, f"\\{control}")]
         elif isinstance(spec.default, bool):
             claims = [(self._controls, c, f"\\{c}") for c in (control, *bool_names(self.prefix, spec.name))]
@@ -226,7 +238,7 @@ class Package:
     def plan(
         self,
         *body: Node,
-        settings: Sequence[Value[Length] | Value[Colour] | Value[bool] | Value[Text]] = (),
+        settings: Sequence[AnyValue] = (),
         options: Sequence[str] = (),
         preamble: PreambleSlots | None = None,
     ) -> Plan:
@@ -244,9 +256,18 @@ class Package:
                 f"\\{word} is not declared by this package",
                 hint="declare it, or fix the name",
             )
-            for slot in ("before_class", "before_package", "after_package")
-            for i, raw in enumerate(getattr(preamble, slot))
-            for word in undeclared(self.prefix, raw.tex, self._controls)
+            for slot, i, item in preamble.items()
+            for word in undeclared(self.prefix, tex_of(item).tex, self._controls)
+        ]
+        problems += [
+            Violation(
+                "TM-C008",
+                f"preamble.{slot}[{i}]",
+                f"{type(item).__name__} does not belong in {slot}",
+                hint=f"put it in {' or '.join(type(item).slots)}",
+            )
+            for slot, i, item in preamble.items()
+            if not isinstance(item, Raw) and slot not in type(item).slots
         ]
         problems += [
             Violation("TM-C006", f"options[{i}]", f"class option {o!r} must match [A-Za-z0-9][A-Za-z0-9=.-]*")
@@ -261,7 +282,7 @@ class Package:
             return [
                 Line(f"preamble.{name}[{i}]", tex)
                 for i, raw in enumerate(getattr(preamble, name))
-                for tex in raw.tex.splitlines()
+                for tex in tex_of(raw).tex.splitlines()
             ]
 
         def values(text: bool) -> list[Line]:
@@ -269,7 +290,7 @@ class Package:
             return [
                 Line(f"settings[{i}]", setting(type(v).__tm_prefix__, type(v).__name__, v.value))
                 for i, v in enumerate(settings)
-                if isinstance(v.value, str) == text
+                if isinstance(v.value, str | Raw) == text
             ]
 
         return Plan(
@@ -291,7 +312,7 @@ class Package:
     def document(
         self,
         *body: Node,
-        settings: Sequence[Value[Length] | Value[Colour] | Value[bool] | Value[Text]] = (),
+        settings: Sequence[AnyValue] = (),
         options: Sequence[str] = (),
         preamble: PreambleSlots | None = None,
     ) -> str:
