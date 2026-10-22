@@ -8,7 +8,7 @@ from hypothesis import (
     given,
     strategies as st,
 )
-from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
+from test_texmodel_build.test_compile_tex import compiler, fonts, require_files  # noqa: F401
 
 from texmodel.components import Command, Value
 from texmodel.package import Package, PreambleSlots
@@ -181,6 +181,8 @@ def info_package(route: str):
 def test_the_info_dictionary_holds_exactly_the_text(compiler, tmp_path: pathlib.Path, route):  # noqa: F811
     import pikepdf
 
+    if route == "pdfmanagement":
+        require_files(compiler, "tagpdf-base.sty")
     pkg, put = info_package(TITLE_ROUTES[route])
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "info-demo.sty").write_text(pkg.render(), encoding="utf-8")

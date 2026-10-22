@@ -437,12 +437,23 @@ def _grammar(cls: type[Environment]) -> tuple[Repeat | Anywhere, ...]:
     return tuple(terms)
 
 
+def _reserved_type(cls: type) -> DeclarationError:
+    return DeclarationError(
+        f'{cls.__qualname__}.type: `type` names the component in data (`"type": "Fact"`), so it cannot be a field',
+        code="TM-M030",
+        path=f"{cls.__name__}.type",
+        hint="call the field something else, e.g. `kind`",
+    )
+
+
 def _arguments(cls: type[Command] | type[Environment]) -> tuple[Arg, ...]:
     hints = typing.get_type_hints(cls, include_extras=True)
     args: list[Arg] = []
     for f in dataclasses.fields(cls):  # pyright: ignore[reportArgumentType]
         if f.name == "content":
             continue
+        if f.name == "type":
+            raise _reserved_type(cls)
         kind = _kind(hints[f.name])
         if kind is None:
             raise DeclarationError(

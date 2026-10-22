@@ -959,6 +959,7 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | `Package.document(...)` renders a `.tex`; values are set by `Value` instances in `settings=` | decided 2026-10-22 |
 | `texmodel render module:attr` writes a document to a file | decided 2026-10-22 |
 | A component may name its TeX command with `cs`; a package may have an empty prefix; the kernel is `builtin`; `Package.require` loads a library with options; headers for standard libraries live in `texmodel.std`, one module per package, verified by compiling a call of each | decided 2026-10-22 |
+| A field cannot be called `type` (data's component name); an unprefixed package needs `cs` everywhere; `Passthrough` TeX is checked for undeclared names | decided 2026-10-22 |
 | `Anywhere` kinds are removed before ordered matching, so a kind is ordered or floating, never both (`TM-M029`) | decided 2026-10-22 |
 | `Comment` subclasses are passed to `from_dict` / `json_schema` as `comments=[...]`, not found by name; a body line starting with `%` is not scanned for `#name` holes | decided 2026-10-22 |
 | Hole syntax `#name`; internals free but must resolve | decided |

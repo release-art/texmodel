@@ -28,18 +28,42 @@ from ._internal.render import (
 )
 from ._internal.scan import scan_declarations
 from .body import Whitespace
-from .components import AnyValue, Command, Environment, Node, env_spec_of, spec_of, value_spec_of
+from .components import AnyValue, Command, Environment, Node, Passthrough, env_spec_of, spec_of, value_spec_of
 from .drift import stamp
 from .errors import DeclarationError, Violation
 from .plan import Line, Plan, node_lines
 from .preamble import Entry, tex_of
 from .testing import Component, stub_tex
-from .types import Length, Raw
+from .types import Length, Raw, balanced
 
 _NAME = re.compile(r"[a-z][a-z0-9-]*")
 _PREFIX = re.compile(r"[a-z]*")  # empty: the package of a standard TeX library, whose names carry none
 _OPTION = re.compile(r"[A-Za-z0-9][A-Za-z0-9=.-]*")  # a class option is TeX, so it is not free text
 _DATE = re.compile(r"\d{4}/\d{2}/\d{2}")  # \ProvidesPackage's date slot: YYYY/MM/DD (G3)
+
+
+_BAD_OPTION = re.compile(r"[%\\\n]")  # a comment, a control sequence or a line end
+
+
+def _package_option(option: str) -> bool:
+    """One package option as written in `[...]`: `table`, `margin=10mm`, `colorprofiles={A=a.icc}`. Braces balance, and
+    outside braces nothing ends the option list early."""
+    outside = re.sub(r"\{[^{}]*\}", "", option)
+    return (
+        bool(option.strip())
+        and balanced(option)
+        and not _BAD_OPTION.search(option)
+        and not re.search(r"[\[\]]", outside)
+    )
+
+
+def _passthroughs(node: Node, path: str) -> Iterator[tuple[str, Passthrough]]:
+    """Every `Passthrough` in a tree with its plan path."""
+    if isinstance(node, Passthrough):
+        yield path, node
+    elif isinstance(node, Environment):
+        for i, child in enumerate(node.content):
+            yield from _passthroughs(child, f"{path}/{type(child).__name__}[{i}]")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -125,18 +149,29 @@ class Package:
         spec = spec_of(cls, declared_only=self.adopted, whitespace=self.whitespace)
         if not self.adopted:
             render_command(self.prefix, spec)  # lints the body now, so a bad body is refused at import
-        control = spec.cs or self.prefix + spec.name
+        control = self._control(spec)
         self._add(spec, (self._controls, control, f"\\{control}"))
         cls.__tm_prefix__, cls.__tm_package__, cls.__tm_cs__ = self.prefix, self, control
         self._classes.append(cls)
         return cls
+
+    def _control(self, spec: Spec | EnvSpec) -> str:
+        """The control sequence: its `cs`, else prefix + class name (which needs a prefix)."""
+        if spec.cs is None and not self.prefix:
+            raise DeclarationError(
+                f"{spec.qualname}: a package with no prefix names its commands with `cs`",
+                code="TM-P011",
+                path=spec.name,
+                hint=f'add cs = "..." (the TeX name, e.g. {spec.name.lower()!r}) to the class',
+            )
+        return spec.cs or self.prefix + spec.name
 
     def environment[E: type[Environment]](self, cls: E) -> E:
         """Register an environment class: `\\newenvironment` with its begin and end bodies."""
         spec = env_spec_of(cls, declared_only=self.adopted, whitespace=self.whitespace)
         if not self.adopted:
             render_environment(self.prefix, spec)  # lints both bodies now
-        control = spec.cs or self.prefix + spec.name
+        control = self._control(spec)
         self._add(spec, (self._controls, control, f"\\{control}"))
         cls.__tm_prefix__, cls.__tm_package__, cls.__tm_cs__ = self.prefix, self, control
         self._classes.append(cls)
@@ -177,8 +212,12 @@ class Package:
         components need. For a library whose commands bodies do not call (microtype, hyphenat) or that takes options."""
         if package.builtin:
             raise DeclarationError(f"{package.name} is always loaded", code="TM-P008", path=self.name)
-        if bad := [o for o in options if not _OPTION.fullmatch(o)]:
-            raise DeclarationError(f"package option {bad[0]!r} must match [A-Za-z0-9][A-Za-z0-9=.-]*", code="TM-P009")
+        if bad := [o for o in options if not _package_option(o)]:
+            raise DeclarationError(
+                f"package option {bad[0]!r}: not empty, balanced braces, no % or \\ or [ ] outside braces",
+                code="TM-P009",
+                hint="e.g. 'table', 'margin=10mm', 'colorprofiles={A=a.icc,X=b.icc}'",
+            )
         if any(p is package for p, _ in self._requires):
             raise DeclarationError(f"{package.name} is already required by {self.name}", code="TM-P010", path=self.name)
         self._requires.append((package, tuple(options)))
@@ -294,6 +333,12 @@ class Package:
         """
         preamble = preamble or PreambleSlots()
         problems = [v for node in body for v in node.validate()]
+        problems += [
+            Violation("TM-M015", path, f"\\{word} is not declared by this package", hint="declare it, or fix the name")
+            for i, node in enumerate(body)
+            for path, passthrough in _passthroughs(node, f"{type(node).__name__}[{i}]")
+            for word in undeclared(self.prefix, passthrough.tex.tex, self._controls)
+        ]
         problems += [
             Violation(
                 "TM-M015",

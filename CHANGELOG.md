@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A field named `type` is refused (`TM-M030`): data uses `"type"` to name the component. A package with no prefix needs `cs`
+  on every component (`TM-P011`). `Package.require` options may hold braces and spaces (`colorprofiles={A=a.icc}`); a
+  `Passthrough` naming an undeclared name of its package is refused with its path (`TM-M015`), as preamble `Raw` is.
 - `texmodel.std` (§21a 14): headers for the standard TeX libraries a deck loads (103 commands and environments in 16
   packages), checked by compiling a call of each against the reference image. `cs = "includegraphics"` on a component
   names its TeX command (`TM-M027` if it is not a control word); `Package(prefix="")` and `Package(builtin=True)` (the

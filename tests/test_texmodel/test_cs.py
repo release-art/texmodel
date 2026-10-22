@@ -173,9 +173,79 @@ def test_require_refuses_a_builtin_a_bad_option_and_a_repeat():
     with refused("TM-P008"):
         pkg.require(kernel)
     with refused("TM-P009"):
-        pkg.require(other, options=["a b"])
+        pkg.require(other, options=["a%b"])
     pkg.require(other)
     with refused("TM-P010"):
         pkg.require(other)
     with pytest.raises(Exception, match="prefix"):
         Package("x", prefix="Bad")
+
+
+def test_a_field_named_type_is_refused_because_data_uses_it_for_the_component():
+    with refused("TM-M030"):
+
+        class Typed(Command):
+            """A field called type."""
+
+            body = "#type"
+            type: Text
+
+    with refused("TM-M030"):
+
+        class Box(Environment):
+            """An environment with such a field."""
+
+            begin = "#type"
+            end = "x"
+            type: Text
+
+    from texmodel.body import Comment
+
+    with refused("TM-M030"):
+
+        class Note(Comment):
+            """A comment with such a field."""
+
+            template = "#type"
+            type: str
+
+
+def test_a_package_with_no_prefix_needs_cs_on_every_component():
+    pkg = Package("noprefix-demo2", prefix="")
+    with refused("TM-P011"):
+
+        @pkg.command
+        class Fact(Command):
+            """Would be \\Fact."""
+
+            body = "x"
+
+
+def test_package_options_may_hold_braces_and_spaces_but_not_what_ends_the_list():
+    pkg, other = Package("opt-demo", prefix="op"), Package("lib", prefix="", adopted=True)
+    pkg.require(other, options=["margin=10mm", "colorprofiles={A=a.icc,X=b.icc}", "a b"])
+    assert pkg.require_entries() == [("lib", ("margin=10mm", "colorprofiles={A=a.icc,X=b.icc}", "a b"))]
+    for bad in ("", " ", "a]b", "a[b", "50%", "\\x", "{a", "a}"):
+        with refused("TM-P009"):
+            Package("opt-demo2", prefix="op").require(other, options=[bad])
+
+
+def test_a_passthrough_naming_an_undeclared_name_of_the_package_is_refused_with_its_path():
+    from texmodel.components import Anywhere, Passthrough
+
+    pkg = Package("pt-demo", prefix="pt")
+
+    @pkg.environment
+    class Box(Environment):
+        """A box."""
+
+        children = [Anywhere(Passthrough)]
+        begin = "x"
+        end = "y"
+
+    good = Box(Passthrough(Raw(r"\ptBox \LaTeX \other")))
+    assert pkg.plan(good).text.count("\\ptBox") == 1
+    with pytest.raises(ExceptionGroup) as group:
+        pkg.plan(Passthrough(Raw("a")), Box(Passthrough(Raw(r"\ptMissing"))))
+    (found,) = group.value.exceptions
+    assert (found.code, found.path) == ("TM-M015", "Box[1]/Passthrough[0]")  # pyright: ignore[reportAttributeAccessIssue]

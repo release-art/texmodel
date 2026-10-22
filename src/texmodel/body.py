@@ -123,6 +123,13 @@ class Comment:
         cls.template = textwrap.dedent(cls.template).strip("\n")
         dataclasses.dataclass(frozen=True)(cls)
         cls.__tm_fields__ = tuple(f.name for f in dataclasses.fields(cls))  # pyright: ignore[reportArgumentType]
+        if "type" in cls.__tm_fields__:
+            raise DeclarationError(
+                f"{cls.__qualname__}.type: `type` names the component in data, so it cannot be a field",
+                code="TM-M030",
+                path=f"{cls.__name__}.type",
+                hint="call the field something else, e.g. `kind`",
+            )
         holes = {m["name"] for m in _COMMENT_HOLE.finditer(cls.template) if m["name"]}
         if wrong := sorted(holes ^ set(cls.__tm_fields__)):
             raise DeclarationError(

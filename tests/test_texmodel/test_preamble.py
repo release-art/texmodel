@@ -1,7 +1,7 @@
 """Typed preamble entries (§21a 10): rendered text, slot rules and plan paths."""
 
 import pytest
-from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
+from test_texmodel_build.test_compile_tex import compiler, fonts, require_files  # noqa: F401
 
 from texmodel.components import Passthrough
 from texmodel.package import Package, PreambleSlots
@@ -58,6 +58,7 @@ def test_document_metadata_is_accepted_and_reaches_the_pdf(compiler, tmp_path): 
     """`RequireMetadata` before `\\documentclass`, as the reference image's LaTeX reads it (needs `tagpdf-base`)."""
     import pikepdf
 
+    require_files(compiler, "tagpdf-base.sty")
     slots = PreambleSlots(before_class=(RequireMetadata(lang="en-GB", pdfversion="1.7"),))
     plan = latex.package.plan(Passthrough(Raw("x")), preamble=slots)  # the kernel header: no \\usepackage line
     (tmp_path / "src").mkdir()

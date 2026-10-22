@@ -45,6 +45,15 @@ def compiler(fonts: pathlib.Path) -> Compiler:
     return comp
 
 
+def require_files(comp: Compiler, *files: str) -> None:
+    """Skip a test whose TeX packages the image lacks (a failure under TEXMODEL_REQUIRE_TEX, as for a missing image)."""
+    if missing := comp.missing_files(files):
+        message = f"the image lacks {', '.join(missing)}: bin/test-image.sh builds one with them"
+        if os.environ.get("TEXMODEL_REQUIRE_TEX"):
+            pytest.fail(message)
+        pytest.skip(message)
+
+
 def doc(tmp_path: pathlib.Path, name: str) -> pathlib.Path:
     (tmp_path / "src").mkdir(exist_ok=True)
     return pathlib.Path(shutil.copy(TEX / name, tmp_path / "src" / name))
