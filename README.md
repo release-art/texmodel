@@ -171,7 +171,8 @@ complete example: a hand-written package, the generator it replaces and a 3-card
 `pkg.plan(...)` takes the arguments of `pkg.document(...)` and returns a `Plan`: every output line with the path of what wrote it
 (`Card[1]/CardBack[1]/LabelledSlot[3]`, `preamble.after_package[0]`). `plan.text` is the document. Store `plan.to_json()` beside
 the committed file; `Plan.from_json(saved).edits(text)` then names each hand edit by the path it had when it was written, even
-if the model has changed since, and `plan.path_of(39)` names the component behind a log's `input line 39`.
+if the model has changed since, and `plan.path_of(39)` names the component behind a log's `input line 39`. `Compiler.compile(src, out, plan=plan)` does
+that for every diagnostic in the source: `diagnostic.path` is the component behind its line.
 
 `texmodel.bundle` copies a manifest of files and refuses if any is missing (`stale` compares bytes, not timestamps);
 `texmodel.drift` is what `check` uses.

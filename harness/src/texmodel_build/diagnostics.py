@@ -21,6 +21,7 @@ class Diagnostic:
     message: str = ""
     file: str | None = None
     line: int | None = None
+    path: str | None = None  # the component that wrote `line`, when the compile was given a Plan (C11)
     count: int = 1
 
     def to_dict(self) -> dict[str, Any]:

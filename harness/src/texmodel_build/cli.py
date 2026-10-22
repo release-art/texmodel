@@ -93,7 +93,7 @@ def _compiler(image: str | None, local: bool, roots: list[pathlib.Path], epoch: 
 
 def _show(result: CompileResult) -> None:
     for d in result.diagnostics:
-        where = f" {d.file or '?'}:{d.line}" if d.line else ""
+        where = (f" {d.file or '?'}:{d.line}" if d.line else "") + (f" [{d.path}]" if d.path else "")
         typer.echo(f"{d.severity.value:7} {d.code}{where} {d.message}" + (f" (x{d.count})" if d.count > 1 else ""))
     state = "ok" if result.ok else "FAILED"
     typer.echo(

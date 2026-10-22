@@ -17,6 +17,7 @@ import uuid
 from collections.abc import Sequence
 
 from texmodel.errors import DeclarationError
+from texmodel.plan import Plan
 
 from ._internal.converge import aux_diff
 from ._internal.env import build_env
@@ -52,6 +53,15 @@ class Versions:
 class ImageInfo:
     digest: str
     revision: str
+
+
+def _located(diagnostic: Diagnostic, source: pathlib.Path, plan: Plan) -> Diagnostic:
+    """Add the plan's path for the diagnostic's line. A line with no file (a package's `on input line N`) is taken to be
+    in `source`; ponytail: a package warning raised inside another file is then mislabelled."""
+    here = diagnostic.file is None or pathlib.PurePath(diagnostic.file).name == source.name
+    if diagnostic.line is None or not here or not 1 <= diagnostic.line <= len(plan.lines):
+        return diagnostic
+    return dataclasses.replace(diagnostic, path=plan.path_of(diagnostic.line))
 
 
 def _tail(text: str) -> str:
@@ -122,7 +132,9 @@ class Compiler:
 
     # -- compiling ---------------------------------------------------------------------------------------
 
-    def compile(self, source: pathlib.Path, outdir: pathlib.Path) -> CompileResult:
+    def compile(self, source: pathlib.Path, outdir: pathlib.Path, *, plan: Plan | None = None) -> CompileResult:
+        """Compile `source`. Given the `Plan` that wrote it, each diagnostic located in `source` carries the `path` of
+        the component behind its line (C11)."""
         source, outdir = source.resolve(), outdir.resolve()
         if not source.is_file():
             raise DeclarationError(f"{source}: no such file", code="TM-X001")
@@ -158,6 +170,8 @@ class Compiler:
                 Unexplained(message=f"latexmk exited {proc.returncode} with no diagnosable error: {tail}")
             )
 
+        if plan is not None:
+            diagnostics = [_located(d, source, plan) for d in diagnostics]
         result = CompileResult(
             pdf=pdf if has_pdf else None,
             log=log if fresh else None,

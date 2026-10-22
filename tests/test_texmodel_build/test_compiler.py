@@ -4,6 +4,7 @@ import pathlib
 import pytest
 
 from texmodel.errors import DeclarationError
+from texmodel.plan import Line, Plan
 from texmodel_build import (
     compiler as compiler_module,
     diagnostics as d,
@@ -88,6 +89,23 @@ def test_errors_in_the_log_make_the_result_not_ok_and_raise_for_status_carries_t
     with pytest.raises(CompileError) as info:
         result.raise_for_status()
     assert info.value.code == "TM-X010" and info.value.diagnostics == result.diagnostics
+
+
+def test_diagnostics_in_the_source_carry_the_path_of_the_plan_line_behind_them(toolchain, src, tmp_path):
+    plan = Plan((Line("header", "%"), Line("Card[0]", "\\a"), Line("Card[1]", "\\foo")))
+    toolchain.log = (
+        "./a.tex:3: Undefined control sequence.\nl.3 \\foo\n"
+        "res/x.sty:2: Undefined control sequence.\nl.2 \\bar\n"
+        "./a.tex:99: Undefined control sequence.\nl.99 \\far\n"
+        "Package pk Warning: Card 'X' does not fit.\n(pk)   More on input line 2.\n" + OK_LOG
+    )
+    toolchain.returncode = 12
+    paths = {
+        (x.name if isinstance(x, d.UndefinedControlSequence) else x.message[:6]): x.path
+        for x in Compiler().compile(src, tmp_path / "out", plan=plan).diagnostics
+    }
+    assert paths == {"\\foo": "Card[1]", "\\bar": None, "\\far": None, "Card '": "Card[0]"}
+    assert all(x.path is None for x in Compiler().compile(src, tmp_path / "out2").diagnostics)
 
 
 def test_failure_without_a_diagnosable_error_is_never_silent(toolchain, src, tmp_path):

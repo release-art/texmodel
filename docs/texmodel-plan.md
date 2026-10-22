@@ -1003,8 +1003,9 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
 2. **Typed over-set: `Measure` (C5).** A package reports "card X does not fit, needs A, has B" as its own warning; the harness
    types it (`PackageWarning`) but the consumer reads the numbers by regex. Idea: a declared parser per package (message
    shape to named measurements), or a probe convention the package can adopt; verdict per item against a declared bound.
-3. **Automatic diagnostic mapping.** `Plan.path_of(line)` exists; nothing yet maps `CompileResult` diagnostics through the
-   plan. Idea: `Compiler.compile(..., plan=)` adds `path` to every diagnostic with a line (C11).
+3. **Automatic diagnostic mapping.** Built 2026-10-22: `Compiler.compile(..., plan=)` adds `path` to every diagnostic located in
+   the source (C11). Open: a package warning's `input line N` has no file, so one raised inside another file is mislabelled;
+   the CLI has no way to pass a plan (it needs the baseline workflow, item 5); diagnostics from `.sty` files get no path.
 4. **Grammar escape hatches.** Ordered runs cannot say "this item may appear anywhere, any number of times" (a section
    header) or hold a raw child (a layout `\vspace`). Ideas: an `Anywhere(X)` term; a `Raw` node allowed in a grammar by
    declaration; interleaving of two runs. Without it a model cannot match a generator's layout, only its text.

@@ -17,11 +17,11 @@ OVERSET = re.compile(
 )
 
 
-def compile_deck(comp, tmp_path: pathlib.Path, tex: str):
+def compile_deck(comp, tmp_path: pathlib.Path, tex: str, plan=None):
     src = tmp_path / "src"
     shutil.copytree(convert.HERE / "res", src / "res")
     (src / "deck.tex").write_text(tex, encoding="utf-8")
-    return comp.compile(src / "deck.tex", tmp_path / "out")
+    return comp.compile(src / "deck.tex", tmp_path / "out", plan=plan)
 
 
 def deck_of(*nodes) -> str:
@@ -40,12 +40,12 @@ def test_over_set_a_card_with_too_much_text_is_named_with_its_heights(compiler, 
     long = {**source[1], "one_liners": [{**x, "text": (x["text"] + " ") * 8} for x in source[1]["one_liners"]]}
     nodes = (convert.card(1, source[0]), convert.card(2, long))
     plan = model.pkg.plan(*nodes, preamble=convert.preamble(project))
-    result = compile_deck(compiler, tmp_path, plan.text)
+    result = compile_deck(compiler, tmp_path, plan.text, plan)
     named = [m for x in result.diagnostics if isinstance(x, d.PackageWarning) and (m := OVERSET.search(x.message))]
     assert [m["name"] for m in named] == ["Long-Eared Owl"]
     assert float(named[0]["needs"]) > float(named[0]["has"])
-    warning = next(x for x in result.diagnostics if isinstance(x, d.PackageWarning) and OVERSET.search(x.message))
-    assert warning.line is not None and plan.path_of(warning.line).startswith("Card[1]/")  # the log line names the card
+    (warning,) = (x for x in result.diagnostics if isinstance(x, d.PackageWarning) and OVERSET.search(x.message))
+    assert warning.path is not None and warning.path.startswith("Card[1]/")  # the compile names the card itself
 
 
 def test_escaping_text_with_every_special_compiles_and_the_same_text_unescaped_does_not(compiler, tmp_path):  # noqa: F811
