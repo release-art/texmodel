@@ -939,11 +939,17 @@ Each needs a decision.
 | Document preamble: `PreambleSlots(before_class, before_package, after_package)`, each a tuple of `Raw` or a typed entry, passed to `Package.document(preamble=)`; public names used there are linted (`TM-M015`) | decided |
 | The harness types any package warning (`PackageWarning`, `TM-X019`); `Overset` types a "does not fit" warning through a configured rule or a `fit.` probe | decided |
 | A source map is a `Plan`: output lines with the path that wrote each. Documents are checked against the model's render, with no baseline file (`[tool.texmodel.documents]`, like `terraform plan`); hand edit and config change are not told apart | decided |
-| A text setting is `Value[Text]`: `\newcommand` with an escaped default in a generated `.sty`; `settings=` writes `\renewcommand` after `\usepackage` (before the preamble slot, not in the body); an adopted package may declare only a `Value[Text]`, checked as an argument-less command | decided |
+| A text setting is `Value[Text]`: `\newcommand` with an escaped default in a generated `.sty`; `settings=` writes `\renewcommand` after `\usepackage` (before the preamble slot, not in the body; every other setting is written there too, in the order given); an adopted package may declare only a `Value[Text]`, checked as an argument-less command | decided |
 | A closed set is a `Choice` enum whose member values are the TeX (`Raw` passes through, `str` is escaped); data names a member by name | decided |
 | A macro's interface is slots (delimiter, optional or required, token, group) holding typed values or a `KeyVals`; `arg()` states a slot, an optional field without it is TeX's one optional argument, first; a signature `\newcommand` cannot define is defined with xparse (`\NewDocumentCommand`), not xargs. Details in the README | decided |
 | `KeyVals` is a frozen pydantic model whose field types give the item kind, with a `KeyRules` preset per key library (`texmodel.keys`); the presets are measured by compiling | decided |
 | Pydantic v2 is a dependency, used at the data boundary only (`texmodel.spec`: `from_dict`, `to_dict`, `json_schema`); component classes stay stdlib frozen dataclasses; default (lax) coercion; its errors are mapped to `Violation` / `ValidationError` with `TM-C020` and `validate()`-style paths | decided |
+| What a `Value[T]` is lives in a `ValueKind` (the type it holds, the names it claims, the TeX that declares and sets it, the packages it needs); the built-in kinds are length, colour, flag, text and raw, and a package adds its own (`texmodel.std.etoolbox.Toggle`, written through etoolbox's own bindings) | decided |
+| A package may be a list of parts: `Package.library(..., fill=model)` fills `<<name>>` holes by type (`str` escaped, `Raw` through, lengths and colours as written; no template language, loops stay in Python); `texmodel check` reads each part against the components and values that name it with `defined_by` and refuses a name defined twice. The scan is regex-level and skips expl3 | decided |
+| A flag, toggle, length, colour or text setting a library defines is a `Value` with `defined_by` (no default, renders nothing); `cs` names its whole control sequence, `colour_name` a colour | decided |
+| `[tool.texmodel] package` is one pointer, a list of them, or a pointer to an iterable of packages; `build` and `check` cover the family together; `schema` needs one | decided |
+| `\ProvidesPackage` carries a date only when the package has one (LaTeX reads the first word of its bracket as a date); `header` adds comment lines under the generator's line | decided |
+| An optional argument's scalar default is TeX's default in the definition; a call inside a `Raw` argument is a `Ref` or `Seq`; counting rules in TeX are built from `StepCounter`, `IfNumGreater` and friends (cookbook), with no flag in the library | decided |
 | Python-only authoring; TOML/YAML frontend | parked, not planned |
 | Renames via `renamed_from` → pydantic aliases + release record | decided |
 | lualatex only in v1; capabilities explicit | decided |
@@ -981,11 +987,12 @@ Each is a candidate, not a decision. The ones that can run unattended are batche
 6. **Hand-edit semantics.** The old regex tool matched cards by id, ignored a triage tool's marker comment, and produced the
    config edit that imports a hand edit. Ideas: keyed children (path by id, not position), a declared comment marker to ignore
    in the plan comparison, an `import` hook that maps a path to a source field.
-7. **Rules layer (D5) and placement (M5).** The package enforces counts itself with its own errors; texmodel duplicates them in
-   the grammar. A rule such as a reading-level bound belongs to neither. Needs the `@rule` API and severities.
-8. **Adoption scanner reach (low priority).** Reads `\newcommand`, `\providecommand`, `\newenvironment` only: not
-   `\NewDocumentCommand`, `\DeclareRobustCommand`, `\newcommand*` forms with unusual spacing. Also: names the package
-   defines that the model does not declare (M9) and renewals of declared names (M10).
+7. **Rules layer (D5) and placement (M5).** The package enforces counts itself with its own errors (a package can build them
+   from `StepCounter` and `IfNumGreater`, see the cookbook); texmodel duplicates them in the grammar. A rule such as a reading-level bound belongs to neither. Needs the `@rule` API and severities.
+8. **Adoption scanner reach (low priority).** Reads `\newcommand`, `\providecommand`, `\DeclareRobustCommand`,
+   `\newenvironment`, the xparse family, `\newlength`, `\newtoggle`, `\newif`, `\definecolor`, `\colorlet`, `\newcounter`,
+   `\newsavebox` and `\newfontfamily`; not `\def`, `\csname`, expl3 or renewals of declared names (M10). Names an external
+   source defines that the model does not declare (M9) are not reported (a library's are: `TM-C012`).
 9. **PDF strings.** Not verified: other engines, PDF/A validators.
 10. **Preamble.** Slots declared by the package (D3).
 11. **Declared-only variants.** If a consumer mixes generated and adopted components in one package, `adopted=True` on the package
