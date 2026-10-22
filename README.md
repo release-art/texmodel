@@ -224,8 +224,10 @@ A generated package defines `\newcommand{\acDeckName}{Untitled}`; for an adopted
 package to define the macro with no arguments. Length, colour and flag settings are written in the document body as before.
 
 A `Value[Raw]` is the same for a setting that is TeX (`\newcommand{\acFooter}{\textit{draft}}`, renewed by `settings=[Footer(Raw(...))]`).
-A `PdfString` field holds text for the inside of a PDF string: it is written as `\detokenize{...}` with `( ) \` and every TeX
-special as an octal escape (`\050`), so a parenthesis cannot cut the string short and `%` or `_` cannot break the TeX.
+A `PdfString` field holds text for the inside of a PDF literal string you write yourself (`\pdfextension info{/Subject (#text)}`):
+it is written as `\detokenize{...}` with `( ) \` and every TeX special as an octal escape (`\050`), and text with a non-ASCII
+character as UTF-16BE, so a parenthesis cannot cut the string short, `%` or `_` cannot break the TeX, and a reader gets the
+text back. It is not for `\hypersetup{pdftitle=...}`: hyperref escapes its own input.
 
 ### Layout that is not a component
 

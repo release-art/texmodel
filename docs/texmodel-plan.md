@@ -1032,8 +1032,10 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
 8. **Adoption scanner reach.** Reads `\newcommand`, `\providecommand`, `\newenvironment` only: not `\NewDocumentCommand`,
    `\DeclareRobustCommand`, defaults other than the first argument, or `\newcommand*` forms with unusual spacing. Also: names
    the package defines that the model does not declare (present-but-undeclared, M9), and renewals of declared names (M10).
-9. **PDF-string safety.** Built 2026-10-22 (C3) as `PdfString` (octal escapes inside `\detokenize`; compiled in a tex test). Open:
-   hex strings for non-ASCII, UTF-16 for the Info dictionary. Original: A deck's PDF Info string was cut inside a parenthesis, which silently swallowed the rest of the
+9. **PDF-string safety.** Built 2026-10-22 (C3) as `PdfString` (octal escapes inside `\detokenize`, UTF-16BE for non-ASCII); a tex test writes 16
+   awkward strings into the Info dictionary with `\pdfextension info` and reads them back with pikepdf, with an unescaped
+   control. Not verified: `\pdfmanagement_add:nnn` (the reference image lacks `tagpdf-base.sty`, so `\DocumentMetadata`
+   cannot load), other engines, PDF/A validators. Open: Original: A deck's PDF Info string was cut inside a parenthesis, which silently swallowed the rest of the
    dictionary. Idea: a `PdfString` type that escapes and balances; `Text` is TeX-escaped, not PDF-escaped.
 10. **Preamble.** Built 2026-10-22 (C2): `PassOption`, `InputPath`, `GraphicsPath`, `RequireMetadata`, slot lint `TM-C008`. Open:
     slots declared by the package (D3). Original: Slots are three tuples of `Raw`. Ideas: typed entries (`PassOption`, `InputPath`, `GraphicsPath`), the
