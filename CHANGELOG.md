@@ -9,10 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- expl3 (E1, §21a 12, 18, 23): `Syntax` (`LATEX2E`, `EXPL3`) in `texmodel.body`; `TexRaw`, `TemplateRef` and `Cs` take `syntax=`, a
+  component declares `syntax = Syntax.EXPL3` for a `cs` with `_` or `:`, and a body of two syntaxes is refused (`TM-M031`).
+  `Package.library(name, source, syntax=)` carries verbatim TeX into the `.sty` (`TM-M011`, `TM-M034`); `defined_by = <Library>`
+  declares a component the block defines (`TM-M032`, `TM-M033`). `texmodel.testing.export_probes` / `check_exports` and
+  `texmodel_build.testkit.check_library` check by compiling that each such component exists with its arguments (`TM-C010`,
+  `TM-C011`); `Compiler.compile(plans=)` and `run_probes(plans=)` name the block in a diagnostic of the `.sty`.
+  `PdfInfo(**entries)` writes PDF Info strings through `pdfmanagement_add:nnn` (`TM-C009`, `TM-M035`). `texmodel.std.latex.FpEval`.
 - A field named `type` is refused (`TM-M030`): data uses `"type"` to name the component. A package with no prefix needs `cs`
   on every component (`TM-P011`). `Package.require` options may hold braces and spaces (`colorprofiles={A=a.icc}`); a
   `Passthrough` naming an undeclared name of its package is refused with its path (`TM-M015`), as preamble `Raw` is.
-- `texmodel.std` (§21a 14): headers for the standard TeX libraries a deck loads (103 commands and environments in 16
+- `texmodel.std` (§21a 14): headers for the standard TeX libraries a deck loads (104 commands and environments in 16
   packages), checked by compiling a call of each against the reference image. `cs = "includegraphics"` on a component
   names its TeX command (`TM-M027` if it is not a control word); `Package(prefix="")` and `Package(builtin=True)` (the
   kernel: calling it requires no package); `Package.require(package, options=[...])` loads a package with options

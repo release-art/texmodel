@@ -14,7 +14,7 @@ import pathlib
 import re
 import time
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from texmodel.errors import DeclarationError
 from texmodel.plan import Plan
@@ -56,12 +56,13 @@ class ImageInfo:
     revision: str
 
 
-def _located(diagnostic: Diagnostic, source: pathlib.Path, plan: Plan) -> Diagnostic:
-    """Add the plan's path for the diagnostic's line. A line with no file (a package's `on input line N`) is taken to be
-    in `source`; ponytail: a package warning raised inside another file is then mislabelled (the `(./file.tex` stack
-    is not recovered from the log: TeX wraps log lines, so counting parentheses is not reliable)."""
-    here = diagnostic.file is None or pathlib.PurePath(diagnostic.file).name == source.name
-    if diagnostic.line is None or not here or not 1 <= diagnostic.line <= len(plan.lines):
+def _located(diagnostic: Diagnostic, source: pathlib.Path, plans: Mapping[str, Plan]) -> Diagnostic:
+    """Add the path of the plan of the diagnostic's file, by file name, for its line. A line with no file (a package's
+    `on input line N`) is taken to be in `source`; ponytail: a package warning raised inside another file is then
+    mislabelled (the `(./file.tex` stack is not recovered from the log: TeX wraps log lines, so counting parentheses is
+    not reliable)."""
+    plan = plans.get(source.name if diagnostic.file is None else pathlib.PurePath(diagnostic.file).name)
+    if diagnostic.line is None or plan is None or not 1 <= diagnostic.line <= len(plan.lines):
         return diagnostic
     return dataclasses.replace(diagnostic, path=plan.path_of(diagnostic.line))
 
@@ -148,9 +149,16 @@ class Compiler:
 
     # -- compiling ---------------------------------------------------------------------------------------
 
-    def compile(self, source: pathlib.Path, outdir: pathlib.Path, *, plan: Plan | None = None) -> CompileResult:
+    def compile(
+        self,
+        source: pathlib.Path,
+        outdir: pathlib.Path,
+        *,
+        plan: Plan | None = None,
+        plans: Mapping[str, Plan] | None = None,
+    ) -> CompileResult:
         """Compile `source`. Given the `Plan` that wrote it, each diagnostic located in `source` carries the `path` of
-        the component behind its line (C11)."""
+        the component behind its line (C11); `plans` does the same for other files by name (`{"acme.sty": ...}`)."""
         source, outdir = source.resolve(), outdir.resolve()
         if not source.is_file():
             raise DeclarationError(f"{source}: no such file", code="TM-X001")
@@ -186,8 +194,8 @@ class Compiler:
                 Unexplained(message=f"latexmk exited {proc.returncode} with no diagnosable error: {tail}")
             )
 
-        if plan is not None:
-            diagnostics = [_located(d, source, plan) for d in diagnostics]
+        found_plans = {**(plans or {}), **({source.name: plan} if plan is not None else {})}
+        diagnostics = [_located(d, source, found_plans) for d in diagnostics]
         result = CompileResult(
             pdf=pdf if has_pdf else None,
             log=log if fresh else None,

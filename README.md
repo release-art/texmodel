@@ -173,7 +173,7 @@ texmodel check     # exit 1 if a committed generated file is stale, missing or o
 
 A body can also be built from pieces that are well-formed by construction, so a generator cannot write an unbalanced brace or
 a bad control word. `Group(...)` is `{...}`, `Seq(...)` the same without braces, `Cs("par")` a control word (letters and `@`
-only, else `TM-M027`), `Lit("50% & co")` text escaped as a `Text` field is, and `Hole`, `Ref` and `Raw` go inside. A space
+only, else `TM-M027`; `_` and `:` too in `Syntax.EXPL3`), `Lit("50% & co")` text escaped as a `Text` field is, and `Hole`, `Ref` and `Raw` go inside. A space
 follows a control word when the next text could continue its name. Loops and conditions are plain Python:
 
 ```python
@@ -190,6 +190,46 @@ class Rating(Command):
 
 texmodel writes this TeX and never reads TeX it did not write. The pieces are lines in the package's `Whitespace` policy;
 a `Ref` inside a `Group` still makes its package a requirement.
+
+### expl3 and library blocks
+
+expl3 is a syntax mode and a source kind, not a typed language: texmodel has no vocabulary of `\fp_` or `\seq_` functions, and the
+compile tells you when one is wrong. `Syntax` (`texmodel.body`) is `LATEX2E` (the default) or `EXPL3`. A body is in one syntax
+(`TM-M031` if its pieces differ): give each `TexRaw`, `TemplateRef` and `Cs` that is expl3 `syntax=Syntax.EXPL3`. The generated
+definition is then wrapped in `\ExplSyntaxOn` / `\ExplSyntaxOff`, no `%` is added at line ends (a piece's `Whitespace` is ignored),
+and a `Lit` or a text argument of a `Ref` writes `~` for a space. A component whose `cs` has `_` or `:` says
+`syntax = Syntax.EXPL3`.
+
+`Package.library(name, source, syntax=Syntax.EXPL3)` carries TeX into the `.sty` verbatim: dedented, blank edges removed, no `%`
+added, `#1` and `##1` as written, in registration order among the package's items, under a provenance comment. Its only static
+checks are balanced braces (`TM-M011`) and no `\ExplSyntaxOn` / `\ExplSyntaxOff` inside an `EXPL3` block (`TM-M034`). Every
+line of the block has its name as its plan path, and a name is used once (`TM-M007`). `source` is a string or a `TemplateRef`.
+
+```python
+sizing = pkg.library("sizing", r"""
+    \fp_new:N \l__cd_size_fp
+    \newcommand{\cdFitSize}[2]{ \fp_set:Nn \l__cd_size_fp { min ( 14 , max ( 8 , 12 * #2 / #1 ) ) } }
+""", syntax=Syntax.EXPL3)
+
+@pkg.command
+class FitSize(Command):
+    '''Work out the title size.'''
+    defined_by = sizing               # declared and callable (FitSize.call(...)), but no \newcommand is rendered
+    natural: Raw
+    available: Raw
+```
+
+A component with `defined_by` has no body (`TM-M032`) and its block belongs to the same package (`TM-M033`). Whether TeX
+really defines it, with that many arguments, is checked by compiling: `texmodel_build.testkit.check_library(compiler, pkg)`
+builds `pkg.test_document(...)` with `export_probes(pkg)` (it writes `texmodel:probe:def.<cs>=yes|no` and
+`arity.<cs>=<n>` for each such component), compiles it, and returns `TM-C010` for a name the block does not define and
+`TM-C011` for another number of arguments (`?` is checked for existence only). The arity is the number of `#` in the macro's
+`\meaning`, so a command defined with `\NewDocumentCommand` or with an optional first argument reports `0`, which
+`check_exports` flags as `TM-C011` when more arguments are declared. A block that TeX refuses fails the compile with the block's name as the diagnostic's `path`.
+
+The PDF Info strings need no expl3 in a document: `PdfInfo(Title="...", Author="...")` in `before_package` or `after_package`
+writes each value PDF-escaped through `\csname pdfmanagement_add:nnn\endcsname`, and needs `RequireMetadata` in `before_class`
+(`TM-C009`). A key is letters only (`TM-M035`).
 
 ### Standard libraries
 
@@ -400,7 +440,8 @@ component passes on, not how it looks.
 (`Card[1]/CardBack[1]/LabelledSlot[3]`, `preamble.after_package[0]`). `plan.text` is the document. Store `plan.to_json()` beside
 the committed file; `Plan.from_json(saved).edits(text)` then names each hand edit by the path it had when it was written, even
 if the model has changed since, and `plan.path_of(39)` names the component behind a log's `input line 39`. `Compiler.compile(src, out, plan=plan)` does
-that for every diagnostic in the source: `diagnostic.path` is the component behind its line.
+that for every diagnostic in the source: `diagnostic.path` is the component behind its line; `plans={"acme.sty": pkg.render_plan()}` does the
+same for diagnostics in other files, by file name.
 
 `texmodel.bundle` copies a manifest of files and refuses if any is missing (`stale` compares bytes, not timestamps);
 `texmodel.drift` is what `check` uses; `texmodel.pointer` resolves `module:object` pointers (a package, a document, a `Plan`).

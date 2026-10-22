@@ -959,7 +959,9 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | `Package.document(...)` renders a `.tex`; values are set by `Value` instances in `settings=` | decided 2026-10-22 |
 | `texmodel render module:attr` writes a document to a file | decided 2026-10-22 |
 | A component may name its TeX command with `cs`; a package may have an empty prefix; the kernel is `builtin`; `Package.require` loads a library with options; headers for standard libraries live in `texmodel.std`, one module per package, verified by compiling a call of each | decided 2026-10-22 |
-| expl3: a syntax mode and verbatim library blocks, verified by compiling; no typed l3 vocabulary, no parser (brief `docs/briefs/expl3.md`) | decided 2026-10-22 |
+| expl3: a syntax mode and verbatim library blocks, verified by compiling; no typed l3 vocabulary, no parser (brief `docs/briefs/expl3.md`) | decided 2026-10-22, built |
+| A library block is verbatim (no `#name` rewriting, no `%`), a component it defines has no body and renders nothing; the arity probe is the `#` count of `\meaning` | decided 2026-10-22 |
+| `PdfInfo` writes Info strings through `pdfmanagement_add:nnn` and needs `RequireMetadata` (`TM-C009`); a document never contains expl3 syntax | decided 2026-10-22 |
 | A field cannot be called `type` (data's component name); an unprefixed package needs `cs` everywhere; `Passthrough` TeX is checked for undeclared names | decided 2026-10-22 |
 | `Anywhere` kinds are removed before ordered matching, so a kind is ordered or floating, never both (`TM-M029`) | decided 2026-10-22 |
 | `Comment` subclasses are passed to `from_dict` / `json_schema` as `comments=[...]`, not found by name; a body line starting with `%` is not scanned for `#name` holes | decided 2026-10-22 |
@@ -1048,7 +1050,9 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
     Open: mapping a compile log's `.sty` line to a component (the harness takes `plan=` for documents only). Original: A `.sty` render could carry a plan too, so a `Package` diagnostic or a hand edit to a
     generated `.sty` names the component.
 12. **Declared-only variants.** If a consumer mixes generated and adopted components in one package, `adopted=True` on the package
-    is too coarse; the alternative is a per-component marker. Revisit with the second consumer.
+    is too coarse; the alternative is a per-component marker. Revisit with the second consumer. A component a library block
+    defines (`defined_by`, built 2026-10-22, item 23) is declared-only inside a generated package: it claims its name and renders
+    no definition; `adopted=True` still covers a whole hand-written package.
 13. **Consumer policies in the library?** Title case, apostrophe normalisation and PDF-subject cutting were consumer code. They
     are probably policy, but a `Text` variant with a declared normaliser would remove the converter's busiest part.
 14. **Reference image.** `tagpdf` (for `\DocumentMetadata`), `enumitem`, `hyphenat`, `anyfontsize`, `pdfrender` and `tikzfill` (which
@@ -1082,17 +1086,17 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
     covers cross-package names without scanning. Needs: a body representation (string, or sequence of str and references),
     package dependencies on `Package`, and an order for `\RequirePackage` lines.
 18. **Whitespace policy on a body token (the `%` at line ends).** Built 2026-10-22 (`texmodel.body`: `TexRaw`, `Whitespace`, body
-    sequences/generators, `Package(whitespace=)`); `EXPL3` mode and the pieces-with-calls part (items 17, 19) are open. Design: A newline in a macro body is a space token, so authors end
+    sequences/generators, `Package(whitespace=)`); the pieces-with-calls part is items 17 and 19. Design: A newline in a macro body is a space token, so authors end
     lines with `%`. Proposed: a body piece `TexRaw(body, whitespace=Whitespace.TRIM)` (distinct from `Raw`, a field value
     without holes): `body` is `textwrap.dedent`ed and stripped of leading and trailing blank lines at construction, and
-    `Whitespace` (`@enum.unique`: `KEEP`, `TRIM`; later `EXPL3`) says how its line ends are written. `body()` (or any
+    `Whitespace` (`@enum.unique`: `KEEP`, `TRIM`) says how its line ends are written. `body()` (or any
     generator) returns one `TexRaw` or a sequence of pieces and component calls (items 17, 19); each piece carries its own
     policy. `TRIM` appends `%` to every line of the piece, including the last, except a line that already ends with `%`, a
     comment line, or a blank line (a paragraph break); explicit spaces (`\ `, `~`) are untouched. `KEEP` writes the lines as
     given, so a plain string or `TemplateRef` body (which means `KEEP`) renders exactly as today. Pieces are joined by newlines in
     the output. `TemplateRef("f.tex", whitespace=...)` takes the same policy. The generated `.sty` still carries the `%`.
-    Lint: `\verb`-like content in a `TRIM` piece. Later mode: expl3 (`\ExplSyntaxOn`, M8 `syntax = expl3`), where whitespace is
-    ignored and no `%` is needed. The default is `KEEP`, explicit per piece, so no existing output changes.
+    Lint: `\verb`-like content in a `TRIM` piece. expl3 (`Syntax.EXPL3`, built 2026-10-22, item 23): whitespace is
+    ignored and no `%` is written, whatever the piece's `Whitespace`. The default is `KEEP`, explicit per piece, so no existing output changes.
 19. **Generated bodies that are well-formed by construction.** Built 2026-10-22 (A2): `Group`, `Seq`, `Cs`, `Lit`; `Seq` is an
     addition to the brief (unbraced concatenation, needed for `\textbf{#text}`). Open: a per-piece whitespace policy for a
     constructive piece (it takes the package's), `expl3` bodies. Original: Beside hand-written TeX bodies (strings, `TemplateRef`), a
@@ -1118,7 +1122,10 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
     kind (verbatim library blocks, `Package.library`, components `defined_by` a block), not a typed language; no parser;
     syntax and interface are verified by tests that compile the code with lualatex (`export_probes`, `check_library`); the
     PDF Info strings use a typed `PdfInfo` preamble entry (`\csname pdfmanagement_add:nnn\endcsname`, verified) so documents
-    never need expl3. Rejected: a typed l3 vocabulary (algorithms gain nothing from Python wrappers), and keeping expl3 out
+    never need expl3. Built 2026-10-22: `Syntax` (`TM-M031`), `Package.library` / `Library` (`TM-M011`, `TM-M034`), `defined_by`
+    (`TM-M032`, `TM-M033`), `export_probes` / `check_exports` / `testkit.check_library` (`TM-C010`, `TM-C011`), `PdfInfo`
+    (`TM-C009`, `TM-M035`), `std.latex.FpEval`; `Compiler.compile(plans=)` locates a `.sty` diagnostic. The arity probe counts `#` in
+    `\meaning`, so `\NewDocumentCommand` and optional-first-argument `\newcommand` read `0`. Rejected: a typed l3 vocabulary (algorithms gain nothing from Python wrappers), and keeping expl3 out
     of texmodel (the brand's title-fitting code is the first consumer's). Open: whether a library block may become its own
     `.sty`; a parser option (memory note `project-tex-parser-option`).
 22. **Gate B itself.** The ten-minute criterion needs a first-time author, timed. The "three real past defects" criterion needs

@@ -35,13 +35,23 @@ class Whitespace(enum.Enum):
     TRIM = "trim"  # a `%` is added to each line, so line ends make no space; blank lines still end a paragraph
 
 
+@enum.unique
+class Syntax(enum.Enum):
+    """The category codes TeX reads a body with (§21a 12). A body has one syntax; the `.sty` switches on `EXPL3` around
+    the definition (`\\ExplSyntaxOn` / `\\ExplSyntaxOff`), where a space is ignored and `~` is the space."""
+
+    LATEX2E = "latex2e"
+    EXPL3 = "expl3"
+
+
 @dataclasses.dataclass(frozen=True)
 class TexRaw:
     """TeX for a body, with `#name` holes: dedented and without leading or trailing blank lines. `whitespace` of `None`
-    is the package's default."""
+    is the package's default; it is ignored in `Syntax.EXPL3`, where line ends make no space."""
 
     body: str
     whitespace: Whitespace | None = None
+    syntax: Syntax = Syntax.LATEX2E
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "body", textwrap.dedent(self.body).strip("\n"))
@@ -54,10 +64,35 @@ class TemplateRef:
 
     path: Path
     whitespace: Whitespace | None
+    syntax: Syntax
 
-    def __init__(self, path: str | os.PathLike[str], *, whitespace: Whitespace | None = None) -> None:
+    def __init__(
+        self, path: str | os.PathLike[str], *, whitespace: Whitespace | None = None, syntax: Syntax = Syntax.LATEX2E
+    ) -> None:
         object.__setattr__(self, "path", Path(path))
         object.__setattr__(self, "whitespace", whitespace)
+        object.__setattr__(self, "syntax", syntax)
+
+
+def template_text(ref: TemplateRef, module_file: str, owner: str) -> str:
+    """The text of a template file; a relative path is relative to the module at `module_file` (`TM-M005`)."""
+    path = ref.path if ref.path.is_absolute() else Path(module_file).parent / ref.path
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise DeclarationError(f"{owner}: cannot read {path}: {exc.strerror}", code="TM-M005", path=owner) from exc
+
+
+@dataclasses.dataclass(frozen=True)
+class Library:
+    """A block of TeX the `.sty` carries as it is (§21a 12), made by `Package.library`: `text` is dedented and has no
+    blank edges, and nothing is added or rewritten (`#1` stays `#1`). `owner` is the package that made it."""
+
+    name: str
+    text: str
+    syntax: Syntax
+    origin: str  # "inline" or the template's file name, for the provenance comment
+    owner: object = dataclasses.field(compare=False, repr=False)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -164,19 +199,22 @@ class Comment:
         return "\n".join(self.lines())
 
 
-_CONTROL_WORD = re.compile(r"[A-Za-z@]+")
+_CONTROL_WORDS = {Syntax.LATEX2E: re.compile(r"[A-Za-z@]+"), Syntax.EXPL3: re.compile(r"[A-Za-z@_:]+")}
 
 
 @dataclasses.dataclass(frozen=True)
 class Cs:
-    """A control sequence, `Cs("par")` is `\\par`: the name is letters and `@` only (`TM-M027`)."""
+    """A control sequence, `Cs("par")` is `\\par`: the name is letters and `@` only, and in `Syntax.EXPL3` also `_` and
+    `:` (`TM-M027`)."""
 
     name: str
+    syntax: Syntax = Syntax.LATEX2E
 
     def __post_init__(self) -> None:
-        if not _CONTROL_WORD.fullmatch(self.name):
+        if not _CONTROL_WORDS[self.syntax].fullmatch(self.name):
             raise DeclarationError(
-                f"Cs({self.name!r}): a control word has letters and @ only",
+                f"Cs({self.name!r}): a {self.syntax.value} control word has "
+                + ("letters, @, _ and : only" if self.syntax is Syntax.EXPL3 else "letters and @ only"),
                 code="TM-M027",
                 hint="write the name without the backslash, e.g. Cs('par')",
             )
@@ -184,7 +222,8 @@ class Cs:
 
 @dataclasses.dataclass(frozen=True)
 class Lit:
-    """Text, escaped as a `Text` field is (T3): `Lit("50% & #1")` is `50\\% \\& \\#1`."""
+    """Text, escaped as a `Text` field is (T3): `Lit("50% & #1")` is `50\\% \\& \\#1`.
+    In `Syntax.EXPL3` a space is `~`."""
 
     text: str
 
@@ -227,6 +266,20 @@ def refs_in(piece: object) -> Iterator[Ref]:
             yield from refs_in(inner)
 
 
+def syntaxes_in(piece: object) -> Iterator[Syntax]:
+    """The syntax every `TexRaw` and `Cs` in a piece names, nested ones included; other pieces have none."""
+    if isinstance(piece, TexRaw | Cs):
+        yield piece.syntax
+    elif isinstance(piece, Group | Seq):
+        for inner in piece.pieces:
+            yield from syntaxes_in(inner)
+
+
+def text_of(text: str, syntax: Syntax) -> str:
+    """`Lit` and argument text as the syntax reads it: expl3 ignores a space, so it is written `~`."""
+    return escape(text).replace(" ", "~") if syntax is Syntax.EXPL3 else escape(text)
+
+
 def _loose_start(piece: Inline) -> bool:
     """Can the text begin with a letter (a `Lit`, `Raw` or hole value), which a preceding control word would absorb?"""
     if isinstance(piece, Seq):
@@ -240,10 +293,10 @@ def _ends_with_cs(piece: Inline) -> bool:
     return isinstance(piece, Cs)
 
 
-def inline_text(piece: Inline, ref_text: Callable[[Ref], str]) -> str:
+def inline_text(piece: Inline, ref_text: Callable[[Ref], str], syntax: Syntax = Syntax.LATEX2E) -> str:
     """The TeX of a constructive piece. A space follows a control word when the next text could continue its name."""
     if isinstance(piece, Lit):
-        return escape(piece.text)
+        return text_of(piece.text, syntax)
     if isinstance(piece, Raw):
         return piece.tex
     if isinstance(piece, Hole):
@@ -254,7 +307,7 @@ def inline_text(piece: Inline, ref_text: Callable[[Ref], str]) -> str:
         return f"\\{piece.name}"
     out: list[str] = []
     for i, inner in enumerate(piece.pieces):
-        out.append(inline_text(inner, ref_text))
+        out.append(inline_text(inner, ref_text, syntax))
         if i + 1 < len(piece.pieces) and _ends_with_cs(inner) and _loose_start(piece.pieces[i + 1]):
             out.append(" ")
     text = "".join(out)
@@ -284,19 +337,22 @@ def join(
     default: Whitespace,
     owner: str,
     ref_text: Callable[[Ref], str],
+    syntax: Syntax = Syntax.LATEX2E,
 ) -> str:
-    """The text of a body: pieces joined by newlines, each with its policy applied; `ref_text` writes a `Ref`."""
+    """The text of a body: pieces joined by newlines, each with its policy applied (none in `Syntax.EXPL3`, whose line
+    ends make no space); `ref_text` writes a `Ref`."""
     out: list[str] = []
+    expl3 = syntax is Syntax.EXPL3
     for piece in pieces:
         if isinstance(piece, Comment):
             out.extend(piece.lines())
             continue
         if not isinstance(piece, TexRaw):  # a Ref or a constructive piece is one line, in the package's policy
-            policy = (piece.whitespace if isinstance(piece, Ref) else None) or default
-            text = inline_text(piece, ref_text)
+            policy = Whitespace.KEEP if expl3 else (piece.whitespace if isinstance(piece, Ref) else None) or default
+            text = inline_text(piece, ref_text, syntax)
             out.append(_trim(text) if policy is Whitespace.TRIM else text)
             continue
-        policy = piece.whitespace or default
+        policy = Whitespace.KEEP if expl3 else piece.whitespace or default
         if policy is Whitespace.TRIM and "\\verb" in piece.body:
             raise DeclarationError(
                 f"{owner}: a TRIM piece contains \\verb, whose line ends matter",

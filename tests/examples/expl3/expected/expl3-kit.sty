@@ -1,0 +1,20 @@
+% expl3-kit.sty -- generated with texmodel X.Y.Z. Do not edit; run `texmodel build`.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{expl3-kit}[2026/10/22 v1.0.0 A library block and an expl3 body]
+
+% from library scale (source: inline)
+\ExplSyntaxOn
+\fp_new:N \l__ek_scaled_fp
+\newcommand{\ekScaled}[2]{
+    \fp_set:Nn \l__ek_scaled_fp { #1 * #2 }
+    \fp_eval:n { round ( \l__ek_scaled_fp , 2 ) }
+}
+\ExplSyntaxOff
+
+% A paragraph giving the scaled value; written in expl3, so a space in its text is `~`.
+% from expl3.Total (body: inline)
+\ExplSyntaxOn
+\newcommand{\ekTotal}[2]{
+\par Total:~\ekScaled{#1}{#2}
+}
+\ExplSyntaxOff

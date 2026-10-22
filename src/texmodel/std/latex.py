@@ -317,6 +317,14 @@ class MakeUppercase(Command):
 
 
 @package.command
+class FpEval(Command):
+    r"""A floating-point expression, evaluated where it expands: `\fpeval{round(3*2.5, 1)}`."""
+
+    cs = "fpeval"
+    expr: Raw
+
+
+@package.command
 class Phantom(Command):
     r"""Space the size of the text, with nothing in it."""
 

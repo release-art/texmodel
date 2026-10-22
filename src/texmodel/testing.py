@@ -21,12 +21,15 @@ import typing
 from collections.abc import Mapping, Sequence
 
 from ._internal.render import Arg, argument_text, signature, tex_arguments
-from .body import Comment, Cs, Group, Hole, Lit, Ref, RefKind, Seq, TexRaw
+from .body import Comment, Cs, Group, Hole, Library, Lit, Ref, RefKind, Seq, TexRaw
 from .components import Command, Environment, Node, Passthrough, Resolved, control_name
-from .errors import DeclarationError
+from .errors import DeclarationError, Violation
 from .types import Raw, escape
 
 type Component = type[Command] | type[Environment]
+
+if typing.TYPE_CHECKING:
+    from .package import Package
 
 _HOLE = re.compile(r"##|#(?P<name>[A-Za-z_]\w*)")
 _CONTROL_WORD = re.compile(r"\\[A-Za-z]+")
@@ -250,4 +253,46 @@ def stub_tex(stubs: Sequence[Component]) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["Call", "detokenized", "expand", "stub_tex"]
+def _defined(package: "Package") -> list[tuple[Component, Library]]:
+    """The registered components a library block defines, with the block."""
+    return [
+        (c, c.defined_by) for c in typing.cast("tuple[Component, ...]", package.registered) if c.defined_by is not None
+    ]
+
+
+_EXPORT = (
+    r"\newcommand\tmexport[1]{\ifcsname #1\endcsname\typeout{texmodel:probe:def.#1=yes}"
+    r"\edef\tmexportmeaning{\expandafter\meaning\csname #1\endcsname}"
+    r'\directlua{local m=[==[\tmexportmeaning]==]; local _,e=m:find("macro:",1,true); local n="?"; '
+    r'if e then local t=m:find("->",e,true); local _,k=m:sub(e+1,t-1):gsub(string.char(35),""); n=k end; '
+    r'texio.write_nl("texmodel:probe:arity.#1="..n)}'
+    r"\else\typeout{texmodel:probe:def.#1=no}\fi}"
+)
+
+
+def export_probes(package: "Package") -> str:
+    """TeX for `PreambleSlots.after_package` that writes, per component a library block defines,
+    `texmodel:probe:def.<cs>` (`yes` or `no`) and `texmodel:probe:arity.<cs>` (the `#` parameters of its
+    `\\meaning`, `?` when that is not a macro's), for `check_exports` (§21a 12). Needs LuaTeX."""
+    calls = [rf"\tmexport{{{control_name(c)}}}" for c, _ in _defined(package)]
+    return "\n".join([_EXPORT, *calls]) if calls else ""
+
+
+def check_exports(package: "Package", probes: Mapping[str, str]) -> list[Violation]:
+    """The components a library block defines against what the compile found (`TM-C010` not defined, `TM-C011` another
+    number of arguments: an optional first one counts, and `?` checks existence only). `probes` are the `name=value`
+    pairs of the `texmodel:probe:` lines."""
+    out: list[Violation] = []
+    for cls, lib in _defined(package):
+        control, want = control_name(cls), str(len(cls.__tm_args__))
+        got = probes.get(f"arity.{control}", "?")
+        if probes.get(f"def.{control}") != "yes":
+            message = f"\\{control} is declared as defined by library {lib.name}, but the compile does not define it"
+            out.append(Violation("TM-C010", cls.__name__, message))
+        elif got not in ("?", want):
+            message = f"\\{control}: declared {want} argument(s), the compile defines {got}"
+            out.append(Violation("TM-C011", cls.__name__, message, hint="change the declaration or the block"))
+    return out
+
+
+__all__ = ["Call", "check_exports", "detokenized", "expand", "export_probes", "stub_tex"]

@@ -109,6 +109,20 @@ def test_diagnostics_in_the_source_carry_the_path_of_the_plan_line_behind_them(t
     assert all(x.path is None for x in Compiler().compile(src, tmp_path / "out2").diagnostics)
 
 
+def test_plans_of_other_files_locate_the_diagnostics_in_them_by_file_name(toolchain, src, tmp_path):
+    sty = Plan((Line("header", "%"), Line("sizing", "\\fp_nosuch:n")))
+    toolchain.log = (
+        "./a.tex:3: Undefined control sequence.\nl.3 \\foo\n./x.sty:2: Undefined control sequence.\nl.2 \\bar\n"
+        + OK_LOG
+    )
+    toolchain.returncode = 12
+    found = Compiler().compile(src, tmp_path / "out", plans={"x.sty": sty}).diagnostics
+    assert {x.name: x.path for x in found if isinstance(x, d.UndefinedControlSequence)} == {
+        "\\foo": None,
+        "\\bar": "sizing",
+    }
+
+
 def test_an_overset_carries_the_path_of_the_plan_line_behind_it(toolchain, src, tmp_path):
     plan = Plan((Line("header", "%"), Line("Card[0]", "\\a")))
     toolchain.log = "Package pk Warning: Card 'X' does not fit 3pt 1pt on input line 2.\n" + OK_LOG

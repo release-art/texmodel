@@ -10,5 +10,7 @@ renders every example and compares it with `expected/`, so a change in generated
 | `hello` | the smallest package: one command with an inline body, and escaping |
 | `business_card` | commands, an optional argument, `Length` / `Colour` / `Bool` values, an environment with a grammar, settings |
 | `letter` | environment arguments, nested environments, `Raw`, a value that needs another package, relative units |
+| `composed` | one package calling another by `Ref`, with `\RequirePackage` following |
+| `expl3` | a verbatim expl3 library block, a component it defines (`defined_by`), and a body written in expl3 |
 
 After an intended change: `UPDATE_GOLDEN=1 pdm run pytest tests/test_texmodel/test_examples.py`, then review the diff.

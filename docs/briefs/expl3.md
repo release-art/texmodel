@@ -1,5 +1,7 @@
 # Agent brief: batch E1, expl3 as a syntax mode and verbatim library blocks
 
+Status: built 2026-10-22 (all ten decisions; tests and gates as listed below).
+
 Work in `/Users/ilo/Devel/Release.art/texmodel`. Read `README.md`, `CONTRIBUTING.md`, `docs/briefs/roadmap.md` ("Rules for every
 batch" and "First integration and first release"), `docs/texmodel-plan.md` (M8, §21a items 12, 17, 18, 19, 20), and the
 code: `src/texmodel/body.py`, `components.py`, `package.py`, `preamble.py`, `testing.py`, `_internal/render.py`,

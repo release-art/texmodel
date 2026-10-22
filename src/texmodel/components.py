@@ -67,7 +67,6 @@ import sys
 import types
 import typing
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Any, ClassVar, dataclass_transform, overload
 
 from ._internal.render import (
@@ -83,16 +82,20 @@ from .body import (
     Cs,
     Group,
     Hole,
+    Library,
     Lit,
     Ref,
     RefKind,
     Seq,
+    Syntax,
     TemplateRef,
     TexRaw,
     Whitespace,
     join,
     pieces_of,
     refs_in,
+    syntaxes_in,
+    template_text,
 )
 from .errors import DeclarationError, Violation
 from .types import CMYK, PDF, RGB, TEXT, Choice, Colour, Gray, Length, Raw, Text
@@ -204,17 +207,8 @@ def _source(cls: type, name: str) -> Source | None:
     out: list[Resolved] = []
     for piece in given:
         if isinstance(piece, TemplateRef):
-            path = (
-                piece.path
-                if piece.path.is_absolute()
-                else Path(sys.modules[cls.__module__].__file__ or ".").parent / piece.path
-            )
-            try:
-                out.append(TexRaw(path.read_text(encoding="utf-8"), piece.whitespace))
-            except OSError as exc:
-                raise DeclarationError(
-                    f"{cls.__qualname__}.{name}: cannot read {path}: {exc.strerror}", code="TM-M005", path=cls.__name__
-                ) from exc
+            text = template_text(piece, sys.modules[cls.__module__].__file__ or ".", f"{cls.__qualname__}.{name}")
+            out.append(TexRaw(text, piece.whitespace, piece.syntax))
             origins.append(piece.path.name)
         else:
             out.append(TexRaw(piece) if isinstance(piece, str) else piece)
@@ -242,6 +236,8 @@ class _Node(metaclass=_Meta):
     __tm_prefix__: ClassVar[str]  # set when a package registers the class
     __tm_cs__: ClassVar[str]  # likewise: the control sequence, see `control_name`
     cs: ClassVar[str | None] = None  # the TeX name, when it is not prefix + class name (`cs = "includegraphics"`)
+    syntax: ClassVar[Syntax] = Syntax.LATEX2E  # the names `cs` may have: `Syntax.EXPL3` allows `_` and `:`
+    defined_by: ClassVar[Library | None] = None  # the library block that defines it, so it renders no definition
     __tm_package__: ClassVar[object]  # the `Package` it was registered with
 
     def __repr__(self) -> str:
@@ -270,7 +266,7 @@ def _build(cls: type[_Node], unused: Sequence[str], *, init: bool) -> None:
     cls.__tm_doc__ = doc = _document(cls)
     cls.__tm_unused__ = tuple(unused)
     if "cs" in cls.__dict__:
-        Cs(cls.__dict__["cs"])  # a control word: letters and @ only (TM-M027)
+        Cs(cls.__dict__["cs"], cls.syntax)  # a control word of the class's syntax (TM-M027)
     # Optional fields are keyword-only (M2): mark them before the dataclass is built.
     for name in inspect.get_annotations(cls):
         if name in cls.__dict__ and not name.startswith("__"):
@@ -383,7 +379,7 @@ def _ref(cls: type, kind: RefKind, required: tuple[ArgValue, ...], optional: dic
     return Ref(cls, kind, tuple(values.get(a.name) for a in declared))
 
 
-def _ref_text(ref: Ref, owner: str) -> str:
+def _ref_text(ref: Ref, owner: str, syntax: Syntax) -> str:
     """The TeX a reference stands for. The target must be registered: its prefix is part of the name."""
     if not hasattr(ref.target, "__tm_cs__"):
         raise DeclarationError(
@@ -394,7 +390,7 @@ def _ref_text(ref: Ref, owner: str) -> str:
         )
     name = control_name(ref.target)
     declared = typing.cast("type[Command] | type[Environment]", ref.target).__tm_args__
-    args = arguments(declared, {a.name: v for a, v in zip(declared, ref.values, strict=True)})
+    args = arguments(declared, {a.name: v for a, v in zip(declared, ref.values, strict=True)}, syntax)
     return {
         RefKind.CALL: f"\\{name}{args}",
         RefKind.OPEN: f"\\begin{{{name}}}{args}",
@@ -587,7 +583,22 @@ def _emit(node: Node) -> str:
     return "\n".join([f"\\begin{{{name}}}{args}", *map(_emit, node.content), f"\\end{{{name}}}"])
 
 
-def _required(cls: type, found: Source | None, option: str, default: Whitespace) -> tuple[str, str, tuple[type, ...]]:
+def _syntax(cls: type, *sources: Source | None) -> Syntax:
+    """The one syntax of a body, or of an environment's two (`TM-M031` if its pieces differ); `LATEX2E` if none says."""
+    found = dict.fromkeys(s for src in sources if src for piece in src[0] for s in syntaxes_in(piece))
+    if len(found) > 1:
+        raise DeclarationError(
+            f"{cls.__qualname__}: the body mixes {' and '.join(s.value for s in found)}",
+            code="TM-M031",
+            path=cls.__name__,
+            hint="a body is written in one syntax: give every TexRaw, TemplateRef and Cs the same `syntax=`",
+        )
+    return next(iter(found), Syntax.LATEX2E)
+
+
+def _required(
+    cls: type, found: Source | None, option: str, default: Whitespace, syntax: Syntax
+) -> tuple[str, str, tuple[type, ...]]:
     """The text of a body (the package's default whitespace policy for pieces that have none), its origin and the
     components it calls."""
     if found is None:
@@ -598,12 +609,20 @@ def _required(cls: type, found: Source | None, option: str, default: Whitespace)
             hint=f'define `{option}` as a string, a TemplateRef("file.tex"), a TexRaw, or a method returning one',
         )
     owner = f"{cls.__qualname__}.{option}"
-    text = join(found[0], default, owner, lambda ref: _ref_text(ref, owner))
+    text = join(found[0], default, owner, lambda ref: _ref_text(ref, owner, syntax), syntax)
     return text, found[1], tuple(dict.fromkeys(r.target for p in found[0] for r in refs_in(p)))
 
 
-def _declared_only(cls: type, *sources: Source | None) -> None:
-    """A component of an adopted package is only declared: a body would never render, so it is refused (M9)."""
+def _declared_only(cls: "type[Command] | type[Environment]", *sources: Source | None) -> None:
+    """A component of an adopted package (M9) or one a library block defines (§21a 12) is only declared: a body would
+    never render, so it is refused."""
+    if any(sources) and cls.defined_by is not None:
+        raise DeclarationError(
+            f"{cls.__module__}.{cls.__qualname__}: has a body, but a library block defines it",
+            code="TM-M032",
+            path=cls.__name__,
+            hint="remove the body: the block is the definition",
+        )
     if any(sources):
         raise DeclarationError(
             f"{cls.__module__}.{cls.__qualname__}: has a body, but its package is adopted and renders no TeX",
@@ -615,10 +634,12 @@ def _declared_only(cls: type, *sources: Source | None) -> None:
 
 def spec_of(cls: type[Command], *, declared_only: bool = False, whitespace: Whitespace = Whitespace.KEEP) -> Spec:
     """The declaration as the renderer sees it, with its body (M8); `declared_only` (M9) has none."""
+    declared_only = declared_only or cls.defined_by is not None
     if declared_only:
         _declared_only(cls, cls.__tm_inline__)
+    syntax = _syntax(cls, cls.__tm_inline__)
     body, origin, refs = (
-        ("", "declared", ()) if declared_only else _required(cls, cls.__tm_inline__, "body", whitespace)
+        ("", "declared", ()) if declared_only else _required(cls, cls.__tm_inline__, "body", whitespace, syntax)
     )
     return Spec(
         cls.__name__,
@@ -630,6 +651,7 @@ def spec_of(cls: type[Command], *, declared_only: bool = False, whitespace: Whit
         cls.__tm_unused__,
         refs,
         cls.__dict__.get("cs"),
+        syntax,
     )
 
 
@@ -637,13 +659,15 @@ def env_spec_of(
     cls: type[Environment], *, declared_only: bool = False, whitespace: Whitespace = Whitespace.KEEP
 ) -> EnvSpec:
     """As `spec_of`, with two bodies: `begin` and `end`."""
+    declared_only = declared_only or cls.defined_by is not None
+    syntax = _syntax(cls, *cls.__tm_inline__)
     if declared_only:
         _declared_only(cls, *cls.__tm_inline__)
         begin = end = ""
         origin, refs = "declared", ()
     else:
-        begin, begin_origin, begin_refs = _required(cls, cls.__tm_inline__[0], "begin", whitespace)
-        end, end_origin, end_refs = _required(cls, cls.__tm_inline__[1], "end", whitespace)
+        begin, begin_origin, begin_refs = _required(cls, cls.__tm_inline__[0], "begin", whitespace, syntax)
+        end, end_origin, end_refs = _required(cls, cls.__tm_inline__[1], "end", whitespace, syntax)
         origin = " + ".join(dict.fromkeys((begin_origin, end_origin)))
         refs = tuple(dict.fromkeys((*begin_refs, *end_refs)))
     return EnvSpec(
@@ -657,6 +681,7 @@ def env_spec_of(
         cls.__tm_unused__,
         refs,
         cls.__dict__.get("cs"),
+        syntax,
     )
 
 

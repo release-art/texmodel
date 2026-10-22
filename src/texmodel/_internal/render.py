@@ -8,7 +8,7 @@ import re
 from collections.abc import Mapping, Sequence
 from typing import cast
 
-from ..body import Hole
+from ..body import Hole, Library, Syntax, text_of
 from ..errors import DeclarationError
 from ..types import Choice, Colour, Length, Raw, balanced, escape, pdf_escape
 
@@ -46,6 +46,7 @@ class Spec:
     unused: tuple[str, ...] = ()
     refs: tuple[type, ...] = ()  # components its body calls (§21a 17)
     cs: str | None = None  # the control sequence when the class names it, else prefix + name
+    syntax: Syntax = Syntax.LATEX2E  # the body's (§21a 12)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -62,6 +63,7 @@ class EnvSpec:
     unused: tuple[str, ...] = ()
     refs: tuple[type, ...] = ()
     cs: str | None = None
+    syntax: Syntax = Syntax.LATEX2E
 
 
 @dataclasses.dataclass(frozen=True)
@@ -142,15 +144,22 @@ def _comment(doc: str) -> list[str]:
     return [f"% {line}".rstrip() for line in doc.splitlines()]
 
 
+def _wrapped(syntax: Syntax, lines: list[str]) -> list[str]:
+    """An expl3 definition sits between `\\ExplSyntaxOn` and `\\ExplSyntaxOff`."""
+    return ["\\ExplSyntaxOn", *lines, "\\ExplSyntaxOff"] if syntax is Syntax.EXPL3 else lines
+
+
+def _brace(syntax: Syntax) -> str:
+    """The `{` that opens a body: `%` hides the line end from TeX, which expl3 ignores anyway."""
+    return "{" if syntax is Syntax.EXPL3 else "{%"
+
+
 def render_command(prefix: str, spec: Spec) -> str:
     check_braces(spec, spec.body)
     body = rewrite_body(spec, spec.body).replace("\r\n", "\n").rstrip()
-    lines = _comment(spec.doc)
-    lines += [
-        f"% from {spec.qualname} (body: {spec.origin})",
-        f"\\newcommand{{\\{spec.cs or prefix + spec.name}}}{signature(spec.args)}{{%",
-    ]
-    return "\n".join([*lines, *body.splitlines(), "}"])
+    head = f"\\newcommand{{\\{spec.cs or prefix + spec.name}}}{signature(spec.args)}{_brace(spec.syntax)}"
+    lines = [*_comment(spec.doc), f"% from {spec.qualname} (body: {spec.origin})"]
+    return "\n".join([*lines, *_wrapped(spec.syntax, [head, *body.splitlines(), "}"])])
 
 
 def render_environment(prefix: str, spec: EnvSpec) -> str:
@@ -164,40 +173,68 @@ def render_environment(prefix: str, spec: EnvSpec) -> str:
         )
     begin = rewrite_body(spec, spec.begin).replace("\r\n", "\n").rstrip()
     end = spec.end.replace("\r\n", "\n").rstrip()
-    lines = _comment(spec.doc)
-    lines += [
-        f"% from {spec.qualname} (body: {spec.origin})",
-        f"\\newenvironment{{{spec.cs or prefix + spec.name}}}{signature(spec.args)}{{%",
+    brace = _brace(spec.syntax)
+    definition = [
+        f"\\newenvironment{{{spec.cs or prefix + spec.name}}}{signature(spec.args)}{brace}",
         *begin.splitlines(),
-        "}{%",
+        f"}}{brace}",
         *end.splitlines(),
         "}",
     ]
-    return "\n".join(lines)
+    lines = [*_comment(spec.doc), f"% from {spec.qualname} (body: {spec.origin})"]
+    return "\n".join([*lines, *_wrapped(spec.syntax, definition)])
 
 
-def argument_text(arg: Arg, value: object) -> str:
-    """The TeX of one argument value, without its braces: `Text` escaped, `Raw` as it is, a hole as `#name`."""
+def argument_text(arg: Arg, value: object, syntax: Syntax = Syntax.LATEX2E) -> str:
+    """The TeX of one argument value, without its braces: `Text` escaped, `Raw` as it is, a hole as `#name`; in expl3 a
+    space of text is `~`."""
     if isinstance(value, Choice):
         value = value.value
     if isinstance(value, Hole):
         return f"#{value.name}"
     if isinstance(value, Raw):
         return value.tex
-    return f"\\detokenize{{{pdf_escape(str(value))}}}" if arg.pdf else escape(str(value))
+    if arg.pdf:
+        pdf = f"\\detokenize{{{pdf_escape(str(value))}}}"
+        return pdf.replace(" ", "~") if syntax is Syntax.EXPL3 else pdf
+    return text_of(str(value), syntax)
 
 
-def argument(arg: Arg, value: object) -> str:
+def argument(arg: Arg, value: object, syntax: Syntax = Syntax.LATEX2E) -> str:
     """One call argument. `Text` is escaped, `Raw` passes through; a `]` in the optional one is wrapped (T3)."""
-    text = argument_text(arg, value)
+    text = argument_text(arg, value, syntax)
     if not arg.optional:
         return f"{{{text}}}"
     return f"[{{{text}}}]" if "]" in text else f"[{text}]"
 
 
-def arguments(args: tuple[Arg, ...], values: Mapping[str, object]) -> str:
+def arguments(args: tuple[Arg, ...], values: Mapping[str, object], syntax: Syntax = Syntax.LATEX2E) -> str:
     """`[Sound]{A soft woof.}`: the optional argument first, and left out when it is `None`."""
-    return "".join(argument(a, values[a.name]) for a in tex_arguments(args) if values[a.name] is not None)
+    return "".join(argument(a, values[a.name], syntax) for a in tex_arguments(args) if values[a.name] is not None)
+
+
+_EXPL_SWITCH = re.compile(r"\\ExplSyntax(?:On|Off)(?![A-Za-z])")
+_COMMENT = re.compile(r"(?<!\\)%.*")
+
+
+def lint_library(lib: Library) -> None:
+    """The static checks a library block gets, all of them (§21a 12): balanced braces, and no syntax switch inside an
+    expl3 block, which texmodel writes itself. Everything else is the compile's to find."""
+    if not balanced(lib.text):
+        raise DeclarationError(f"library {lib.name}: unbalanced braces", code="TM-M011", path=lib.name)
+    if lib.syntax is Syntax.EXPL3 and _EXPL_SWITCH.search(_COMMENT.sub("", lib.text)):
+        raise DeclarationError(
+            f"library {lib.name}: \\ExplSyntaxOn / \\ExplSyntaxOff inside an expl3 block",
+            code="TM-M034",
+            path=lib.name,
+            hint="texmodel writes them around the block; leave them out",
+        )
+
+
+def render_library(lib: Library) -> str:
+    """A block as it was given, under its provenance comment, in `\\ExplSyntaxOn` for expl3."""
+    lines = [f"% from library {lib.name} (source: {lib.origin})"]
+    return "\n".join([*lines, *_wrapped(lib.syntax, lib.text.splitlines())])
 
 
 def colour_name(prefix: str, name: str) -> str:

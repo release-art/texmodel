@@ -6,7 +6,9 @@ and `check_interface` compares the two.
 
 import dataclasses
 import importlib.metadata
+import inspect
 import re
+import textwrap
 import typing
 from collections.abc import Iterator, Sequence
 
@@ -18,8 +20,10 @@ from ._internal.render import (
     check_references,
     colour_name,
     header_lines,
+    lint_library,
     render_command,
     render_environment,
+    render_library,
     render_value,
     require_lines,
     setting,
@@ -27,12 +31,12 @@ from ._internal.render import (
     undeclared,
 )
 from ._internal.scan import scan_declarations
-from .body import Whitespace
+from .body import Library, Syntax, TemplateRef, Whitespace, template_text
 from .components import AnyValue, Command, Environment, Node, Passthrough, env_spec_of, spec_of, value_spec_of
 from .drift import stamp
 from .errors import DeclarationError, Violation
 from .plan import Line, Plan, node_lines
-from .preamble import Entry, tex_of
+from .preamble import Entry, PdfInfo, RequireMetadata, tex_of
 from .testing import Component, stub_tex
 from .types import Length, Raw, balanced
 
@@ -42,6 +46,7 @@ _OPTION = re.compile(r"[A-Za-z0-9][A-Za-z0-9=.-]*")  # a class option is TeX, so
 _DATE = re.compile(r"\d{4}/\d{2}/\d{2}")  # \ProvidesPackage's date slot: YYYY/MM/DD (G3)
 
 
+_LIBRARY_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_-]*")
 _BAD_OPTION = re.compile(r"[%\\\n]")  # a comment, a control sequence or a line end
 
 
@@ -69,7 +74,8 @@ def _passthroughs(node: Node, path: str) -> Iterator[tuple[str, Passthrough]]:
 @dataclasses.dataclass(frozen=True)
 class PreambleSlots:
     """TeX a document places around its class and package lines (D3), each slot a tuple of `Raw` or a typed entry
-    (`InputPath`, `GraphicsPath`, `PassOption`, `RequireMetadata`; one in a slot it does not belong in is `TM-C008`).
+    (`InputPath`, `GraphicsPath`, `PassOption`, `RequireMetadata`, `PdfInfo`; one in a slot it does not belong in is
+    `TM-C008`).
 
     `before_class` is where `\\DocumentMetadata` must go; `before_package` is for what the package needs when it
     loads (`\\input@path`, package options); `after_package` is for what needs it loaded (`\\graphicspath`,
@@ -125,14 +131,17 @@ class Package:
         self.adopted = adopted  # the `.sty` is hand-written; components only declare it (M9)
         self.builtin = builtin  # always loaded (the LaTeX kernel): calling it requires no package
         self._requires: list[tuple[Package, tuple[str, ...]]] = []  # `require()`, in order
-        self._items: list[Spec | EnvSpec | ValueSpec] = []  # registration order is output order
+        self._items: list[Spec | EnvSpec | ValueSpec | Library] = []  # registration order is output order
         self._controls: dict[str, str] = {}  # control sequence -> qualname of its declarer
         self._calls: list[type] = []  # components its bodies call, in order (§21a 17)
         self._colours: dict[str, str] = {}  # colour name -> qualname; its own namespace
         self._classes: list[type] = []  # every registered class, in registration order
 
-    def _add(self, spec: Spec | EnvSpec | ValueSpec, *claims: tuple[dict[str, str], str, str]) -> None:
-        """Claim names (table, key, how to show it); a collision is an error here, not at \\begin{document} (M7)."""
+    def _add(
+        self, spec: Spec | EnvSpec | ValueSpec, *claims: tuple[dict[str, str], str, str], rendered: bool = True
+    ) -> None:
+        """Claim names (table, key, how to show it); a collision is an error here, not at \\begin{document} (M7). A
+        component a library defines claims its name and renders nothing."""
         for table, key, shown in claims:
             if key in table:
                 raise DeclarationError(
@@ -140,20 +149,50 @@ class Package:
                 )
         for table, key, _ in claims:
             table[key] = spec.qualname
-        self._items.append(spec)
+        if rendered:
+            self._items.append(spec)
         if not isinstance(spec, ValueSpec):
             self._calls.extend(spec.refs)
 
     def command[C: type[Command]](self, cls: C) -> C:
         """Register a command class."""
         spec = spec_of(cls, declared_only=self.adopted, whitespace=self.whitespace)
-        if not self.adopted:
+        self._own_library(cls)
+        if not self.adopted and cls.defined_by is None:
             render_command(self.prefix, spec)  # lints the body now, so a bad body is refused at import
         control = self._control(spec)
-        self._add(spec, (self._controls, control, f"\\{control}"))
+        self._add(spec, (self._controls, control, f"\\{control}"), rendered=cls.defined_by is None)
         cls.__tm_prefix__, cls.__tm_package__, cls.__tm_cs__ = self.prefix, self, control
         self._classes.append(cls)
         return cls
+
+    def _own_library(self, cls: type[Command] | type[Environment]) -> None:
+        """The block that defines a component is this package's (`TM-M033`)."""
+        if cls.defined_by is not None and cls.defined_by.owner is not self:
+            raise DeclarationError(
+                f"{cls.__qualname__}: defined_by {cls.defined_by.name!r}, a library of another package",
+                code="TM-M033",
+                path=cls.__name__,
+                hint="declare the component in the package whose library defines it",
+            )
+
+    def library(self, name: str, source: str | TemplateRef, *, syntax: Syntax = Syntax.LATEX2E) -> Library:
+        """TeX carried into the `.sty` as it is (§21a 12), among the items in registration order: dedented, blank edges
+        removed, `%` and `#name` untouched. `Syntax.EXPL3` wraps it in `\\ExplSyntaxOn` / `\\ExplSyntaxOff`. A relative
+        `TemplateRef` is relative to the calling module. Name a component's `defined_by` to declare what it defines."""
+        if not _LIBRARY_NAME.fullmatch(name):
+            raise DeclarationError(
+                f"library name {name!r} must match [A-Za-z][A-Za-z0-9_-]*", code="TM-M001", path=name
+            )
+        if any(isinstance(i, Library) and i.name == name for i in self._items):
+            raise DeclarationError(f"library {name!r} is already declared", code="TM-M007", path=name)
+        origin = "inline"
+        if isinstance(source, TemplateRef):
+            source, origin = template_text(source, inspect.stack(0)[1].filename, name), source.path.name
+        lib = Library(name, textwrap.dedent(source).strip("\n"), syntax, origin, self)
+        lint_library(lib)
+        self._items.append(lib)
+        return lib
 
     def _control(self, spec: Spec | EnvSpec) -> str:
         """The control sequence: its `cs`, else prefix + class name (which needs a prefix)."""
@@ -169,10 +208,11 @@ class Package:
     def environment[E: type[Environment]](self, cls: E) -> E:
         """Register an environment class: `\\newenvironment` with its begin and end bodies."""
         spec = env_spec_of(cls, declared_only=self.adopted, whitespace=self.whitespace)
-        if not self.adopted:
+        self._own_library(cls)
+        if not self.adopted and cls.defined_by is None:
             render_environment(self.prefix, spec)  # lints both bodies now
         control = self._control(spec)
-        self._add(spec, (self._controls, control, f"\\{control}"))
+        self._add(spec, (self._controls, control, f"\\{control}"), rendered=cls.defined_by is None)
         cls.__tm_prefix__, cls.__tm_package__, cls.__tm_cs__ = self.prefix, self, control
         self._classes.append(cls)
         return cls
@@ -287,7 +327,9 @@ class Package:
             lines += [Line(s.name, ""), *(Line(s.name, tex) for tex in text)] if n else [Line(s.name, t) for t in text]
         return Plan(tuple(lines))
 
-    def _render_item(self, s: Spec | EnvSpec | ValueSpec) -> str:
+    def _render_item(self, s: Spec | EnvSpec | ValueSpec | Library) -> str:
+        if isinstance(s, Library):
+            return render_library(s)
         if isinstance(s, ValueSpec):
             return render_value(self.prefix, s)
         return render_command(self.prefix, s) if isinstance(s, Spec) else render_environment(self.prefix, s)
@@ -300,7 +342,7 @@ class Package:
         """
         found = scan_declarations("\n".join(sources))
         out: list[Violation] = []
-        for s in self._items:
+        for s in (i for i in self._items if not isinstance(i, Library)):
             control, want = (
                 (s.cs or self.prefix + s.name) if not isinstance(s, ValueSpec) else self.prefix + s.name,
                 "" if isinstance(s, ValueSpec) else signature(s.args),
@@ -358,6 +400,16 @@ class Package:
             )
             for slot, i, item in preamble.items()
             if not isinstance(item, Raw) and slot not in type(item).slots
+        ]
+        problems += [
+            Violation(
+                "TM-C009",
+                f"preamble.{slot}[{i}]",
+                "PdfInfo needs \\DocumentMetadata, which no RequireMetadata in before_class provides",
+                hint="add RequireMetadata() to before_class",
+            )
+            for slot, i, item in preamble.items()
+            if isinstance(item, PdfInfo) and not any(isinstance(x, RequireMetadata) for x in preamble.before_class)
         ]
         problems += [
             Violation("TM-C006", f"options[{i}]", f"class option {o!r} must match [A-Za-z0-9][A-Za-z0-9=.-]*")

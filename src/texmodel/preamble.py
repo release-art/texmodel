@@ -4,15 +4,17 @@
 PreambleSlots(
     before_class=(RequireMetadata(lang="en-GB", pdfstandard="A-2b"),),
     before_package=(InputPath("res/"), PassOption("xcolor", "table")),
-    after_package=(GraphicsPath("images/"),),
+    after_package=(GraphicsPath("images/"), PdfInfo(Title="Rex")),
 )
 ```
 """
 
 import dataclasses
+import re
 from typing import ClassVar
 
-from .types import Raw
+from .errors import DeclarationError
+from .types import Raw, pdf_escape
 
 BEFORE_CLASS, BEFORE_PACKAGE, AFTER_PACKAGE = "before_class", "before_package", "after_package"
 
@@ -77,7 +79,30 @@ class RequireMetadata:
         return Raw(f"\\DocumentMetadata{{{', '.join(f'{k}={value(v)}' for k, v in self.entries)}}}")
 
 
-type Entry = PassOption | InputPath | GraphicsPath | RequireMetadata
+@dataclasses.dataclass(frozen=True, init=False)
+class PdfInfo:
+    """`PdfInfo(Title="Rex")`: entries of the PDF Info dictionary. Each value is PDF-escaped and written through
+    `pdfmanagement_add:nnn`, so any text reaches the PDF as it is (§21a 9); the route needs `\\DocumentMetadata`, so a
+    document with one has a `RequireMetadata` in `before_class` (`TM-C009`). A key is letters only (`TM-M035`)."""
+
+    entries: tuple[tuple[str, str], ...]
+    slots: ClassVar[tuple[str, ...]] = (BEFORE_PACKAGE, AFTER_PACKAGE)
+
+    def __init__(self, **entries: str) -> None:
+        if bad := [k for k in entries if not re.fullmatch(r"[A-Za-z]+", k)]:
+            raise DeclarationError(f"PdfInfo key {bad[0]!r}: letters only", code="TM-M035", path="PdfInfo")
+        object.__setattr__(self, "entries", tuple(entries.items()))
+
+    def raw(self) -> Raw:
+        return Raw(
+            "\n".join(
+                f"\\csname pdfmanagement_add:nnn\\endcsname{{Info}}{{{k}}}{{(\\detokenize{{{pdf_escape(v)}}})}}"
+                for k, v in self.entries
+            )
+        )
+
+
+type Entry = PassOption | InputPath | GraphicsPath | RequireMetadata | PdfInfo
 
 
 def tex_of(item: Raw | Entry) -> Raw:

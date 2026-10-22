@@ -127,6 +127,7 @@ def latex_samples():
         k.TextItalic("x"),
         k.Emph("x"),
         k.MakeUppercase("x"),
+        k.FpEval(Raw("round(3*2.5, 1)")),
         k.Phantom(X),
         k.VPhantom(X),
         k.TextBullet(),
