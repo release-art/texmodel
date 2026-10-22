@@ -230,6 +230,9 @@ def etoolbox_samples():
         e.ToggleFalse(Raw("tmt")),
         e.SetToggle(Raw("tmt"), Raw("true")),
         e.IfToggle(Raw("tmt"), Raw("y"), Raw("n")),
+        e.IfNumGreater(Raw("2"), Raw("1"), Raw("y"), Raw("n")),
+        e.IfNumLess(Raw("1"), Raw("2"), Raw("y"), Raw("n")),
+        e.IfNumEqual(Raw("1"), Raw("1"), Raw("y"), Raw("n")),
     ]
     return pre, nodes
 

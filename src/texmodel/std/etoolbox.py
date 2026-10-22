@@ -102,6 +102,39 @@ class SetToggle(Command):
 
 
 @package.command
+class IfNumGreater(Command):
+    r"""Choose by whether one integer is greater than another."""
+
+    cs = "ifnumgreater"
+    left: Raw
+    right: Raw
+    yes: Raw
+    no: Raw
+
+
+@package.command
+class IfNumLess(Command):
+    r"""Choose by whether one integer is less than another."""
+
+    cs = "ifnumless"
+    left: Raw
+    right: Raw
+    yes: Raw
+    no: Raw
+
+
+@package.command
+class IfNumEqual(Command):
+    r"""Choose by whether two integers are equal."""
+
+    cs = "ifnumequal"
+    left: Raw
+    right: Raw
+    yes: Raw
+    no: Raw
+
+
+@package.command
 class IfToggle(Command):
     r"""Choose by a switch."""
 
