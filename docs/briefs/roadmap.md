@@ -64,8 +64,8 @@ files outside `docs/` changed.
   a `Raw` (passes through), or a `str` (escaped as `Text`). Arity and the one optional argument are checked against the
   referenced class's `__tm_args__` when the piece is built (`TM-M026`); a `Hole` naming a missing field is the existing
   `TM-M009` at render.
-- Resolution is lazy: the referenced class may be registered later than the body is defined, so `Ref` is turned into text
-  (`\<prefix>Name{...}`) in `Package.render()`; registration-time lints skip a body that holds unresolved refs.
+- Resolution is eager: a body is read when its class is defined, so the referenced class already exists; it must be
+  registered before the referencing component is (`TM-M019`). Built that way (batch A1, 2026-10-22).
 - A ref to a class not registered with any package is `TM-M019` (existing code, "not registered").
 - Dependencies: the referenced class's package is recorded when `Package.command/environment` registers the class
   (`cls.__tm_package__`). `Package.requires` is the sorted tuple of other packages' names that its bodies reference

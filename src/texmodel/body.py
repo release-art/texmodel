@@ -18,7 +18,7 @@ import dataclasses
 import enum
 import os
 import textwrap
-from collections.abc import Generator, Iterator, Sequence
+from collections.abc import Callable, Generator, Iterator, Sequence
 from pathlib import Path
 
 from .errors import DeclarationError
@@ -57,17 +57,47 @@ class TemplateRef:
         object.__setattr__(self, "whitespace", whitespace)
 
 
-type BodyPiece = TexRaw | str | TemplateRef
+@dataclasses.dataclass(frozen=True)
+class Hole:
+    """The argument `name` of the component whose body this is, as `#name` (M8)."""
+
+    name: str
+
+
+@enum.unique
+class RefKind(enum.Enum):
+    CALL = "call"  # a command: `\\acFact{...}`
+    OPEN = "open"  # an environment's start: `\\begin{acBox}{...}`
+    CLOSE = "close"  # an environment's end: `\\end{acBox}`
+
+
+@dataclasses.dataclass(frozen=True)
+class Ref:
+    """A body piece that calls a declared component: `Fact.call(Hole("text"))`. `values` has one entry per argument of
+    `target`, in declared order (`None` for an optional one left out). Built by `call`, `open` and `close` on the
+    component class, which check the arguments; it is written with the target's prefix, and a target of another package
+    makes that package a requirement of this one (§21a 17)."""
+
+    target: type
+    kind: RefKind
+    values: tuple[object, ...]
+    whitespace: Whitespace | None = None  # `None` is the package's default
+
+    def with_whitespace(self, whitespace: Whitespace) -> "Ref":
+        return dataclasses.replace(self, whitespace=whitespace)
+
+
+type BodyPiece = TexRaw | str | TemplateRef | Ref
 type BodyT = BodyPiece | Sequence[BodyPiece] | Iterator[BodyPiece] | Generator[BodyPiece]
 
 
 def pieces_of(value: object) -> tuple[BodyPiece, ...] | None:
     """The pieces of what a body gave, or `None` if it is not a body."""
-    if isinstance(value, TexRaw | str | TemplateRef):
+    if isinstance(value, TexRaw | str | TemplateRef | Ref):
         return (value,)
     if isinstance(value, Sequence | Iterator):
         found = tuple(value)  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
-        if all(isinstance(p, TexRaw | str | TemplateRef) for p in found):  # pyright: ignore[reportUnknownVariableType]
+        if all(isinstance(p, TexRaw | str | TemplateRef | Ref) for p in found):  # pyright: ignore[reportUnknownVariableType]
             return found  # pyright: ignore[reportUnknownVariableType]
     return None
 
@@ -79,11 +109,14 @@ def _trim(line: str) -> str:
     return f"{line}%"
 
 
-def join(pieces: Sequence[TexRaw], default: Whitespace, owner: str) -> str:
-    """The text of a body: pieces joined by newlines, each with its policy applied."""
+def join(pieces: Sequence[TexRaw | Ref], default: Whitespace, owner: str, ref_text: Callable[[Ref], str]) -> str:
+    """The text of a body: pieces joined by newlines, each with its policy applied; `ref_text` writes a `Ref`."""
     out: list[str] = []
     for piece in pieces:
         policy = piece.whitespace or default
+        if isinstance(piece, Ref):
+            out.append(_trim(ref_text(piece)) if policy is Whitespace.TRIM else ref_text(piece))
+            continue
         if policy is Whitespace.TRIM and "\\verb" in piece.body:
             raise DeclarationError(
                 f"{owner}: a TRIM piece contains \\verb, whose line ends matter",

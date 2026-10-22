@@ -1054,7 +1054,10 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
     template directory argument or a `[tool.texmodel] templates` key, so bodies (`TemplateRef`) and adopted `sources` are found
     from configuration, not from the pointer. Today the cards-to-nodes step is consumer Python and a TOML frontend is parked
     (§21), so this reopens that decision. Decided 2026-10-22: log it, and make the existing pipeline operational first.
-17. **Typed references inside bodies, with automatic requires.** A body is text chunks plus references to declared components,
+17. **Typed references inside bodies, with automatic requires.** Built 2026-10-22 (`Hole`, `Ref`, `call` / `open` / `close`,
+    `Package.depends_on`, `\RequirePackage` from references, `TM-P007` cycles). The target must be registered before the body that
+    calls it (a body is read when its class is defined, so a forward reference cannot exist). Open: conditions and loops as
+    pieces (item 19), stubbing (item 20). Design: A body is text chunks plus references to declared components,
     not an AST (N1 holds): `Fact.call(Hole("text"))` stands for `\acFact{#text}`, `Box.begin(...)` / `Box.end` for an
     environment. The reference carries the class, so arity and the optional argument are checked when the body is defined and a
     rename cannot leave a stale string. A reference to a component of another package records that package as a dependency

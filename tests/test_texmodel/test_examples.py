@@ -16,12 +16,16 @@ def produced(name: str, monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
     """The files an example generates, with the generator version masked so a release does not churn the goldens."""
     monkeypatch.syspath_prepend(str(EXAMPLES))
     module = importlib.import_module(name)
-    files = {f"{module.pkg.name}.sty": module.pkg.render(), **{f"{n}.tex": t for n, t in module.documents.items()}}
+    packages = [module.pkg, *getattr(module, "dependencies", ())]  # an example may call another package
+    files = {
+        **{f"{p.name}.sty": p.render() for p in packages},
+        **{f"{n}.tex": t for n, t in module.documents.items()},
+    }
     return {path: _STAMP.sub("generated with texmodel X.Y.Z", text) for path, text in files.items()}
 
 
 def test_there_are_examples():
-    assert {"hello", "business_card", "letter"} <= set(NAMES)
+    assert {"hello", "business_card", "letter", "composed"} <= set(NAMES)
 
 
 @pytest.mark.parametrize("name", NAMES)

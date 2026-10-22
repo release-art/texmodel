@@ -7,6 +7,7 @@ and `check_interface` compares the two.
 import dataclasses
 import importlib.metadata
 import re
+import typing
 from collections.abc import Sequence
 
 from ._internal.render import (
@@ -85,6 +86,7 @@ class Package:
         self.adopted = adopted  # the `.sty` is hand-written; components only declare it (M9)
         self._items: list[Spec | EnvSpec | ValueSpec] = []  # registration order is output order
         self._controls: dict[str, str] = {}  # control sequence -> qualname of its declarer
+        self._calls: list[type] = []  # components its bodies call, in order (§21a 17)
         self._colours: dict[str, str] = {}  # colour name -> qualname; its own namespace
 
     def _add(self, spec: Spec | EnvSpec | ValueSpec, *claims: tuple[dict[str, str], str, str]) -> None:
@@ -97,6 +99,8 @@ class Package:
         for table, key, _ in claims:
             table[key] = spec.qualname
         self._items.append(spec)
+        if not isinstance(spec, ValueSpec):
+            self._calls.extend(spec.refs)
 
     def command[C: type[Command]](self, cls: C) -> C:
         """Register a command class."""
@@ -105,7 +109,7 @@ class Package:
             render_command(self.prefix, spec)  # lints the body now, so a bad body is refused at import
         control = self.prefix + spec.name
         self._add(spec, (self._controls, control, f"\\{control}"))
-        cls.__tm_prefix__ = self.prefix
+        cls.__tm_prefix__, cls.__tm_package__ = self.prefix, self
         return cls
 
     def environment[E: type[Environment]](self, cls: E) -> E:
@@ -115,7 +119,7 @@ class Package:
             render_environment(self.prefix, spec)  # lints both bodies now
         control = self.prefix + spec.name
         self._add(spec, (self._controls, control, f"\\{control}"))
-        cls.__tm_prefix__ = self.prefix
+        cls.__tm_prefix__, cls.__tm_package__ = self.prefix, self
         return cls
 
     def value[V: type[Value[Length] | Value[Colour] | Value[bool] | Value[Text]]](self, cls: V) -> V:
@@ -143,9 +147,25 @@ class Package:
         return cls
 
     @property
+    def depends_on(self) -> tuple["Package", ...]:
+        """The other packages whose components its bodies call, in first-use order (§21a 17)."""
+        found = (typing.cast("Package", t.__tm_package__) for t in self._calls)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
+        return tuple(dict.fromkeys(p for p in found if p is not self))
+
+    @property
     def required_packages(self) -> tuple[str, ...]:
-        """The union of what the components declare, sorted (M14); computed, never collected by mutation."""
-        return tuple(sorted({p for s in self._items if isinstance(s, ValueSpec) for p in s.needs}))
+        """The union of what the components declare (M14) and the packages they call, sorted; computed, never
+        collected by mutation."""
+        needs = {p for s in self._items if isinstance(s, ValueSpec) for p in s.needs}
+        return tuple(sorted({*needs, *(p.name for p in self.depends_on)}))
+
+    def _check_cycles(self, path: tuple["Package", ...] = ()) -> None:
+        """A package that (through others) requires itself cannot load (`TM-P007`)."""
+        if self in path:
+            chain = " -> ".join(p.name for p in (*path[path.index(self) :], self))
+            raise DeclarationError(f"packages require each other: {chain}", code="TM-P007", path=self.name)
+        for dependency in self.depends_on:
+            dependency._check_cycles((*path, self))  # noqa: SLF001
 
     def render(self, *, version: str | None = None) -> str:
         """The `.sty` text. `version` is the generator's, recorded in the header; default the installed texmodel's.
@@ -157,6 +177,7 @@ class Package:
             raise DeclarationError(
                 f"{self.name}: an adopted package renders no .sty", code="TM-P006", hint="the hand-written one is it"
             )
+        self._check_cycles()
         for s in self._items:
             if isinstance(s, Spec):
                 check_references(self.prefix, s, s.body, self._controls)

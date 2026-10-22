@@ -32,7 +32,7 @@ def test_trim_adds_a_percent_to_each_line_except_where_it_is_not_wanted():
         "\\par\\noindent   \n% a comment\n{\\bfseries #text}%\n\n100\\%",
         Whitespace.TRIM,
     )
-    assert join([piece], Whitespace.KEEP, "x").splitlines() == [
+    assert join([piece], Whitespace.KEEP, "x", str).splitlines() == [
         r"\par\noindent%",
         "% a comment",
         r"{\bfseries #text}%",
@@ -43,7 +43,7 @@ def test_trim_adds_a_percent_to_each_line_except_where_it_is_not_wanted():
 
 def test_keep_writes_lines_as_given_and_is_the_default():
     text = "\\par\n  #text"
-    assert join([TexRaw(text)], Whitespace.KEEP, "x") == text
+    assert join([TexRaw(text)], Whitespace.KEEP, "x", str) == text
     assert r"\newcommand{\bdItem}[1]{%" + "\n\\par\n  #1\n}" in sty(text)
 
 

@@ -54,6 +54,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `settings=[Name("R&D")]` writes `\renewcommand{\prefixName}{R\&D}` after `\usepackage`, before the preamble slot; other
   settings stay in the body. An adopted package may declare a `Value[Text]` (with no default): `check_interface` expects an
   argument-less definition. Other adopted values are refused (`TM-P005`).
+- Typed references in bodies (§21a 17): `Fact.call(Hole("text"))` for a command (required arguments positional, the optional one by
+  keyword), `Box.open(title=...)` / `Box.close()` for an environment. An argument is a `Hole` (`#name`), a `Raw`, a `str` (escaped)
+  or a `Choice`; arity and types are checked when the piece is built (`TM-M026`). The target must be registered first
+  (`TM-M019`). A target of another package, adopted or not, becomes a `\RequirePackage` (sorted, once; `Package.depends_on`,
+  `required_packages`); packages that require each other are refused when rendered (`TM-P007`). `Ref.with_whitespace` sets a
+  piece's policy. Example: `tests/examples/composed/`.
 - Body pieces (M8, new module `texmodel.body`): a body, `begin` or `end` may be a string, a `TemplateRef`, a `TexRaw` or a
   sequence, iterator or generator of those. `TexRaw(body, whitespace=)` is dedented; `Whitespace.TRIM` adds `%` to each line end
   (not to lines that end with one, comments or blank lines) so line ends make no space; `KEEP` writes lines as given.

@@ -78,11 +78,12 @@ from ._internal.render import (
     arguments,
     check_name,
 )
-from .body import TemplateRef, TexRaw, Whitespace, join, pieces_of
+from .body import Hole, Ref, RefKind, TemplateRef, TexRaw, Whitespace, join, pieces_of
 from .errors import DeclarationError, Violation
 from .types import CMYK, RGB, TEXT, Choice, Colour, Gray, Length, Raw, Text
 
 type Node = Command | Environment
+Source = tuple[tuple[TexRaw | Ref, ...], str]  # a body's pieces and where they came from
 
 
 @dataclasses.dataclass(frozen=True)
@@ -145,11 +146,11 @@ def _document(cls: type) -> str:
     return doc
 
 
-def _source(cls: type, name: str) -> tuple[tuple[TexRaw, ...], str] | None:
+def _source(cls: type, name: str) -> tuple[tuple[TexRaw | Ref, ...], str] | None:
     """The class's own `body` / `begin` / `end` as (pieces, origin), or None.
 
-    It is a string, a `TemplateRef` (the file is read now), a `TexRaw`, a sequence, iterator or generator of those, or a
-    method returning any of them. A field of that name is not a body.
+    It is a string, a `TemplateRef` (the file is read now), a `TexRaw`, a `Ref`, a sequence, iterator or generator of
+    those, or a method returning any of them. A field of that name is not a body.
     """
     found: object = cls.__dict__.get(name)
     if found is None or name in inspect.get_annotations(cls):
@@ -167,13 +168,13 @@ def _source(cls: type, name: str) -> tuple[tuple[TexRaw, ...], str] | None:
     if (given := pieces_of(found)) is None:
         got = type(found).__name__
         raise DeclarationError(
-            f"{cls.__qualname__}.{name}: must be TeX (a string, a TemplateRef, a TexRaw, a sequence of them, "
+            f"{cls.__qualname__}.{name}: must be TeX (a string, a TemplateRef, a TexRaw, a Ref, a sequence of them, "
             f"or a method returning one), not {got}",
             code="TM-M021",
             path=cls.__name__,
         )
     origins: list[str] = []
-    out: list[TexRaw] = []
+    out: list[TexRaw | Ref] = []
     for piece in given:
         if isinstance(piece, TemplateRef):
             path = (
@@ -189,7 +190,7 @@ def _source(cls: type, name: str) -> tuple[tuple[TexRaw, ...], str] | None:
                 ) from exc
             origins.append(piece.path.name)
         else:
-            out.append(piece if isinstance(piece, TexRaw) else TexRaw(piece))
+            out.append(piece if isinstance(piece, TexRaw | Ref) else TexRaw(piece))
             origins.append("inline")
     return tuple(out), " + ".join(dict.fromkeys(origins))
 
@@ -210,6 +211,7 @@ class _Node(metaclass=_Meta):
     __tm_args__: ClassVar[tuple[Arg, ...]]
     __tm_doc__: ClassVar[str]
     __tm_prefix__: ClassVar[str]  # set when a package registers the class
+    __tm_package__: ClassVar[object]  # the `Package` it was registered with
 
     def __repr__(self) -> str:
         return _repr(self)  # pyright: ignore[reportArgumentType]
@@ -242,12 +244,19 @@ def _build(cls: type[_Node], unused: Sequence[str], *, init: bool) -> None:
 class Command(_Node):
     """A TeX command (`\\newcommand`) whose arguments are the class's fields."""
 
-    __tm_inline__: ClassVar[tuple[tuple[TexRaw, ...], str] | None]
+    __tm_inline__: ClassVar[Source | None]
 
     def __init_subclass__(cls, *, unused: Sequence[str] = (), **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         cls.__tm_inline__ = _source(cls, "body")
         _build(cls, unused, init=True)
+
+    @classmethod
+    def call(cls, *required: ArgValue, **optional: ArgValue) -> Ref:
+        """A body piece that calls this command (§21a 17): the required arguments positionally, the optional one by
+        keyword, each a `Hole` (an argument of the component being defined), a `Raw`, a `str` (escaped) or a `Choice`.
+        """
+        return _ref(cls, RefKind.CALL, required, optional)
 
 
 @dataclasses.dataclass(frozen=True, init=False, repr=False)
@@ -256,7 +265,7 @@ class Environment(_Node):
 
     content: tuple[Node, ...]
     children: ClassVar[Sequence[type | Repeat]] = ()  # the grammar: components in order, with counts (M4)
-    __tm_inline__: ClassVar[tuple[tuple[tuple[TexRaw, ...], str] | None, tuple[tuple[TexRaw, ...], str] | None]]
+    __tm_inline__: ClassVar[tuple[Source | None, Source | None]]
     __tm_grammar__: ClassVar[tuple[Repeat, ...]]
 
     def __init_subclass__(cls, *, unused: Sequence[str] = (), **kwargs: Any) -> None:
@@ -264,6 +273,16 @@ class Environment(_Node):
         cls.__tm_inline__ = (_source(cls, "begin"), _source(cls, "end"))
         cls.__tm_grammar__ = _grammar(cls)
         _build(cls, unused, init=False)
+
+    @classmethod
+    def open(cls, **args: ArgValue) -> Ref:
+        """A body piece that starts this environment, `\\begin{acBox}`, with its arguments by keyword (§21a 17)."""
+        return _ref(cls, RefKind.OPEN, (), args)
+
+    @classmethod
+    def close(cls) -> Ref:
+        """A body piece that ends this environment, `\\end{acBox}` (§21a 17)."""
+        return _ref(cls, RefKind.CLOSE, (), {})
 
     def __init__(self, *content: Node, **args: str | Raw | None) -> None:
         fields = {f.name: f for f in dataclasses.fields(self) if f.name != "content"}
@@ -274,6 +293,55 @@ class Environment(_Node):
         object.__setattr__(self, "content", content)
         for name, f in fields.items():
             object.__setattr__(self, name, args.get(name, f.default))
+
+
+type ArgValue = Hole | Raw | str | Choice
+
+
+def _ref(cls: type, kind: RefKind, required: tuple[ArgValue, ...], optional: dict[str, ArgValue]) -> Ref:
+    """Check an argument list against the component's arguments and keep it in declared order (`TM-M026`)."""
+    declared = typing.cast("type[Command] | type[Environment]", cls).__tm_args__
+    positional = [a for a in declared if not a.optional and not issubclass(cls, Environment)]
+    allowed = {a.name for a in declared} - {a.name for a in positional}
+    values = {**dict(zip((a.name for a in positional), required, strict=False)), **optional}
+    problems = (
+        [f"{len(positional)} positional argument(s), got {len(required)}"] if len(required) != len(positional) else []
+    )
+    problems += [f"unknown argument {n!r}" for n in sorted(set(optional) - allowed)]
+    problems += [f"missing argument {a.name!r}" for a in declared if not a.optional and a.name not in values]
+    for a in declared:
+        value = values.get(a.name)
+        if value is not None and not isinstance(value, Hole | (a.choice or (Raw if a.raw else str))):
+            problems.append(
+                f"{a.name!r} must be a Hole or a {'Choice member' if a.choice else 'Raw' if a.raw else 'str'}"
+            )
+    if problems and kind is not RefKind.CLOSE:
+        raise DeclarationError(
+            f"{cls.__name__}.{kind.value}(): " + "; ".join(problems),
+            code="TM-M026",
+            path=cls.__name__,
+        )
+    return Ref(cls, kind, tuple(values.get(a.name) for a in declared))
+
+
+def _ref_text(ref: Ref, owner: str) -> str:
+    """The TeX a reference stands for. The target must be registered: its prefix is part of the name."""
+    prefix: str | None = getattr(ref.target, "__tm_prefix__", None)
+    if prefix is None:
+        raise DeclarationError(
+            f"{owner}: calls {ref.target.__name__}, which is not registered with a package",
+            code="TM-M019",
+            path=owner,
+            hint="register it (decorate it with its package's command/environment) before the body that calls it",
+        )
+    name = f"{prefix}{ref.target.__name__}"
+    declared = typing.cast("type[Command] | type[Environment]", ref.target).__tm_args__
+    args = arguments(declared, {a.name: v for a, v in zip(declared, ref.values, strict=True)})
+    return {
+        RefKind.CALL: f"\\{name}{args}",
+        RefKind.OPEN: f"\\begin{{{name}}}{args}",
+        RefKind.CLOSE: f"\\end{{{name}}}",
+    }[ref.kind]
 
 
 def _repr(node: Node) -> str:
@@ -415,11 +483,9 @@ def _emit(node: Node) -> str:
     return "\n".join([f"\\begin{{{name}}}{args}", *map(_emit, node.content), f"\\end{{{name}}}"])
 
 
-Source = tuple[tuple[TexRaw, ...], str]
-
-
-def _required(cls: type, found: Source | None, option: str, default: Whitespace) -> tuple[str, str]:
-    """The text of a body, with the package's default whitespace policy for pieces that have none, and its origin."""
+def _required(cls: type, found: Source | None, option: str, default: Whitespace) -> tuple[str, str, tuple[type, ...]]:
+    """The text of a body (the package's default whitespace policy for pieces that have none), its origin and the
+    components it calls."""
     if found is None:
         raise DeclarationError(
             f"{cls.__module__}.{cls.__qualname__}: no {option}",
@@ -427,7 +493,9 @@ def _required(cls: type, found: Source | None, option: str, default: Whitespace)
             path=cls.__name__,
             hint=f'define `{option}` as a string, a TemplateRef("file.tex"), a TexRaw, or a method returning one',
         )
-    return join(found[0], default, f"{cls.__qualname__}.{option}"), found[1]
+    owner = f"{cls.__qualname__}.{option}"
+    text = join(found[0], default, owner, lambda ref: _ref_text(ref, owner))
+    return text, found[1], tuple(dict.fromkeys(p.target for p in found[0] if isinstance(p, Ref)))
 
 
 def _declared_only(cls: type, *sources: Source | None) -> None:
@@ -445,7 +513,9 @@ def spec_of(cls: type[Command], *, declared_only: bool = False, whitespace: Whit
     """The declaration as the renderer sees it, with its body (M8); `declared_only` (M9) has none."""
     if declared_only:
         _declared_only(cls, cls.__tm_inline__)
-    body, origin = ("", "declared") if declared_only else _required(cls, cls.__tm_inline__, "body", whitespace)
+    body, origin, refs = (
+        ("", "declared", ()) if declared_only else _required(cls, cls.__tm_inline__, "body", whitespace)
+    )
     return Spec(
         cls.__name__,
         cls.__tm_doc__,
@@ -454,6 +524,7 @@ def spec_of(cls: type[Command], *, declared_only: bool = False, whitespace: Whit
         origin,
         f"{cls.__module__}.{cls.__qualname__}",
         cls.__tm_unused__,
+        refs,
     )
 
 
@@ -464,11 +535,12 @@ def env_spec_of(
     if declared_only:
         _declared_only(cls, *cls.__tm_inline__)
         begin = end = ""
-        origin = "declared"
+        origin, refs = "declared", ()
     else:
-        begin, begin_origin = _required(cls, cls.__tm_inline__[0], "begin", whitespace)
-        end, end_origin = _required(cls, cls.__tm_inline__[1], "end", whitespace)
+        begin, begin_origin, begin_refs = _required(cls, cls.__tm_inline__[0], "begin", whitespace)
+        end, end_origin, end_refs = _required(cls, cls.__tm_inline__[1], "end", whitespace)
         origin = " + ".join(dict.fromkeys((begin_origin, end_origin)))
+        refs = tuple(dict.fromkeys((*begin_refs, *end_refs)))
     return EnvSpec(
         cls.__name__,
         cls.__tm_doc__,
@@ -478,6 +550,7 @@ def env_spec_of(
         origin,
         f"{cls.__module__}.{cls.__qualname__}",
         cls.__tm_unused__,
+        refs,
     )
 
 

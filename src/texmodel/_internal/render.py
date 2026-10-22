@@ -8,6 +8,7 @@ import re
 from collections.abc import Mapping, Sequence
 from typing import cast
 
+from ..body import Hole
 from ..errors import DeclarationError
 from ..types import Choice, Colour, Length, Raw, balanced, escape
 
@@ -40,6 +41,7 @@ class Spec:
     origin: str  # "fact.tex" or "inline", for the provenance comment
     qualname: str  # module.Class, for the provenance comment
     unused: tuple[str, ...] = ()
+    refs: tuple[type, ...] = ()  # components its body calls (§21a 17)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -54,6 +56,7 @@ class EnvSpec:
     origin: str  # "card_back.begin.tex + card_back.end.tex" or "inline", for the provenance comment
     qualname: str
     unused: tuple[str, ...] = ()
+    refs: tuple[type, ...] = ()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -169,7 +172,7 @@ def argument(arg: Arg, value: object) -> str:
     """One call argument. `Text` is escaped, `Raw` passes through; a `]` in the optional one is wrapped (T3)."""
     if isinstance(value, Choice):
         value = value.value
-    text = value.tex if isinstance(value, Raw) else escape(str(value))
+    text = f"#{value.name}" if isinstance(value, Hole) else value.tex if isinstance(value, Raw) else escape(str(value))
     if not arg.optional:
         return f"{{{text}}}"
     return f"[{{{text}}}]" if "]" in text else f"[{text}]"

@@ -90,6 +90,30 @@ def body(self):
     yield r"\par"
 ```
 
+A body can call another component by Python binding. The call is checked against the target's arguments, written with the
+target's prefix, and a target in another package makes that package a `\RequirePackage` of the generated `.sty`:
+
+```python
+from texmodel.body import Hole
+
+class Entry(Command):
+    """A fact with a rule above it."""
+    text: Text
+
+    def body(self):
+        yield r"\par\hrule"
+        yield Fact.call(Hole("text"))            # \bkFact{#1}; Fact belongs to base-kit, so \RequirePackage{base-kit}
+
+class Section(Environment):
+    """A titled panel."""
+    begin = Panel.open(title=Hole("title"))      # \begin{bkPanel}{#1}
+    end = Panel.close()                          # \end{bkPanel}
+    title: Text
+```
+
+`Fact.call(...)` takes the required arguments positionally and the optional one by keyword (`Slot.call(Hole("t"), label="x")`);
+an environment's arguments are all keywords. A target must be registered before the body that calls it.
+
 An environment has `begin` and `end` in the same way. A document is plain
 Python; `Text` fields are escaped, a `Raw` field passes TeX through, and everything wrong is reported at once:
 
