@@ -143,7 +143,7 @@ TOGGLE = ValueKind(
         *([] if default is None else [_toggle_setting(prefix, name, default, alias)]),
     ],
     _toggle_setting,
-    needs=("etoolbox",),
+    needs=(package,),
 )
 Toggle = Annotated[bool, TOGGLE]
 """`Value[Toggle]`: an etoolbox toggle (`\\newtoggle`, `\\toggletrue`), not a `\\newif`; written through the bindings

@@ -67,7 +67,7 @@ import sys
 import types
 import typing
 from collections.abc import Mapping, Sequence
-from typing import Any, ClassVar, dataclass_transform, overload
+from typing import TYPE_CHECKING, Any, ClassVar, dataclass_transform, overload
 
 from ._internal.render import (
     BOOL,
@@ -109,6 +109,9 @@ from .body import (
 from .errors import DeclarationError, Violation
 from .interface import BRACE, RAW_BODY, SQUARE, ArgOptions, BodyKind, Gap, arg, body_of
 from .types import TEXT, Choice, Colour, Length, Raw, Text, ValueKind
+
+if TYPE_CHECKING:
+    from .package import Package
 
 type Node = Command | Environment | Passthrough | Comment
 Resolved = TexRaw | Ref | Comment | Group | Seq | Cs | Lit | Hole
@@ -766,7 +769,7 @@ class Value[T]:
     instance of `T`. A `Value[Text]` of an adopted package may leave `default` out: the hand-written package has it."""
 
     default: T  # not ClassVar[T]: pyright refuses type variables in ClassVar; subclasses assign it in the class body
-    needs_packages: ClassVar[tuple[str, ...]] = ()  # data, not mutation: the package takes the union (M14)
+    needs_packages: ClassVar[tuple["str | Package", ...]] = ()  # data, not mutation: the package takes the union (M14)
     colour_name: ClassVar[str | None] = None  # a `Value[Colour]`'s name when it is not `<prefix>-<kebab>` (`"bbInk"`)
     meta: ClassVar[Mapping[str, object]] = {}  # the schema's `x-` keys on this value
     __tm_doc__: ClassVar[str]
@@ -810,7 +813,9 @@ class Value[T]:
                 f"{cls.__qualname__}: default {default!r} is not a {kind.name}", code="TM-M014", path=cls.__name__
             )
         cls.__tm_doc__, cls.__tm_kind__ = doc, kind
-        cls.needs_packages = tuple(sorted({*cls.needs_packages, *kind.needs}))
+        cls.needs_packages = tuple(
+            sorted({*cls.needs_packages, *kind.needs}, key=lambda p: p if isinstance(p, str) else p.name)
+        )
 
 
 type AnyValue = Value[Length] | Value[Colour] | Value[bool] | Value[Text] | Value[Raw]

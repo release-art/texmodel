@@ -19,6 +19,8 @@ from .errors import DeclarationError, ValidationError
 if TYPE_CHECKING:
     from pydantic_core import CoreSchema
 
+    from .package import Package
+
 
 class _TextMarker:
     def __repr__(self) -> str:
@@ -50,7 +52,7 @@ class ValueKind:
     claims: Callable[[str, str, str | None], tuple[Claim, ...]]
     declare: Callable[[str, str, Any, str | None], list[str]]
     setting: Callable[[str, str, Any, str | None], str]
-    needs: tuple[str, ...] = ()  # packages it needs (M14)
+    needs: tuple["str | Package", ...] = ()  # packages it needs (M14): a name, or a `Package` of this project
     named: bool = False  # the class may rename it (`colour_name`)
     may_omit: bool = False  # the class may leave `default` out (an adopted `Text` / `Raw`; a length computed later)
     bare: bool = False  # a package may declare it without a default

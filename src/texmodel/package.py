@@ -260,14 +260,15 @@ class Package:
     def depends_on(self) -> tuple["Package", ...]:
         """The other packages this one requires or whose components its bodies call (§21a 17), in first-use order."""
         called = (typing.cast("Package", t.__tm_package__) for t in self._calls)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
-        found = (*(p for p, _ in self._requires), *called)
+        needed = (p for s in self._items if isinstance(s, ValueSpec) for p in s.needs if not isinstance(p, str))
+        found = (*(p for p, _ in self._requires), *called, *needed)
         return tuple(dict.fromkeys(p for p in found if p is not self and not p.builtin))
 
     def require_entries(self) -> list[tuple[str, tuple[str, ...]]]:
         """What the `.sty` loads: `require()`d packages in order with their options, then, sorted, the packages the
         values need (M14) and the components call that are not already loaded; computed, never collected by mutation."""
         explicit = [(p.name, o) for p, o in self._requires]
-        needs = {p for s in self._items if isinstance(s, ValueSpec) for p in s.needs}
+        needs = {p for s in self._items if isinstance(s, ValueSpec) for p in s.needs if isinstance(p, str)}
         rest = sorted({*needs, *(p.name for p in self.depends_on)} - {n for n, _ in explicit})
         return [*explicit, *((n, ()) for n in rest)]
 

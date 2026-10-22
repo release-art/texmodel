@@ -6,13 +6,16 @@ Output is a pure function of the declaration: no timestamps, no hashes, no dict 
 import dataclasses
 import re
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from ..body import HOLE, Hole, Library, Syntax
 from ..errors import DeclarationError
 from ..interface import BRACE, SQUARE, Body, BodyKind, Delimiter, Gap, SlotGroup
 from ..types import Claim, Colour, Length, Raw, ValueKind, balanced, escape
 from .values import unprotected, value_ok, value_text
+
+if TYPE_CHECKING:
+    from ..package import Package
 
 _HOLE = re.compile(rf"{HOLE.pattern}|#(?P<digit>\d)")
 _BODY_TOKEN = re.compile(r"\\.|##|#(?P<name>[A-Za-z_]\w*)|#(?P<digit>\d)", re.DOTALL)  # `\#` is a character, not a hole
@@ -91,7 +94,7 @@ class ValueSpec:
     default: object | None  # None: a `Value[Text]` / `Value[Raw]` the hand-written package defines, or a bare length
     kind: ValueKind
     qualname: str
-    needs: tuple[str, ...]  # packages it needs (M14): its kind's and the class's own
+    needs: tuple["str | Package", ...]  # packages it needs (M14): its kind's and the class's own
     alias: str | None = None  # the name the class gives itself (`colour_name = "bbInk"`)
     meta: Mapping[str, object] = dataclasses.field(default_factory=dict[str, object])  # the schema's `x-` keys
 

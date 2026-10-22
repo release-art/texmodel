@@ -87,3 +87,16 @@ def test_meta_reaches_the_schema():
     assert d["x-audience"] == "deck"
     assert d["properties"]["src"]["description"] == "The file." and d["properties"]["src"]["x-type"] == "file"
     assert d["properties"]["alt"]["x-audience"] == "tools"
+
+
+def test_a_value_can_need_a_package_of_this_project():
+    helper = Package("helper", prefix="hp")
+
+    class Needs(Value[Length]):
+        """Needs helper."""
+
+        needs_packages = (helper,)
+
+    p = Package("p", prefix="ac")
+    p.value(Needs)
+    assert p.required_packages == ("helper",) and p.depends_on == (helper,)
