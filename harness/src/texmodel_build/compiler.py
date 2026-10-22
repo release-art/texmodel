@@ -23,6 +23,7 @@ from ._internal.converge import aux_diff
 from ._internal.env import build_env
 from ._internal.logparse import page_count
 from ._internal.spawn import Proc, spawn
+from ._internal.styscan import SAFE_NAME
 from .diagnostics import Diagnostic, Measure, NotConverged, Severity, Unexplained
 from .engines import LUALATEX, Engine
 from .errors import ToolchainError
@@ -131,6 +132,19 @@ class Compiler:
                 f"latexmk is not available in {where}", code="TM-T003", hint="the images need latexmk (plan C8)"
             )
         return self.versions
+
+    def missing_files(self, files: Sequence[str]) -> tuple[str, ...]:
+        """Which of `files` `kpsewhich` cannot find, here or in the image (D2); no network is used."""
+        if not files:
+            return ()
+        if bad := [f for f in files if not SAFE_NAME.fullmatch(f)]:
+            raise DeclarationError(f"not a plain file name: {bad[0]!r}", code="TM-T006", hint="letters, digits . _ -")
+        script = (
+            "# texmodel:missing\n"
+            "command -v kpsewhich >/dev/null || { echo 'kpsewhich is not installed' >&2; exit 127; }\n"
+            f'for f in {" ".join(files)}; do kpsewhich "$f" >/dev/null || echo "$f"; done'
+        )
+        return tuple(self._sh(script).stdout.split())
 
     # -- compiling ---------------------------------------------------------------------------------------
 

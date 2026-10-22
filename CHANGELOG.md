@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `texmodel-build doctor --sty <glob>` (D2, §21a 14): lists the files that `\RequirePackage`, `\usepackage`, `\LoadClass` and
+  `\tcbuselibrary` in those files name and `kpsewhich` cannot find, here or in the image, with a `tlmgr install` line; exit 3.
+- Stubbed unit tests of generated code (A3, §21a 20): `texmodel.testing.expand` and `Call` (fast tier, no TeX),
+  `Package.test_document(node, stub=[...])` and `texmodel_build.testkit.run_probes` (TeX tier); both tiers give the same calls.
 - Constructive body pieces (A2, §21a 19): `Group`, `Seq`, `Cs` (`TM-M027`) and `Lit` in `texmodel.body`, with `Hole`, `Ref` and
   `Raw` inside; a top-level `Hole` is a body piece. A literal `\#` in a body is no longer read as a hole.
 - Package schema and renamed fields (C4, §21a 15): `json_schema(pkg)` and `texmodel schema` (`[tool.texmodel] schema_output`,

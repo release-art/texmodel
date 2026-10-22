@@ -15,6 +15,7 @@ import typer
 from texmodel.errors import DeclarationError, TexmodelError
 from texmodel.pointer import load_plan
 
+from ._internal.styscan import needed
 from .compiler import Compiler
 from .config import BuildConfig, load_build_config
 from .engines import get_engine
@@ -129,36 +130,73 @@ def version() -> None:
     typer.echo(importlib.metadata.version("texmodel-build"))
 
 
+def _image_status(tag: str) -> dict[str, Any]:
+    """What the configured image can do, or why it cannot be used."""
+    try:
+        comp = Compiler(image=tag)
+        v = comp.check_ready()
+        info = comp.image_info
+        return {
+            "image": tag,
+            "ok": True,
+            "digest": info.digest if info else "",
+            "revision": info.revision if info else "",
+            "engine": v.engine_version,
+            "latexmk": v.latexmk_version,
+            "missing": [{"name": n, "gap": TOOLS[n]} for n in ("kpsewhich", "gs", "verapdf") if n not in v.tools],
+        }
+    except ToolchainError as exc:
+        return {"image": tag, "ok": False, "error": str(exc), "hint": exc.hint}
+
+
+def _sty_report(globs: list[str], image: str) -> dict[str, Any]:
+    """What the files matching `globs` load (D2) and which of it the toolchain, here or in `image`, cannot find."""
+    paths = sorted({p for g in globs for p in pathlib.Path().glob(g) if p.is_file()})
+    if not paths:
+        raise DeclarationError("no file matches --sty", code="TM-D014", hint="pass a glob such as 'res/*.sty'")
+    own = {p.stem for p in paths}  # a package may load its siblings
+    files, unchecked = needed(p.read_text(encoding="utf-8", errors="replace") for p in paths)
+    files = [f for f in files if f.partition(".")[0] not in own]
+    missing = Compiler(image=image or None).missing_files(files)
+    return {"scanned": [str(p) for p in paths], "checked": len(files), "missing": list(missing), "unchecked": unchecked}
+
+
+def _show_sty(report: dict[str, Any]) -> None:
+    for name in report["missing"]:
+        typer.echo(f"missing {name}")
+    for name in report["unchecked"]:
+        typer.echo(f"unchecked {name}: not a plain file name, so not looked up")
+    if report["missing"]:
+        packages = [f.removesuffix(".sty") for f in report["missing"] if f.endswith(".sty")]
+        typer.echo("install: tlmgr install " + " ".join(packages) if packages else "install: see tlmgr search --file")
+        typer.echo("(a TeX Live package can have another name than its file: tlmgr search --global --file <file>)")
+    else:
+        typer.echo(f"ok: the {report['checked']} file(s) loaded by {len(report['scanned'])} scanned file(s) are found")
+
+
 @app.command()
 @_exits
-def doctor(as_json: AsJson = False) -> None:
-    """Report what this machine can do, and what the configured image can. Exit 3 when nothing can compile."""
+def doctor(
+    as_json: AsJson = False,
+    sty: Annotated[
+        list[str] | None,
+        typer.Option(
+            help="Glob of .sty/.cls files: report which files they load that the toolchain lacks. Repeatable."
+        ),
+    ] = None,
+) -> None:
+    """Report what this machine can do, and what the configured image can; with --sty, which files a package loads
+    are missing. Exit 3 when nothing can compile or a file is missing."""
     tools = probe_tools()
     for t in tools:
         logger.debug("probe %s -> %s", t.name, t.path)
     config = _config()
-    image: dict[str, Any] | None = None
-    ready = all(t.path for t in tools if t.name in REQUIRED)
-    if config and config.image:
-        try:
-            comp = Compiler(image=config.image)
-            v = comp.check_ready()
-            info = comp.image_info
-            image = {
-                "image": config.image,
-                "ok": True,
-                "digest": info.digest if info else "",
-                "revision": info.revision if info else "",
-                "engine": v.engine_version,
-                "latexmk": v.latexmk_version,
-                "missing": [{"name": n, "gap": TOOLS[n]} for n in ("kpsewhich", "gs", "verapdf") if n not in v.tools],
-            }
-            ready = True
-        except ToolchainError as exc:
-            image = {"image": config.image, "ok": False, "error": str(exc), "hint": exc.hint}
-            ready = False
+    image = _image_status(config.image) if config and config.image else None
+    ready = image["ok"] if image else all(t.path for t in tools if t.name in REQUIRED)
+    report = _sty_report(sty, config.image if config else "") if sty and ready else None
     if as_json:
-        typer.echo(json.dumps({"tools": [dataclasses.asdict(t) for t in tools], "image": image}, indent=2))
+        shown = {"tools": [dataclasses.asdict(t) for t in tools], "image": image, "sty": report}
+        typer.echo(json.dumps(shown, indent=2))
     else:
         for t in tools:
             typer.echo(f"{'ok     ' if t.path else 'missing'} {t.name:10} {t.path or t.gap}")
@@ -168,7 +206,9 @@ def doctor(as_json: AsJson = False) -> None:
                 typer.echo(f"missing {m['name']:10} in image: {m['gap']}")
         elif image:
             typer.echo(f"image   {image['image']}: {image['error']} ({image['hint']})")
-    if not ready:
+        if report:
+            _show_sty(report)
+    if not ready or (report and report["missing"]):
         raise typer.Exit(3)
 
 

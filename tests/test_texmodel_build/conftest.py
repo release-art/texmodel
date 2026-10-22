@@ -30,6 +30,8 @@ class FakeToolchain:
         self.image_missing = False
         self.latexmk_returncode: int | None = None  # overrides returncode for the clean call
         self.runs = 0
+        self.missing_files: set[str] = set()  # what `kpsewhich` cannot find
+        self.no_kpsewhich = False
         self.up_to_date = False  # when set, like latexmk: outputs already current in the outdir mean no pass runs
 
     def __call__(self, argv, *, cwd, env, timeout):  # noqa: ANN001, ANN204
@@ -42,7 +44,7 @@ class FakeToolchain:
         if argv[:2] == ["docker", "kill"]:
             return Proc(0, "", "")
         if "sh" in argv and "-c" in argv:
-            return Proc(0, self.probe, "")
+            return self._missing(argv[-1]) if "# texmodel:missing" in argv[-1] else Proc(0, self.probe, "")
         if "-c" in argv or "-C" in argv:  # latexmk -c / -C (clean)
             return Proc(self.latexmk_returncode or 0, "", "")
         out = self._outdir(argv)
@@ -59,6 +61,13 @@ class FakeToolchain:
         if self.write_pdf:
             (out / f"{stem}.pdf").write_bytes(b"%PDF-fake")
         return Proc(self.returncode, self.stdout, "")
+
+    def _missing(self, script: str) -> Proc:
+        """D2: which files kpsewhich cannot find."""
+        if self.no_kpsewhich:
+            return Proc(127, "", "kpsewhich is not installed")
+        asked = re.search(r"for f in (.*?); do", script)[1].split()  # type: ignore[index]
+        return Proc(0, "".join(f"{f}\n" for f in asked if f in self.missing_files), "")
 
     def _outdir(self, argv: list[str]) -> pathlib.Path:
         if argv[0] == "docker":  # the host directory mounted at /work/out

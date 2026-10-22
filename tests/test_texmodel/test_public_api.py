@@ -16,6 +16,7 @@ PUBLIC = {
     "plan",
     "pointer",
     "preamble",
+    "testing",
     "spec",
     "types",
 }

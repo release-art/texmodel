@@ -33,6 +33,7 @@ from .drift import stamp
 from .errors import DeclarationError, Violation
 from .plan import Line, Plan, node_lines
 from .preamble import Entry, tex_of
+from .testing import Component, stub_tex
 from .types import Length, Raw
 
 _NAME = re.compile(r"[a-z][a-z0-9-]*")
@@ -338,6 +339,22 @@ class Package:
     ) -> str:
         """The `.tex` text of `plan(...)`."""
         return self.plan(*body, settings=settings, options=options, preamble=preamble).text
+
+    def test_document(
+        self,
+        *body: Node,
+        stub: Sequence[Component] = (),
+        settings: Sequence[AnyValue] = (),
+        options: Sequence[str] = (),
+        preamble: PreambleSlots | None = None,
+    ) -> str:
+        """A `.tex` for testing `body` against stubs (§21a 20): the real packages are loaded, then each class in `stub`
+        is replaced by a macro that writes `texmodel:probe:callN=...` to the log instead of typesetting. Read the calls
+        with `texmodel_build.testkit.run_probes` and `testing.Call.parse`; `testing.expand` gives the same calls
+        without TeX."""
+        slots = preamble or PreambleSlots()
+        stubs = dataclasses.replace(slots, after_package=(*slots.after_package, Raw(stub_tex(stub))))
+        return self.document(*body, settings=settings, options=options, preamble=stubs)
 
     def files(self, *, version: str | None = None) -> dict[str, str]:
         """Every generated file, by path relative to the output directory; an adopted package generates none."""

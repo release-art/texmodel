@@ -90,7 +90,10 @@ inside `Group`. Pieces may nest; the renderer flattens to text then applies each
 **Tests.** Balance holds for any nesting (hypothesis); invalid control words refused; `Lit` escapes; nested refs.
 **Done.** Plus a README section "Generating a body" using a `Choice` loop that emits one branch per member.
 
-## A3. Stubbed unit tests of generated code (plan 20)
+## A3. Stubbed unit tests of generated code (plan 20) — built 2026-10-22
+
+Built as specified; `run_probes` takes the `.sty` files to write beside the document, and a probe is numbered (`call1`...) so order
+survives the log's de-duplication.
 
 **Depends on.** A1 (A2 optional). **Touches.** new `texmodel/testing.py` (public), `harness/.../testkit.py`, tests, README.
 **Decisions made.**
@@ -249,7 +252,7 @@ rename round trip.
 (`changed generated/x.sty Fact: ...`) using the plan diff, with the existing stale/missing/orphaned output kept.
 **Tests.** Goldens unchanged; a hand edit to a `.sty` is named by component.
 
-## D2. `doctor` for packages (plan 14)
+## D2. `doctor` for packages (plan 14) — built 2026-10-22
 
 **Depends on.** Nothing. **Touches.** `harness/.../cli.py`, `compiler.py`, tests.
 **Decisions made.** `texmodel-build doctor --sty <glob>...` scans `\RequirePackage` / `\usepackage` / `\LoadClass` /
@@ -273,6 +276,6 @@ list with the `tlmgr install` line. Exit 3 if any are missing. No network use.
 
 ## Suggested order
 
-0, then A1, A4, B1, B2, C2, B3, C3, C4, D1, A2 (all built), and next D2, A3, with C1 last (low priority). A1 first because three batches need its references; the rest are
+0, then A1, A4, B1, B2, C2, B3, C3, C4, D1, A2 (all built), with C1 left (low priority). A1 first because three batches need its references; the rest are
 ordered so that batches touching `cli.py`/`package.py` do not run at the same time. Between batches: run the gates, read the
 report, then start the next.

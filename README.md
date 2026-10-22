@@ -353,6 +353,25 @@ transparent to the grammar (not counted, never listed, paths keep the real index
 package registration. `plan.edits(text, ignore_comments=True)` skips lines that are comments on both sides;
 `from_dict(cls, data, comments=[CardHeader])` and `json_schema(cls, comments=[...])` know it as a child (`"type": "CardHeader"`).
 
+### Testing generated code with stubs
+
+A component's body decides what it passes on to other components. `expand(node, stubs=[Fact])` (`texmodel.testing`) walks the
+bodies with the node's values and returns the body text and a `Call` for every stubbed component, in order, with no TeX:
+
+```python
+from texmodel.testing import Call, expand
+
+section = Section(Entry("First"), Entry("R&D 50%"), title="Notes")
+assert [c for c in expand(section, stubs=[Fact]) if isinstance(c, Call)] == [
+    Call("bkFact", ("First",)), Call("bkFact", (r"R\&D 50\%",))]
+```
+
+The TeX tier checks the real macros do the same: `pkg.test_document(section, stub=[Fact])` loads the real packages and replaces
+each stub with a macro that writes `texmodel:probe:callN=bkFact{...}` to the log; `texmodel_build.testkit.run_probes(compiler,
+tex, files={"base-kit.sty": ...})` compiles it and returns the probes, which `Call.parse` reads. Arguments are shown as
+`\detokenize` shows them (a space after each control word), so both tiers agree. Layout is not covered: this tests what a
+component passes on, not how it looks.
+
 ### Where a line came from
 
 `pkg.plan(...)` takes the arguments of `pkg.document(...)` and returns a `Plan`: every output line with the path of what wrote it
@@ -368,6 +387,7 @@ that for every diagnostic in the source: `diagnostic.path` is the component behi
 
 ```zsh
 texmodel-build doctor                       # tools on this machine, and what the configured image has
+texmodel-build doctor --sty 'res/*.sty'     # which files those packages load that the toolchain lacks (kpsewhich), with a tlmgr line; exit 3
 texmodel-build compile doc.tex              # exit 0 ok, 1 errors in the document, 3 tool or image missing
 texmodel-build compile doc.tex --json --epoch 1700000000 --root generated
 texmodel-build compile deck.tex --plan "deck.build:plan()"   # diagnostics name the component: [Card[1]/CardBack[1]/Name[0]]

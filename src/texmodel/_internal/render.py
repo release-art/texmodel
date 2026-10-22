@@ -174,18 +174,20 @@ def render_environment(prefix: str, spec: EnvSpec) -> str:
     return "\n".join(lines)
 
 
-def argument(arg: Arg, value: object) -> str:
-    """One call argument. `Text` is escaped, `Raw` passes through; a `]` in the optional one is wrapped (T3)."""
+def argument_text(arg: Arg, value: object) -> str:
+    """The TeX of one argument value, without its braces: `Text` escaped, `Raw` as it is, a hole as `#name`."""
     if isinstance(value, Choice):
         value = value.value
     if isinstance(value, Hole):
-        text = f"#{value.name}"
-    elif isinstance(value, Raw):
-        text = value.tex
-    elif arg.pdf:
-        text = f"\\detokenize{{{pdf_escape(str(value))}}}"
-    else:
-        text = escape(str(value))
+        return f"#{value.name}"
+    if isinstance(value, Raw):
+        return value.tex
+    return f"\\detokenize{{{pdf_escape(str(value))}}}" if arg.pdf else escape(str(value))
+
+
+def argument(arg: Arg, value: object) -> str:
+    """One call argument. `Text` is escaped, `Raw` passes through; a `]` in the optional one is wrapped (T3)."""
+    text = argument_text(arg, value)
     if not arg.optional:
         return f"{{{text}}}"
     return f"[{{{text}}}]" if "]" in text else f"[{text}]"

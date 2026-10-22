@@ -1050,7 +1050,7 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
     are probably policy, but a `Text` variant with a declared normaliser would remove the converter's busiest part.
 14. **Reference image.** `releaseart/lualatex-python` lacked `enumitem`, `hyphenat`, `anyfontsize`, `pdfrender` and `tikzfill`
     (found by compiling a real brand package; `tlmgr install` adds them). Idea: a documented "full" tag, or a doctor check that
-    names missing packages for a given `.sty`. PDF/X-4 and PDF/A-2b output was never compiled in the test; an ICC profile
+    names missing packages for a given `.sty`. The doctor check is built (2026-10-22, D2: `texmodel-build doctor --sty`). PDF/X-4 and PDF/A-2b output was never compiled in the test; an ICC profile
     has to be supplied at test time.
 15. **Spec round trip** (`to_dict` / `from_dict`): first version built 2026-10-22 as `texmodel.spec` on pydantic (data shape: a child
     names its component with `"type"`; environments take `content`; error paths as `validate()`). Built 2026-10-22 (C4): `renamed_from`, `json_schema(pkg)`,
@@ -1094,7 +1094,9 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
     hole. It is an emitter, not a parser or expander: texmodel never reads TeX it did not write (N1 reworded to say so).
     Conditions and loops stay in Python (one branch per `Choice` member is a loop emitting pieces). Adopted (hand-written)
     packages keep declaring interfaces only.
-20. **Unit tests of generated code with stubbed dependencies.** The component references of a body (items 17, 19) say what to
+20. **Unit tests of generated code with stubbed dependencies.** Built 2026-10-22 (A3: `texmodel.testing`, `Package.test_document`,
+    `testkit.run_probes`), both tiers compared on the composed example, the card-deck consumer and a specials corpus. Open: stubs
+    for values and settings, assertions on `Value` state, expl3. Original: The component references of a body (items 17, 19) say what to
     stub. `pkg.test_document(node, stub=[Fact])` builds a `.tex` with the real definition of the component under test, a
     stub per dependency that logs its call and arguments instead of typesetting, and the node. Stubs write
     `texmodel:probe:<name>=<value>` lines (`\typeout` or `texio.write_nl`), which the harness already parses into typed
