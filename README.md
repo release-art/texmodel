@@ -6,8 +6,9 @@
 Declare a LaTeX document family once in Python types; get plain, readable, git-trackable `.sty` source out of it. The output
 is ordinary TeX: commit it, diff it, compile it with whatever LaTeX setup you already have.
 
-> **Status: 0.1.0, alpha.** The public API may change before 1.0. Release migrations, `texmodel-print` and the trust
-> and sandbox layers are planned, not built (see [the plan](docs/texmodel-plan.md)).
+> **Status: alpha.** The public API may change before 1.0. Release migrations, `texmodel-print` and the trust
+> and sandbox layers are planned, not built (see [the plan](docs/texmodel-plan.md)). What is missing today:
+> [known limitations](docs/known-limitations.md).
 
 ```zsh
 pip install texmodel                 # the library and the texmodel-build command
