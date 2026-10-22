@@ -341,14 +341,6 @@ def test_a_method_can_return_the_body_and_cannot_depend_on_an_instance():
                 \par{\footnotesize #tex}\par
             """
 
-    @p.command
-    class Static(Command):
-        """Static method body."""
-
-        @staticmethod
-        def body():
-            return "x"
-
     @p.environment
     class Box(Environment):
         """Methods for both ends."""
@@ -361,7 +353,7 @@ def test_a_method_can_return_the_body_and_cannot_depend_on_an_instance():
 
     text = p.render(version="0.1.0")
     assert "\\newcommand{\\tAside}[1]{%\n\\par{\\footnotesize #1}\\par\n}" in text
-    assert "\\newcommand{\\tStatic}{%\nx\n}" in text and "\\newenvironment{tBox}{%\n\\begin{center}\n}" in text
+    assert "\\newenvironment{tBox}{%\n\\begin{center}\n}" in text
     with refused("TM-M022") as info:
 
         class UsesSelf(Command):

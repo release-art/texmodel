@@ -68,7 +68,7 @@ import sys
 import textwrap
 import types
 import typing
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, ClassVar, dataclass_transform
 
@@ -102,10 +102,7 @@ class Repeat:
     hi: int | None
 
     def __str__(self) -> str:
-        count = (
-            str(self.lo) if self.lo == self.hi else f"{self.lo} or more" if self.hi is None else f"{self.lo}-{self.hi}"
-        )
-        return f"{count} {self.kind.__name__}"
+        return f"{self.lo}-{'any' if self.hi is None else self.hi} {self.kind.__name__}"
 
 
 class _Meta(type):
@@ -114,16 +111,11 @@ class _Meta(type):
     def times(cls, a: int | Count, b: int | Count | None = None) -> Repeat:
         """`times(to)` allows 0 to `to`; `times(from_, to)` allows `from_` to `to`; `to` may be `Count.Any`."""
         lo, hi = (0, a) if b is None else (a, b)
-        if not isinstance(lo, int) or not (isinstance(hi, int) or hi is Count.Any):
-            raise DeclarationError(
-                f"{cls.__name__}.times: counts are ints, and the upper one may be Count.Any",
-                code="TM-M020",
-                path=cls.__name__,
-            )
         bound = None if hi is Count.Any else hi
-        if lo < 0 or (bound is not None and bound < max(lo, 1)):
+        # `type(...) is int` also turns away floats and bools, which slip past the annotations at runtime.
+        if type(lo) is not int or lo < 0 or not (bound is None or type(bound) is int and bound >= max(lo, 1)):
             raise DeclarationError(
-                f"{cls.__name__}.times: need 0 <= from <= to and 1 <= to, got from={lo}, to={hi!r}",
+                f"{cls.__name__}.times({lo!r}, {hi!r}): need ints, 0 <= from <= to, 1 <= to (to may be Count.Any)",
                 code="TM-M020",
                 path=cls.__name__,
             )
@@ -158,15 +150,9 @@ def _source(cls: type, name: str) -> tuple[str, str] | None:
     found: object = cls.__dict__.get(name)
     if found is None or name in inspect.get_annotations(cls):
         return None
-    call: Callable[..., object] | None = None
-    args: tuple[None, ...] = ()
-    if isinstance(found, staticmethod):
-        call = typing.cast(Callable[..., object], found.__func__)
-    elif isinstance(found, types.FunctionType):
-        call, args = found, (None,)
-    if call is not None:
+    if isinstance(found, types.FunctionType):
         try:
-            found = call(*args)
+            found = found(None)
         except (AttributeError, TypeError) as exc:
             raise DeclarationError(
                 f"{cls.__qualname__}.{name}(): {exc}",
@@ -187,7 +173,7 @@ def _source(cls: type, name: str) -> tuple[str, str] | None:
                 f"{cls.__qualname__}.{name}: cannot read {path}: {exc.strerror}", code="TM-M005", path=cls.__name__
             ) from exc
     if not isinstance(found, str):
-        got = type(typing.cast(object, found)).__name__
+        got = type(found).__name__
         raise DeclarationError(
             f"{cls.__qualname__}.{name}: must be TeX (a string or a TemplateRef, or a method returning one), not {got}",
             code="TM-M021",
@@ -205,64 +191,67 @@ def _prefix(cls: type) -> str:
     return prefix
 
 
-@dataclass_transform(frozen_default=True)
-class Command(metaclass=_Meta):
-    """A TeX command (`\\newcommand`) whose arguments are the class's fields."""
+class _Node(metaclass=_Meta):
+    """What a `Command` and an `Environment` share: declaration data, `repr`, `validate` and `render`."""
 
-    __tm_inline__: ClassVar[tuple[str, str] | None]
     __tm_unused__: ClassVar[tuple[str, ...]]
     __tm_args__: ClassVar[tuple[Arg, ...]]
     __tm_doc__: ClassVar[str]
     __tm_prefix__: ClassVar[str]  # set when a package registers the class
 
-    def __init_subclass__(cls, *, unused: Sequence[str] = (), **kwargs: Any) -> None:
-        super().__init_subclass__(**kwargs)
-        doc = _document(cls)
-        cls.__tm_inline__, cls.__tm_unused__, cls.__tm_doc__ = _source(cls, "body"), tuple(unused), doc
-        # Optional fields are keyword-only (M2): mark them before the dataclass is built.
-        for name in inspect.get_annotations(cls):
-            if name in cls.__dict__ and not name.startswith("__"):
-                setattr(cls, name, dataclasses.field(default=cls.__dict__[name], kw_only=True))
-        dataclasses.dataclass(frozen=True, repr=False)(cls)
-        cls.__doc__ = doc
-        cls.__tm_args__ = _arguments(cls)
-
     def __repr__(self) -> str:
-        return _repr(self)
+        return _repr(self)  # pyright: ignore[reportArgumentType]
 
     def validate(self) -> list[Violation]:
-        """Every broken rule at once (E2), with its path into the tree."""
-        return _violations(self, type(self).__name__)
+        """Every broken rule at once (E2), with its path into the tree: argument types and, for an environment, the
+        children against the grammar (M4)."""
+        return _violations(self, type(self).__name__)  # pyright: ignore[reportArgumentType]
 
     def render(self) -> str:
-        """The call, `\\acFact{...}`: pure and deterministic (D2). Raises an `ExceptionGroup` if invalid."""
-        return _render(self)
+        """The TeX for this node (`\\acFact{...}`, or `\\begin{acCardBack}` ... `\\end{acCardBack}`): pure and
+        deterministic (D2). Raises an `ExceptionGroup` if the node is invalid."""
+        return _render(self)  # pyright: ignore[reportArgumentType]
+
+
+def _build(cls: type[_Node], unused: Sequence[str], *, init: bool) -> None:
+    """Turn a declared class into a frozen dataclass whose fields are its arguments."""
+    cls.__tm_doc__ = doc = _document(cls)
+    cls.__tm_unused__ = tuple(unused)
+    # Optional fields are keyword-only (M2): mark them before the dataclass is built.
+    for name in inspect.get_annotations(cls):
+        if name in cls.__dict__ and not name.startswith("__"):
+            setattr(cls, name, dataclasses.field(default=cls.__dict__[name], kw_only=True))
+    dataclasses.dataclass(frozen=True, init=init, repr=False)(cls)
+    cls.__doc__ = doc
+    cls.__tm_args__ = _arguments(cls)  # pyright: ignore[reportArgumentType]
+
+
+@dataclass_transform(frozen_default=True)
+class Command(_Node):
+    """A TeX command (`\\newcommand`) whose arguments are the class's fields."""
+
+    __tm_inline__: ClassVar[tuple[str, str] | None]
+
+    def __init_subclass__(cls, *, unused: Sequence[str] = (), **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.__tm_inline__ = _source(cls, "body")
+        _build(cls, unused, init=True)
 
 
 @dataclasses.dataclass(frozen=True, init=False, repr=False)
-class Environment(metaclass=_Meta):
+class Environment(_Node):
     """A TeX environment (`\\newenvironment`): fields are its arguments, positional arguments its children."""
 
     content: tuple[Node, ...]
     children: ClassVar[Sequence[type | Repeat]] = ()  # the grammar: components in order, with counts (M4)
     __tm_inline__: ClassVar[tuple[tuple[str, str] | None, tuple[str, str] | None]]
-    __tm_unused__: ClassVar[tuple[str, ...]]
-    __tm_args__: ClassVar[tuple[Arg, ...]]
-    __tm_doc__: ClassVar[str]
     __tm_grammar__: ClassVar[tuple[Repeat, ...]]
-    __tm_prefix__: ClassVar[str]
 
     def __init_subclass__(cls, *, unused: Sequence[str] = (), **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
-        cls.__tm_doc__ = doc = _document(cls)
-        cls.__tm_inline__, cls.__tm_unused__ = (_source(cls, "begin"), _source(cls, "end")), tuple(unused)
+        cls.__tm_inline__ = (_source(cls, "begin"), _source(cls, "end"))
         cls.__tm_grammar__ = _grammar(cls)
-        for name in inspect.get_annotations(cls):
-            if name in cls.__dict__ and not name.startswith("__"):
-                setattr(cls, name, dataclasses.field(default=cls.__dict__[name], kw_only=True))
-        dataclasses.dataclass(frozen=True, init=False, repr=False)(cls)
-        cls.__doc__ = doc
-        cls.__tm_args__ = _arguments(cls)
+        _build(cls, unused, init=False)
 
     def __init__(self, *content: Node, **args: str | Raw | None) -> None:
         fields = {f.name: f for f in dataclasses.fields(self) if f.name != "content"}
@@ -273,17 +262,6 @@ class Environment(metaclass=_Meta):
         object.__setattr__(self, "content", content)
         for name, f in fields.items():
             object.__setattr__(self, name, args.get(name, f.default))
-
-    def __repr__(self) -> str:
-        return _repr(self)
-
-    def validate(self) -> list[Violation]:
-        """Every broken rule at once (E2): argument types, and the children against the grammar (M4)."""
-        return _violations(self, type(self).__name__)
-
-    def render(self) -> str:
-        """`\\begin{acCardBack}`, the children, `\\end{acCardBack}`. Raises an `ExceptionGroup` if invalid."""
-        return _render(self)
 
 
 def _repr(node: Node) -> str:

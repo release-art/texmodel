@@ -199,7 +199,7 @@ def test_the_grammar_reports_every_problem_with_a_path():
         ("TM-C001", "Card/Slot[5]"),
         ("TM-C001", "Card/Fact[6]"),
     ]
-    assert card.validate()[0].hint.startswith("allowed: 1 Name, 2-3 Fact, 0-3 Slot")
+    assert card.validate()[0].hint.startswith("allowed: 1-1 Name, 2-3 Fact, 0-3 Slot")
     assert [v.code for v in s.Card(s.Name("n"), s.Fact("a")).validate()] == ["TM-C002"]
     assert [v.path for v in s.Card(s.Name("n"), s.Fact("a"), s.Fact("b"), "stray").validate()] == ["Card/str[3]"]  # pyright: ignore[reportArgumentType]
 
@@ -251,7 +251,7 @@ def test_grammar_terms_and_their_refusals():
             s.Fact.times(2, 2),
             s.Fact.times(1, 1),
         )
-    ] == ["0-1 Fact", "0 or more Fact", "1 or more Fact", "2 Fact", "1 Fact"]
+    ] == ["0-1 Fact", "0-any Fact", "1-any Fact", "2-2 Fact", "1-1 Fact"]
     for bad in ((3, 2), (-1,), (-1, 2), (0,), (1.5,), (1, "x"), ("x",), (1, 2.5), (Count.Any, 3)):
         with refused("TM-M020"):
             s.Fact.times(*bad)  # pyright: ignore[reportArgumentType]
