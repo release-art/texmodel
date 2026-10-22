@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Floats are rounded to five decimals where they are written: a `Length` made from a float (`Length(0.1 + 0.2, "mm")` is
+  `0.3mm`), float fields and `calc` numbers, as colour components already were. A string keeps every digit.
+
 ## [0.3.1] - 2026-10-22
 
 No generated output changes; additions from the first migration's friction notes.

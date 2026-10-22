@@ -92,3 +92,11 @@ def test_colours_format_stably_and_keep_their_model():
 def test_colour_components_outside_the_unit_interval_are_refused(make, bad):
     with refused("TM-M017"):
         make(bad)
+
+
+def test_floats_are_rounded_to_five_decimals_and_strings_are_exact():
+    from texmodel.types import Length, plain_number
+
+    assert Length(0.1 + 0.2, "mm") == Length("0.3mm") and str(Length(78.8 / 100, "pt")) == "0.788pt"
+    assert plain_number(0.7879999999999999) == "0.788" and plain_number(1 / 3) == "0.33333" and plain_number(2) == "2"
+    assert str(Length("2.123456789mm")) == "2.123456789mm"

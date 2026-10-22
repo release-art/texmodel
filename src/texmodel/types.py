@@ -209,9 +209,6 @@ _INCHES_PER = {  # None: relative to the font, no fixed size
 }
 
 
-_COLOUR_PLACES = Decimal("0.00001")
-
-
 def _plain(d: Decimal) -> str:
     """No exponent, no trailing zeros, no `-0`: `2.0` -> `2`, `1e-05` -> `0.00001`."""
     s = format(d, "f")
@@ -220,18 +217,23 @@ def _plain(d: Decimal) -> str:
     return "0" if s in ("-0", "") else s
 
 
+_PLACES = 5  # a float has noise past this (`0.7879999999999999`), TeX reads about this many; a string is exact
+
+
 def _decimal(x: float) -> Decimal:
-    return Decimal(repr(float(x)))
+    """A float as a decimal, to five places: arithmetic on floats leaves noise that TeX would truncate or print."""
+    return Decimal(repr(round(float(x), _PLACES)))
 
 
 def plain_number(x: float) -> str:
-    """A number as TeX reads it: no exponent, no trailing zeros (`0.5`, `2`)."""
+    """A number as TeX reads it: no exponent, no trailing zeros, rounded to five decimals (`0.5`, `2`)."""
     return _plain(_decimal(x))
 
 
 @dataclasses.dataclass(frozen=True, init=False)
 class Length:
-    """A TeX dimension: `Length("2mm")`, `Length(1.5, "pt")`. Units are kept as written, never converted."""
+    """A TeX dimension: `Length("2mm")`, `Length(1.5, "pt")`. Units are kept as written, never converted. A float is
+    rounded to five decimals (arithmetic leaves noise); a string is kept exactly."""
 
     value: Decimal
     unit: str
@@ -337,8 +339,7 @@ class _Colour:
                 )
 
     def __str__(self) -> str:
-        """Components to five decimals: more is float noise (`0.7879999999999999`) that TeX would truncate."""
-        return ",".join(_plain(_decimal(v).quantize(_COLOUR_PLACES)) for v in vars(self).values())
+        return ",".join(_plain(_decimal(v)) for v in vars(self).values())
 
 
 @dataclasses.dataclass(frozen=True)
