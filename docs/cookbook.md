@@ -225,3 +225,21 @@ bindings (`NewToggle`, `ToggleTrue`), names the package it needs (`needs=(packag
   with the rest (cycles, order).
 - **Add a kind only when a value needs its own declaration.** A call (`Command`) is enough to *use* something; a kind
   is for a setting the package declares and a document sets.
+
+## A family of packages
+
+A core package, a base, and one package per series are separate `.sty` files that require each other. Declare them in one
+place and let `build` and `check` cover the lot:
+
+```toml
+[tool.texmodel]
+package = ["brand.core:pkg", "brand.card:pkg", "brand.birds:pkg"]   # or "brand.family:all_packages()"
+```
+
+- **Each package is an ordinary `Package`.** The library API is unchanged: call `render()` or `files()` on any one.
+- **Let the dependencies order the loading.** `birds.require(core)` or a body that calls a core command makes `core` a
+  requirement; the list's order only decides the order of the output messages.
+- **Names are files.** Two packages with one name are refused. A stale file is reported under its own package's name, and a
+  `.sty` that no package of the family generates is reported as orphaned.
+- **`texmodel schema` takes one package.** Point a second, single-package configuration at the package whose data the
+  schema describes.

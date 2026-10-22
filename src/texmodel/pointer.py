@@ -5,7 +5,8 @@ import importlib
 import pathlib
 import re
 import sys
-from typing import Any
+from collections.abc import Iterable, Sequence
+from typing import Any, cast
 
 from .errors import DeclarationError
 from .package import Package
@@ -43,6 +44,35 @@ def load_package(spec: str, root: pathlib.Path) -> Package:
     if not isinstance(package, Package):
         raise DeclarationError(f"{spec!r} is a {type(package).__name__}, not a Package", code="TM-D022")
     return package
+
+
+def load_packages(spec: str | Sequence[str], root: pathlib.Path) -> tuple[Package, ...]:
+    """A project's packages: one pointer or a list of them, each naming a `Package` or an iterable of `Package`s (a
+    family: a core, its bases, one per series). In first-mention order; naming one twice counts once, and two different
+    packages of one name are refused (`TM-D026`)."""
+    found: dict[int, Package] = {}
+    for one in [spec] if isinstance(spec, str) else spec:
+        obj = _load(one, root, "[tool.texmodel] package")
+        members: list[object] = (
+            [obj]
+            if isinstance(obj, Package)
+            else list(cast("Iterable[object]", obj))
+            if isinstance(obj, Iterable)
+            else [obj]
+        )
+        for member in members:
+            if not isinstance(member, Package):
+                raise DeclarationError(
+                    f"{one!r} gave a {type(member).__name__}, not a Package",
+                    code="TM-D022",
+                    hint="point at a Package, or at an iterable of them",
+                )
+            found.setdefault(id(member), member)
+    packages = tuple(found.values())
+    names = [p.name for p in packages]
+    if clash := sorted({n for n in names if names.count(n) > 1}):
+        raise DeclarationError(f"two packages are named {clash[0]!r}", code="TM-D026", hint="a package name is a file")
+    return packages
 
 
 def load_document(spec: str, root: pathlib.Path) -> str | Plan:

@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 
 from texmodel import cli
 from texmodel.drift import stamp
+from texmodel.errors import DeclarationError
 from texmodel.package import Package, generator_version
 
 from .conftest import FIXTURES
@@ -181,3 +182,82 @@ def test_the_sty_plan_has_a_path_per_component_and_its_text_is_the_sty(project, 
         == "".join([f"% empty-demo.sty -- {stamp(generator_version())}. Do not edit; run `texmodel build`.\n"])
         + "\\NeedsTeXFormat{LaTeX2e}\n\\ProvidesPackage{empty-demo}[1970/01/01 v0.0.0 empty-demo]\n\n\n"
     )
+
+
+FAMILY = '''
+from texmodel.components import Command
+from texmodel.package import Package
+from texmodel.types import Text
+
+core = Package("fam-core", prefix="fc")
+birds = Package("fam-birds", prefix="fb")
+birds.require(core)
+
+@core.command
+class Fact(Command):
+    """A fact."""
+    text: Text
+    def body(self):
+        return r"#text"
+
+@birds.command
+class Bird(Command):
+    """A bird."""
+    text: Text
+    def body(self):
+        return r"#text"
+
+def family():
+    return [core, birds]
+'''
+
+
+@pytest.fixture
+def family(tmp_path, monkeypatch):
+    (tmp_path / "fam.py").write_text(FAMILY)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    yield tmp_path
+    import sys
+
+    sys.modules.pop("fam", None)
+
+
+@pytest.mark.parametrize("pointer", ['["fam:core", "fam:birds"]', '"fam:family()"', '["fam:family()", "fam:core"]'])
+def test_a_family_of_packages_builds_and_checks_together(family, pointer):
+    (family / "pyproject.toml").write_text(f'[tool.texmodel]\npackage = {pointer}\noutput = "gen"\n')
+    built = runner.invoke(cli.app, ["build"])
+    assert (
+        built.exit_code == 0 and "wrote gen/fam-core.sty" in built.stdout and "wrote gen/fam-birds.sty" in built.stdout
+    )
+    assert runner.invoke(cli.app, ["check"]).stdout.strip() == "ok: generated files are current"
+    (family / "gen" / "fam-birds.sty").write_text("% hand edit\n")
+    stale = runner.invoke(cli.app, ["check"])
+    assert (
+        stale.exit_code == 1 and "stale    gen/fam-birds.sty" in stale.stdout and "gen/fam-core.sty" not in stale.stdout
+    )
+
+
+def test_a_family_is_refused_when_it_cannot_be_told_apart_or_is_not_packages(family):
+    def run(pointer, *args):
+        (family / "pyproject.toml").write_text(f'[tool.texmodel]\npackage = {pointer}\nschema_output = "s.json"\n')
+        return runner.invoke(cli.app, list(args or ["build"]))
+
+    assert "TM-D022" in run('["fam:core", "fam:Fact"]').stderr  # Fact is not a Package
+    assert "TM-D022" in run('"fam:family"').stderr  # a function, not an iterable of Packages
+    assert "TM-D034" in run('["fam:core", "fam:birds"]', "schema").stderr
+    assert run('"fam:core"', "schema").exit_code == 0
+
+
+def test_a_pointer_names_one_package_or_a_family_of_distinct_names(family):
+    from texmodel.pointer import load_package, load_packages
+
+    core = load_package("fam:core", family)
+    assert (
+        load_packages("fam:core", family) == (core,) and len(load_packages(["fam:family()", "fam:core"], family)) == 2
+    )
+    (family / "other.py").write_text('from texmodel.package import Package\ncore = Package("fam-core", prefix="x")\n')
+    with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-D026"):
+        load_packages(["fam:core", "other:core"], family)
+    with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-D022"):
+        load_package("fam:Fact", family)

@@ -148,6 +148,15 @@ A pointer (`package =`, and the argument of `texmodel render`) is `dotted.module
 package = "acme_cards.decks:Decks.birds"      # or "acme_cards.decks:make_package()"
 ```
 
+A family of packages (a core, its bases, one per series) is a list of pointers, or one pointer to an iterable of
+`Package`s; `build` and `check` cover them all together (a package name must be unique, as it is a file):
+
+```toml
+package = ["acme_cards.core:pkg", "acme_cards.birds:pkg"]      # or "acme_cards.family:all_packages()"
+```
+
+`texmodel schema` describes one package's data, so it needs a single `package`.
+
 ```zsh
 texmodel build     # writes generated/acme-cards.sty
 texmodel render docs:card   # writes card.tex from `card = pkg.document(...)` (or a function returning one); -o to choose
