@@ -22,8 +22,8 @@ jobs:
           python-version: "3.15"
       - run: python -m pip install pdm
       - run: pdm install --with dev
-      - run: pdm run ruff check src harness tests
-      - run: pdm run ruff format --check src harness tests
+      - run: pdm run ruff check src tests
+      - run: pdm run ruff format --check src tests
       - run: pdm run pyright
       - run: pdm run lint-imports
       - run: pdm run pip-audit

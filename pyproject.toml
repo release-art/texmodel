@@ -1,7 +1,7 @@
 [project]
 name = "texmodel"
 dynamic = ["version"]
-description = "Typed document-family models rendered to TeX."
+description = "Typed document-family models rendered to TeX, with an optional latexmk driver and verifier plugins."
 authors = [{name = "Ilja Orlovs", email = "ilja@release.art"}]
 license = "MIT"
 license-files = ["LICENSE"]
@@ -17,9 +17,15 @@ dependencies = [
     "pydantic>=2.14.1",
 ]
 
+[project.optional-dependencies]
+proof-pdf = ["proof-pdf>=0.3.3"]
+
 [project.scripts]
 texmodel = "texmodel.cli:app"
+texmodel-build = "texmodel_build.cli:app"
 
+[project.entry-points."texmodel_build.verifiers"]
+proof-pdf = "texmodel_build._internal.proofpdf:ProofPdf"
 
 [project.urls]
 Homepage = "https://github.com/release-art/texmodel"
@@ -45,8 +51,8 @@ known-first-party = ["texmodel", "texmodel_build"]
 forced-separate = ["tests"]
 
 [tool.pyright]
-include = ["src", "harness/src", "tests"]
-strict = ["src", "harness/src"]
+include = ["src", "tests"]
+strict = ["src"]
 extraPaths = ["tests/consumers"]
 pythonVersion = "3.15"
 
@@ -89,7 +95,7 @@ issue_format = ""
 start_string = "## [Unreleased]\n"
 
 [tool.mutmut]
-paths_to_mutate = ["src/texmodel/", "harness/src/texmodel_build/"]
+paths_to_mutate = ["src/texmodel/", "src/texmodel_build/"]
 tests_dir = ["tests/"]
 pytest_add_cli_args = ["--no-cov"]
 
@@ -104,22 +110,14 @@ fallback_version = "0.0.0"
 
 [tool.pdm.build]
 package-dir = "src"
-includes = ["src/texmodel"]
-
-[tool.pdm.workspace]
-members = ["harness"]
-
-[tool.pdm.dev-dependencies]
-dev = [
-    "-e file:///${PROJECT_ROOT}/harness#egg=texmodel-build",
-]
+includes = ["src/texmodel", "src/texmodel_build"]
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
 [tool.pytest.ini_options]
 addopts = "-v -l --color=yes --cov=texmodel --cov=texmodel_build --cov-report term-missing --cov-fail-under=100 --no-cov-on-fail"
-pythonpath = ["src", "harness/src", "tests/consumers"]
+pythonpath = ["src", "tests/consumers"]
 testpaths = ["tests"]
 timeout = 15
 markers = [

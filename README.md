@@ -10,16 +10,16 @@ is ordinary TeX: commit it, diff it, compile it with whatever LaTeX setup you al
 > and sandbox layers are planned, not built (see [the plan](docs/texmodel-plan.md)).
 
 ```zsh
-pip install texmodel                 # the library
-pip install texmodel-build           # optional: the latexmk driver and verifiers
+pip install texmodel                 # the library and the texmodel-build command
+pip install 'texmodel[proof-pdf]'    # plus the proof-pdf verifier
 ```
 
-This repository holds two packages, released in lockstep:
+One distribution, two packages:
 
 | Package | What it is |
 |---|---|
 | **`texmodel`** (`src/`) | The library: declare components, render deterministic TeX, check that committed output is current. No TeX needed, no processes spawned. |
-| **`texmodel-build`** (`harness/`) | Optional: a thin `latexmk` driver with typed log diagnostics, and verifier plugins for built PDFs. Use it if you want compile results as data; your own `latexmk` or image works just as well. |
+| **`texmodel_build`** (command `texmodel-build`) | Optional: a thin `latexmk` driver with typed log diagnostics, and verifier plugins for built PDFs. Use it if you want compile results as data; your own `latexmk` or image works just as well. |
 
 ## texmodel
 
@@ -481,7 +481,7 @@ image = "releaseart/lualatex-python:latest"   # runs `docker run` over it; omit 
   ```
 - Reproducibility is the image's job (`--epoch` pins `SOURCE_DATE_EPOCH`); there is no sandbox or cache here.
 - `texmodel-build verify` runs plugins from the `texmodel_build.verifiers` entry-point group. `pip install
-  'texmodel-build[proof-pdf]'` adds [proof-pdf](https://github.com/release-art/proofpress). A verifier that cannot run, a
+  'texmodel[proof-pdf]'` adds [proof-pdf](https://github.com/release-art/proofpress). A verifier that cannot run, a
   file that cannot be opened and a profile that selects nothing are failures; the only excuse is a declared `exempt` glob.
 - The image must contain `latexmk` (`releaseart/lualatex-python` has it since proofpress v0.3.4); `doctor` reports it if not.
 
