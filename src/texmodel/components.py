@@ -117,6 +117,7 @@ from .body import (
     TemplateRef,
     TexRaw,
     Whitespace,
+    inline_text,
     join,
     pieces_of,
     refs_in,
@@ -408,7 +409,7 @@ def _ref(cls: type, kind: RefKind, required: tuple[ArgValue, ...], optional: dic
     problems += [f"missing argument {a.name!r}" for a in declared if not a.optional and a.name not in values]
     for a in declared:
         value = values.get(a.name)
-        if value is not None and not (isinstance(value, Hole) or value_ok(a.body, value)):
+        if value is not None and not (isinstance(value, Hole) or _nested_ok(a, value) or value_ok(a.body, value)):
             problems.append(f"{a.name!r} must be a Hole or {a.body.describe()}")
     if problems and kind is not RefKind.CLOSE:
         raise DeclarationError(
@@ -417,6 +418,11 @@ def _ref(cls: type, kind: RefKind, required: tuple[ArgValue, ...], optional: dic
             path=cls.__name__,
         )
     return Ref(cls, kind, tuple(values.get(a.name) for a in declared))
+
+
+def _nested_ok(a: Arg, value: object) -> bool:
+    """A `Raw` argument may hold calls (a `Ref`, or a `Seq` of pieces): a conditional's branch is TeX."""
+    return a.body.kind is BodyKind.RAW and a.body.expression is None and isinstance(value, Ref | Seq)
 
 
 def _ref_text(ref: Ref, owner: str, syntax: Syntax) -> str:
@@ -430,7 +436,13 @@ def _ref_text(ref: Ref, owner: str, syntax: Syntax) -> str:
         )
     name = control_name(ref.target)
     declared = typing.cast("type[Command] | type[Environment]", ref.target).__tm_args__
-    args = arguments(declared, {a.name: v for a, v in zip(declared, ref.values, strict=True)}, syntax)
+
+    def flat(value: object) -> object:  # a call inside an argument is written where it stands
+        if isinstance(value, Ref | Seq):
+            return Raw(inline_text(value, lambda inner: _ref_text(inner, owner, syntax), syntax))
+        return value
+
+    args = arguments(declared, {a.name: flat(v) for a, v in zip(declared, ref.values, strict=True)}, syntax)
     return {
         RefKind.CALL: f"\\{name}{args}",
         RefKind.OPEN: f"\\begin{{{name}}}{args}",

@@ -112,3 +112,93 @@ def test_a_value_can_need_a_package_of_this_project():
     p = Package("p", prefix="ac")
     p.value(Needs)
     assert p.required_packages == ("helper",) and p.depends_on == (helper,)
+
+
+def test_a_call_can_be_an_argument_of_another_call():
+    from texmodel.body import Seq
+    from texmodel.std.etoolbox import IfNumGreater
+    from texmodel.std.latex import PackageError, StepCounter
+
+    p = Package("p", prefix="ac")
+
+    class Fact(Command, unused=("text",)):
+        """A fact."""
+
+        text: Text
+
+        def body(self):
+            fail = PackageError.call(Raw("p"), Raw("Too many"), Raw("At most 3."))
+            return [IfNumGreater.call(Raw(r"\value{n}"), Raw("3"), Seq(fail, StepCounter.call(Raw("n"))), Raw(""))]
+
+    p.command(Fact)
+    assert "\\ifnumgreater{\\value{n}}{3}{\\PackageError{p}{Too many}{At most 3.}\\stepcounter{n}}{}" in p.render()
+    assert p.depends_on[0].name == "etoolbox"
+
+    with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-M026"):
+        Fact.call(StepCounter.call(Raw("n")))  # a Text argument is text, not a call
+
+
+def test_a_counting_rule_is_a_macro_parametrised_by_its_counter():
+    from texmodel.body import Hole, Lit, Ref, Seq
+    from texmodel.components import Environment
+    from texmodel.std.etoolbox import IfNumGreater, IfNumLess
+    from texmodel.std.latex import CounterValue, PackageError, SetCounter, StepCounter
+
+    p = Package("p", prefix="ac")
+
+    def too(word: str) -> Ref:
+        message = Seq(Lit(f"Too {word} "), Hole("what"), Lit(" on one card"))
+        return PackageError.call(Raw("p"), message, Raw("See the brand rules."))
+
+    @p.command
+    class CountAtMost(Command):
+        """Count one more of a region, and fail past its limit."""
+
+        counter: Raw
+        limit: Raw
+        what: Raw
+
+        def body(self):
+            return [
+                StepCounter.call(Hole("counter")),
+                IfNumGreater.call(CounterValue.call(Hole("counter")), Hole("limit"), too("many"), Raw("")),
+            ]
+
+    @p.command
+    class CountAtLeast(Command):
+        """Fail when a region has fewer than its minimum."""
+
+        counter: Raw
+        limit: Raw
+        what: Raw
+
+        def body(self):
+            return [
+                IfNumLess.call(CounterValue.call(Hole("counter")), Hole("limit"), too("few"), Raw("")),
+            ]
+
+    @p.command
+    class Fact(Command, unused=("text",)):
+        """A fact."""
+
+        text: Text
+
+        def body(self):
+            return [CountAtMost.call(Raw("acFacts"), Raw("3"), Raw("facts")), r"#text"]
+
+    @p.environment
+    class Card(Environment):
+        """A card."""
+
+        children = [Fact.times(2, 3)]
+
+        def begin(self):
+            return [SetCounter.call(Raw("acFacts"), Raw("0"))]
+
+        def end(self):
+            return [CountAtLeast.call(Raw("acFacts"), Raw("2"), Raw("facts"))]
+
+    out = p.render(version="0.1.0")
+    assert "\\newcommand{\\acCountAtMost}[3]{" in out
+    assert "\\ifnumgreater{\\value{#1}}{#2}{\\PackageError{p}{Too many #3 on one card}{See the brand rules.}}{}" in out
+    assert "\\acCountAtMost{acFacts}{3}{facts}" in out and "\\acCountAtLeast{acFacts}{2}{facts}" in out
