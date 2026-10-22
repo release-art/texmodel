@@ -220,6 +220,10 @@ def check() -> None:
     root, config, packages = _project()
     adopted = [p for p in packages if p.adopted]
     failed = sum(_check_interface(root, config, p) for p in adopted) > 0  # every one reports
+    for package in packages:
+        for v in package.check_parts():
+            typer.echo(f"{v.code} {v.path}: {v.message}")
+            failed = True
     if generated := tuple(p for p in packages if not p.adopted):
         failed = _check_generated(root, config, generated) or failed
     if _check_documents(root, config) or failed:

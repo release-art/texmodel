@@ -304,6 +304,8 @@ class Package:
                 f"{self.name}: an adopted package renders no .sty", code="TM-P006", hint="the hand-written one is it"
             )
         self._check_cycles()
+        if duplicates := self._duplicates():
+            raise DeclarationError(duplicates[0], code="TM-P012", path=self.name, hint="define each name once")
         for s in self._items:
             if isinstance(s, Spec):
                 check_references(self.prefix, s, s.body, self._controls)
@@ -359,6 +361,72 @@ class Package:
                     )
                 )
         return out
+
+    def _parts(self) -> dict[str, dict[str, str]]:
+        """The control sequences each library defines, by library name, with their signatures (the forms `scan` reads);
+        a library written in expl3 is not read."""
+        return {
+            i.name: scan_declarations(i.text)
+            for i in self._items
+            if isinstance(i, Library) and i.syntax is Syntax.LATEX2E
+        }
+
+    def _duplicates(self) -> list[str]:
+        """A control sequence defined twice: by two libraries, or by a library and a component this package renders."""
+        owner = {
+            (s.cs or self.prefix + s.name) if not isinstance(s, ValueSpec) else self.prefix + s.name: s.name
+            for s in self._items
+            if not isinstance(s, Library)
+        }
+        out: list[str] = []
+        for lib, names in self._parts().items():
+            for name in names:
+                if name in owner:
+                    out.append(f"\\{name} is defined by {owner[name]} and by library {lib}")
+                owner.setdefault(name, f"library {lib}")
+        return out
+
+    def check_parts(self) -> list[Violation]:
+        """What each library defines against what this package declares (§21a 12): a component with `defined_by` is
+        defined by that library with its signature (`TM-C010`, `TM-C011`), a public name (`<prefix>Name`) a library
+        defines is declared (`TM-C012`), and no name is defined twice (`TM-C013`). Read by `texmodel check`."""
+        parts = self._parts()
+        out: list[Violation] = []
+        for cls in (c for c in self._classes if issubclass(c, Command | Environment)):
+            lib = cls.defined_by
+            if lib is None or lib.name not in parts:
+                continue
+            control, want, found = cls.__tm_cs__, signature(cls.__tm_args__), parts[lib.name]
+            if control not in found:
+                out.append(
+                    Violation(
+                        "TM-C010", cls.__name__, f"\\{control} is declared but library {lib.name} does not define it"
+                    )
+                )
+            elif canonical(found[control]) != canonical(want):
+                out.append(
+                    Violation(
+                        "TM-C011",
+                        cls.__name__,
+                        f"\\{control}: declared {want or 'without arguments'}, library {lib.name} defines "
+                        f"{found[control] or 'no arguments'}",
+                        hint="change the declaration or the library so they agree",
+                    )
+                )
+        if self.prefix:
+            public = re.compile(rf"{self.prefix}[A-Z][A-Za-z]*")
+            for lib, names in parts.items():
+                out += [
+                    Violation(
+                        "TM-C012",
+                        lib,
+                        f"\\{n} is defined by library {lib} but no component declares it",
+                        hint="declare it, or give the helper a name outside the public namespace (an @ in it)",
+                    )
+                    for n in names
+                    if public.fullmatch(n) and n not in self._controls
+                ]
+        return out + [Violation("TM-C013", self.name, message) for message in self._duplicates()]
 
     def plan(
         self,
