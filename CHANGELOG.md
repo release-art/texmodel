@@ -7,12 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-22
+
+No generated output changes; additions from the first migration's friction notes.
+
 ### Added
 
 - `abstract=True` on a `Command` or `Environment`: a shared base that carries fields, `body` (or `begin` and `end`) and
   `children` for its subclasses, needs no docstring or control-word name, and is never registered (`TM-M043`).
 - `Value.declared_default()`, and `control_name(value)`: a value's control sequence (`__tm_cs__`); a colour has none
   (`TM-M042`).
+
+### Changed
+
+- Docs: the README and the cookbook describe shared bases and keyword-only optional fields (`arg(default=...)`); the
+  plan and the roadmap state what is built and what is not.
 
 ## [0.3.0] - 2026-10-22
 
@@ -90,6 +99,7 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/release-art/texmodel/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/release-art/texmodel/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/release-art/texmodel/releases/tag/v0.2.0
