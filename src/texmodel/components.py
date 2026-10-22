@@ -78,12 +78,28 @@ from ._internal.render import (
     arguments,
     check_name,
 )
-from .body import Comment, Hole, Ref, RefKind, TemplateRef, TexRaw, Whitespace, join, pieces_of
+from .body import (
+    Comment,
+    Cs,
+    Group,
+    Hole,
+    Lit,
+    Ref,
+    RefKind,
+    Seq,
+    TemplateRef,
+    TexRaw,
+    Whitespace,
+    join,
+    pieces_of,
+    refs_in,
+)
 from .errors import DeclarationError, Violation
 from .types import CMYK, PDF, RGB, TEXT, Choice, Colour, Gray, Length, Raw, Text
 
 type Node = Command | Environment | Passthrough | Comment
-Source = tuple[tuple[TexRaw | Ref | Comment, ...], str]  # a body's pieces and where they came from
+Resolved = TexRaw | Ref | Comment | Group | Seq | Cs | Lit | Hole
+Source = tuple[tuple[Resolved, ...], str]  # a body's pieces and where they came from
 
 
 @dataclasses.dataclass(frozen=True)
@@ -179,13 +195,13 @@ def _source(cls: type, name: str) -> Source | None:
     if (given := pieces_of(found)) is None:
         got = type(found).__name__
         raise DeclarationError(
-            f"{cls.__qualname__}.{name}: must be TeX (a string, a TemplateRef, a TexRaw, a Ref, a Comment, a sequence "
-            f"of them, or a method returning one), not {got}",
+            f"{cls.__qualname__}.{name}: must be TeX (a string, a TemplateRef, a TexRaw, a Ref, a Comment, a Group, "
+            f"Seq, Cs, Lit or Hole, a sequence of them, or a method returning one), not {got}",
             code="TM-M021",
             path=cls.__name__,
         )
     origins: list[str] = []
-    out: list[TexRaw | Ref | Comment] = []
+    out: list[Resolved] = []
     for piece in given:
         if isinstance(piece, TemplateRef):
             path = (
@@ -201,7 +217,7 @@ def _source(cls: type, name: str) -> Source | None:
                 ) from exc
             origins.append(piece.path.name)
         else:
-            out.append(piece if isinstance(piece, TexRaw | Ref | Comment) else TexRaw(piece))
+            out.append(TexRaw(piece) if isinstance(piece, str) else piece)
             origins.append("inline")
     return tuple(out), " + ".join(dict.fromkeys(origins))
 
@@ -567,7 +583,7 @@ def _required(cls: type, found: Source | None, option: str, default: Whitespace)
         )
     owner = f"{cls.__qualname__}.{option}"
     text = join(found[0], default, owner, lambda ref: _ref_text(ref, owner))
-    return text, found[1], tuple(dict.fromkeys(p.target for p in found[0] if isinstance(p, Ref)))
+    return text, found[1], tuple(dict.fromkeys(r.target for p in found[0] for r in refs_in(p)))
 
 
 def _declared_only(cls: type, *sources: Source | None) -> None:

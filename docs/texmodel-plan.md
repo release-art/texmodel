@@ -1086,7 +1086,9 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
     the output. `TemplateRef("f.tex", whitespace=...)` takes the same policy. The generated `.sty` still carries the `%`.
     Lint: `\verb`-like content in a `TRIM` piece. Later mode: expl3 (`\ExplSyntaxOn`, M8 `syntax = expl3`), where whitespace is
     ignored and no `%` is needed. The default is `KEEP`, explicit per piece, so no existing output changes.
-19. **Generated bodies that are well-formed by construction.** Beside hand-written TeX bodies (strings, `TemplateRef`), a
+19. **Generated bodies that are well-formed by construction.** Built 2026-10-22 (A2): `Group`, `Seq`, `Cs`, `Lit`; `Seq` is an
+    addition to the brief (unbraced concatenation, needed for `\textbf{#text}`). Open: a per-piece whitespace policy for a
+    constructive piece (it takes the package's), `expl3` bodies. Original: Beside hand-written TeX bodies (strings, `TemplateRef`), a
     body may be built from a small constructive vocabulary: text (escaped), `Raw`, a group (balanced by construction), a
     control sequence (name validated), a call to a declared component (arity and optional argument checked, item 17) and a
     hole. It is an emitter, not a parser or expander: texmodel never reads TeX it did not write (N1 reworded to say so).

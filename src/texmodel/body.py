@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import ClassVar, dataclass_transform
 
 from .errors import DeclarationError, Violation
+from .types import Raw, escape
 
 
 @enum.unique
@@ -156,17 +157,110 @@ class Comment:
         return "\n".join(self.lines())
 
 
-type BodyPiece = TexRaw | str | TemplateRef | Ref | Comment
+_CONTROL_WORD = re.compile(r"[A-Za-z@]+")
+
+
+@dataclasses.dataclass(frozen=True)
+class Cs:
+    """A control sequence, `Cs("par")` is `\\par`: the name is letters and `@` only (`TM-M027`)."""
+
+    name: str
+
+    def __post_init__(self) -> None:
+        if not _CONTROL_WORD.fullmatch(self.name):
+            raise DeclarationError(
+                f"Cs({self.name!r}): a control word has letters and @ only",
+                code="TM-M027",
+                hint="write the name without the backslash, e.g. Cs('par')",
+            )
+
+
+@dataclasses.dataclass(frozen=True)
+class Lit:
+    """Text, escaped as a `Text` field is (T3): `Lit("50% & #1")` is `50\\% \\& \\#1`."""
+
+    text: str
+
+
+@dataclasses.dataclass(frozen=True, init=False)
+class Group:
+    """`{...}` around its pieces: balanced by construction. A piece is a `Group`, `Seq`, `Cs`, `Lit`, `Hole`, `Ref` or
+    a `Raw` (whose braces are already checked)."""
+
+    pieces: tuple["Inline", ...]
+
+    def __init__(self, *pieces: "Inline") -> None:
+        object.__setattr__(self, "pieces", pieces)
+
+
+@dataclasses.dataclass(frozen=True, init=False)
+class Seq:
+    """Pieces one after another with no braces: `Seq(Cs("textbf"), Group(Hole("text")))` is `\\textbf{#text}`."""
+
+    pieces: tuple["Inline", ...]
+
+    def __init__(self, *pieces: "Inline") -> None:
+        object.__setattr__(self, "pieces", pieces)
+
+
+type Inline = Group | Seq | Cs | Lit | Hole | Ref | Raw
+type BodyPiece = TexRaw | str | TemplateRef | Ref | Comment | Group | Seq | Cs | Lit | Hole
 type BodyT = BodyPiece | Sequence[BodyPiece] | Iterator[BodyPiece] | Generator[BodyPiece]
+
+
+_PIECES = (TexRaw, str, TemplateRef, Ref, Comment, Group, Seq, Cs, Lit, Hole)
+
+
+def refs_in(piece: object) -> Iterator[Ref]:
+    """Every `Ref` in a piece, nested ones included: they are what a body depends on."""
+    if isinstance(piece, Ref):
+        yield piece
+    elif isinstance(piece, Group | Seq):
+        for inner in piece.pieces:
+            yield from refs_in(inner)
+
+
+def _loose_start(piece: Inline) -> bool:
+    """Can the text begin with a letter (a `Lit`, `Raw` or hole value), which a preceding control word would absorb?"""
+    if isinstance(piece, Seq):
+        return bool(piece.pieces) and _loose_start(piece.pieces[0])
+    return isinstance(piece, Lit | Raw | Hole)
+
+
+def _ends_with_cs(piece: Inline) -> bool:
+    if isinstance(piece, Seq):
+        return bool(piece.pieces) and _ends_with_cs(piece.pieces[-1])
+    return isinstance(piece, Cs)
+
+
+def inline_text(piece: Inline, ref_text: Callable[[Ref], str]) -> str:
+    """The TeX of a constructive piece. A space follows a control word when the next text could continue its name."""
+    if isinstance(piece, Lit):
+        return escape(piece.text)
+    if isinstance(piece, Raw):
+        return piece.tex
+    if isinstance(piece, Hole):
+        return f"#{piece.name}"
+    if isinstance(piece, Ref):
+        return ref_text(piece)
+    if isinstance(piece, Cs):
+        return f"\\{piece.name}"
+    out: list[str] = []
+    for i, inner in enumerate(piece.pieces):
+        out.append(inline_text(inner, ref_text))
+        if i + 1 < len(piece.pieces) and _ends_with_cs(inner) and _loose_start(piece.pieces[i + 1]):
+            out.append(" ")
+    text = "".join(out)
+    return f"{{{text}}}" if isinstance(piece, Group) else text
 
 
 def pieces_of(value: object) -> tuple[BodyPiece, ...] | None:
     """The pieces of what a body gave, or `None` if it is not a body."""
-    if isinstance(value, TexRaw | str | TemplateRef | Ref | Comment):
+    if isinstance(value, _PIECES):
         return (value,)
     if isinstance(value, Sequence | Iterator):
         found = tuple(value)  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
-        if all(isinstance(p, TexRaw | str | TemplateRef | Ref | Comment) for p in found):  # pyright: ignore[reportUnknownVariableType]
+        if all(isinstance(p, _PIECES) for p in found):  # pyright: ignore[reportUnknownVariableType]
             return found  # pyright: ignore[reportUnknownVariableType]
     return None
 
@@ -179,7 +273,10 @@ def _trim(line: str) -> str:
 
 
 def join(
-    pieces: Sequence[TexRaw | Ref | Comment], default: Whitespace, owner: str, ref_text: Callable[[Ref], str]
+    pieces: Sequence[TexRaw | Ref | Comment | Group | Seq | Cs | Lit | Hole],
+    default: Whitespace,
+    owner: str,
+    ref_text: Callable[[Ref], str],
 ) -> str:
     """The text of a body: pieces joined by newlines, each with its policy applied; `ref_text` writes a `Ref`."""
     out: list[str] = []
@@ -187,10 +284,12 @@ def join(
         if isinstance(piece, Comment):
             out.extend(piece.lines())
             continue
-        policy = piece.whitespace or default
-        if isinstance(piece, Ref):
-            out.append(_trim(ref_text(piece)) if policy is Whitespace.TRIM else ref_text(piece))
+        if not isinstance(piece, TexRaw):  # a Ref or a constructive piece is one line, in the package's policy
+            policy = (piece.whitespace if isinstance(piece, Ref) else None) or default
+            text = inline_text(piece, ref_text)
+            out.append(_trim(text) if policy is Whitespace.TRIM else text)
             continue
+        policy = piece.whitespace or default
         if policy is Whitespace.TRIM and "\\verb" in piece.body:
             raise DeclarationError(
                 f"{owner}: a TRIM piece contains \\verb, whose line ends matter",

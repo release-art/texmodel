@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Constructive body pieces (A2, §21a 19): `Group`, `Seq`, `Cs` (`TM-M027`) and `Lit` in `texmodel.body`, with `Hole`, `Ref` and
+  `Raw` inside; a top-level `Hole` is a body piece. A literal `\#` in a body is no longer read as a hole.
 - Package schema and renamed fields (C4, §21a 15): `json_schema(pkg)` and `texmodel schema` (`[tool.texmodel] schema_output`,
   `TM-D033`); `field(renamed_from="old")` loads the old key, `to_dict` writes the new, the schema has `x-renamed-from`. A
   child's schema requires its `"type"` constant, so data matches one component.

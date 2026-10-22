@@ -77,7 +77,9 @@ files outside `docs/` changed.
 `\RequirePackage` once; adopted target; cycle refused; unregistered ref; golden for an example in `tests/examples/`
 (`UPDATE_GOLDEN=1`, reviewed); compile suite builds the example.
 
-## A2. Constructive emitter (plan 19)
+## A2. Constructive emitter (plan 19) — built 2026-10-22
+
+Built with `Seq` added (unbraced concatenation) and a top-level `Hole` piece; a `Raw` inside a piece is allowed, a bare `str` is not.
 
 **Depends on.** A1. **Touches.** `body.py`, `components.py`, tests, README.
 **Decisions made.** New body pieces in `texmodel.body`, all frozen dataclasses: `Group(*pieces)` renders `{...}` (balanced by
@@ -271,6 +273,6 @@ list with the `tlmgr install` line. Exit 3 if any are missing. No network use.
 
 ## Suggested order
 
-0, then A1, A4, B1, B2, C2, B3, C3, C4, D1 (all built), and next A2, D2, A3, with C1 last (low priority). A1 first because three batches need its references; the rest are
+0, then A1, A4, B1, B2, C2, B3, C3, C4, D1, A2 (all built), and next D2, A3, with C1 last (low priority). A1 first because three batches need its references; the rest are
 ordered so that batches touching `cli.py`/`package.py` do not run at the same time. Between batches: run the gates, read the
 report, then start the next.

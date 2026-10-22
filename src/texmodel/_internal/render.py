@@ -13,6 +13,7 @@ from ..errors import DeclarationError
 from ..types import Choice, Colour, Length, Raw, balanced, escape, pdf_escape
 
 _HOLE = re.compile(r"##|#(?P<name>[A-Za-z_]\w*)|#(?P<digit>\d)")
+_BODY_TOKEN = re.compile(r"\\.|##|#(?P<name>[A-Za-z_]\w*)|#(?P<digit>\d)", re.DOTALL)  # `\#` is a character, not a hole
 _CONTROL_WORD = re.compile(r"[A-Z][A-Za-z]*")
 _TOKEN = re.compile(r"%[^\n]*|\\(?P<word>[A-Za-z@]+)|\\.", re.DOTALL)  # comment | control word | control symbol
 
@@ -96,8 +97,8 @@ def rewrite_body(spec: Spec | EnvSpec, body: str) -> str:
     used: set[str] = set()
 
     def sub(m: re.Match[str]) -> str:
-        if m.group(0) == "##":
-            return "##"
+        if m.group(0) == "##" or m.group(0).startswith("\\"):
+            return m.group(0)
         if m["digit"]:
             raise DeclarationError(
                 f"{spec.qualname}: write #name, not #{m['digit']} (arguments are named by their fields)",
@@ -114,7 +115,7 @@ def rewrite_body(spec: Spec | EnvSpec, body: str) -> str:
         return f"#{position[m['name']]}"
 
     # a comment line is not TeX: its `#` are text (a `Comment` body piece may hold any)
-    text = "\n".join(ln if ln.lstrip().startswith("%") else _HOLE.sub(sub, ln) for ln in body.split("\n"))
+    text = "\n".join(ln if ln.lstrip().startswith("%") else _BODY_TOKEN.sub(sub, ln) for ln in body.split("\n"))
     if unused := sorted(set(position) - used - set(spec.unused)):
         raise DeclarationError(
             f"{spec.qualname}: body never uses {unused}; use them, or list them in unused=(...)",

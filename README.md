@@ -169,6 +169,28 @@ texmodel check     # exit 1 if a committed generated file is stale, missing or o
   is not a field, an argument the body never uses, unbalanced braces, a name collision.
 - **Typed**: `Fact("A soft woof.")` type-checks; fields are `Text`, `Raw` or either `| None`; values are `Length`, `CMYK`/`RGB`/`Gray` (components in [0, 1], no conversion between models) or `bool`.
 
+### Generating a body
+
+A body can also be built from pieces that are well-formed by construction, so a generator cannot write an unbalanced brace or
+a bad control word. `Group(...)` is `{...}`, `Seq(...)` the same without braces, `Cs("par")` a control word (letters and `@`
+only, else `TM-M027`), `Lit("50% & co")` text escaped as a `Text` field is, and `Hole`, `Ref` and `Raw` go inside. A space
+follows a control word when the next text could continue its name. Loops and conditions are plain Python:
+
+```python
+class Rating(Command):
+    '''Says which level it has.'''
+    level: Level                                   # a Choice whose members are macros: \lvLow, \lvHigh
+
+    def body(self):
+        for member in Level:                       # one branch per member, chosen when TeX expands the call
+            yield Seq(Cs("ifx"), Hole("level"), member.value, Group(Lit(member.name)), Cs("fi"))
+# \ifx #1\lvLow{LOW}\fi
+# \ifx #1\lvHigh{HIGH}\fi
+```
+
+texmodel writes this TeX and never reads TeX it did not write. The pieces are lines in the package's `Whitespace` policy;
+a `Ref` inside a `Group` still makes its package a requirement.
+
 ### A package that is already written in TeX
 
 When the `.sty` is hand-written, declare what it defines instead of generating it: `adopted=True` (M9). The components
