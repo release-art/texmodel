@@ -16,6 +16,7 @@ from texmodel.std.calc import (
     SetCounter,
     SetLength,
     SetToTotalHeight,
+    count_register,
     counter_value,
     depthof,
     dimen,
@@ -188,6 +189,7 @@ COUNT = [
     (integer(20) / counter_value("c") / 2, 2),
     (maxof(counter_value("c"), integer(2)) - minof(counter_value("c"), integer(2)), 3),
     (integer(2) * ratio(cm(3), cm(1)), 6),
+    (count_register(Raw(r"\thec")) * 2 + count_register(Raw(r"\thec")), 15),  # a macro that expands to digits
 ]
 DIMEN = [
     (dimen(cm(2)) * real(1.5), pt("3cm")),

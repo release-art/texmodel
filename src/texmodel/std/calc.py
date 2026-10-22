@@ -4,10 +4,12 @@ The package adds no new kind of command: it lets these four (and the many comman
 `\setlength`) take an expression, and adds `\settototalheight`. The expression language is typed, and so is this header:
 
 - **Types.** An `IntExpr` is a TeX number (`\setcounter`), a `DimenExpr` a rigid length, a `GlueExpr` a length with
-  stretch and shrink. Both lengths are `Length`s to a type checker, so they go wherever a length does.
-- **Terms.** `integer(3)`, `counter_value("c")`, `dimen(Length("2mm"))`, `dimen(Raw(r"\textwidth"))`,
-  `glue(Length("3pt"), stretch=Length("1pt"))`, and the text sizes `widthof("text")`, `heightof`, `depthof`,
-  `totalheightof`.
+  stretch and shrink. Both lengths are `Length`s, so they fit the commands that read a length through `\setlength`
+  (`\makebox`, `\raisebox`, `\parbox`, `\hspace`, `\vspace`, `\rule`, a `minipage` or `p{}` width). Not those that
+  hand it to a primitive (`\fontsize`, `\hskip`): their fields stay `Raw`.
+- **Terms.** `integer(3)`, `counter_value("c")`, `count_register(Raw(r"\thepage"))`, `dimen(Length("2mm"))`,
+  `dimen(Raw(r"\textwidth"))`, `glue(Length("3pt"), stretch=Length("1pt"))`, and the text sizes `widthof("text")`,
+  `heightof`, `depthof`, `totalheightof`.
 - **Operators.** `+ - * /` and unary `-`, with Python's precedence; parentheses are written where the result needs them.
   Lengths add to lengths; a length is multiplied or divided by an integer (`3`, `counter_value("c")`, a parenthesised
   integer expression), by `real("1.5")` or by `ratio(a, b)`. `2cm + 4` is a `TypeError`, as it is a TeX error.
@@ -241,6 +243,12 @@ def integer(value: int) -> IntExpr:
 def counter_value(counter: Raw | str) -> IntExpr:
     r"""The value of a counter: `\value{c}`. A `str` is the counter's name."""
     return IntExpr(rf"\value{{{counter.tex if isinstance(counter, Raw) else counter}}}")
+
+
+def count_register(register: Raw) -> IntExpr:
+    r"""A TeX number that is not `\value{counter}`: a count register (`Raw(r"\count255")`) or a macro that expands to
+    digits (`Raw(r"\thepage")`)."""
+    return IntExpr(register.tex)
 
 
 def dimen(value: "Length | DimenExpr | Raw") -> DimenExpr:
