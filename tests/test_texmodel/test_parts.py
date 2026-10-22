@@ -87,3 +87,58 @@ def test_check_reports_the_violations_of_a_generated_package(tmp_path, monkeypat
     runner.invoke(cli.app, ["build"])
     result = runner.invoke(cli.app, ["check"])
     assert result.exit_code == 1 and "TM-C011 Fact" in result.stdout
+
+
+def test_a_length_a_toggle_and_a_robust_command_count_as_definitions():
+    p = Package("p", prefix="ac")
+    p.library("one", "\\newlength{\\acGap}\n\\newtoggle{acDraft}\n\\DeclareRobustCommand{\\acBold}[1]{#1}")
+    p.library("two", "\\newlength\\acGap\n\\newtoggle{acDraft}\n\\newcommand{\\acBold}{x}")
+    assert [v.message for v in p.check_parts() if v.code == "TM-C013"] == [
+        "\\acGap is defined by library one and by library two",
+        "\\acDraft is defined by library one and by library two",
+        "\\acBold is defined by library one and by library two",
+    ]
+
+
+def fill(template, model):
+    return Package("f", prefix="ac").library("h", template, fill=model).text
+
+
+def test_a_library_is_filled_from_a_model_by_type():
+    import dataclasses
+
+    import pydantic
+
+    from texmodel.types import RGB, Length, Raw
+
+    class Brand(pydantic.BaseModel):
+        name: str
+        gap: Length
+        ink: RGB
+        mark: Raw
+        copies: int
+        proof: bool
+
+    @dataclasses.dataclass
+    class Page:
+        brand: Brand
+        ratio: float
+
+    brand = Brand(name="R&D 50%", gap=Length("2mm"), ink=RGB(0, 0, 0.5), mark=Raw(r"\star"), copies=3, proof=True)
+    template = " | ".join(
+        f"<<{n}>>" for n in "brand.name brand.gap brand.ink brand.mark brand.copies brand.proof ratio".split()
+    )
+    assert fill(template, Page(brand, 1.5)) == r"R\&D 50\% | 2mm | 0,0,0.5 | \star | 3 | true | 1.5"
+    assert fill("<<x>>", {"x": "a_b"}) == r"a\_b"
+    p = Package("p", prefix="ac")
+    assert p.library("plain", "keep <<this>>").text == "keep <<this>>"  # no model, no holes
+
+
+def test_a_hole_with_no_field_or_a_value_of_an_unknown_type_is_refused():
+    for template, model, code in [
+        ("<<x>>", {"y": 1}, "TM-M041"),
+        ("<<x.y>>", {"x": 1}, "TM-M041"),
+        ("<<x>>", {"x": [1]}, "TM-M040"),
+    ]:
+        with pytest.raises(DeclarationError, check=lambda e, code=code: e.code == code):
+            fill(template, model)

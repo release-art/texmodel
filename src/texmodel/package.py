@@ -29,6 +29,7 @@ from ._internal.render import (
     undeclared,
 )
 from ._internal.scan import scan_declarations
+from ._internal.values import fill_text
 from .body import Library, Syntax, TemplateRef, Whitespace, template_text
 from .components import AnyValue, Command, Environment, Node, Passthrough, env_spec_of, spec_of, value_spec_of
 from .drift import stamp
@@ -176,10 +177,16 @@ class Package:
                 hint="declare the component in the package whose library defines it",
             )
 
-    def library(self, name: str, source: str | TemplateRef, *, syntax: Syntax = Syntax.LATEX2E) -> Library:
+    def library(
+        self, name: str, source: str | TemplateRef, *, syntax: Syntax = Syntax.LATEX2E, fill: object | None = None
+    ) -> Library:
         """TeX carried into the `.sty` as it is (§21a 12), among the items in registration order: dedented, blank edges
         removed, `%` and `#name` untouched. `Syntax.EXPL3` wraps it in `\\ExplSyntaxOn` / `\\ExplSyntaxOff`. A relative
-        `TemplateRef` is relative to the calling module. Name a component's `defined_by` to declare what it defines."""
+        `TemplateRef` is relative to the calling module. Name a component's `defined_by` to declare what it defines.
+
+        `fill` (a mapping, a dataclass or a pydantic model) fills the `<<name>>` holes of the text, typed: `str` is
+        escaped, `Raw` passes through, lengths and colours are written as they are (`<<a.b>>` reaches into a nested
+        model). Without `fill` the text is carried exactly as it is."""
         if not _LIBRARY_NAME.fullmatch(name):
             raise DeclarationError(
                 f"library name {name!r} must match [A-Za-z][A-Za-z0-9_-]*", code="TM-M001", path=name
@@ -189,7 +196,10 @@ class Package:
         origin = "inline"
         if isinstance(source, TemplateRef):
             source, origin = template_text(source, inspect.stack(0)[1].filename, name), source.path.name
-        lib = Library(name, textwrap.dedent(source).strip("\n"), syntax, origin, self)
+        text = textwrap.dedent(source).strip("\n")
+        lib = Library(
+            name, text if fill is None else fill_text(text, fill, syntax, f"library {name}"), syntax, origin, self
+        )
         lint_library(lib)
         self._items.append(lib)
         return lib

@@ -1,5 +1,6 @@
-"""Reading the declaration forms of a hand-written package (M9): `\\newcommand`, `\\providecommand`, `\\newenvironment`
-and xparse's `\\NewDocumentCommand` family.
+"""Reading the declaration forms of a hand-written package (M9): `\\newcommand`, `\\providecommand`,
+`\\DeclareRobustCommand`, `\\newenvironment`, xparse's `\\NewDocumentCommand` family, and the names with no arguments
+that `\\newlength` and etoolbox's `\\newtoggle` declare.
 
 Only these forms are read, so a name defined any other way is reported as missing rather than guessed at. An xparse
 argument type that texmodel does not model is reported as `?`, which matches no declaration.
@@ -9,12 +10,17 @@ import re
 
 _COMMENT = re.compile(r"(?<!\\)%[^\n]*")
 _DEFINITION = re.compile(
-    r"\\(?:newcommand|providecommand|newenvironment)\*?\s*\{?\s*\\?(?P<name>[A-Za-z@]+)\s*\}?\s*"
+    r"\\(?:newcommand|providecommand|DeclareRobustCommand|newenvironment)\*?\s*\{?\s*\\?(?P<name>[A-Za-z@]+)\s*\}?\s*"
     r"(?:\[(?P<n>\d)\])?(?P<default>\[)?"
 )
 _XPARSE = re.compile(
     r"\\(?:New|Renew|Provide|Declare)(?:Expandable)?Document(?:Command|Environment)\s*\{?\s*\\?(?P<name>[A-Za-z@]+)\s*\}?\s*"
 )
+
+
+_NAME_ONLY = re.compile(
+    r"\\(?:newlength\s*\{?\s*\\|newtoggle\s*\{)(?P<name>[A-Za-z@]+)"
+)  # `\newlength{\w}`, `\newtoggle{t}`
 
 
 def _group(text: str, start: int) -> tuple[str, int] | None:
@@ -73,6 +79,7 @@ def scan_declarations(text: str, prefix: str = "") -> dict[str, str]:
     for m in _XPARSE.finditer(text):
         spec = _group(text, m.end())
         found.append((m.start(), m["name"], xparse_letters(spec[0]) if spec else "?"))
+    found += [(m.start(), m["name"], "") for m in _NAME_ONLY.finditer(text)]
     out: dict[str, str] = {}
     for _, name, sig in sorted(found):
         if name.startswith(prefix) and name not in out:

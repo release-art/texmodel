@@ -1,10 +1,13 @@
 """What a slot's value is and how it is written: checking a value against its `Body`
 and turning it into TeX."""
 
+import dataclasses
 import re
+from collections.abc import Mapping
 from typing import Any, cast
 
 from ..body import Syntax, text_of
+from ..errors import DeclarationError
 from ..interface import Body, BodyKind
 from ..types import CMYK, RGB, Gray, Length, Raw, pdf_escape, plain_number
 
@@ -107,3 +110,65 @@ def value_text(  # noqa: C901
             return plain_number(value)
         case BodyKind.LENGTH | BodyKind.COLOUR | BodyKind.COLOUR_NAME | BodyKind.INT:
             return str(value)
+
+
+_MODEL_HOLE = re.compile(r"<<(?P<path>[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)>>")
+
+
+def _member(holder: object, name: str) -> object:
+    """A field of a mapping, a dataclass or a pydantic model; `KeyError` if it has none."""
+    if isinstance(holder, Mapping):
+        return cast("Mapping[str, object]", holder)[name]
+    fields = (
+        {f.name for f in dataclasses.fields(holder)}
+        if dataclasses.is_dataclass(holder)
+        else set(getattr(type(holder), "model_fields", ()))
+    )
+    if name in fields:
+        return getattr(holder, name)
+    raise KeyError(name)
+
+
+def hole_text(value: object, syntax: Syntax) -> str:
+    """The TeX of a value that fills a hole: `str` is text (escaped), `Raw` as it is, a length, a colour model, a number
+    or a flag as it is written. Any other type is refused, so a hole never gets an unescaped surprise."""
+    match value:
+        case Raw():
+            return value.tex
+        case bool():
+            return "true" if value else "false"
+        case str():
+            return text_of(value, syntax)
+        case int():
+            return str(value)
+        case float():
+            return plain_number(value)
+        case Length() | CMYK() | RGB() | Gray():
+            return str(value)
+        case _:
+            raise DeclarationError(
+                f"a hole cannot take a {type(value).__name__}",
+                code="TM-M040",
+                hint="fill it with str (text), Raw (TeX), Length, a colour model, int, float or bool",
+            )
+
+
+def fill_text(text: str, model: object, syntax: Syntax, owner: str) -> str:
+    """`text` with every `<<name>>` (or `<<a.b>>` into a nested model) replaced by the model's value (§21a 12). `model`
+    is a mapping, a dataclass or a pydantic model; a hole it has no field for is an error (`TM-M041`). A model may hold
+    more than one part uses."""
+
+    def sub(m: re.Match[str]) -> str:
+        value: object = model
+        try:
+            for name in m["path"].split("."):
+                value = _member(value, name)
+        except (KeyError, TypeError) as exc:
+            raise DeclarationError(
+                f"{owner}: the model has no {m['path']!r} for the hole {m[0]}",
+                code="TM-M041",
+                hint="name a field of the model; nested fields are written a.b",
+            ) from exc
+        return hole_text(value, syntax)
+
+    return _MODEL_HOLE.sub(sub, text)
