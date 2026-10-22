@@ -104,8 +104,9 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   an error naming the class and the path, never a silent empty body.
 - M4 **Grammar is one expression**: `children = [Name, Fact.times(2, 3), Slot.times(3)]`.
   A bare class means exactly one; `X.times(to)` allows 0 to `to`; `X.times(from_, to)`
-  allows `from_` to `to`, and `to` may be `Count.Any` (no upper limit): `X.times(Count.Any)`
-  is any number, `X.times(1, Count.Any)` one or more, `X.times(1)` optional. This is the
+  allows `from_` to `to`, and `to=None` means no upper limit (`X.times(2, None)` is two or
+  more); `X.times(1)` is optional, `X.times.any()` any number (0 or more),
+  `X.times.at_least_one()` one or more. This is the
   order, the counts and the placement of children. A static type
   checker verifies each child *is* an allowed component, not the counts or order
   (Python's types cannot express them); those are checked by `validate()` at
@@ -955,7 +956,7 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | `texmodel render module:attr` writes a document to a file | decided 2026-10-22 |
 | Hole syntax `#name`; internals free but must resolve | decided |
 | Documents are constructor trees (not `with` builders) | decided |
-| `children = [Fact.times(2, 3)]` multiplicity syntax (`times([from,] to)`, `Count.Any`; not operator overloading) | decided 2026-10-22 |
+| `children = [Fact.times(2, 3)]` multiplicity syntax (`times([from,] to)` with `to=None` for no limit, plus `times.any()` and `times.at_least_one()`; not operator overloading) | decided 2026-10-22 |
 | Python-only authoring; TOML/YAML frontend | parked, not planned |
 | Renames via `renamed_from` → pydantic aliases + release record | decided |
 | lualatex only in v1; capabilities explicit | decided |

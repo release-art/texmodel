@@ -1,6 +1,6 @@
 """A letter: environment arguments, nested environments, `Raw`, and a value that needs another package."""
 
-from texmodel.components import Command, Count, Environment, TemplateRef, Value
+from texmodel.components import Command, Environment, TemplateRef, Value
 from texmodel.package import Package
 from texmodel.types import Bool, Colour, Gray, Length, Raw, Text
 
@@ -64,7 +64,7 @@ class Quote(Environment):
     begin = r"\begin{quote}"
     end = r"\end{quote}"
 
-    children = [Paragraph.times(1, Count.Any)]
+    children = [Paragraph.times.at_least_one()]
 
 
 @pkg.environment
@@ -74,7 +74,7 @@ class Letter(Environment):
     begin = TemplateRef("letter.begin.tex")
     end = TemplateRef("letter.end.tex")
 
-    children = [Paragraph.times(1, Count.Any), Quote.times(Count.Any), Aside.times(1), Signoff]
+    children = [Paragraph.times.at_least_one(), Quote.times.any(), Aside.times(1), Signoff]
     recipient: Text
     subject: Text | None = None
 

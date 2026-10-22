@@ -26,6 +26,7 @@ An `Environment` also holds children, whose order and counts are its grammar (M4
 class CardBack(Environment):
     '''The back face of a card.'''
     children = [Name, Fact.times(2, 3), Slot.times(3)]     # Name: one; Fact: 2 to 3; Slot: 0 to 3
+    # also `X.times.any()` (0 or more) and `X.times.at_least_one()` (1 or more)
     begin = r'\begin{minipage}{\linewidth}'
     end = r'\end{minipage}'
 
@@ -61,7 +62,6 @@ the class is defined.
 """
 
 import dataclasses
-import enum
 import inspect
 import os
 import sys
@@ -70,7 +70,7 @@ import types
 import typing
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, ClassVar, dataclass_transform
+from typing import Any, ClassVar, dataclass_transform, overload
 
 from ._internal.render import (
     Arg,
@@ -86,13 +86,6 @@ from .types import CMYK, RGB, TEXT, Colour, Gray, Length, Raw
 type Node = Command | Environment
 
 
-@enum.unique
-class Count(enum.Enum):
-    """An upper bound with no limit: `Contact.times(1, Count.Any)` is one or more."""
-
-    Any = "any"
-
-
 @dataclasses.dataclass(frozen=True)
 class Repeat:
     """How many of one component a grammar allows in a row (M4): `Fact.times(2, 3)`; a bare `Name` is exactly one."""
@@ -105,21 +98,44 @@ class Repeat:
         return f"{self.lo}-{'any' if self.hi is None else self.hi} {self.kind.__name__}"
 
 
-class _Meta(type):
-    """Gives every component class `.times(...)`, so a grammar term reads `Fact.times(2, 3)`."""
+class _Times:
+    """`Fact.times(2, 3)`, `Fact.times(3)` (0 to 3), `Fact.times(2, None)` (2 or more), `.any()`, `.at_least_one()`."""
 
-    def times(cls, a: int | Count, b: int | Count | None = None) -> Repeat:
-        """`times(to)` allows 0 to `to`; `times(from_, to)` allows `from_` to `to`; `to` may be `Count.Any`."""
-        lo, hi = (0, a) if b is None else (a, b)
-        bound = None if hi is Count.Any else hi
+    def __init__(self, kind: type) -> None:
+        self.kind = kind
+
+    @overload
+    def __call__(self, to: int | None, /) -> Repeat: ...
+    @overload
+    def __call__(self, from_: int, to: int | None, /) -> Repeat: ...
+    def __call__(self, *bounds: int | None) -> Repeat:
+        """`times(to)` allows 0 to `to`; `times(from_, to)` allows `from_` to `to`; `to=None` has no upper limit."""
+        lo, hi = (0, bounds[0]) if len(bounds) == 1 else bounds if len(bounds) == 2 else (None, None)
         # `type(...) is int` also turns away floats and bools, which slip past the annotations at runtime.
-        if type(lo) is not int or lo < 0 or not (bound is None or type(bound) is int and bound >= max(lo, 1)):
+        if type(lo) is not int or lo < 0 or not (hi is None or type(hi) is int and hi >= max(lo, 1)):
             raise DeclarationError(
-                f"{cls.__name__}.times({lo!r}, {hi!r}): need ints, 0 <= from <= to, 1 <= to (to may be Count.Any)",
+                f"{self.kind.__name__}.times{bounds}: use (to) or (from, to), ints with 0 <= from <= to and 1 <= to; "
+                "to=None means no limit",
                 code="TM-M020",
-                path=cls.__name__,
+                path=self.kind.__name__,
             )
-        return Repeat(cls, lo, bound)
+        return Repeat(self.kind, lo, hi)
+
+    def any(self) -> Repeat:
+        """Zero or more."""
+        return Repeat(self.kind, 0, None)
+
+    def at_least_one(self) -> Repeat:
+        """One or more."""
+        return Repeat(self.kind, 1, None)
+
+
+class _Meta(type):
+    """Gives every component class `.times`, so a grammar term reads `Fact.times(2, 3)`."""
+
+    @property
+    def times(cls) -> _Times:
+        return _Times(cls)
 
 
 def _document(cls: type) -> str:
