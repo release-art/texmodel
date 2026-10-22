@@ -59,7 +59,7 @@ rules known only to the author; errors that surface as log text far from the cau
 | **Package** | the container: components + bodies, rendering to a `.sty`/`.cls` |
 | **Doc** | an immutable tree built from component classes; renders to `.tex` |
 | **Spec** | a Doc as data (JSON); `doc.to_dict()` ≡ spec, `Doc.from_dict()` validates |
-| **Body** | the TeX implementing a Command/Environment, in a file or inline |
+| **Body** | the TeX implementing a Command/Environment, given explicitly: a string, a method returning one, or a `TemplateRef` to a file |
 | **Rule** | a pure check over a Doc returning structured violations |
 | **Target** | a named build: spec + engine + variant + verifier profile |
 | **Release** | a frozen version: schema, examples, migration chain |
@@ -95,13 +95,13 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   (M9). The namespace policy, rules and schema treat it as the same component with a
   boolean `star` field.
 - M1a **How each component renders.** A `Command` becomes `\newcommand` (body: M8);
-  an `Environment` becomes `\newenvironment` with two bodies, `<name>.begin.tex` and
-  `<name>.end.tex`, both found by name; a `Value[T]` needs no body, its type decides the
+  an `Environment` becomes `\newenvironment` with two bodies, `begin` and `end` (M8; the
+  arguments belong to `begin`, TeX gives `end` none); a `Value[T]` needs no body, its type decides the
   declaration (`\newcommand` for text and options, `\newlength`, `\definecolor`,
   `\newif`, `\newcounter`) and its `default` is an *instance of the type*
   (`default = Length("2mm")`, `default = CMYK(0, 0, 0, .95)`), which the type checker
-  and the validator both see. A missing or ambiguous body file is an error naming the
-  expected paths, never a silent empty body.
+  and the validator both see. A missing body, or a `TemplateRef` to a file that cannot be read, is
+  an error naming the class and the path, never a silent empty body.
 - M4 **Grammar is one expression**: `children = [Name, Fact * (2, 3), Slot * (0, 3)]`.
   A bare class means exactly one; `* n` is exactly n; `"?"`, `"*"`, `"+"` are
   shorthands. This is the order, the counts and the placement of children. A static type
@@ -123,9 +123,16 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
 
 ### 3.3 Bodies
 
-- M8 A body is real TeX in `<snake_name>.tex` beside the class (found by name), or a
-  raw `body=` string for ≤3 lines (`texmodel refactor fmt` promotes). Files whose stem starts
-  with `_` are shared includes, rendered once.
+- M8 **A body is real TeX, given explicitly; nothing is found by name** (explicit is better
+  than implicit). A component defines `body` (an Environment: `begin` and `end`) as:
+  a string (dedented, so a raw triple-quoted string reads as it renders); a method
+  returning a string; or a `TemplateRef(path)`, or a method returning one. A
+  `TemplateRef` is read when the class is defined; a relative path is relative to the
+  module that defines the class, so it works wherever the package is installed. A method
+  is read once, at class definition, with no instance (`self` is `None`): it returns
+  constant TeX and cannot depend on field values (those are `#name` holes). A field
+  named `body`, `begin` or `end` is a field, not a body. Shared includes are ordinary TeX
+  (`\input`) or a shared `TemplateRef`; there is no implicit include rule.
   - `#name` is the argument of that name (rewritten to `#1`…); `##` is a literal `#`.
   - Everything else is literal TeX. Public names must exist in the registry.
     Internals (`\ac@x`) need no declaration but must be *defined* in some body.
@@ -225,13 +232,19 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   a Doc can be compared, deduplicated, cached, and asked which components it uses
   (`doc.components()`), and snapshots compare trees, not just text. `repr(doc)` is the
   constructor expression that rebuilds it (`CardBack(Name('Golden Retriever'), …)`),
-  used in error messages, goldens and debugging.
-- D1a **The document root.** A Package declares its root component, a `Document`
-  subclass: `Document(settings=[FactGap("3mm")], options=["nocrop"], body=[…])`. Its
-  `children` grammar is the package's top-level structure (preamble slots, `\begin{document}`
-  body). `settings=` is the one way to set a `Value` for the whole document; `Set(…)`
+  used in error messages, goldens and debugging. An environment's arguments are keywords
+  and its children are positional: `CardBack(Name("Rex"), Fact("a"), Fact("b"), title="T")`;
+  the class-level `children` is the grammar, the instance's `.content` the children.
+  `texmodel render module:attr` writes a document (a `str`, or a function returning one) to a file.
+- D1a **The document root.** `Package.document(*body, settings=[FactGap(Length("3mm"))],
+  options=["a4paper"])` renders a complete `.tex` (pure, deterministic, no I/O) and
+  raises every violation at once. Values are set with instances of the `Value` class,
+  type-checked against the declared type; class options are validated, since they are
+  TeX. `settings=` is the one way to set a `Value` for the whole document; `Set(…)`
   (D4a) is the one way to set it for a subtree; the class `default` is the fallback.
-  Rendering a Doc without a root is an error, so there is no half-document state.
+  The root as a component with its own `children` grammar (preamble slots,
+  `\begin{document}` body) is the next step; until then the body is a free sequence of
+  nodes and only environments carry a grammar.
 - D2 `doc.validate()`, `doc.render()` (str, pure, deterministic, no I/O),
   `doc.to_dict()`, `Doc.from_dict()` (migrates then validates), `doc.plan()` (every
   output line with provenance: model | body:line | user value).
@@ -476,7 +489,7 @@ nested, readability counts.
 | Question | The way |
 |---|---|
 | declare an interface | a component class (M1) |
-| write a body | a file by name; `body=` only for ≤3 lines (M8) |
+| write a body | `body` as a string or method, or a `TemplateRef` to a file (M8) |
 | set a value for the whole document | `Document(settings=[…])` (D1a) |
 | set a value for a subtree | `Set(…)` (D4a) |
 | build a document | constructors (D1) |
@@ -630,7 +643,7 @@ acme-cards/
 ├── acme_cards/
 │   ├── __init__.py               Package + small components
 │   ├── _shared.tex               shared includes
-│   ├── fact.tex                  body of Fact (found by name)
+│   ├── fact.tex                  body of Fact (`body = TemplateRef("fact.tex")`)
 │   └── card_back/                a component promoted to a folder when it grows
 │       ├── __init__.py  body.tex  example.json  golden.tex  test_card_back.py
 ├── authored/                     adopted hand-written .cls/.sty + surface manifests
@@ -645,7 +658,7 @@ acme-cards/
 ### 15.2 A whole package
 
 ```python
-from texmodel import Package, Command, Environment, Value, Text, Length, Colour, CMYK, LuaLaTeX
+from texmodel import Package, Command, Environment, Value, TemplateRef, Text, Length, Colour, CMYK, LuaLaTeX
 
 pkg = Package("acme-cards", prefix="ac", engine=LuaLaTeX)
 
@@ -656,6 +669,7 @@ class Name(Command):
 class Fact(Command):
     """One short sentence under the title."""
     text: Text
+    body = TemplateRef("fact.tex")     # explicit: a file next to this module; nothing is found by name
 
 class Slot(Command):
     """A labelled paragraph; the label prints as its heading."""
@@ -705,7 +719,7 @@ class Ink(Value[Colour]):
 | `change` / `release` | classify a change, scaffold its migration; cut a version | no |
 | `adopt FILE` | check a hand-written file against its manifest | no |
 | `bundle` / `install` | self-contained export; install into a TeX tree | yes |
-| `refactor rename\|promote\|fmt` | libcst-based rename of a component (class, body file, examples, goldens, rename record), promote to a folder, promote inline bodies to files | no |
+| `refactor rename\|promote\|fmt` | libcst-based rename of a component (class, its `TemplateRef` targets, examples, goldens, rename record), promote to a folder, promote inline bodies to files | no |
 | `clean` | remove build output (`latexmk -c`, `--all` for `-C`) | no |
 
 - U2 **Errors name a path, a code and the fix**, human first, JSON available:
@@ -740,7 +754,7 @@ churn, no migration file until `release`. A breaking change prints once at `buil
 - Body only → fragment + one generated hunk; schema untouched (the "internals only" signal).
 - Interface change → `build` classifies; arity or removal needs `release` to scaffold the
   migration; renames use `renamed_from`.
-- `texmodel refactor rename` (via libcst) rewrites class, body file name, examples,
+- `texmodel refactor rename` (via libcst) rewrites class, `TemplateRef` targets, examples,
   goldens and adds the rename record. `texmodel refactor promote Fact` moves a component
   into a folder.
 
@@ -877,8 +891,8 @@ fix before building anything on top.
 
 | Step | Deliverable | Covers | Exit test |
 |---|---|---|---|
-| B0 | types, components, `children`, naming, rules, static glyph check; no TeX | M, T, D5, E2 | property tests, 100% coverage |
-| B1 | bodies, package render, family check, lints, `build`, output-stability header | M8, M14, G1-G4, G7 | sample `.sty` byte-stable; hand edit fails `check` |
+| B0 | types, components, `children`, naming, rules, static glyph check; no TeX | M, T, D5, E2 | property tests, 100% coverage. **Partly built 2026-10-22**: `Text` (escaped), `Raw`, `Length`, `Colour`, `Bool`; `Command`, `Environment`, `Value[T]`; `children` grammar and `validate()` returning every violation; rules as a pluggable layer, `Markup`, `Int`, `Enum`, `List`, glyph check not yet |
+| B1 | bodies, package render, family check, lints, `build`, output-stability header | M8, M14, G1-G4, G7 | sample `.sty` byte-stable; hand edit fails `check`. **Built 2026-10-22** (also `texmodel render`, and `tests/examples/` goldens that the compile suite builds) |
 | B2 | Doc trees, document root, spec round trip, `show`/`plan`, source maps, trust levels, injection corpus, **sandbox verification task** | D1-D4a, C11, Z1-Z3 | hostile corpus passes; map resolves a real diagnostic |
 | B3 | schema/OpenAPI export, cross-validator test, free tests, probes and `Measure` | S, V1, C5, C5a | S4 passes; overset ⇒ diagnostic naming the item |
 
@@ -932,7 +946,11 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | Decision | Status |
 |---|---|
 | Three components + types as the only extension point | decided |
-| Python signatures are the interface; bodies are TeX files | decided |
+| Python signatures are the interface; bodies are explicit TeX (string, method or `TemplateRef`), never found by name | decided 2026-10-22 |
+| A body method is read once at class definition and cannot use `self` | decided 2026-10-22 |
+| Environment: fields are keyword arguments, children positional; `children` is the grammar, `.content` the instance's children | decided 2026-10-22 |
+| `Package.document(...)` renders a `.tex`; values are set by `Value` instances in `settings=` | decided 2026-10-22 |
+| `texmodel render module:attr` writes a document to a file | decided 2026-10-22 |
 | Hole syntax `#name`; internals free but must resolve | decided |
 | Documents are constructor trees (not `with` builders) | decided |
 | `children = [Fact * (2, 3)]` multiplicity syntax | decided |
