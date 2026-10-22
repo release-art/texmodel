@@ -95,7 +95,7 @@ class ValueSpec:
     kind: ValueKind
     qualname: str
     needs: tuple["str | Package", ...]  # packages it needs (M14): its kind's and the class's own
-    alias: str | None = None  # the name the class gives itself (`colour_name = "bbInk"`)
+    alias: str | None = None  # the name the class gives itself (`colour_name = "acInk"`)
     meta: Mapping[str, object] = dataclasses.field(default_factory=dict[str, object])  # the schema's `x-` keys
 
 
@@ -129,8 +129,13 @@ def newcommand_fits(args: tuple[Arg, ...]) -> bool:
 
 
 def default_text(a: Arg) -> str:
-    """The TeX an unset optional slot reads as: empty, or its `Text` / `Raw` default."""
-    if a.optional and a.body.kind in (BodyKind.TEXT, BodyKind.RAW) and isinstance(a.default, str | Raw):
+    """The TeX an unset optional slot reads as in the definition: its default, written as a call writes it, or empty
+    (no default, or a key list, list or tuple, which have no single-argument form)."""
+    if (
+        a.optional
+        and a.default is not None
+        and a.body.kind not in (BodyKind.TOKEN, BodyKind.KEYVALS, BodyKind.LIST, BodyKind.TUPLE)
+    ):
         return argument_text(a, a.default)
     return ""
 

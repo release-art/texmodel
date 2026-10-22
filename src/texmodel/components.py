@@ -10,6 +10,11 @@ class Slot(Command):
     label: Text | None = None      # optional: keyword-only, rendered as TeX's one optional argument
 ```
 
+An optional field's `Text`, `Raw`, number, flag or `Choice` default is TeX's too: `label: Text | None = "Note"` is
+`\newcommand{\acSlot}[2][Note]{...}`; with no default it is `[]`.
+
+`field(doc=..., meta={...})` and a class-level `meta = {...}` put a description and `x-` keys in the JSON Schema.
+
 A `Value[T]` is a typed setting; its `default` is an instance of `T` and its type decides the TeX (M1a, T4, T5):
 
 ```python
@@ -17,6 +22,18 @@ A `Value[T]` is a typed setting; its `default` is an instance of `T` and its typ
 class FactGap(Value[Length]):
     '''Space under each fact.'''
     default = Length("2mm")
+```
+
+A `Value[Length]` may leave `default` out (a bare `\newlength`, set later); a `Value[Colour]` may rename itself
+(`colour_name = "acInk"`). A package adds its own kinds with a `ValueKind` (`texmodel.types`): what it holds, the names
+it claims, the TeX that declares and sets it, the packages it needs (a name, or a `Package` of this project). `Toggle`
+in `texmodel.std.etoolbox` is one, built from etoolbox's own bindings:
+
+```python
+@pkg.value
+class Draft(Value[Toggle]):
+    '''Print the draft banner.'''
+    default = False          # \newtoggle{acDraft} \togglefalse{acDraft}
 ```
 
 An `Environment` also holds children, whose order and counts are its grammar (M4); a Doc is plain Python (D1):
@@ -765,12 +782,13 @@ _KINDS: dict[object, ValueKind] = {Length: LENGTH, Colour: COLOUR, bool: BOOL, s
 
 
 class Value[T]:
-    """A typed setting: `\\newlength`, `\\definecolor`, `\\newif` or `\\newcommand`, chosen by `T`; `default` is an
-    instance of `T`. A `Value[Text]` of an adopted package may leave `default` out: the hand-written package has it."""
+    """A typed setting: `\\newlength`, `\\definecolor`, `\\newif`, `\\newcommand` or a package's own (`Toggle`), chosen
+    by `T`; `default` is an instance of `T`. A `Value[Text]` of an adopted package may leave `default` out: the
+    hand-written package has it; so may a `Value[Length]` the package computes later. `colour_name` renames a colour."""
 
     default: T  # not ClassVar[T]: pyright refuses type variables in ClassVar; subclasses assign it in the class body
     needs_packages: ClassVar[tuple["str | Package", ...]] = ()  # data, not mutation: the package takes the union (M14)
-    colour_name: ClassVar[str | None] = None  # a `Value[Colour]`'s name when it is not `<prefix>-<kebab>` (`"bbInk"`)
+    colour_name: ClassVar[str | None] = None  # a `Value[Colour]`'s name when it is not `<prefix>-<kebab>` (`"acInk"`)
     meta: ClassVar[Mapping[str, object]] = {}  # the schema's `x-` keys on this value
     __tm_doc__: ClassVar[str]
     __tm_kind__: ClassVar[ValueKind]

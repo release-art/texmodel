@@ -49,6 +49,18 @@ def test_optional_argument_default():
 
     assert "\\newcommand{\\acRating}[2][\\acMark]{" in p.render(version="0.1.0")
 
+    @p.command
+    class Scaled(Command):
+        """Scaled."""
+
+        count: int | None = arg(default=3)
+        text: Text
+
+        def body(self):
+            return r"#count #text"
+
+    assert "\\newcommand{\\acScaled}[2][3]{" in p.render(version="0.1.0")
+
 
 def test_toggle_and_bare_length():
     p = Package("p", prefix="ac")
