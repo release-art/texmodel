@@ -1,12 +1,12 @@
 """Engine profiles (M13): what differs between engines. v1 has one, LuaLaTeX."""
 
 import dataclasses
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from texmodel.errors import DeclarationError
 
 from ._internal.logparse import parse_log
-from .diagnostics import Diagnostic
+from .diagnostics import Diagnostic, Measure
 
 
 @dataclasses.dataclass(frozen=True)
@@ -15,7 +15,7 @@ class Engine:
     binary: str
     # latexmk options choosing this engine; shell escape is off, and a package must declare it to get it (C3).
     latexmk_args: tuple[str, ...]
-    parse_log: Callable[[str], tuple[Diagnostic, ...]]
+    parse_log: Callable[[str, Sequence[Measure]], tuple[Diagnostic, ...]]
 
 
 LUALATEX = Engine(

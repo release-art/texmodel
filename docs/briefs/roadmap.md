@@ -159,7 +159,9 @@ log lines, so it is not reliably recoverable); `Compiler` keeps the documented "
   otherwise leave it and say so.
 **Tests.** CLI tests with the fake toolchain; render-all; a target with a plan.
 
-## B2. `Measure`: typed over-set (plan 2)
+## B2. `Measure`: typed over-set (plan 2) — built 2026-10-22
+
+Built as specified. An `Overset` is made only when `needs > has`; a probe name has no spaces, so its item has none.
 
 **Depends on.** Nothing (uses `PackageWarning`). **Touches.** `harness/.../diagnostics.py`, `_internal/logparse.py`, config,
 tests, README.
@@ -263,6 +265,6 @@ list with the `tlmgr install` line. Exit 3 if any are missing. No network use.
 
 ## Suggested order
 
-0, then A1, A4, B1 (built), B2, C2, A2, B3, C3, C4, D1, D2, A3, and C1 last (low priority). A1 first because three batches need its references; the rest are
+0, then A1, A4, B1, B2 (built), C2, A2, B3, C3, C4, D1, D2, A3, and C1 last (low priority). A1 first because three batches need its references; the rest are
 ordered so that batches touching `cli.py`/`package.py` do not run at the same time. Between batches: run the gates, read the
 report, then start the next.

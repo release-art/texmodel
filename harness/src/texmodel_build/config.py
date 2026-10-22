@@ -7,6 +7,7 @@ from typing import Any
 
 from texmodel.errors import DeclarationError
 
+from .diagnostics import Measure
 from .verify import Profile
 
 
@@ -28,6 +29,7 @@ class BuildConfig:
     image: str = ""  # run in this image; empty runs on the host (e.g. already inside the image)
     targets: dict[str, Target] = dataclasses.field(default_factory=dict[str, Target])
     profiles: dict[str, Profile] = dataclasses.field(default_factory=dict[str, Profile])
+    measures: dict[str, Measure] = dataclasses.field(default_factory=dict[str, Measure])
     exempt: dict[str, str] = dataclasses.field(default_factory=dict[str, str])  # glob -> reason (V5)
 
 
@@ -48,7 +50,8 @@ def load_build_config(pyproject: pathlib.Path) -> BuildConfig:
     try:
         targets = {name: Target(name=name, **body) for name, body in table.pop("targets", {}).items()}
         profiles = {name: _profile(name, body) for name, body in table.pop("profiles", {}).items()}
-        return BuildConfig(**table, targets=targets, profiles=profiles)
+        measures = {name: Measure.declare(name, **body) for name, body in table.pop("measures", {}).items()}
+        return BuildConfig(**table, targets=targets, profiles=profiles, measures=measures)
     except TypeError as exc:
         raise DeclarationError(f"[tool.texmodel-build]: {exc}", code="TM-D003") from exc
 

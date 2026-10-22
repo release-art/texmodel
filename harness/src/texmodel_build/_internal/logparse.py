@@ -6,11 +6,12 @@ The compile driver runs with `max_print_line` raised, so log lines are never har
 
 import dataclasses
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from ..diagnostics import (
     Diagnostic,
     DocumentRefusal,
+    Measure,
     Measurement,
     MissingCharacter,
     MissingFile,
@@ -21,6 +22,7 @@ from ..diagnostics import (
     TexError,
     UndefinedControlSequence,
     UndefinedReference,
+    overset,
 )
 
 _LOC = re.compile(r"^(?P<file>[^\s:][^:]*):(?P<line>\d+): (?P<msg>.*)$")
@@ -39,6 +41,8 @@ _PACKAGE_ERROR = re.compile(r"Package (?P<package>\S+) Error:\s*(?P<rest>.*)$")
 _PACKAGE_WARNING = re.compile(r"^Package (?P<package>\S+) Warning:\s*(?P<rest>.*)$")
 _ON_LINE = re.compile(r"\s*on input line (?P<line>\d+)\.?$")
 _PROBE = re.compile(r"^texmodel:probe:(?P<name>[^=\s]+)=(?P<value>.*)$")
+_FIT_PROBE = re.compile(r"^fit\.(?P<item>.+)$")
+_NEEDS_HAS = re.compile(r"^(?P<needs>[^/]+)/(?P<has>[^/]+)$")
 _REFUSE = re.compile(r"^texmodel:refuse:(?P<reason>.*)$")
 _PAGES = re.compile(r"Output written on .* \((?P<n>\d+) pages?, \d+ bytes\)")
 # Consequences of an error already reported, not errors of their own.
@@ -46,7 +50,8 @@ _CONSEQUENCE = ("Emergency stop.", "==> Fatal error occurred")
 _LOOKAHEAD = 15
 
 
-def parse_log(text: str) -> tuple[Diagnostic, ...]:
+def parse_log(text: str, measures: Sequence[Measure] = ()) -> tuple[Diagnostic, ...]:
+    """Typed diagnostics; `measures` read a package's warnings as `Overset` (B2) besides the warning itself."""
     lines = text.splitlines()
     found: dict[tuple[object, ...], Diagnostic] = {}
 
@@ -63,6 +68,12 @@ def parse_log(text: str) -> tuple[Diagnostic, ...]:
             _error(lines, i, m["msg"], None, _context(lines, i)[0], add)
         else:
             _note(lines, i, add)
+    for found_one in list(found.values()):
+        if isinstance(found_one, PackageWarning):
+            for rule in measures:
+                if rule.package == found_one.package and (m := rule.pattern.search(found_one.message)):
+                    if over := overset(m["item"], m["needs"], m["has"], line=found_one.line):
+                        add(over)
     return tuple(found.values())
 
 
@@ -86,7 +97,7 @@ def _note(lines: list[str], i: int, add: Callable[[Diagnostic], None]) -> None:
     elif _RERUN.search(line):
         add(RerunNeeded(message="rerun needed"))
     elif m := _PROBE.match(line):
-        add(Measurement(message=line, name=m["name"], value=m["value"]))
+        _probe(m, add)
     elif m := _REFUSE.match(line):
         add(DocumentRefusal(message=m["reason"]))
     elif m := _PACKAGE_WARNING.match(line):
@@ -103,6 +114,14 @@ def _note(lines: list[str], i: int, add: Callable[[Diagnostic], None]) -> None:
                 message=_ON_LINE.sub("", message), package=package, line=int(where["line"]) if where else None
             )
         )
+
+
+def _probe(m: re.Match[str], add: Callable[[Diagnostic], None]) -> None:
+    """A probe is a `Measurement`; `fit.<item>=<needs>/<has>` that does not fit is also an `Overset` (B2)."""
+    add(Measurement(message=m[0], name=m["name"], value=m["value"]))
+    if (item := _FIT_PROBE.match(m["name"])) and (fit := _NEEDS_HAS.match(m["value"])):
+        if over := overset(item["item"], fit["needs"], fit["has"]):
+            add(over)
 
 
 def page_count(text: str) -> int | None:

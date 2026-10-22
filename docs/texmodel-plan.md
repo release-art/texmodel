@@ -1006,7 +1006,8 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
 1. **Typed settings and labels.** `Choice` (the enum field type) is built 2026-10-22; `Value[Text]` too (2026-10-22); open: `List`, and `Value[Raw]`. Today a per-deck text setting is an
    argument-less adopted Command whose value is `Raw` in the preamble, and a slot label is a `Raw` field fed by a consumer enum.
    `Enum` would also give a closed set of labels to validate and to export.
-2. **Typed over-set: `Measure` (C5).** A package reports "card X does not fit, needs A, has B" as its own warning; the harness
+2. **Typed over-set: `Measure` (C5).** Built 2026-10-22 as `Overset` (B2): config rules and the `fit.` probe. Open: other
+   kinds than `fit`, a declared bound per item. Original idea: A package reports "card X does not fit, needs A, has B" as its own warning; the harness
    types it (`PackageWarning`) but the consumer reads the numbers by regex. Idea: a declared parser per package (message
    shape to named measurements), or a probe convention the package can adopt; verdict per item against a declared bound.
 3. **Automatic diagnostic mapping.** Built 2026-10-22: `Compiler.compile(..., plan=)` adds `path` to every diagnostic located in

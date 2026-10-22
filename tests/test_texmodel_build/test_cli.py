@@ -182,3 +182,17 @@ def test_a_target_may_name_the_plan_behind_its_source(toolchain, planned):
         [Target(name="card", source="card.tex", plan="cardplan:plan()")], Compiler(), root=planned, outdir=planned / "o"
     )
     assert summary.results["card"].diagnostics[0].path == "Card[0]/Name[0]"
+
+
+def test_a_configured_measure_types_the_warning_in_compile_output(toolchain, project):
+    with (project / "pyproject.toml").open("a") as f:
+        f.write(
+            '[tool.texmodel-build.measures.fit]\npackage = "pk"\n'
+            "pattern = \"Card '(?P<item>[^']+)' needs (?P<needs>\\\\S+) has (?P<has>\\\\S+)\"\n"
+        )
+    toolchain.log = (
+        "Package pk Warning: Card 'Owl' needs 30pt has 10pt on input line 1.\n"
+        "(1 page)\nOutput written on card.pdf (1 page, 9 bytes).\n"
+    )
+    result = runner.invoke(cli.app, ["compile", "card.tex"])
+    assert result.exit_code == 1 and "TM-X031" in result.stdout and "Owl needs 30pt and has 10pt" in result.stdout

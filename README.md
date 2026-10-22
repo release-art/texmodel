@@ -326,6 +326,15 @@ image = "releaseart/lualatex-python:latest"   # runs `docker run` over it; omit 
   (`TM-X011`), overfull boxes (`TM-X012`), missing files (`TM-X013`), package errors (`TM-X014`), undefined references
   (`TM-X018`), package warnings with their continuation lines (`TM-X019`, how a hand-written package says a card does
   not fit), non-convergence with the `.aux` entries that keep moving (`TM-X030`), and a fallback so no failure is silent.
+- A package's "does not fit" warning becomes a typed `Overset` (`TM-X031`, an error: item, needs, has, over, in pt) when a
+  rule says how to read it; the warning is kept too. A package that prints `texmodel:probe:fit.<item>=<needs>/<has>` needs
+  no rule. Lengths take `pt`, `mm`, `cm`, `in` (a bare number is pt); an item that fits gives none.
+
+  ```toml
+  [tool.texmodel-build.measures.card-fit]
+  package = "card-deck"
+  pattern = "Card '(?P<item>[^']+)' does not fit. Its body needs (?P<needs>\\S+) and the card has (?P<has>\\S+)"
+  ```
 - Reproducibility is the image's job (`--epoch` pins `SOURCE_DATE_EPOCH`); there is no sandbox or cache here.
 - `texmodel-build verify` runs plugins from the `texmodel_build.verifiers` entry-point group. `pip install
   'texmodel-build[proof-pdf]'` adds [proof-pdf](https://github.com/release-art/proofpress). A verifier that cannot run, a

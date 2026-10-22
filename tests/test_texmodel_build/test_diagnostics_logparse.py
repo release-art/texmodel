@@ -113,3 +113,46 @@ def test_an_undefined_name_inside_an_argument_is_read_from_the_argument_line():
     (found,) = kinds("undefined_in_argument.log")
     assert isinstance(found, d.UndefinedControlSequence)
     assert (found.name, found.file, found.line) == ("\\cdSafeInset", "./deck.tex", 11)
+
+
+# --- Measure (B2) ---------------------------------------------------------------------------------------------
+
+FIT = d.Measure.declare(
+    "fit",
+    "card-deck",
+    r"Card '(?P<item>[^']+)' does not fit\. Its body needs (?P<needs>\S+) and the card has (?P<has>\S+)",
+)
+OWL = {"item": "Long-Eared Owl", "needs_pt": 322.436, "has_pt": 160.0, "over_pt": 162.436}
+
+
+def test_a_measure_rule_types_a_package_warning_and_keeps_the_warning():
+    text = (LOGS / "overset.log").read_text(encoding="utf-8")
+    warning, over = parse_log(text, [FIT])
+    assert isinstance(warning, d.PackageWarning) and isinstance(over, d.Overset)
+    assert (over.code, over.severity, over.line) == ("TM-X031", d.Severity.ERROR, 36)
+    assert {k: getattr(over, k) for k in OWL} == OWL
+    assert parse_log(text, [d.Measure.declare("other", "elsewhere", FIT.pattern.pattern)]) == (warning,)
+
+
+def test_a_fit_probe_gives_the_same_overset_and_a_fitting_or_odd_one_gives_none():
+    (probe, over) = parse_log("texmodel:probe:fit.Owl=322.436pt/160pt\n")
+    assert isinstance(probe, d.Measurement) and isinstance(over, d.Overset)
+    assert {k: getattr(over, k) for k in OWL if k != "item"} == {k: v for k, v in OWL.items() if k != "item"}
+    assert (over.item, over.line) == ("Owl", None)  # a probe name has no spaces
+    for value in ("1pt/2pt", "3", "x/y", "3pt/", "1pt/2pt/3pt"):
+        assert [type(x) for x in parse_log(f"texmodel:probe:fit.a={value}\n")] == [d.Measurement]
+    (_,) = parse_log("texmodel:probe:other=322pt/160pt\n")
+
+
+def test_lengths_in_any_unit_are_read_in_points():
+    assert d.points("25.4mm") == pytest.approx(72.27)
+    assert d.points("1in") == pytest.approx(72.27) and d.points("5") == 5
+    assert d.overset("a", "2cm", "10mm").over_pt == pytest.approx(28.452, abs=1e-3)  # type: ignore[union-attr]
+
+
+@pytest.mark.parametrize("rule", [("(", "fit"), ("(?P<item>a)", "fit"), (FIT.pattern.pattern, "fill")])
+def test_a_bad_measure_is_refused_when_it_is_declared(rule):
+    from texmodel.errors import DeclarationError
+
+    with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-D032"):
+        d.Measure.declare("m", "pk", *rule)

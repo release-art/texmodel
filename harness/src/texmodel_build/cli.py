@@ -89,6 +89,7 @@ def _compiler(image: str | None, local: bool, roots: list[pathlib.Path], epoch: 
         font_cache=BUILD_DIR / "fonts",
         max_passes=passes,
         epoch=epoch,
+        measures=tuple(config.measures.values()) if config else (),
     )
 
 

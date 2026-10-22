@@ -2,7 +2,12 @@
 
 import dataclasses
 import enum
+import re
+from fractions import Fraction
 from typing import Any, cast
+
+from texmodel.errors import DeclarationError
+from texmodel.types import Length
 
 
 @enum.unique
@@ -105,6 +110,18 @@ class Measurement(Diagnostic):
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
+class Overset(Diagnostic):
+    """`item` needs `needs_pt` and has `has_pt`: a card that does not fit, typed (B2). Read from a package warning by a
+    `Measure` rule, or from a `texmodel:probe:fit.<item>=<needs>/<has>` line."""
+
+    code: str = "TM-X031"
+    item: str = ""
+    needs_pt: float = 0.0
+    has_pt: float = 0.0
+    over_pt: float = 0.0
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class TexError(Diagnostic):
     """Any other TeX error, so an error the parser does not know is still reported (V5)."""
 
@@ -140,6 +157,7 @@ KINDS: dict[str, type[Diagnostic]] = {
         UndefinedReference,
         DocumentRefusal,
         Measurement,
+        Overset,
         TexError,
         NotConverged,
         Unexplained,
@@ -153,3 +171,55 @@ def diagnostic_from_dict(data: dict[str, Any]) -> Diagnostic:
     }
     fields["severity"] = Severity(fields["severity"])
     return KINDS[data["kind"]](**fields)
+
+
+@enum.unique
+class MeasureKind(enum.Enum):
+    FIT = "fit"  # the warning says an item needs more room than it has
+
+
+@dataclasses.dataclass(frozen=True)
+class Measure:
+    """`[tool.texmodel-build.measures.<name>]`: how to read one package's warning as a typed measurement (B2).
+    `pattern` is searched in the warning's message and has the named groups `item`, `needs` and `has`, lengths
+    (`322.436pt`, `11mm`; a bare number is in pt)."""
+
+    name: str
+    package: str
+    pattern: re.Pattern[str]
+    kind: MeasureKind = MeasureKind.FIT
+
+    @classmethod
+    def declare(cls, name: str, package: str, pattern: str, kind: str = "fit") -> "Measure":
+        """Refuses a rule that cannot work when the config is read (`TM-D032`), not when a log is."""
+        try:
+            compiled = re.compile(pattern)
+            chosen = MeasureKind(kind)
+        except (re.error, ValueError) as exc:
+            raise DeclarationError(
+                f"[tool.texmodel-build.measures.{name}]: {exc}", code="TM-D032", hint='kind is "fit"; pattern a regex'
+            ) from exc
+        if missing := {"item", "needs", "has"} - set(compiled.groupindex):
+            raise DeclarationError(
+                f"[tool.texmodel-build.measures.{name}]: pattern lacks the groups {sorted(missing)}",
+                code="TM-D032",
+                hint="use (?P<item>...), (?P<needs>...) and (?P<has>...)",
+            )
+        return cls(name, package, compiled, chosen)
+
+
+def points(text: str) -> float:
+    """A length in TeX points; a bare number is already in pt. Raises `DeclarationError` for anything else."""
+    return float(Length(text if text.strip()[-1:].isalpha() else f"{text.strip()}pt").inches * Fraction(7227, 100))
+
+
+def overset(item: str, needs: str, has: str, **where: Any) -> Overset | None:
+    """The `Overset` for lengths as text, or `None` if they are not lengths or the item fits."""
+    try:
+        need, have = points(needs), points(has)
+    except DeclarationError, IndexError:
+        return None
+    if need <= have:
+        return None
+    message = f"{item} needs {need:g}pt and has {have:g}pt"
+    return Overset(message=message, item=item, needs_pt=need, has_pt=have, over_pt=round(need - have, 3), **where)

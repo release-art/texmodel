@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `Overset` (B2, `TM-X031`): `[tool.texmodel-build.measures.<name>]` (`package`, `pattern` with the groups `item`, `needs`,
+  `has`, `kind = "fit"`) types a package's "does not fit" warning; `texmodel:probe:fit.<item>=<needs>/<has>` gives the same.
+  A bad rule is refused when the config is read (`TM-D032`). With a plan, `Overset.path` names the component.
 - Documents in the CLI (B1): `texmodel render` with no pointer writes every `[tool.texmodel.documents]` entry to its path;
   `texmodel-build compile --plan <pointer>` and a target's `plan = "<pointer>"` give diagnostics the component path.
   `texmodel.pointer` (`load_package`, `load_document`, `load_plan`) is public so the harness reads the same pointers.

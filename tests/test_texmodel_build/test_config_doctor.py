@@ -82,3 +82,14 @@ def test_verbose_logs_to_stderr_not_stdout(monkeypatch, tmp_path):
     assert log.level == logging.DEBUG
     assert runner.invoke(cli.app, ["-v", "version"]).exit_code == 0
     assert log.level == logging.INFO
+
+
+def test_measures_are_read_from_config_and_a_bad_one_is_refused(tmp_path):
+    f = tmp_path / "pyproject.toml"
+    rule = r'package = "pk"\npattern = "(?P<item>a) (?P<needs>b) (?P<has>c)"\n'
+    f.write_text("[tool.texmodel-build.measures.fit]\n" + rule.replace("\\n", "\n"))
+    (measure,) = load_build_config(f).measures.values()
+    assert (measure.name, measure.package, measure.kind.value) == ("fit", "pk", "fit")
+    f.write_text('[tool.texmodel-build.measures.fit]\npackage = "pk"\npattern = "("\n')
+    with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-D032"):
+        load_build_config(f)

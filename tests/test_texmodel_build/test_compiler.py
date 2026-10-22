@@ -13,6 +13,7 @@ from texmodel_build._internal import spawn as spawn_module
 from texmodel_build._internal.spawn import Proc
 from texmodel_build.compiler import Compiler
 from texmodel_build.errors import CompileError, ToolchainError
+from texmodel_build.result import CompileResult
 
 from .conftest import OK_LOG, FakeToolchain
 
@@ -106,6 +107,16 @@ def test_diagnostics_in_the_source_carry_the_path_of_the_plan_line_behind_them(t
     }
     assert paths == {"\\foo": "Card[1]", "\\bar": None, "\\far": None, "Card '": "Card[0]"}
     assert all(x.path is None for x in Compiler().compile(src, tmp_path / "out2").diagnostics)
+
+
+def test_an_overset_carries_the_path_of_the_plan_line_behind_it(toolchain, src, tmp_path):
+    plan = Plan((Line("header", "%"), Line("Card[0]", "\\a")))
+    toolchain.log = "Package pk Warning: Card 'X' does not fit 3pt 1pt on input line 2.\n" + OK_LOG
+    rule = d.Measure.declare("fit", "pk", r"Card '(?P<item>X)' does not fit (?P<needs>\S+) (?P<has>\S+)")
+    result = Compiler(measures=(rule,)).compile(src, tmp_path / "out", plan=plan)
+    (over,) = (x for x in result.diagnostics if isinstance(x, d.Overset))
+    assert (over.path, over.over_pt) == ("Card[0]", 2.0) and not result.ok
+    assert CompileResult.from_dict(result.to_dict()) == result
 
 
 def test_failure_without_a_diagnosable_error_is_never_silent(toolchain, src, tmp_path):

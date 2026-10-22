@@ -23,7 +23,7 @@ from ._internal.converge import aux_diff
 from ._internal.env import build_env
 from ._internal.logparse import page_count
 from ._internal.spawn import Proc, spawn
-from .diagnostics import Diagnostic, NotConverged, Severity, Unexplained
+from .diagnostics import Diagnostic, Measure, NotConverged, Severity, Unexplained
 from .engines import LUALATEX, Engine
 from .errors import ToolchainError
 from .result import CompileResult
@@ -81,6 +81,7 @@ class Compiler:
     font_cache: pathlib.Path | None = None  # persistent luaotfload cache; without it every container run rebuilds it
     max_passes: int = 5
     epoch: int | None = None  # reproducible mode (C6): pins SOURCE_DATE_EPOCH
+    measures: tuple[Measure, ...] = ()  # how to read a package's warnings as typed measurements (B2)
     timeout: float = 300.0  # seconds, wall clock; the container is killed when it passes
 
     @functools.cached_property
@@ -156,7 +157,7 @@ class Compiler:
         current = bool(_UP_TO_DATE.search(proc.stdout))
         fresh = log.is_file() and (current or log.stat().st_mtime >= started - 1)  # not a leftover from a failed run
         text = log.read_text(encoding="utf-8", errors="replace") if fresh else ""
-        diagnostics.extend(self.engine.parse_log(text))
+        diagnostics.extend(self.engine.parse_log(text, self.measures))
         pages = page_count(text)
         has_pdf = fresh and pdf.is_file() and pages is not None
         passes = max((int(n) for n in _RUN.findall(proc.stdout)), default=0)
