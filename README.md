@@ -236,8 +236,12 @@ class FitSize(Command):
     available: Raw
 ```
 
-A component with `defined_by` has no body (`TM-M032`) and its block belongs to the same package (`TM-M033`). Whether TeX
-really defines it, with that many arguments, is checked by compiling: `texmodel_build.testkit.check_library(compiler, pkg)`
+A component with `defined_by` has no body (`TM-M032`) and its block belongs to the same package (`TM-M033`). `texmodel check`
+reads each block (`Package.check_parts()`, no TeX needed) and reports a declared component the block does not define with that
+signature (`TM-C010`, `TM-C011`), a public `<prefix>Name` the block defines that nothing declares (`TM-C012`), and a name
+defined twice (`TM-C013`; generation itself refuses it, `TM-P012`). The reading is regex-level (`\newcommand`, `\providecommand`,
+`\DeclareRobustCommand`, `\newenvironment`, the xparse family, `\newlength`, `\newtoggle`) and skips an expl3 block. For the
+rest, whether TeX really defines it, with that many arguments, is checked by compiling: `texmodel_build.testkit.check_library(compiler, pkg)`
 builds `pkg.test_document(...)` with `export_probes(pkg)` (it writes `texmodel:probe:def.<cs>=yes|no` and
 `arity.<cs>=<n>` for each such component), compiles it, and returns `TM-C010` for a name the block does not define and
 `TM-C011` for another number of arguments (`?` is checked for existence only). The arity is the number of `#` in the macro's
@@ -247,6 +251,15 @@ builds `pkg.test_document(...)` with `export_probes(pkg)` (it writes `texmodel:p
 The PDF Info strings need no expl3 in a document: `PdfInfo(Title="...", Author="...")` in `before_package` or `after_package`
 writes each value PDF-escaped through `\csname pdfmanagement_add:nnn\endcsname`, and needs `RequireMetadata` in `before_class`
 (`TM-C009`). A key is letters only (`TM-M035`).
+
+### Parts filled from a model
+
+A package that starts from TeX you already have is a list of parts: `pkg.library(name, TemplateRef("brand.tex"), fill=model)`.
+`fill` is a mapping, a dataclass or a pydantic model, and the text's `<<name>>` holes (`<<a.b>>` into a nested model) are
+filled by type: `str` is escaped, `Raw` passes through, a `Length`, a colour model, a number or a flag is written as it is.
+A hole the model has no field for is an error (`TM-M041`), as is a value of another type (`TM-M040`); a model may hold more
+than the part uses. Without `fill` a block is carried exactly as it is. Components with `defined_by` then give decks typed
+calls to what the parts define. [The cookbook](docs/cookbook.md) has a worked example.
 
 ### Arguments: slots, value types and key lists
 

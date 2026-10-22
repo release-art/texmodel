@@ -180,7 +180,7 @@ def test_the_sty_plan_has_a_path_per_component_and_its_text_is_the_sty(project, 
     assert (
         empty.render()
         == "".join([f"% empty-demo.sty -- {stamp(generator_version())}. Do not edit; run `texmodel build`.\n"])
-        + "\\NeedsTeXFormat{LaTeX2e}\n\\ProvidesPackage{empty-demo}[1970/01/01 v0.0.0 empty-demo]\n\n\n"
+        + "\\NeedsTeXFormat{LaTeX2e}\n\\ProvidesPackage{empty-demo}\n% v0.0.0 empty-demo\n\n\n"
     )
 
 
@@ -270,11 +270,14 @@ def test_the_header_may_have_no_date_and_carry_a_text_of_its_own():
         .splitlines()
     )
     assert head[0].startswith("% hd-demo.sty -- generated with texmodel")
-    assert head[1:5] == [
+    assert head[1:6] == [
         "% Property of the studio.",
         "% Do not forward.",
         "\\NeedsTeXFormat{LaTeX2e}",
-        "\\ProvidesPackage{hd-demo}[v0.0.0 hd-demo]",
+        "\\ProvidesPackage{hd-demo}",  # LaTeX reads the first word of a bracket as a date
+        "% v0.0.0 hd-demo",
     ]
+    dated = Package("hd-demo", prefix="hd", date="2026/10/22", version="1.0.0").render().splitlines()
+    assert dated[2] == "\\ProvidesPackage{hd-demo}[2026/10/22 v1.0.0 hd-demo]"
     with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-P003"):
         Package("hd-demo", prefix="hd", date="soon")

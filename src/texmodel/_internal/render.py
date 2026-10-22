@@ -487,12 +487,18 @@ def check_references(prefix: str, spec: Spec | EnvSpec, text: str, declared: Map
 
 def header_lines(name: str, version: str, date: str | None, description: str, stamp: str, text: str = "") -> list[str]:
     """The head of a generated `.sty`: the generator's line, then `text` as comment lines (the package's own header, if
-    any), `\\NeedsTeXFormat` and `\\ProvidesPackage`, whose date slot is left out when the package has no date."""
+    any), `\\NeedsTeXFormat` and `\\ProvidesPackage`. LaTeX reads the first word of its bracket as a date, so a package
+    with no date has no bracket, and its version and description are a comment."""
+    provides = (
+        [f"\\ProvidesPackage{{{name}}}[{date} v{version} {description or name}]"]
+        if date
+        else [f"\\ProvidesPackage{{{name}}}", f"% v{version} {description or name}"]
+    )
     return [
         f"% {name}.sty -- {stamp}. Do not edit; run `texmodel build`.",
         *_comment(text),
         "\\NeedsTeXFormat{LaTeX2e}",
-        f"\\ProvidesPackage{{{name}}}[{f'{date} ' if date else ''}v{version} {description or name}]",
+        *provides,
     ]
 
 

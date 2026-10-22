@@ -4,6 +4,79 @@ Worked examples and the habits that keep a package easy to live with. Every `pyt
 executes them, so an example that stops working fails the build. The reference is the [README](../README.md); what is not
 covered is in [known limitations](known-limitations.md).
 
+## Start from the TeX you have: parts filled from a model
+
+A package can be a list of parts. A part is a readable piece of TeX (`library`), its holes are filled from a typed model, and
+the components that decks call say which part defines them (`defined_by`). Nothing is generated from the components: they
+are the typed way to call what the part defines, and `check` verifies that the part really does define it.
+
+```python
+import dataclasses
+
+from texmodel.components import Command
+from texmodel.package import Package
+from texmodel.types import RGB, Length, Raw, Text
+
+
+@dataclasses.dataclass(frozen=True)
+class Brand:
+    """The brand's values, e.g. read from a tokens file."""
+
+    name: str
+    gap: Length
+    ink: RGB
+    mark: Raw
+
+
+brand = Brand("R&D", Length("2mm"), RGB(0, 0, 0.5), Raw(r"\star"))
+pkg = Package("acme-cards", prefix="ac")
+
+page = pkg.library(
+    "page",
+    r"""
+    \newcommand{\acBrandName}{<<name>>}
+    \newlength{\ac@gap}\setlength{\ac@gap}{<<gap>>}
+    \definecolor{acInk}{rgb}{<<ink>>}
+    \newcommand{\acFact}[1]{\par{\color{acInk}\ac@mark\ #1}\vspace{\ac@gap}}
+    \newcommand{\ac@mark}{<<mark>>}
+    """,
+    fill=brand,
+)
+
+
+@pkg.command
+class BrandName(Command):
+    """The brand's name."""
+
+    defined_by = page
+
+
+@pkg.command
+class Fact(Command):
+    """A fact."""
+
+    defined_by = page
+    text: Text
+
+
+print(pkg.render())
+assert pkg.check_parts() == []  # \acFact takes one argument, as declared; nothing public is left undeclared
+```
+
+- **`<<name>>` is a hole; `<<a.b>>` reaches into a nested model.** A `str` is escaped (`R\&D`), `Raw` passes through,
+  lengths, colours, numbers and flags are written as they are. A hole the model has no field for is an error, and so is a
+  value of any other type. A model may hold more than one part uses.
+- **Loops and conditionals stay in Python.** Build the fragment and pass it as a `Raw` field.
+- **`check` is the guarantee.** For every part, a declared component must be defined with the signature declared
+  (`TM-C010`, `TM-C011`), every public `<prefix>Name` the part defines must be declared (`TM-C012`), and a name defined
+  twice, by two parts or by a part and a generated component, is an error when the package is generated
+  (`TM-P012`, `TM-C013` in `check`). Name a helper with an `@` (`\ac@helper`) to keep it out of the public namespace.
+- **The scan is regex-level.** It reads `\newcommand`, `\providecommand`, `\DeclareRobustCommand`, `\newenvironment`, the
+  xparse family, `\newlength` and `\newtoggle`. A name defined any other way (`\def`, `\csname`) counts as missing, and an
+  expl3 part is not read.
+- **Decks use the components.** A deck built from `Fact("...")` gets typed constructors, arity at the call site, escaping,
+  `from_dict` and the schema, from declarations that cost a few lines per macro.
+
 ## Settings
 
 A `Value[T]` is a typed setting; the type of `T` decides the TeX.

@@ -109,7 +109,7 @@ class Package:
         *,
         prefix: str,
         version: str = "0.0.0",
-        date: str | None = "1970/01/01",
+        date: str | None = None,
         description: str = "",
         header: str = "",
         document_class: str = "article",

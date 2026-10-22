@@ -719,21 +719,15 @@ def _required(
 
 
 def _declared_only(cls: "type[Command] | type[Environment]", *sources: Source | None) -> None:
-    """A component of an adopted package (M9) or one a library block defines (§21a 12) is only declared: a body would
-    never render, so it is refused."""
-    if any(sources) and cls.defined_by is not None:
+    """A component of an adopted package (M9) or one a library block defines (§21a 12) is only declared: another source
+    has its TeX, so a body would never render and is refused."""
+    if any(sources):
+        who = "a library block" if cls.defined_by is not None else "the hand-written package (it is adopted)"
         raise DeclarationError(
-            f"{cls.__module__}.{cls.__qualname__}: has a body, but a library block defines it",
+            f"{cls.__module__}.{cls.__qualname__}: has a body, but {who} defines it",
             code="TM-M032",
             path=cls.__name__,
-            hint="remove the body: the block is the definition",
-        )
-    if any(sources):
-        raise DeclarationError(
-            f"{cls.__module__}.{cls.__qualname__}: has a body, but its package is adopted and renders no TeX",
-            code="TM-M023",
-            path=cls.__name__,
-            hint="remove the body: the hand-written package defines it",
+            hint="remove the body: the other source is the definition",
         )
 
 
