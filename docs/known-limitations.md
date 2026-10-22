@@ -37,6 +37,9 @@ What texmodel does not do or does not check today. Planned work is in [the plan]
 
 - `texmodel.std` covers the commands a deck uses, not each package. `adjustbox`, `graphicx`, `geometry`, `tcolorbox` and `tikz`
   type their common keys and take the rest as `Item[Raw]`; the other headers still take `Raw` for options and lengths.
+- `calc`: a parenthesised integer expression after `*` or `/` (`2cm*(1+2)`) works in TeX Live 2025's `calc` but is not in its
+  documented grammar, which allows only a number, `\real`, `\ratio`, `\maxof` or `\minof` there. The header allows it.
+  `\relax` scan stops are not modelled.
 - `tests/test_std` proves a call is accepted by TeX, not that it does what the name suggests. A library the reference image
   lacks makes its test skip (a failure under `TEXMODEL_REQUIRE_TEX=1`).
 - TikZ paths (`\draw`, `\node`) are written as `Passthrough` or `Raw`.

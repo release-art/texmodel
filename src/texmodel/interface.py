@@ -177,12 +177,15 @@ class Body:
     attrs: tuple[str, ...] = ()  # TUPLE of a record (NamedTuple, dataclass, model): the attributes in order
     keyvals: type | None = None
     token: str | None = None
+    expression: type | None = None  # RAW: a `Raw` subclass the value must be (an expression type of a library)
 
     def describe(self) -> str:
         if self.choice is not None:
             return f"one of {list(self.choice.__members__)}"
         if self.keyvals is not None:
             return self.keyvals.__name__
+        if self.expression is not None:
+            return self.expression.__name__
         if self.kind in (BodyKind.TUPLE, BodyKind.LIST):
             return f"{self.kind.value} of ({', '.join(i.describe() for i in self.items)})"
         return self.kind.value
@@ -239,6 +242,8 @@ def body_of(hint: Any) -> Body | None:  # noqa: ANN401, C901
         return body_of(typing.get_args(h)[0])
     if h is Raw:
         return RAW_BODY
+    if isinstance(h, type) and issubclass(h, Raw):
+        return Body(BodyKind.RAW, expression=h)
     if h is bool:
         return Body(BodyKind.BOOL)
     if h is int:

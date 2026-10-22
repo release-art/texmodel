@@ -111,12 +111,12 @@ class Raw:
         from pydantic_core import core_schema as cs
 
         def make(value: object) -> Raw:
-            if isinstance(value, Raw):
+            if isinstance(value, cls):
                 return value
             if not isinstance(value, str):
                 raise ValueError("expected TeX as a string")  # noqa: TRY004  # pydantic reports ValueError, not TypeError
             try:
-                return Raw(value)
+                return cls(value)
             except ValidationError as exc:
                 raise ValueError(str(exc)) from exc
 

@@ -41,7 +41,7 @@ def value_ok(body: Body, value: Any) -> bool:  # noqa: ANN401, C901
         case BodyKind.COLOUR_NAME:
             return isinstance(value, str) and bool(_COLOUR_NAME.fullmatch(value))
         case BodyKind.RAW:
-            return isinstance(value, Raw)
+            return isinstance(value, body.expression or Raw)
         case BodyKind.CHOICE:
             return body.choice is not None and isinstance(value, body.choice)
         case BodyKind.LENGTH:

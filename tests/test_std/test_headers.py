@@ -52,7 +52,7 @@ def test_a_header_is_an_adopted_package_whose_components_all_name_their_control_
     assert package.builtin == (name == "latex")
     for cls in package.registered:
         assert cls.__doc__ and cls.__dict__["cs"] and cls.__tm_cs__ == cls.__dict__["cs"]  # pyright: ignore[reportAttributeAccessIssue]
-    if name in {"hyphenat", "anyfontsize", "calc"}:
+    if name in {"hyphenat", "anyfontsize"}:
         assert package.registered == ()  # loaded with Package.require; nothing to call
 
 
@@ -319,6 +319,23 @@ def fontspec_samples():
     ], []
 
 
+def calc_samples():
+    from texmodel.std import (
+        calc as c,
+        latex as k,
+    )
+
+    counter, length, box = Raw("tmc"), Raw(r"\tmlen"), Raw(r"\tmtotal")
+    pre = [k.NewCounter(counter), k.NewLength(length), k.NewLength(box)]
+    return pre, [
+        c.SetCounter(counter, c.integer(7) / 2),
+        c.AddToCounter(counter, c.integer(2) * c.real(1.6)),
+        c.SetLength(length, c.widthof("abc") * c.real(0.5) + Length("1pt")),
+        c.AddToLength(length, c.glue(Length("1pt"), Length("1pt"))),
+        c.SetToTotalHeight(box, Raw("Ag")),
+    ]
+
+
 SAMPLES = {
     "latex": latex_samples,
     "graphicx": graphicx_samples,
@@ -329,7 +346,7 @@ SAMPLES = {
     "microtype": microtype_samples,
     "hyphenat": lambda: ([], []),
     "anyfontsize": lambda: ([], []),
-    "calc": lambda: ([], []),
+    "calc": calc_samples,
     "pdfrender": pdfrender_samples,
     "enumitem": enumitem_samples,
     "adjustbox": adjustbox_samples,

@@ -323,7 +323,7 @@ load the package; the kernel header (`builtin=True`) never does. A library whose
 options, is loaded with `pkg.require(microtype, options=["protrusion=true"])`: `\RequirePackage[protrusion=true]{microtype}`,
 in that order, before the packages the bodies need. `tests/test_std` compiles a call of every declared name against the
 reference image, so a header that names a command TeX does not have fails, with the path of the call. `adjustbox`, `graphicx`,
-`geometry`, `tcolorbox` and `tikz` type their key lists, and the kernel types `\vspace*`, `\makebox`, `\raisebox` and
+`geometry`, `tcolorbox` and `tikz` type their key lists, `calc` is a typed expression language (`dimen(Length("2cm")) * real(0.5) + widthof("abc")`, with `maxof`, `minof`, `ratio`, `glue`, `integer`, `counter_value`), and the kernel types `\vspace*`, `\makebox`, `\raisebox` and
 the sectioning commands; a library's own syntax (TikZ paths such as `\draw (0,0) -- (1,1);`) is written as `Passthrough`
 or `Raw`.
 
