@@ -302,3 +302,102 @@ def test_colour_components_are_written_to_five_decimals():
 
     assert str(RGB(78.8 / 100, 0, 1 / 3)) == "0.788,0,0.33333"
     assert str(CMYK(0.1 + 0.2, 1, 0.000004, 0.5)) == "0.3,1,0,0.5"
+
+
+def test_a_shared_base_carries_fields_and_bodies_for_its_subclasses():
+    from texmodel.components import Environment
+
+    p = Package("p", prefix="ac")
+
+    @p.command
+    class Fact(Command, unused=("text",)):
+        """A fact."""
+
+        text: Text
+
+        def body(self):
+            return r"#text"
+
+    class _Image(Command, abstract=True):  # no docstring, and a name a control word could not have
+        src: Text
+
+        def body(self):
+            return r"\includegraphics{#src}"
+
+    class _Panel(Environment, abstract=True):
+        children = [Fact.times(2, 3)]
+
+        def begin(self):
+            return r"\begin{minipage}{\linewidth}"
+
+        def end(self):
+            return r"\end{minipage}"
+
+    @p.command
+    class Photo(_Image):
+        """A photo."""
+
+    @p.command
+    class Icon(_Image):
+        """An icon."""
+
+    @p.environment
+    class Card(_Panel):
+        """A card."""
+
+    out = p.render()
+    assert out.count("\\includegraphics{#1}") == 2 and "\\newcommand{\\acPhoto}[1]{%" in out
+    assert out.count("\\begin{minipage}{\\linewidth}") == 1 and Photo("a.png").render() == "\\acPhoto{a.png}"
+    assert [v.code for v in Card(Fact("a")).validate()] == ["TM-C002"]  # the base's grammar: 2 to 3 facts
+    with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-M043"):
+        p.command(_Image)
+
+
+def test_a_value_has_a_control_sequence_and_a_default_a_type_checker_can_read():
+    from texmodel.components import Value, control_name
+    from texmodel.types import RGB, Colour, Length
+
+    p = Package("p", prefix="ac")
+
+    @p.value
+    class Gap(Value[Length]):
+        """Gap."""
+
+        default = Length("2mm")
+
+    @p.value
+    class Crop(Value[bool]):
+        """Crop."""
+
+        cs = "acshowcrop"
+        default = True
+
+    @p.value
+    class Ink(Value[Colour]):
+        """Ink."""
+
+        default = RGB(0, 0, 0)
+
+    assert control_name(Gap) == "acGap" and control_name(Crop) == "acshowcrop"
+    assert Gap.declared_default() == Length("2mm") and Crop.declared_default() is True
+    with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-M042"):
+        control_name(Ink)
+
+
+def test_a_field_called_body_is_a_field_not_a_body():
+    from texmodel.interface import arg
+
+    p = Package("p", prefix="ac")
+
+    class Note(Command, unused=("body",)):
+        """A note."""
+
+        text: Text
+        body: Text | None = arg(default=None)
+
+        def end(self):  # not a body either: only `body` is read for a command
+            return ""
+
+    assert Note.__tm_inline__ is None and [a.name for a in Note.__tm_args__] == ["text", "body"]
+    with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-M006"):
+        p.command(Note)

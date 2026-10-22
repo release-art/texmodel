@@ -200,6 +200,7 @@ class _Meta(type):
 
 
 def _document(cls: type) -> str:
+    """The docstring of a component, which must be documented and named as a TeX control word would be."""
     check_name(cls.__name__, "component")
     doc = (cls.__dict__.get("__doc__") or "").strip()
     if not doc:
@@ -208,13 +209,18 @@ def _document(cls: type) -> str:
 
 
 def _source(cls: type, name: str) -> Source | None:
-    """The class's own `body` / `begin` / `end` as (pieces, origin), or None.
+    """The class's `body` / `begin` / `end` as (pieces, origin), or None: its own, else the nearest base class's (a
+    shared base is declared `abstract=True`).
 
-    It is a string, a `TemplateRef` (the file is read now), a `TexRaw`, a `Ref`, a `Comment`, a sequence, iterator or
-    generator of those, or a method returning any of them. A field of that name is not a body.
+    It is a string, a `TemplateRef` (the file is read now, relative to the module that wrote it), a `TexRaw`, a `Ref`,
+    a `Comment`, a sequence, iterator or generator of those, or a method returning any of them. A field of that name
+    is not a body.
     """
-    found: object = cls.__dict__.get(name)
-    if found is None or name in inspect.get_annotations(cls):
+    owner = next((k for k in cls.__mro__ if name in k.__dict__), None)
+    if owner is None:
+        return None
+    found: object = owner.__dict__[name]
+    if found is None or name in inspect.get_annotations(owner):
         return None
     if isinstance(found, types.FunctionType):
         try:
@@ -238,7 +244,7 @@ def _source(cls: type, name: str) -> Source | None:
     out: list[Resolved] = []
     for piece in given:
         if isinstance(piece, TemplateRef):
-            text = template_text(piece, sys.modules[cls.__module__].__file__ or ".", f"{cls.__qualname__}.{name}")
+            text = template_text(piece, sys.modules[owner.__module__].__file__ or ".", f"{cls.__qualname__}.{name}")
             out.append(TexRaw(text, piece.whitespace, piece.syntax))
             origins.append(piece.path.name)
         else:
@@ -248,9 +254,15 @@ def _source(cls: type, name: str) -> Source | None:
 
 
 def control_name(cls: type) -> str:
-    """The control sequence of a registered component, without the backslash: its `cs`, else its package's prefix and
-    its class name."""
+    """The control sequence of a registered component or value, without the backslash: its `cs`, else its package's
+    prefix and its class name. A colour is not a control sequence (`TM-M042`)."""
     name: str | None = getattr(cls, "__tm_cs__", None)
+    if name is None and isinstance(getattr(cls, "__tm_kind__", None), ValueKind) and hasattr(cls, "__tm_prefix__"):
+        raise DeclarationError(
+            f"{cls.__qualname__}: a colour has no control sequence",
+            code="TM-M042",
+            hint="its name is `colour_name`, else prefix-kebab (xcolor's namespace)",
+        )
     if name is None:
         raise DeclarationError(
             f"{cls.__qualname__}: not registered with a package", code="TM-M019", hint="decorate it with @pkg.command"
@@ -261,6 +273,9 @@ def control_name(cls: type) -> str:
 class _Node(metaclass=_Meta):
     """What a `Command` and an `Environment` share: declaration data, `repr`, `validate` and `render`."""
 
+    __tm_abstract__: ClassVar[
+        bool
+    ]  # a shared base (`abstract=True`): fields and a body for subclasses, never registered
     __tm_unused__: ClassVar[tuple[str, ...]]
     __tm_args__: ClassVar[tuple[Arg, ...]]
     __tm_doc__: ClassVar[str]
@@ -295,9 +310,11 @@ def _as_field(given: object) -> "dataclasses.Field[object]":
     return typing.cast("dataclasses.Field[object]", dataclasses.field(default=given))
 
 
-def _build(cls: type[_Node], unused: Sequence[str], *, init: bool) -> None:
-    """Turn a declared class into a frozen dataclass whose fields are its arguments."""
-    cls.__tm_doc__ = doc = _document(cls)
+def _build(cls: type[_Node], unused: Sequence[str], *, init: bool, abstract: bool) -> None:
+    """Turn a declared class into a frozen dataclass whose fields are its arguments. An abstract base needs no name a
+    control word could have and no docstring: it is never registered."""
+    cls.__tm_abstract__ = abstract
+    cls.__tm_doc__ = doc = "" if abstract else _document(cls)
     cls.__tm_unused__ = tuple(unused)
     if "cs" in cls.__dict__:
         Cs(cls.__dict__["cs"], cls.syntax)  # a control word of the class's syntax (TM-M027)
@@ -334,10 +351,10 @@ class Command(_Node):
 
     __tm_inline__: ClassVar[Source | None]
 
-    def __init_subclass__(cls, *, unused: Sequence[str] = (), **kwargs: Any) -> None:
+    def __init_subclass__(cls, *, unused: Sequence[str] = (), abstract: bool = False, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         cls.__tm_inline__ = _source(cls, "body")
-        _build(cls, unused, init=True)
+        _build(cls, unused, init=True, abstract=abstract)
 
     @classmethod
     def call(cls, *required: ArgValue, **optional: ArgValue) -> Ref:
@@ -356,11 +373,11 @@ class Environment(_Node):
     __tm_inline__: ClassVar[tuple[Source | None, Source | None]]
     __tm_grammar__: ClassVar[tuple[Repeat | Anywhere, ...]]
 
-    def __init_subclass__(cls, *, unused: Sequence[str] = (), **kwargs: Any) -> None:
+    def __init_subclass__(cls, *, unused: Sequence[str] = (), abstract: bool = False, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         cls.__tm_inline__ = (_source(cls, "begin"), _source(cls, "end"))
         cls.__tm_grammar__ = _grammar(cls)
-        _build(cls, unused, init=False)
+        _build(cls, unused, init=False, abstract=abstract)
 
     @classmethod
     def open(cls, **args: ArgValue) -> Ref:
@@ -466,7 +483,7 @@ def _repr(node: Command | Environment | Passthrough) -> str:
 
 def _grammar(cls: type[Environment]) -> tuple[Repeat | Anywhere, ...]:
     terms: list[Repeat | Anywhere] = []
-    for item in cls.__dict__.get("children", ()):
+    for item in cls.children:  # inherited from a shared base, or its own
         if isinstance(item, type) and issubclass(item, Command | Environment | Passthrough):
             item = Repeat(item, 1, 1)
         if not isinstance(item, Repeat | Anywhere) or not issubclass(item.kind, _Node):
@@ -801,6 +818,13 @@ class Value[T]:
     __tm_doc__: ClassVar[str]
     __tm_kind__: ClassVar[ValueKind]
     __tm_prefix__: ClassVar[str]
+    __tm_cs__: ClassVar[str]  # the control sequence, once registered (not for a colour); see `control_name`
+
+    @classmethod
+    def declared_default(cls) -> T | None:
+        """The class's `default` (None when it has none): reading `default` through a class is ambiguous to a type
+        checker, this is not."""
+        return getattr(cls, "default", None)
 
     def __init__(self, value: T) -> None:
         """A document's setting for this value (D1a): `FactGap(Length("3mm"))`, checked against the declared type."""

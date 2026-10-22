@@ -82,6 +82,70 @@ assert pkg.check_parts() == []  # \acFact takes one argument, as declared; nothi
 - **Decks use the components.** A deck built from `Fact("...")` gets typed constructors, arity at the call site, escaping,
   `from_dict` and the schema, from declarations that cost a few lines per macro.
 
+## Components that share a body
+
+A base class declared `abstract=True` carries fields, a `body` (or `begin` and `end`) and a grammar. Its subclasses are
+the registered components and inherit all of it. A `TemplateRef` in the base is read relative to the base's module.
+
+```python
+from texmodel.components import Command, Environment
+from texmodel.package import Package
+from texmodel.types import Text
+
+pkg = Package("acme-cards", prefix="ac")
+
+
+@pkg.command
+class Fact(Command, unused=("text",)):
+    """A fact."""
+
+    text: Text
+
+    def body(self):
+        return r"#text"
+
+
+class _Image(Command, abstract=True):  # no docstring needed, any Python name
+    src: Text
+
+    def body(self):
+        return r"\includegraphics{#src}"
+
+
+class _Panel(Environment, abstract=True):
+    children = [Fact.times(2, 3)]
+
+    def begin(self):
+        return r"\begin{minipage}{\linewidth}"
+
+    def end(self):
+        return r"\end{minipage}"
+
+
+@pkg.command
+class Photo(_Image):
+    """A photo."""
+
+
+@pkg.command
+class Icon(_Image):
+    """An icon."""
+
+
+@pkg.environment
+class Card(_Panel):
+    """A card."""
+
+
+print(pkg.render())
+```
+
+- **Registering the base is an error** (`TM-M043`); register the subclasses.
+- **The body is checked per subclass.** Every `#name` must be a field of the subclass, so a base's body can use the fields
+  the base declares and a subclass adds its own only if it uses them (or lists them in `unused=`).
+- **Write an optional field with `arg(default=...)`** so a type checker reads it as keyword-only and accepts required fields
+  after it.
+
 ## Settings
 
 A `Value[T]` is a typed setting; the type of `T` decides the TeX.

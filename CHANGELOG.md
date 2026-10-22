@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `abstract=True` on a `Command` or `Environment`: a shared base that carries fields, `body` (or `begin` and `end`) and
+  `children` for its subclasses, needs no docstring or control-word name, and is never registered (`TM-M043`).
+- `Value.declared_default()`, and `control_name(value)`: a value's control sequence (`__tm_cs__`); a colour has none
+  (`TM-M042`).
+
 ## [0.3.0] - 2026-10-22
 
 Parts and models: a package can be a list of TeX parts filled from typed models, checked against the components that call

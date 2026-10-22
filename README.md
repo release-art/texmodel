@@ -186,6 +186,22 @@ texmodel check     # exit 1 if a committed generated file is stale, missing or o
   is not a field, an argument the body never uses, unbalanced braces, a name collision.
 - **Typed**: `Fact("A soft woof.")` type-checks; fields are `Text`, `Raw` or either `| None`; values are `Length`, `CMYK`/`RGB`/`Gray` (components in [0, 1], no conversion between models) or `bool`.
 
+### Shared bases
+
+Components that repeat a body or a grammar share a base declared `abstract=True`. It carries fields, `body` (or `begin` and
+`end`) and `children`; it needs no docstring and may have any Python name (`_Image`); it is never registered
+(`TM-M043`), and its subclasses inherit all of it:
+
+```python
+class _Image(Command, abstract=True):
+    src: Text
+    def body(self): return r"\includegraphics{#src}"
+
+@pkg.command
+class Photo(_Image):
+    '''A photo.'''
+```
+
 ### Generating a body
 
 A body can also be built from pieces that are well-formed by construction, so a generator cannot write an unbalanced brace or
@@ -293,7 +309,9 @@ class Put(Command):                           # \put(1,2){x}
 - **Slots.** `{}` `[]` `()` `<>` or your own `Delimiter`; a `Star` or other token; a slot left out is not written, and an
   optional slot left out before a later optional one writes `fill=` (say `""` for empty brackets) or is refused
   (`Gap.REFUSE`); declaring two optionals without saying which is `TM-M037`. A `SlotGroup` is written together or not at all.
-  Optional and token fields are keyword-only in Python wherever they stand, so give an optional one `default=None`.
+  Optional and token fields are keyword-only in Python wherever they stand. Write an optional field with `arg(default=...)`
+  (`label: Text | None = arg(default=None)`): a type checker then reads it as keyword-only and accepts a required field after
+  it, where a plain `= None` is reported as a field-order error although it runs.
 - **Value types.** `Text` (escaped), `PdfString`, `Raw`, `Length` (`Length("2mm")`, or `Length.expr(r"\linewidth")` for a TeX
   expression), a colour model (`CMYK`, `RGB`, `Gray`) or a `ColourName` (`blue!50`), `int`, `float`, `bool` (`true`/`false`),
   a `Choice`, a tuple, `NamedTuple`, dataclass or model of those, a `list`, and a `KeyVals`. A wrong value is a violation

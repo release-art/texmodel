@@ -114,6 +114,16 @@ class _Defs(NamedTuple):
         return [*(("control", n) for n in self.controls), *sorted(self.others)]
 
 
+def _concrete(cls: type[Command] | type[Environment]) -> None:
+    if cls.__tm_abstract__:
+        raise DeclarationError(
+            f"{cls.__qualname__}: an abstract base is not registered",
+            code="TM-M043",
+            path=cls.__name__,
+            hint="register the subclasses",
+        )
+
+
 def _shown(kind: str, name: str) -> str:
     return f"\\{name}" if kind == "control" else f"{kind} {name}"
 
@@ -194,6 +204,7 @@ class Package:
 
     def command[C: type[Command]](self, cls: C) -> C:
         """Register a command class."""
+        _concrete(cls)
         spec = spec_of(cls, declared_only=self.adopted, whitespace=self.whitespace)
         self._own_library(cls)
         if not self.adopted and cls.defined_by is None:
@@ -254,6 +265,7 @@ class Package:
 
     def environment[E: type[Environment]](self, cls: E) -> E:
         """Register an environment class: `\\newenvironment` with its begin and end bodies."""
+        _concrete(cls)
         spec = env_spec_of(cls, declared_only=self.adopted, whitespace=self.whitespace)
         self._own_library(cls)
         if not self.adopted and cls.defined_by is None:
@@ -283,6 +295,8 @@ class Package:
             for table, key, shown in spec.kind.claims(*addressed(self.prefix, spec.name, spec.cs), spec.alias)
         ]
         self._add(spec, *claims, rendered=cls.defined_by is None)
+        if not spec.kind.named:  # a colour is not a control sequence
+            cls.__tm_cs__ = "".join(addressed(self.prefix, spec.name, spec.cs))
         cls.__tm_prefix__ = self.prefix
         self._classes.append(cls)
         return cls
