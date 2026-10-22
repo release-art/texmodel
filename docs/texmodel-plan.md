@@ -1036,7 +1036,15 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
     names missing packages for a given `.sty`. PDF/X-4 and PDF/A-2b output was never compiled in the test; an ICC profile
     has to be supplied at test time.
 15. **Spec round trip** (`to_dict` / `from_dict`) is not needed by a TOML-driven consumer, but a second consumer may want it.
-16. **Gate B itself.** The ten-minute criterion needs a first-time author, timed. The "three real past defects" criterion needs
+16. **Data-driven rendering (the workflow the first consumer wants).** Run `texmodel` on a card data file (TOML, or Python
+    dicts/structs) against the project's templates and get the documents, with no hand-written converter:
+    `texmodel render --data cards.toml <pointer>`. Needs: `Doc.from_dict()` / `to_dict()` (spec round trip, D2, with
+    validation and a migration hook); a declared mapping from data fields to components, kept next to the components (joins such
+    as three "spot" lines into one slot, slot order, deck policies like title case); an `Enum` field type for labels; and a
+    template directory argument or a `[tool.texmodel] templates` key, so bodies (`TemplateRef`) and adopted `sources` are found
+    from configuration, not from the pointer. Today the cards-to-nodes step is consumer Python and a TOML frontend is parked
+    (§21), so this reopens that decision. Decided 2026-10-22: log it, and make the existing pipeline operational first.
+17. **Gate B itself.** The ten-minute criterion needs a first-time author, timed. The "three real past defects" criterion needs
     a consumer whose history records an escaping bug and an over-set card; the first consumer recorded only interface drift.
 
 ## 22. Risks
