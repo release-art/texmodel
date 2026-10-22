@@ -1,4 +1,4 @@
-"""Components (M1): a `Command` is declared as a class; its fields are its arguments, its docstring its documentation.
+r"""Components (M1): a `Command` is declared as a class; its fields are its arguments, its docstring its documentation.
 
 ```python
 pkg = Package("acme-cards", prefix="ac")
@@ -26,23 +26,48 @@ An `Environment` also holds children, whose order and counts are its grammar (M4
 class CardBack(Environment):
     '''The back face of a card.'''
     children = [Name, Fact * (2, 3), Slot * (0, 3)]     # `* "?"`, `* "*"`, `* "+"` are shorthands
+    begin = r'\begin{minipage}{\linewidth}'
+    end = r'\end{minipage}'
 
 pkg.document(CardBack(Name("Rex"), Fact("Friendly & loyal."), Fact("50% of $5")), options=["a4paper"])
 ```
 
 `Text` fields are escaped on render (T3); a `Raw` field passes TeX through.
 
-The body is TeX in `slot.tex` beside the class, or a short inline `body=`: `class Slot(Command, body="...")`.
-Inside it `#text` is the argument named `text`; an environment has `card_back.begin.tex` and `card_back.end.tex`
-(or `begin=` / `end=`). A bad declaration is refused when the class is defined.
+A body is TeX, given explicitly: a `body` method returning it (a plain `body = r"..."` string works too), or a
+`TemplateRef` to a file. Indentation is removed, so a triple-quoted raw string reads as it will render:
+
+```python
+class Title(Command):
+    '''A job title.'''
+    text: Text
+
+    def body(self):
+        return r'''
+            \par\noindent{\color{bc-accent}#text}\par
+        '''
+
+class Slot(Command):
+    '''A labelled paragraph.'''
+    text: Text
+
+    def body(self):
+        return TemplateRef("slot.tex")      # relative to this module; nothing is looked up by name
+```
+
+An environment has `begin` and `end` in the same way. The method is read once, when the class is defined, with no
+instance: keep it to constant TeX. Inside a body `#text` is the argument named `text`. A bad declaration is refused when
+the class is defined.
 """
 
 import dataclasses
 import inspect
+import os
 import sys
+import textwrap
 import types
 import typing
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, ClassVar, dataclass_transform
 
@@ -53,7 +78,6 @@ from ._internal.render import (
     ValueSpec,
     arguments,
     check_name,
-    snake,
 )
 from .errors import DeclarationError, Violation
 from .types import CMYK, RGB, TEXT, Colour, Gray, Length, Raw
@@ -98,6 +122,64 @@ def _document(cls: type) -> str:
     return doc
 
 
+@dataclasses.dataclass(frozen=True, init=False)
+class TemplateRef:
+    """A body kept in a TeX file: `TemplateRef("fact.tex")`. Relative paths are relative to the module that defines the
+    component, so the reference works wherever the package is installed; there is no lookup by name."""
+
+    path: Path
+
+    def __init__(self, path: str | os.PathLike[str]) -> None:
+        object.__setattr__(self, "path", Path(path))
+
+
+def _source(cls: type, name: str) -> tuple[str, str] | None:
+    """The class's own `body` / `begin` / `end` as (TeX, origin), or None.
+
+    It is a string (dedented), a `TemplateRef` (the file is read now), or a method returning either. A field of that
+    name is not a body.
+    """
+    found: object = cls.__dict__.get(name)
+    if found is None or name in inspect.get_annotations(cls):
+        return None
+    call: Callable[..., object] | None = None
+    args: tuple[None, ...] = ()
+    if isinstance(found, staticmethod):
+        call = typing.cast(Callable[..., object], found.__func__)
+    elif isinstance(found, types.FunctionType):
+        call, args = found, (None,)
+    if call is not None:
+        try:
+            found = call(*args)
+        except (AttributeError, TypeError) as exc:
+            raise DeclarationError(
+                f"{cls.__qualname__}.{name}(): {exc}",
+                code="TM-M022",
+                path=cls.__name__,
+                hint="it is read when the class is defined, so it cannot use self: return constant TeX",
+            ) from exc
+    if isinstance(found, TemplateRef):
+        path = (
+            found.path
+            if found.path.is_absolute()
+            else Path(sys.modules[cls.__module__].__file__ or ".").parent / found.path
+        )
+        try:
+            return path.read_text(encoding="utf-8"), found.path.name
+        except OSError as exc:
+            raise DeclarationError(
+                f"{cls.__qualname__}.{name}: cannot read {path}: {exc.strerror}", code="TM-M005", path=cls.__name__
+            ) from exc
+    if not isinstance(found, str):
+        got = type(typing.cast(object, found)).__name__
+        raise DeclarationError(
+            f"{cls.__qualname__}.{name}: must be TeX (a string or a TemplateRef, or a method returning one), not {got}",
+            code="TM-M021",
+            path=cls.__name__,
+        )
+    return textwrap.dedent(found).strip("\n"), "inline"
+
+
 def _prefix(cls: type) -> str:
     prefix: str | None = getattr(cls, "__tm_prefix__", None)
     if prefix is None:
@@ -111,16 +193,16 @@ def _prefix(cls: type) -> str:
 class Command(metaclass=_Meta):
     """A TeX command (`\\newcommand`) whose arguments are the class's fields."""
 
-    __tm_inline__: ClassVar[str | None]
+    __tm_inline__: ClassVar[tuple[str, str] | None]
     __tm_unused__: ClassVar[tuple[str, ...]]
     __tm_args__: ClassVar[tuple[Arg, ...]]
     __tm_doc__: ClassVar[str]
     __tm_prefix__: ClassVar[str]  # set when a package registers the class
 
-    def __init_subclass__(cls, *, body: str | None = None, unused: Sequence[str] = (), **kwargs: Any) -> None:
+    def __init_subclass__(cls, *, unused: Sequence[str] = (), **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         doc = _document(cls)
-        cls.__tm_inline__, cls.__tm_unused__, cls.__tm_doc__ = body, tuple(unused), doc
+        cls.__tm_inline__, cls.__tm_unused__, cls.__tm_doc__ = _source(cls, "body"), tuple(unused), doc
         # Optional fields are keyword-only (M2): mark them before the dataclass is built.
         for name in inspect.get_annotations(cls):
             if name in cls.__dict__ and not name.startswith("__"):
@@ -147,19 +229,17 @@ class Environment(metaclass=_Meta):
 
     content: tuple[Node, ...]
     children: ClassVar[Sequence[type | Repeat]] = ()  # the grammar: components in order, with counts (M4)
-    __tm_inline__: ClassVar[tuple[str | None, str | None]]
+    __tm_inline__: ClassVar[tuple[tuple[str, str] | None, tuple[str, str] | None]]
     __tm_unused__: ClassVar[tuple[str, ...]]
     __tm_args__: ClassVar[tuple[Arg, ...]]
     __tm_doc__: ClassVar[str]
     __tm_grammar__: ClassVar[tuple[Repeat, ...]]
     __tm_prefix__: ClassVar[str]
 
-    def __init_subclass__(
-        cls, *, begin: str | None = None, end: str | None = None, unused: Sequence[str] = (), **kwargs: Any
-    ) -> None:
+    def __init_subclass__(cls, *, unused: Sequence[str] = (), **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         cls.__tm_doc__ = doc = _document(cls)
-        cls.__tm_inline__, cls.__tm_unused__ = (begin, end), tuple(unused)
+        cls.__tm_inline__, cls.__tm_unused__ = (_source(cls, "begin"), _source(cls, "end")), tuple(unused)
         cls.__tm_grammar__ = _grammar(cls)
         for name in inspect.get_annotations(cls):
             if name in cls.__dict__ and not name.startswith("__"):
@@ -310,26 +390,20 @@ def _emit(node: Node) -> str:
     return "\n".join([f"\\begin{{{name}}}{args}", *map(_emit, node.content), f"\\end{{{name}}}"])
 
 
-def _find(cls: type, inline: str | None, filename: str, option: str) -> tuple[str, str]:
-    """A body is inline or a file beside the class, never both and never neither (M8)."""
-    candidate = Path(sys.modules[cls.__module__].__file__ or ".").parent / filename
-    qualname = f"{cls.__module__}.{cls.__qualname__}"
-    if inline is not None and candidate.is_file():
+def _required(cls: type, found: tuple[str, str] | None, option: str) -> tuple[str, str]:
+    if found is None:
         raise DeclarationError(
-            f"{qualname}: has both an inline {option} and {filename}; keep one", code="TM-M005", path=cls.__name__
+            f"{cls.__module__}.{cls.__qualname__}: no {option}",
+            code="TM-M006",
+            path=cls.__name__,
+            hint=f'define `{option}` as a string, a TemplateRef("file.tex"), or a method returning either',
         )
-    if inline is not None:
-        return inline, "inline"
-    if candidate.is_file():
-        return candidate.read_text(encoding="utf-8"), filename
-    raise DeclarationError(
-        f"{qualname}: no {option}; write {candidate} or pass {option}='...'", code="TM-M006", path=cls.__name__
-    )
+    return found
 
 
 def spec_of(cls: type[Command]) -> Spec:
-    """The declaration as the renderer sees it, with the body found (inline, or `<snake_name>.tex` beside the class)."""
-    body, origin = _find(cls, cls.__tm_inline__, f"{snake(cls.__name__)}.tex", "body")
+    """The declaration as the renderer sees it, with its body (M8)."""
+    body, origin = _required(cls, cls.__tm_inline__, "body")
     return Spec(
         cls.__name__,
         cls.__tm_doc__,
@@ -342,10 +416,9 @@ def spec_of(cls: type[Command]) -> Spec:
 
 
 def env_spec_of(cls: type[Environment]) -> EnvSpec:
-    """As `spec_of`, with two bodies: `<snake_name>.begin.tex` and `<snake_name>.end.tex`."""
-    stem = snake(cls.__name__)
-    begin, begin_origin = _find(cls, cls.__tm_inline__[0], f"{stem}.begin.tex", "begin")
-    end, end_origin = _find(cls, cls.__tm_inline__[1], f"{stem}.end.tex", "end")
+    """As `spec_of`, with two bodies: `begin` and `end`."""
+    begin, begin_origin = _required(cls, cls.__tm_inline__[0], "begin")
+    end, end_origin = _required(cls, cls.__tm_inline__[1], "end")
     origin = " + ".join(dict.fromkeys((begin_origin, end_origin)))
     return EnvSpec(
         cls.__name__,

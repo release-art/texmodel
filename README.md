@@ -20,7 +20,7 @@ This repository holds two packages, released in lockstep:
 
 ```python
 # acme_cards/__init__.py
-from texmodel.components import Command, Environment, Value
+from texmodel.components import Command, Environment, TemplateRef, Value
 from texmodel.package import Package
 from texmodel.types import CMYK, Bool, Colour, Length, Text
 
@@ -45,6 +45,7 @@ class Compact(Value[Bool]):
 class Fact(Command):
     """One short sentence under the title."""
     text: Text
+    body = TemplateRef("fact.tex")   # explicit: a file next to this module; nothing is found by name
 
 @pkg.command
 class Slot(Command):
@@ -56,10 +57,12 @@ class Slot(Command):
 class CardBack(Environment):
     """The back face of a card."""
     children = [Name, Fact * (2, 3), Slot * (0, 3)]   # order and counts; `* "?"`, `* "*"`, `* "+"` also work
+    begin = r"\begin{minipage}{\linewidth}"
+    end = r"\end{minipage}"
 ```
 
-The body is TeX in a file named after the class, beside it (`acme_cards/fact.tex`), or an inline `body="..."` for a line
-or two. `#text` is the argument named `text`:
+A body is TeX you point at: a `TemplateRef("fact.tex")` (relative to the defining module), a string, or a `body`
+method returning either (dedented, so a raw triple-quoted string reads as it renders). `#text` is the argument named `text`:
 
 ```latex
 \par\noindent{\color{ac-ink}#text}\par\vspace{\acFactGap}
@@ -71,7 +74,7 @@ A `Value[T]` needs no body: its type decides the declaration (`Length` -> `\newl
 (`xcolor` for colours) are `\RequirePackage`d once, sorted. A body that names an undeclared `\acThing` is refused when
 `render()` / `texmodel check` runs (not at registration, since a body may name a component declared after it).
 
-An environment's bodies are `card_back.begin.tex` and `card_back.end.tex` (or `begin=` / `end=`). A document is plain
+An environment has `begin` and `end` in the same way. A document is plain
 Python; `Text` fields are escaped, a `Raw` field passes TeX through, and everything wrong is reported at once:
 
 ```python

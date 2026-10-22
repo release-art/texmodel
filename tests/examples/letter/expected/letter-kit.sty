@@ -1,0 +1,56 @@
+% letter-kit.sty -- generated with texmodel X.Y.Z. Do not edit; run `texmodel build`.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{letter-kit}[2026/10/22 v1.0.0 Letters]
+
+\RequirePackage{calc}
+\RequirePackage{xcolor}
+
+% First-line indent; `em` is relative to the font and is kept as written.
+% from letter.Indent (value: Length)
+\newlength{\ltIndent}
+\setlength{\ltIndent}{1.5em}
+
+% Body text colour. Declares `calc` on top of the `xcolor` that colours imply.
+% from letter.Ink (value: Colour)
+\definecolor{lt-ink}{gray}{0.2}
+
+% Mark the letter as a draft.
+% from letter.Draft (value: Bool)
+\newif\ifltDraft
+\ltDraftfalse
+
+% One paragraph of body text.
+% from letter.Paragraph (body: inline)
+\newcommand{\ltParagraph}[1]{%
+\par\noindent\hspace{\ltIndent}\textcolor{lt-ink}{#1}\par
+}
+
+% A note set small. The TeX is passed through, not escaped, so it must be trusted.
+% from letter.Aside (body: inline)
+\newcommand{\ltAside}[1]{%
+\par{\footnotesize #1}\par
+}
+
+% The closing line and the sender's name.
+% from letter.Signoff (body: inline)
+\newcommand{\ltSignoff}[1]{%
+\par\vspace{1cm}\noindent #1\par
+}
+
+% A quotation: only paragraphs.
+% from letter.Quote (body: inline)
+\newenvironment{ltQuote}{%
+\begin{quote}
+}{%
+\end{quote}
+}
+
+% A letter to someone, with an optional subject line. Arguments belong to the begin body.
+% from letter.Letter (body: letter.begin.tex + letter.end.tex)
+\newenvironment{ltLetter}[2][]{%
+\par\noindent\textbf{To: #2}\par
+\ifx\relax#1\relax\else\noindent Re: #1\par\fi
+\ifltDraft\par\noindent\textsc{draft}\par\fi
+}{%
+\par
+}

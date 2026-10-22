@@ -98,8 +98,10 @@ def test_registration_order_is_output_order_across_commands_and_values():
     p = pkg()
 
     @p.command
-    class First(Command, body="x"):
+    class First(Command):
         """First."""
+
+        body = "x"
 
     @p.value
     class Second(Value[Bool]):
@@ -108,8 +110,10 @@ def test_registration_order_is_output_order_across_commands_and_values():
         default = False
 
     @p.command
-    class Third(Command, body="x"):
+    class Third(Command):
         """Third."""
+
+        body = "x"
 
     text = sty(p)
     assert text.index("acFirst") < text.index("acSecond") < text.index("acThird")
@@ -159,8 +163,10 @@ def test_collisions_stay_within_their_namespace():
     p = pkg()
 
     @p.command
-    class Compact(Command, body="x"):  # pyright: ignore[reportRedeclaration]
+    class Compact(Command):  # pyright: ignore[reportRedeclaration]
         """Command."""
+
+        body = "x"
 
     with refused("TM-M007") as info:
 
@@ -179,8 +185,10 @@ def test_collisions_stay_within_their_namespace():
         default = Gray(0)
 
     @p.command
-    class Ink(Command, body="x"):  # noqa: F811  # pyright: ignore[reportRedeclaration]  (colour vs control: no clash)
+    class Ink(Command):  # noqa: F811  # pyright: ignore[reportRedeclaration]  (colour vs control: no clash)
         """Command \\acInk."""
+
+        body = "x"
 
     with refused("TM-M007") as info:
 
@@ -205,8 +213,10 @@ def test_a_boolean_owns_its_switches():
     with refused("TM-M007"):
 
         @p.command
-        class Compacttrue(Command, body="x"):  # noqa: N801
+        class Compacttrue(Command):  # noqa: N801
             """Collides with the switch."""
+
+            body = "x"
 
     assert "Compacttrue" not in sty(p).split("\\newif")[0]
 
@@ -215,8 +225,10 @@ def test_body_references_are_checked_when_output_is_asked_for_not_when_registere
     p = pkg()
 
     @p.command
-    class Fact(Command, body=r"\acLater \acCompacttrue"):
+    class Fact(Command):
         """Names components declared after it."""
+
+        body = r"\acLater \acCompacttrue"
 
     with refused("TM-M015") as info:
         p.files()
@@ -225,8 +237,10 @@ def test_body_references_are_checked_when_output_is_asked_for_not_when_registere
     )
 
     @p.command
-    class Later(Command, body="x"):
+    class Later(Command):
         """Declared late."""
+
+        body = "x"
 
     with refused("TM-M015"):
         p.render()  # \acCompacttrue is still unknown
@@ -244,7 +258,9 @@ def test_only_prefixed_capitalised_control_words_are_checked():
     p = pkg()
 
     @p.command
-    class Quiet(Command, body="\\ac@x \\\\acNope \\acfoo \\ifacZip\\fi \\textbf \\% \\acQuiet % \\acCommented\n"):
+    class Quiet(Command):
         """Internals, unprefixed names, line breaks and comments are not ours."""
+
+        body = "\\ac@x \\\\acNope \\acfoo \\ifacZip\\fi \\textbf \\% \\acQuiet % \\acCommented\n"
 
     assert "acQuiet" in p.files()["p.sty"]

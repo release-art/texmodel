@@ -12,6 +12,8 @@ bin/test.sh                           # pytest, 100% coverage gate
 - Generated output is a contract (plan G7). `tests/fixtures/acme_cards/generated/acme-cards.sty` is the golden; if you change
   rendering on purpose, regenerate it and say so in the changelog:
   `pdm run python -c "import sys, pathlib; sys.path.insert(0, 'tests/fixtures'); import acme_cards as a; [pathlib.Path('tests/fixtures/acme_cards/generated', k).write_text(v) for k, v in a.pkg.files(version='0.1.0').items()]"`
+- `tests/examples/` holds complete example packages with committed output (`expected/`); they double as documentation.
+  After an intended output change: `UPDATE_GOLDEN=1 pdm run pytest tests/test_texmodel/test_examples.py`, review the diff.
 - Code is formatted and linted with ruff, type-checked with pyright (strict on `src`, 0 errors), runs on Python 3.15.
 - Two packages: `src/texmodel` (the library; never imports `texmodel_build` or spawns a process) and `harness/src/texmodel_build`
   (the optional build side; only `_internal/spawn.py` may import `subprocess`). import-linter enforces both.

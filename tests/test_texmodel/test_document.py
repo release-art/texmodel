@@ -30,34 +30,45 @@ def shop():
     p = Package("shop", prefix="sh", document_class="article")
 
     @p.command
-    class Name(Command, body="\\textbf{#text}"):
+    class Name(Command):
         """Title."""
 
+        body = "\\textbf{#text}"
+
         text: Text
 
     @p.command
-    class Fact(Command, body="#text"):
+    class Fact(Command):
         """A fact."""
 
+        body = "#text"
+
         text: Text
 
     @p.command
-    class Slot(Command, body="#label #text"):
+    class Slot(Command):
         """Labelled."""
+
+        body = "#label #text"
 
         text: Text
         label: Text | None = None
 
     @p.command
-    class Tex(Command, body="#tex#note"):
+    class Tex(Command):
         """Raw TeX in."""
+
+        body = "#tex#note"
 
         tex: Raw
         note: Raw | None = None
 
     @p.environment
-    class Card(Environment, begin="\\begin{center}#title", end="\\end{center}"):
+    class Card(Environment):
         """A card."""
+
+        begin = "\\begin{center}#title"
+        end = "\\end{center}"
 
         children = [Name, Fact * (2, 3), Slot * (0, 3)]
         title: Text | None = None
@@ -127,8 +138,10 @@ def test_a_field_of_the_wrong_kind_is_a_violation_with_its_path():
 
 
 def test_an_unregistered_component_cannot_render():
-    class Loose(Command, body="x"):
+    class Loose(Command):
         """Not registered."""
+
+        body = "x"
 
     with refused("TM-M019"):
         Loose().render()
@@ -151,8 +164,11 @@ def test_environment_arguments_are_keywords_and_checked():
     with pytest.raises(TypeError, match="unexpected"):
         s.Card(nope="x")
 
-    class Needs(Environment, begin="#a", end="e"):
+    class Needs(Environment):
         """A required argument."""
+
+        begin = "#a"
+        end = "e"
 
         a: Text
 
@@ -160,8 +176,11 @@ def test_environment_arguments_are_keywords_and_checked():
         Needs()
     with refused("TM-M004"):
 
-        class IntArg(Environment, begin="b", end="e"):
+        class IntArg(Environment):
             """An int field."""
+
+            begin = "b"
+            end = "e"
 
             n: int = 0
 
@@ -189,18 +208,26 @@ def test_nested_environments_validate_their_own_children():
     p = Package("n", prefix="n")
 
     @p.command
-    class Leaf(Command, body="x"):
+    class Leaf(Command):
         """Leaf."""
 
+        body = "x"
+
     @p.environment
-    class Inner(Environment, begin="b", end="e"):
+    class Inner(Environment):
         """Inner."""
+
+        begin = "b"
+        end = "e"
 
         children = [Leaf * "+"]
 
     @p.environment
-    class Outer(Environment, begin="b", end="e"):
+    class Outer(Environment):
         """Outer."""
+
+        begin = "b"
+        end = "e"
 
         children = [Inner * "?", Leaf * "*"]
 
@@ -226,8 +253,11 @@ def test_grammar_terms_and_their_refusals():
             _ = s.Fact * bad  # pyright: ignore[reportOperatorIssue]
     with refused("TM-M020"):
 
-        class Bad(Environment, begin="b", end="e"):
+        class Bad(Environment):
             """Strings are not components."""
+
+            begin = "b"
+            end = "e"
 
             children = ["Name"]  # pyright: ignore[reportAssignmentType]
 
@@ -240,32 +270,44 @@ def test_environment_bodies_are_found_linted_and_attributed():
         class NoBodies(Environment):
             """No files."""
 
-    assert "no_bodies.begin.tex" in str(info.value)
+    assert "no begin" in str(info.value)
     with refused("TM-M018"):
 
         @p.environment
-        class EndHole(Environment, begin="#a", end="#a"):
+        class EndHole(Environment):
             """End cannot read arguments."""
+
+            begin = "#a"
+            end = "#a"
 
             a: Text
 
     with refused("TM-M011"):
 
         @p.environment
-        class Open(Environment, begin="{", end="}"):
+        class Open(Environment):
             """Braces."""
+
+            begin = "{"
+            end = "}"
 
     with refused("TM-M010"):
 
         @p.environment
-        class Forgot(Environment, begin="x", end="y"):
+        class Forgot(Environment):
             """Never uses its argument."""
+
+            begin = "x"
+            end = "y"
 
             a: Text
 
     @p.environment
-    class Fine(Environment, begin="\\relax ##", end="##"):
+    class Fine(Environment):
         """Hash pairs are literal in both."""
+
+        begin = "\\relax ##"
+        end = "##"
 
     assert "(body: inline)" in p.render()
 
@@ -274,8 +316,11 @@ def test_a_body_that_names_an_undeclared_component_is_refused_in_environments_to
     p = Package("e", prefix="e")
 
     @p.environment
-    class Env(Environment, begin="\\eMissing", end="x"):
+    class Env(Environment):
         """Names a command that is not there."""
+
+        begin = "\\eMissing"
+        end = "x"
 
     with refused("TM-M015"):
         p.render()

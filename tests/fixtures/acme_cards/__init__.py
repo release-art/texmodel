@@ -1,6 +1,6 @@
 """A small package used by the tests: the committed `generated/acme-cards.sty` is its golden output."""
 
-from texmodel.components import Command, Environment, Value
+from texmodel.components import Command, Environment, TemplateRef, Value
 from texmodel.package import Package
 from texmodel.types import CMYK, Bool, Colour, Length, Text
 
@@ -34,12 +34,16 @@ class Name(Command):
 
     text: Text
 
+    body = TemplateRef("name.tex")
+
 
 @pkg.command
 class Fact(Command):
     """One short sentence under the title."""
 
     text: Text
+
+    body = TemplateRef("fact.tex")
 
 
 @pkg.command
@@ -49,14 +53,21 @@ class Slot(Command):
     text: Text
     label: Text | None = None
 
+    body = TemplateRef("slot.tex")
+
 
 @pkg.command
-class Rule(Command, body=r"\par\noindent\rule{\linewidth}{0.4pt}\par"):
+class Rule(Command):
     """A thin horizontal rule."""
+
+    body = r"\par\noindent\rule{\linewidth}{0.4pt}\par"
 
 
 @pkg.environment
 class CardBack(Environment):
     """The back face of a card."""
+
+    begin = TemplateRef("card_back.begin.tex")
+    end = TemplateRef("card_back.end.tex")
 
     children = [Name, Fact * (2, 3), Slot * (0, 3)]
