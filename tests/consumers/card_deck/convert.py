@@ -31,7 +31,7 @@ def preamble(project: dict[str, Any]) -> PreambleSlots:
         before_package=(Raw(r"\makeatletter\def\input@path{{res/}}\makeatother"),),
         after_package=(
             Raw(rf"\renewcommand{{\cdDeckName}}{{{escape(project['deck_name'])}}}"),
-            *(Raw(rf"\newcommand{{{label.macro.tex}}}{{{label.shown}}}") for label in model.SlotLabel),
+            *(Raw(rf"\newcommand{{{label.value.tex}}}{{{model.SHOWN[label]}}}") for label in model.SlotLabel),
         ),
     )
 
@@ -41,7 +41,7 @@ def card(number: int, source: dict[str, Any]) -> model.Card:
     for line in source["one_liners"]:
         by_label.setdefault(line["label"], []).append(text(line["text"]))
     slots = (
-        model.LabelledSlot(model.SlotLabel[label.upper()].macro, " ".join(by_label[label]))
+        model.LabelledSlot(model.SlotLabel[label.upper()], " ".join(by_label[label]))
         for label in ("sound", "spot", "where")
     )
     return model.Card(

@@ -148,3 +148,13 @@ def test_escaping_where_texmodel_and_the_generator_differ():
 def test_a_picture_path_is_raw_because_escaping_it_would_break_the_file_name():
     assert model.CardImage(Raw("images/a_b.jpg")).render() == r"\cdCardImage{images/a_b.jpg}"
     assert escape("images/a_b.jpg") == r"images/a\_b.jpg"
+
+
+def test_the_cards_round_trip_through_data_and_the_schema_covers_the_grammar():
+    from texmodel.spec import from_dict, json_schema, to_dict
+
+    for card in convert.nodes():
+        assert from_dict(model.Card, to_dict(card)) == card
+    schema = json_schema(model.Card)
+    assert set(schema["$defs"]) >= {"CardFront", "CardBack", "LabelledSlot", "TalkAboutMe"}
+    assert schema["$defs"]["TalkAboutMe"]["required"] == ["question"]

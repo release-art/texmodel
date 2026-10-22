@@ -8,7 +8,7 @@ import re
 from collections.abc import Mapping, Sequence
 
 from ..errors import DeclarationError
-from ..types import Colour, Length, Raw, balanced, escape
+from ..types import Choice, Colour, Length, Raw, balanced, escape
 
 _HOLE = re.compile(r"##|#(?P<name>[A-Za-z_]\w*)|#(?P<digit>\d)")
 _CONTROL_WORD = re.compile(r"[A-Z][A-Za-z]*")
@@ -25,6 +25,7 @@ class Arg:
     name: str
     optional: bool = False  # TeX's one optional argument: always first, empty when absent
     raw: bool = False  # a `Raw` field passes through; a `Text` field is escaped (T3)
+    choice: type[Choice] | None = None  # a closed set: the member's value is the TeX (T1)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -165,6 +166,8 @@ def render_environment(prefix: str, spec: EnvSpec) -> str:
 
 def argument(arg: Arg, value: object) -> str:
     """One call argument. `Text` is escaped, `Raw` passes through; a `]` in the optional one is wrapped (T3)."""
+    if isinstance(value, Choice):
+        value = value.value
     text = value.tex if isinstance(value, Raw) else escape(str(value))
     if not arg.optional:
         return f"{{{text}}}"

@@ -166,6 +166,46 @@ document needs it: `before_class` for `\DocumentMetadata`, `before_package` for 
 component declares is refused with its path (`TM-M015`, `preamble.after_package[0]`). `tests/consumers/card_deck/` is a
 complete example: a hand-written package, the generator it replaces and a 3-card deck.
 
+### A closed set of values
+
+A `Choice` is an enum whose members carry their TeX: a `Raw` passes through, a `str` is escaped. Use it as a field type
+(optionally `| None`); data names a member by its name.
+
+```python
+@enum.unique
+class SlotLabel(Choice):
+    SOUND = Raw(r"\deckParamSound")
+    WHERE = Raw(r"\deckParamWhere")
+
+@pkg.command
+class LabelledSlot(Command):
+    """A fact with a label."""
+    label: SlotLabel
+    text: Text
+
+LabelledSlot(SlotLabel.SOUND, "A soft woof.")      # \cdLabelledSlot{\deckParamSound}{A soft woof.}
+```
+
+### A document from data
+
+`texmodel.spec` loads a document from plain data (what TOML or JSON gives), using pydantic: a child names its component with
+`"type"`, an environment's children are its `content`, a `Raw` field takes a string.
+
+```python
+from texmodel.spec import from_dict, json_schema, to_dict
+
+card = from_dict(Card, {"content": [
+    {"type": "CardFront", "content": [{"type": "CardImage", "path": "a.jpg"}]},
+    {"type": "CardBack", "content": [{"type": "Name", "text": "Fox"}, {"type": "LeadFact", "text": "..."}]},
+]})
+card.validate()      # the grammar (counts, order) is checked here, as for any tree
+to_dict(card)        # the same shape back
+json_schema(Card)    # JSON Schema of what from_dict accepts
+```
+
+Everything wrong comes at once as an `ExceptionGroup` of `ValidationError` (`TM-C020`), each with a path such as
+`Card/CardBack[1]/LeadFact[2].text`.
+
 ### Where a line came from
 
 `pkg.plan(...)` takes the arguments of `pkg.document(...)` and returns a `Plan`: every output line with the path of what wrote it

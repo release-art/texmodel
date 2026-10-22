@@ -967,6 +967,8 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | The harness types any package warning (`PackageWarning`, `TM-X019`); a package's "does not fit" message is read by the consumer until `Measure` exists | decided 2026-10-22 |
 | Consumer evidence lives in a committed snapshot (`tests/consumers/`); the one `consumer` test reads the live deck read-only and is skipped without it | decided 2026-10-22 |
 | A source map is a `Plan`: output lines with the path that wrote each; the baseline for hand-edit detection is its JSON, stored beside the committed file | decided 2026-10-22 |
+| A closed set is a `Choice` enum whose member values are the TeX (`Raw` passes through, `str` is escaped); data names a member by name | decided 2026-10-22 |
+| Pydantic v2 is a dependency, used at the data boundary only (`texmodel.spec`: `from_dict`, `to_dict`, `json_schema`); component classes stay stdlib frozen dataclasses; default (lax) coercion; its errors are mapped to `Violation` / `ValidationError` with `TM-C020` and `validate()`-style paths | decided 2026-10-22 |
 | Python-only authoring; TOML/YAML frontend | parked, not planned |
 | Renames via `renamed_from` → pydantic aliases + release record | decided |
 | lualatex only in v1; capabilities explicit | decided |
@@ -997,7 +999,7 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 From running Gate B on a real card deck and its hand-written package family (private; `tests/consumers/card_deck/` keeps the
 shape with made-up data). Ordered by how much the consumer missed them. Each is a candidate, not a decision.
 
-1. **Typed settings and labels.** `Value[Text]`, an `Enum` field type and `List`. Today a per-deck text setting is an
+1. **Typed settings and labels.** `Choice` (the enum field type) is built 2026-10-22; open: `Value[Text]` and `List`. Today a per-deck text setting is an
    argument-less adopted Command whose value is `Raw` in the preamble, and a slot label is a `Raw` field fed by a consumer enum.
    `Enum` would also give a closed set of labels to validate and to export.
 2. **Typed over-set: `Measure` (C5).** A package reports "card X does not fit, needs A, has B" as its own warning; the harness
@@ -1035,7 +1037,10 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
     (found by compiling a real brand package; `tlmgr install` adds them). Idea: a documented "full" tag, or a doctor check that
     names missing packages for a given `.sty`. PDF/X-4 and PDF/A-2b output was never compiled in the test; an ICC profile
     has to be supplied at test time.
-15. **Spec round trip** (`to_dict` / `from_dict`) is not needed by a TOML-driven consumer, but a second consumer may want it.
+15. **Spec round trip** (`to_dict` / `from_dict`): first version built 2026-10-22 as `texmodel.spec` on pydantic (data shape: a child
+    names its component with `"type"`; environments take `content`; error paths as `validate()`). Open: `Doc` with migrations
+    (X), `renamed_from` aliases, data-to-component mapping (item 16), `json_schema` for a whole package,
+    and walking pydantic's field info for docs and constraints instead of our own `_arguments` (not needed for TeX signatures).
 16. **Data-driven rendering (the workflow the first consumer wants).** Run `texmodel` on a card data file (TOML, or Python
     dicts/structs) against the project's templates and get the documents, with no hand-written converter:
     `texmodel render --data cards.toml <pointer>`. Needs: `Doc.from_dict()` / `to_dict()` (spec round trip, D2, with

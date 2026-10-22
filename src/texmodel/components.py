@@ -81,7 +81,7 @@ from ._internal.render import (
     check_name,
 )
 from .errors import DeclarationError, Violation
-from .types import CMYK, RGB, TEXT, Colour, Gray, Length, Raw
+from .types import CMYK, RGB, TEXT, Choice, Colour, Gray, Length, Raw
 
 type Node = Command | Environment
 
@@ -316,11 +316,13 @@ def _arguments(cls: type[Command] | type[Environment]) -> tuple[Arg, ...]:
         kind = _kind(hints[f.name])
         if kind is None:
             raise DeclarationError(
-                f"{cls.__qualname__}.{f.name}: unsupported type {hints[f.name]!r}; use Text, Raw or either | None",
+                f"{cls.__qualname__}.{f.name}: unsupported type {hints[f.name]!r}; "
+                "use Text, Raw or a Choice, or one of them | None",
                 code="TM-M004",
                 path=f"{cls.__name__}.{f.name}",
             )
-        args.append(Arg(f.name, optional=f.default is not dataclasses.MISSING, raw=kind == "raw"))
+        choice = _choice(cls, f.name, kind) if isinstance(kind, type) else None
+        args.append(Arg(f.name, optional=f.default is not dataclasses.MISSING, raw=kind == "raw", choice=choice))
     if sum(a.optional for a in args) > 1:
         raise DeclarationError(
             f"{cls.__qualname__}: more than one optional argument (TeX's \\newcommand allows one)",
@@ -330,13 +332,30 @@ def _arguments(cls: type[Command] | type[Environment]) -> tuple[Arg, ...]:
     return tuple(args)
 
 
-def _kind(hint: Any) -> str | None:
-    """`"text"` for `Text` / `Text | None`, `"raw"` for `Raw` / `Raw | None`, else `None`."""
+def _choice(cls: type, field: str, kind: type[Choice]) -> type[Choice]:
+    """A `Choice` takes TeX from its members' values: all `Raw` or all `str`, and no two members alike (aliases)."""
+    values = [m.value for m in kind]
+    if len(values) != len(kind.__members__) or not (
+        all(isinstance(v, Raw) for v in values) or all(isinstance(v, str) for v in values)
+    ):
+        raise DeclarationError(
+            f"{cls.__qualname__}.{field}: {kind.__name__} must have members that are all Raw or all str, none an alias",
+            code="TM-M024",
+            path=f"{cls.__name__}.{field}",
+            hint="give each member its TeX as a Raw (passes through) or a str (escaped)",
+        )
+    return kind
+
+
+def _kind(hint: Any) -> str | type[Choice] | None:
+    """`"text"` for `Text` / `Text | None`, `"raw"` for `Raw` / `Raw | None`, the class for a `Choice` (or `| None`)."""
     members = [
         m for m in (typing.get_args(hint) if isinstance(hint, types.UnionType) else (hint,)) if m is not type(None)
     ]
     if members and all(typing.get_origin(m) is typing.Annotated and TEXT in typing.get_args(m)[1:] for m in members):
         return "text"
+    if len(members) == 1 and isinstance(members[0], type) and issubclass(members[0], Choice):
+        return members[0]
     return "raw" if members and all(m is Raw for m in members) else None
 
 
@@ -345,8 +364,8 @@ def _violations(node: Node, path: str) -> list[Violation]:
     out: list[Violation] = []
     for a in cls.__tm_args__:
         v = getattr(node, a.name)
-        if not (v is None and a.optional or isinstance(v, Raw if a.raw else str)):
-            want = "Raw" if a.raw else "Text"
+        if not (v is None and a.optional or isinstance(v, a.choice or (Raw if a.raw else str))):
+            want = f"one of {list(a.choice.__members__)}" if a.choice else "Raw" if a.raw else "Text"
             out.append(Violation("TM-C003", f"{path}.{a.name}", f"{a.name}: expected {want}, got {v!r}"))
     if isinstance(node, Environment):
         out += _grammar_violations(node, path)

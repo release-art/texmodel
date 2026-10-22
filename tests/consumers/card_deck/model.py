@@ -4,27 +4,22 @@ import enum
 
 from texmodel.components import Command, Environment
 from texmodel.package import Package
-from texmodel.types import Raw, Text
+from texmodel.types import Choice, Raw, Text
 
 pkg = Package("card-deck", prefix="cd", adopted=True)
 
 
 @enum.unique
-class SlotLabel(enum.Enum):
-    """A labelled slot's label: the macro the deck defines for it, and the words that print."""
+class SlotLabel(Choice):
+    """A labelled slot's label: each member is the macro the deck defines for it."""
 
-    FACT = (r"\deckParamFactFact", "Fact")
-    SOUND = (r"\deckParamFactSound", "Sound")
-    SPOT = (r"\deckParamFactSpot", "Spot")
-    WHERE = (r"\deckParamFactWhere", "Where")
+    FACT = Raw(r"\deckParamFactFact")
+    SOUND = Raw(r"\deckParamFactSound")
+    SPOT = Raw(r"\deckParamFactSpot")
+    WHERE = Raw(r"\deckParamFactWhere")
 
-    @property
-    def macro(self) -> Raw:
-        return Raw(self.value[0])
 
-    @property
-    def shown(self) -> str:
-        return self.value[1]
+SHOWN = {SlotLabel.FACT: "Fact", SlotLabel.SOUND: "Sound", SlotLabel.SPOT: "Spot", SlotLabel.WHERE: "Where"}
 
 
 @pkg.command
@@ -55,9 +50,9 @@ class LeadFact(Command):
 
 @pkg.command
 class LabelledSlot(Command):
-    """A fact whose label runs in at its start; the label is a macro the deck defines (`SlotLabel`)."""
+    """A fact whose label runs in at its start; the label is a `SlotLabel`."""
 
-    label: Raw
+    label: SlotLabel
     text: Text
 
 

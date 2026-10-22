@@ -5,13 +5,17 @@ and (later) the escaper know the field holds untrusted text that must be escaped
 """
 
 import dataclasses
+import enum
 import math
 import re
 from decimal import Decimal
 from fractions import Fraction
-from typing import Annotated, ClassVar, Final
+from typing import TYPE_CHECKING, Annotated, ClassVar, Final
 
 from .errors import DeclarationError, ValidationError
+
+if TYPE_CHECKING:
+    from pydantic_core import CoreSchema
 
 
 class _TextMarker:
@@ -74,6 +78,54 @@ class Raw:
     def __post_init__(self) -> None:
         if not balanced(self.tex):
             raise ValidationError("Raw: unbalanced braces", code="TM-C007", hint="close every { and } in the TeX")
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source: object, handler: object) -> CoreSchema:
+        """Data gives `Raw` as a string (S, D2); a `Raw` passes as it is; unbalanced braces are a data error."""
+        from pydantic_core import core_schema as cs
+
+        def make(value: object) -> Raw:
+            if isinstance(value, Raw):
+                return value
+            if not isinstance(value, str):
+                raise ValueError("expected TeX as a string")  # noqa: TRY004  # pydantic reports ValueError, not TypeError
+            try:
+                return Raw(value)
+            except ValidationError as exc:
+                raise ValueError(str(exc)) from exc
+
+        return cs.json_or_python_schema(
+            json_schema=cs.chain_schema([cs.str_schema(), cs.no_info_plain_validator_function(make)]),
+            python_schema=cs.no_info_plain_validator_function(make),
+            serialization=cs.plain_serializer_function_ser_schema(lambda raw: raw.tex),
+        )
+
+
+class Choice(enum.Enum):
+    """A closed set a field takes (T1): subclass it, decorate the subclass with `@enum.unique`, and give each member the
+    TeX it stands for, a `Raw` (passes through) or a `str` (escaped as text). Data names a member by its name."""
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}.{self.name}"
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source: object, handler: object) -> CoreSchema:
+        from pydantic_core import core_schema as cs
+
+        names = list(cls.__members__)
+
+        def make(value: object) -> Choice:
+            if isinstance(value, cls):
+                return value
+            if isinstance(value, str) and value in names:
+                return cls[value]
+            raise ValueError(f"expected one of {names}")
+
+        return cs.json_or_python_schema(
+            json_schema=cs.chain_schema([cs.literal_schema(names), cs.no_info_plain_validator_function(make)]),
+            python_schema=cs.no_info_plain_validator_function(make),
+            serialization=cs.plain_serializer_function_ser_schema(lambda member: member.name),
+        )
 
 
 # --- Values (T2, T4, T5): what a `Value[T]` holds. Immutable, validated on construction, stable to format. ---

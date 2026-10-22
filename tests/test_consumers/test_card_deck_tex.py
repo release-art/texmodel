@@ -56,7 +56,7 @@ def test_escaping_text_with_every_special_compiles_and_the_same_text_unescaped_d
             model.Name("R&D"),
             model.LeadFact(text),
             model.LeadFact("Two."),
-            model.LabelledSlot(model.SlotLabel.SPOT.macro, text),
+            model.LabelledSlot(model.SlotLabel.SPOT, text),
         ),
     )
     tex = deck_of(card)

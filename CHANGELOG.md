@@ -40,6 +40,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a trailing `()` calls the getter with no arguments. A malformed pointer is `TM-D020`; a failed import, lookup or call is `TM-D021`.
 - `Compiler.compile(source, outdir, plan=)`: with the `Plan` that wrote the source, every diagnostic located in it carries `path`
   (`Card[1]/CardBack[1]/LabelledSlot[3]`); `texmodel-build` prints it in brackets.
+- `texmodel.spec` (D2, S; pydantic): `from_dict(cls, data)` loads a Doc from plain data (a child names its component with
+  `"type"`; a `Raw` field takes a string; pydantic's default coercion), `to_dict(node)` writes it back, `json_schema(cls)` exports
+  the schema with the docstrings as descriptions. Every error comes at once as an `ExceptionGroup` of `ValidationError`
+  (`TM-C020`) with the path `validate()` would give it. `pydantic` is a dependency.
+- `texmodel.types.Choice` (T1): a closed set as a field type. A member's value is the TeX it stands for, a `Raw` (passes
+  through) or a `str` (escaped); data names a member by its name and `to_dict` writes it back; the schema lists the names.
+  A mixed or aliased set is refused at declaration (`TM-M024`); `validate()` names the choices (`TM-C003`).
 - `Package.plan(...)` (B2, D2): the document as `Plan`, lines with the path of what wrote them. `Plan.edits(text)` finds changed,
   removed and added lines by path, `path_of(n)` maps an output line (a log's `input line`) to its path, and `to_json` /
   `from_json` store it as a baseline beside the committed file. New module `texmodel.plan`.
