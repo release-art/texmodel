@@ -177,12 +177,12 @@ def test_environment_arguments_are_keywords_and_checked():
     with refused("TM-M004"):
 
         class IntArg(Environment):
-            """An int field."""
+            """A dict field."""
 
             begin = "b"
             end = "e"
 
-            n: int = 0
+            n: dict[str, str] | None = None
 
 
 def test_the_grammar_reports_every_problem_with_a_path():
@@ -349,10 +349,10 @@ def test_a_document_is_complete_and_deterministic():
     assert tex.splitlines()[1:] == [
         "\\documentclass[a4paper,11pt]{article}",
         "\\usepackage{shop}",
-        "\\begin{document}",
         "\\setlength{\\shGap}{3mm}",
         "\\definecolor{sh-ink}{gray}{0.5}",
         "\\shTighttrue",
+        "\\begin{document}",
         "\\begin{shCard}",
         "\\shName{Rex}",
         "\\shFact{50\\% sure}",

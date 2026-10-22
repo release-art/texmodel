@@ -40,7 +40,7 @@ def test_a_generated_package_defines_the_macro_with_an_escaped_default():
     assert r"\newcommand{\txTitle}{R\&D 50\%}" in pkg.render()
 
 
-def test_a_document_renews_it_before_the_body_and_before_the_preamble_slot():
+def test_a_document_sets_every_value_right_after_the_package_in_the_order_given():
     from texmodel.package import PreambleSlots
     from texmodel.types import Raw
 
@@ -49,11 +49,13 @@ def test_a_document_renews_it_before_the_body_and_before_the_preamble_slot():
         show("x"), settings=[gap(Length("3mm")), title("A & B")], preamble=PreambleSlots(after_package=(Raw(r"\x"),))
     )
     lines = [(x.path, x.tex) for x in plan.lines]
-    assert lines.index(("settings[1]", r"\renewcommand{\txTitle}{A \& B}")) < lines.index(
-        ("preamble.after_package[0]", r"\x")
-    )
-    assert lines.index(("preamble.after_package[0]", r"\x")) < lines.index(("document", r"\begin{document}"))
-    assert lines.index(("document", r"\begin{document}")) < lines.index(("settings[0]", r"\setlength{\txGap}{3mm}"))
+    order = [
+        lines.index(("settings[0]", r"\setlength{\txGap}{3mm}")),
+        lines.index(("settings[1]", r"\renewcommand{\txTitle}{A \& B}")),
+        lines.index(("preamble.after_package[0]", r"\x")),
+        lines.index(("document", r"\begin{document}")),
+    ]
+    assert order == sorted(order)
 
 
 def test_the_value_is_checked_against_its_type():

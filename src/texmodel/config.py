@@ -11,7 +11,9 @@ from .errors import DeclarationError
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Config:
-    package: str = ""  # pointer to the Package to build: "module:object", "module:ns.object" or "module:getter()"
+    # pointer to the Package to build: "module:object", "module:ns.object" or "module:getter()"; a list of pointers is a
+    # family, and a pointer may name an iterable of Packages ("module:family()")
+    package: str | Sequence[str] = ""
     schema_output: str = ""  # where `texmodel schema` writes the JSON Schema of the package's data
     output: str = "generated"  # where `texmodel build` writes, relative to pyproject.toml
     # committed .tex -> pointer to what renders it

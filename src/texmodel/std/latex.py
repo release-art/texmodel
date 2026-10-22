@@ -2,11 +2,85 @@ r"""latex: The LaTeX kernel: commands every document has without loading a packa
 
 A header (the package is adopted): it declares the interface, `texmodel` writes calls and never the package."""
 
+import enum
+
 from texmodel.components import Anywhere, Command, Environment, Passthrough
+from texmodel.interface import SQUARE, Gap, Star, arg
 from texmodel.package import Package
-from texmodel.types import Raw, Text
+from texmodel.types import Choice, Length, Raw, Text
 
 package = Package("latex", prefix="", adopted=True, builtin=True)
+
+
+@enum.unique
+class BoxPosition(Choice):
+    """Which line of a box sits on the baseline: the `[t]`, `[c]`, `[b]` of `minipage`."""
+
+    TOP = "t"
+    CENTRE = "c"
+    BOTTOM = "b"
+
+
+@enum.unique
+class BoxAlign(Choice):
+    """How text sits in a `\\makebox`: centred, left, right or spread."""
+
+    CENTRE = "c"
+    LEFT = "l"
+    RIGHT = "r"
+    SPREAD = "s"
+
+
+@package.command
+class MakeBox(Command):
+    r"""A box of a given width: `\makebox[3cm][c]{text}`. The alignment needs the width."""
+
+    cs = "makebox"
+    width: Length | None = arg(SQUARE, default=None, fill=Gap.REFUSE)
+    align: BoxAlign | None = arg(SQUARE, default=None)
+    text: Raw
+
+
+@package.command
+class RaiseBox(Command):
+    r"""Raise or lower some text: `\raisebox{1pt}[2pt][1pt]{text}`. The depth needs the height."""
+
+    cs = "raisebox"
+    lift: Length
+    height: Length | None = arg(SQUARE, default=None, fill=Gap.REFUSE)
+    depth: Length | None = arg(SQUARE, default=None)
+    text: Raw
+
+
+@package.command
+class Section(Command):
+    r"""A section heading: `\section{Title}`, `\section*{Title}` (unnumbered), `\section[Short]{Title}` (for the
+    table of contents)."""
+
+    cs = "section"
+    starred: Star = arg(default=False)
+    short: Text | None = arg(SQUARE, default=None)
+    title: Text
+
+
+@package.command
+class Subsection(Command):
+    r"""A subsection heading, as `Section`."""
+
+    cs = "subsection"
+    starred: Star = arg(default=False)
+    short: Text | None = arg(SQUARE, default=None)
+    title: Text
+
+
+@package.command
+class Subsubsection(Command):
+    r"""A subsubsection heading, as `Section`."""
+
+    cs = "subsubsection"
+    starred: Star = arg(default=False)
+    short: Text | None = arg(SQUARE, default=None)
+    title: Text
 
 
 @package.command
@@ -15,7 +89,7 @@ class SetLength(Command):
 
     cs = "setlength"
     length: Raw
-    value: Raw
+    value: Length
 
 
 @package.command
@@ -24,7 +98,7 @@ class AddToLength(Command):
 
     cs = "addtolength"
     length: Raw
-    value: Raw
+    value: Length
 
 
 @package.command
@@ -105,18 +179,20 @@ class CounterValue(Command):
 
 @package.command
 class VSpace(Command):
-    r"""Vertical space."""
+    r"""Vertical space: `\vspace{2mm}`, `\vspace*{2mm}` (kept at a page break)."""
 
     cs = "vspace"
-    length: Raw
+    starred: Star = arg(default=False)
+    length: Length
 
 
 @package.command
 class HSpace(Command):
-    r"""Horizontal space."""
+    r"""Horizontal space: `\hspace{2mm}`, `\hspace*{2mm}` (kept at a line break)."""
 
     cs = "hspace"
-    length: Raw
+    starred: Star = arg(default=False)
+    length: Length
 
 
 @package.command
@@ -512,5 +588,5 @@ class Minipage(Environment):
 
     cs = "minipage"
     children = [Anywhere(Passthrough)]
-    width: Raw
-    position: Raw | None = None
+    width: Length
+    position: BoxPosition | None = None

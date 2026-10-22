@@ -15,7 +15,7 @@ from .drift import check_drift
 from .errors import DeclarationError, TexmodelError, ValidationError
 from .package import Package, generator_version
 from .plan import Plan
-from .pointer import load_document, load_package
+from .pointer import load_document, load_packages
 from .spec import json_schema
 
 app = typer.Typer(pretty_exceptions_enable=False, help="Typed models for LaTeX.", no_args_is_help=True)
@@ -63,24 +63,29 @@ def _exits(fn: Callable[..., None]) -> Callable[..., None]:
     return wrapper
 
 
-def _project() -> tuple[pathlib.Path, Config, Package]:
+def _project() -> tuple[pathlib.Path, Config, tuple[Package, ...]]:
     root = pathlib.Path.cwd()
     config = load_config(root / "pyproject.toml")
     if not config.package:
         raise DeclarationError(
             "no package declared",
             code="TM-D023",
-            hint='set [tool.texmodel] package = "module:object" or "module:getter()"',
+            hint='set [tool.texmodel] package = "module:object" or "module:getter()" (or a list of them)',
         )
-    return root, config, load_package(config.package, root)
+    return root, config, load_packages(config.package, root)
+
+
+def _files(packages: tuple[Package, ...]) -> dict[str, str]:
+    """What the packages write, together; their names differ (`load_packages`), so their files do."""
+    return {rel: text for package in packages for rel, text in package.files().items()}
 
 
 @app.command()
 @_exits
 def build() -> None:
     """Write the package's generated files (the `.sty`) into the output directory."""
-    root, config, package = _project()
-    for rel, text in package.files().items():
+    root, config, packages = _project()
+    for rel, text in _files(packages).items():
         path = root / config.output / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
@@ -97,7 +102,14 @@ def _write(rendered: str | Plan, target: pathlib.Path) -> None:
 @_exits
 def schema() -> None:
     """Write the JSON Schema of the package's data (every component and value) to `schema_output`."""
-    root, config, package = _project()
+    root, config, packages = _project()
+    if len(packages) != 1:
+        raise DeclarationError(
+            f"schema needs one package, found {len(packages)}",
+            code="TM-D034",
+            hint="point [tool.texmodel] package at the package whose data the schema describes",
+        )
+    package = packages[0]
     if not config.schema_output:
         raise DeclarationError(
             "no schema_output declared", code="TM-D033", hint='set [tool.texmodel] schema_output = "schema.json"'
@@ -157,14 +169,14 @@ def _check_interface(root: pathlib.Path, config: Config, package: Package) -> bo
     return bool(violations)
 
 
-def _check_generated(root: pathlib.Path, config: Config, package: Package) -> bool:
+def _check_generated(root: pathlib.Path, config: Config, packages: tuple[Package, ...]) -> bool:
     out = root / config.output
-    drift = check_drift(package.files(), out, owned=("*.sty",), version=generator_version())
+    drift = check_drift(_files(packages), out, owned=("*.sty",), version=generator_version())
     for label, names in (("stale", drift.stale), ("missing", drift.missing), ("orphaned", drift.orphaned)):
         for name in names:
             typer.echo(f"{label:8} {config.output}/{name}")
-    plan = package.render_plan()
     for name in drift.stale:  # a stale file is named by component, as a document is
+        plan = next(p for p in packages if name in p.files()).render_plan()
         for e in plan.edits((out / name).read_text(encoding="utf-8", errors="replace")):
             typer.echo(f"{e.kind.value:8} {config.output}/{name} {e.path}: {e.found or e.expected}")
     for note in drift.notes:
@@ -205,7 +217,14 @@ def _check_documents(root: pathlib.Path, config: Config) -> bool:
 def check() -> None:
     """Fail if a generated file is stale, missing or orphaned, an adopted package's interface drifted, or a document
     differs from what the model renders. Exit 0 ok, 1 drift."""
-    root, config, package = _project()
-    failed = _check_interface(root, config, package) if package.adopted else _check_generated(root, config, package)
+    root, config, packages = _project()
+    adopted = [p for p in packages if p.adopted]
+    failed = sum(_check_interface(root, config, p) for p in adopted) > 0  # every one reports
+    for package in packages:
+        for v in package.check_parts():
+            typer.echo(f"{v.code} {v.path}: {v.message}")
+            failed = True
+    if generated := tuple(p for p in packages if not p.adopted):
+        failed = _check_generated(root, config, generated) or failed
     if _check_documents(root, config) or failed:
         raise typer.Exit(1)

@@ -11,14 +11,15 @@ import re
 import textwrap
 import typing
 from collections.abc import Iterator, Sequence
+from typing import NamedTuple
 
 from ._internal.render import (
     EnvSpec,
     Spec,
     ValueSpec,
-    bool_names,
+    addressed,
+    canonical,
     check_references,
-    colour_name,
     header_lines,
     lint_library,
     render_command,
@@ -26,19 +27,19 @@ from ._internal.render import (
     render_library,
     render_value,
     require_lines,
-    setting,
     signature,
     undeclared,
 )
-from ._internal.scan import scan_declarations
+from ._internal.scan import scan_colours, scan_counters, scan_declarations
+from ._internal.values import fill_text
 from .body import Library, Syntax, TemplateRef, Whitespace, template_text
-from .components import AnyValue, Command, Environment, Node, Passthrough, env_spec_of, spec_of, value_spec_of
+from .components import AnyValue, Command, Environment, Node, Passthrough, Value, env_spec_of, spec_of, value_spec_of
 from .drift import stamp
 from .errors import DeclarationError, Violation
 from .plan import Line, Plan, node_lines
 from .preamble import Entry, PdfInfo, RequireMetadata, tex_of
 from .testing import Component, stub_tex
-from .types import Length, Raw, balanced
+from .types import Raw, balanced
 
 _NAME = re.compile(r"[a-z][a-z0-9-]*")
 _PREFIX = re.compile(r"[a-z]*")  # empty: the package of a standard TeX library, whose names carry none
@@ -103,6 +104,41 @@ def generator_version() -> str:
     return m[0] if m else "0.0.0"
 
 
+class _Defs(NamedTuple):
+    """What a library defines: control sequences with their signatures, and names of other kinds (colours, counters)."""
+
+    controls: dict[str, str]
+    others: frozenset[tuple[str, str]]
+
+    def pairs(self) -> list[tuple[str, str]]:
+        return [*(("control", n) for n in self.controls), *sorted(self.others)]
+
+
+def _shown(kind: str, name: str) -> str:
+    return f"\\{name}" if kind == "control" else f"{kind} {name}"
+
+
+def _compare(who: str, lib: str, defs: _Defs, wanted: Sequence[tuple[str, str, str]]) -> list[Violation]:
+    """`who` wants these names (kind, name, signature) from library `lib`: each must be defined, as declared."""
+    out: list[Violation] = []
+    for kind, name, want in wanted:
+        if (kind, name) not in defs.pairs():
+            out.append(
+                Violation("TM-C010", who, f"{_shown(kind, name)} is declared but library {lib} does not define it")
+            )
+        elif kind == "control" and canonical(defs.controls[name]) != canonical(want):
+            out.append(
+                Violation(
+                    "TM-C011",
+                    who,
+                    f"{_shown(kind, name)}: declared {want or 'without arguments'}, library {lib} defines "
+                    f"{defs.controls[name] or 'no arguments'}",
+                    hint="change the declaration or the library so they agree",
+                )
+            )
+    return out
+
+
 class Package:
     def __init__(
         self,
@@ -110,8 +146,9 @@ class Package:
         *,
         prefix: str,
         version: str = "0.0.0",
-        date: str = "1970/01/01",
+        date: str | None = None,
         description: str = "",
+        header: str = "",
         document_class: str = "article",
         adopted: bool = False,
         builtin: bool = False,
@@ -121,11 +158,12 @@ class Package:
             raise DeclarationError(f"package name {name!r} must match [a-z][a-z0-9-]*", code="TM-P001")
         if not _PREFIX.fullmatch(prefix):
             raise DeclarationError(f"prefix {prefix!r} must be lowercase letters, or empty", code="TM-P002")
-        if not _DATE.fullmatch(date):
+        if date is not None and not _DATE.fullmatch(date):
             raise DeclarationError(f"date {date!r} must be YYYY/MM/DD (\\ProvidesPackage's date slot)", code="TM-P003")
         if not _NAME.fullmatch(document_class):
             raise DeclarationError(f"document class {document_class!r} must match [a-z][a-z0-9-]*", code="TM-P004")
         self.name, self.prefix, self.version, self.date, self.description = name, prefix, version, date, description
+        self.header = header  # comment lines under the generator's line, for what the file's readers should know
         self.document_class = document_class
         self.whitespace = whitespace  # the policy of a body piece that names none (M8)
         self.adopted = adopted  # the `.sty` is hand-written; components only declare it (M9)
@@ -166,7 +204,7 @@ class Package:
         self._classes.append(cls)
         return cls
 
-    def _own_library(self, cls: type[Command] | type[Environment]) -> None:
+    def _own_library(self, cls: type[Command] | type[Environment] | type[AnyValue]) -> None:
         """The block that defines a component is this package's (`TM-M033`)."""
         if cls.defined_by is not None and cls.defined_by.owner is not self:
             raise DeclarationError(
@@ -176,10 +214,16 @@ class Package:
                 hint="declare the component in the package whose library defines it",
             )
 
-    def library(self, name: str, source: str | TemplateRef, *, syntax: Syntax = Syntax.LATEX2E) -> Library:
+    def library(
+        self, name: str, source: str | TemplateRef, *, syntax: Syntax = Syntax.LATEX2E, fill: object | None = None
+    ) -> Library:
         """TeX carried into the `.sty` as it is (§21a 12), among the items in registration order: dedented, blank edges
         removed, `%` and `#name` untouched. `Syntax.EXPL3` wraps it in `\\ExplSyntaxOn` / `\\ExplSyntaxOff`. A relative
-        `TemplateRef` is relative to the calling module. Name a component's `defined_by` to declare what it defines."""
+        `TemplateRef` is relative to the calling module. Name a component's `defined_by` to declare what it defines.
+
+        `fill` (a mapping, a dataclass or a pydantic model) fills the `<<name>>` holes of the text, typed: `str` is
+        escaped, `Raw` passes through, lengths and colours are written as they are (`<<a.b>>` reaches into a nested
+        model). Without `fill` the text is carried exactly as it is."""
         if not _LIBRARY_NAME.fullmatch(name):
             raise DeclarationError(
                 f"library name {name!r} must match [A-Za-z][A-Za-z0-9_-]*", code="TM-M001", path=name
@@ -189,7 +233,10 @@ class Package:
         origin = "inline"
         if isinstance(source, TemplateRef):
             source, origin = template_text(source, inspect.stack(0)[1].filename, name), source.path.name
-        lib = Library(name, textwrap.dedent(source).strip("\n"), syntax, origin, self)
+        text = textwrap.dedent(source).strip("\n")
+        lib = Library(
+            name, text if fill is None else fill_text(text, fill, syntax, f"library {name}"), syntax, origin, self
+        )
         lint_library(lib)
         self._items.append(lib)
         return lib
@@ -220,24 +267,22 @@ class Package:
     def value[V: type[AnyValue]](self, cls: V) -> V:
         """Register a value class: `\\newlength`, `\\definecolor`, `\\newif` or `\\newcommand` by its type (M1a)."""
         spec = value_spec_of(cls)
-        if self.adopted and spec.kind not in ("Text", "Raw"):
+        if self.adopted and not spec.kind.adoptable:
             raise DeclarationError(
                 f"{cls.__qualname__}: an adopted package can declare a Value[Text] or Value[Raw] only",
                 code="TM-P005",
                 path=spec.name,
                 hint="declare a length, colour or flag the hand-written package defines as a Command with no arguments",
             )
-        if spec.default is None and not self.adopted:
+        self._own_library(cls)
+        if spec.default is None and not self.adopted and not spec.kind.bare and cls.defined_by is None:
             raise DeclarationError(f"{cls.__qualname__}: no default", code="TM-M013", path=spec.name)
-        control = self.prefix + spec.name
-        if isinstance(spec.default, Length | str | Raw | None):
-            claims = [(self._controls, control, f"\\{control}")]
-        elif isinstance(spec.default, bool):
-            claims = [(self._controls, c, f"\\{c}") for c in (control, *bool_names(self.prefix, spec.name))]
-        else:
-            name = colour_name(self.prefix, spec.name)
-            claims = [(self._colours, name, f"colour {name}")]
-        self._add(spec, *claims)
+        tables = {"control": self._controls, "colour": self._colours}
+        claims = [
+            (tables[table], key, shown)
+            for table, key, shown in spec.kind.claims(*addressed(self.prefix, spec.name, spec.cs), spec.alias)
+        ]
+        self._add(spec, *claims, rendered=cls.defined_by is None)
         cls.__tm_prefix__ = self.prefix
         self._classes.append(cls)
         return cls
@@ -266,14 +311,15 @@ class Package:
     def depends_on(self) -> tuple["Package", ...]:
         """The other packages this one requires or whose components its bodies call (§21a 17), in first-use order."""
         called = (typing.cast("Package", t.__tm_package__) for t in self._calls)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
-        found = (*(p for p, _ in self._requires), *called)
+        needed = (p for s in self._items if isinstance(s, ValueSpec) for p in s.needs if not isinstance(p, str))
+        found = (*(p for p, _ in self._requires), *called, *needed)
         return tuple(dict.fromkeys(p for p in found if p is not self and not p.builtin))
 
     def require_entries(self) -> list[tuple[str, tuple[str, ...]]]:
         """What the `.sty` loads: `require()`d packages in order with their options, then, sorted, the packages the
         values need (M14) and the components call that are not already loaded; computed, never collected by mutation."""
         explicit = [(p.name, o) for p, o in self._requires]
-        needs = {p for s in self._items if isinstance(s, ValueSpec) for p in s.needs}
+        needs = {p for s in self._items if isinstance(s, ValueSpec) for p in s.needs if isinstance(p, str)}
         rest = sorted({*needs, *(p.name for p in self.depends_on)} - {n for n, _ in explicit})
         return [*explicit, *((n, ()) for n in rest)]
 
@@ -307,12 +353,16 @@ class Package:
                 f"{self.name}: an adopted package renders no .sty", code="TM-P006", hint="the hand-written one is it"
             )
         self._check_cycles()
+        if duplicates := self._duplicates():
+            raise DeclarationError(duplicates[0], code="TM-P012", path=self.name, hint="define each name once")
         for s in self._items:
             if isinstance(s, Spec):
                 check_references(self.prefix, s, s.body, self._controls)
             elif isinstance(s, EnvSpec):
                 check_references(self.prefix, s, s.begin + "\n" + s.end, self._controls)
-        head = header_lines(self.name, self.version, self.date, self.description, stamp(version or generator_version()))
+        head = header_lines(
+            self.name, self.version, self.date, self.description, stamp(version or generator_version()), self.header
+        )
         requires = require_lines(self.require_entries())
         lines = [
             *(Line("header", tex) for tex in head),
@@ -338,7 +388,7 @@ class Package:
         """Every declared component is defined in `sources` (the hand-written TeX) with the signature declared (M9).
 
         Read by `texmodel check` for an adopted package. A name that `sources` define some other way than
-        `\\newcommand`, `\\providecommand` or `\\newenvironment` counts as missing.
+        `\\newcommand`, `\\providecommand`, `\\newenvironment` or an xparse `\\NewDocumentCommand` counts as missing.
         """
         found = scan_declarations("\n".join(sources))
         out: list[Violation] = []
@@ -349,7 +399,7 @@ class Package:
             )
             if control not in found:
                 out.append(Violation("TM-C010", s.name, f"\\{control} is declared but the sources do not define it"))
-            elif found[control] != want:
+            elif canonical(found[control]) != canonical(want):
                 out.append(
                     Violation(
                         "TM-C011",
@@ -360,6 +410,75 @@ class Package:
                     )
                 )
         return out
+
+    def _parts(self) -> dict[str, "_Defs"]:
+        """What each library defines, by library name, in the forms `scan` reads; a library written in expl3 is not
+        read."""
+        return {
+            i.name: _Defs(
+                scan_declarations(i.text),
+                frozenset(
+                    [*(("colour", n) for n in scan_colours(i.text)), *(("counter", n) for n in scan_counters(i.text))]
+                ),
+            )
+            for i in self._items
+            if isinstance(i, Library) and i.syntax is Syntax.LATEX2E
+        }
+
+    def _duplicates(self) -> list[str]:
+        """A name defined twice: by two libraries, or by a library and a component or value this package renders."""
+        owner: dict[tuple[str, str], str] = {}
+        for s in (i for i in self._items if not isinstance(i, Library)):
+            if isinstance(s, ValueSpec):
+                names = [(t, k) for t, k, _ in s.kind.claims(*addressed(self.prefix, s.name, s.cs), s.alias)]
+            else:
+                names = [("control", s.cs or self.prefix + s.name)]
+            owner.update(dict.fromkeys(names, s.name))
+        out: list[str] = []
+        for lib, defs in self._parts().items():
+            for kind, name in defs.pairs():
+                if (kind, name) in owner:
+                    out.append(f"{_shown(kind, name)} is defined by {owner[kind, name]} and by library {lib}")
+                owner.setdefault((kind, name), f"library {lib}")
+        return out
+
+    def check_parts(self) -> list[Violation]:
+        """What each library defines against what this package declares (§21a 12): a component or value with
+        `defined_by` is defined by that library, with its signature (`TM-C010`, `TM-C011`), a public name
+        (`<prefix>Name`) a library defines is declared (`TM-C012`), and no name is defined twice (`TM-C013`). Read by
+        `texmodel check`."""
+        parts = self._parts()
+        out: list[Violation] = []
+        for cls in (c for c in self._classes if issubclass(c, Command | Environment)):
+            lib = cls.defined_by
+            if lib is not None and lib.name in parts:
+                out += _compare(
+                    cls.__name__, lib.name, parts[lib.name], [("control", cls.__tm_cs__, signature(cls.__tm_args__))]
+                )
+        for member in self._classes:
+            if not issubclass(member, Value):
+                continue
+            value = typing.cast("type[Value[object]]", member)
+            lib = value.defined_by
+            if lib is not None and lib.name in parts:
+                names = value.__tm_kind__.must_define(
+                    *addressed(self.prefix, value.__name__, value.cs), value.colour_name
+                )
+                out += _compare(value.__name__, lib.name, parts[lib.name], [(t, k, "") for t, k, _ in names])
+        if self.prefix:
+            public = re.compile(rf"{self.prefix}[A-Z][A-Za-z]*")
+            for lib, defs in parts.items():
+                out += [
+                    Violation(
+                        "TM-C012",
+                        lib,
+                        f"\\{n} is defined by library {lib} but nothing declares it",
+                        hint="declare it, or give the helper a name outside the public namespace (an @ in it)",
+                    )
+                    for n in defs.controls
+                    if public.fullmatch(n) and n not in self._controls
+                ]
+        return out + [Violation("TM-C013", self.name, message) for message in self._duplicates()]
 
     def plan(
         self,
@@ -427,12 +546,17 @@ class Package:
                 for tex in tex_of(raw).tex.splitlines()
             ]
 
-        def values(text: bool) -> list[Line]:
-            """Text settings go before `\\begin{document}`, where a package reads them; the others go in the body."""
+        def values() -> list[Line]:
+            """Every setting goes right after the package, in the order given, so what the package computes in the
+            preamble already sees it."""
             return [
-                Line(f"settings[{i}]", setting(type(v).__tm_prefix__, type(v).__name__, v.value))
+                Line(
+                    f"settings[{i}]",
+                    type(v).__tm_kind__.setting(
+                        *addressed(type(v).__tm_prefix__, type(v).__name__, type(v).cs), v.value, type(v).colour_name
+                    ),
+                )
                 for i, v in enumerate(settings)
-                if isinstance(v.value, str | Raw) == text
             ]
 
         return Plan(
@@ -442,10 +566,9 @@ class Package:
                 Line("document", f"\\documentclass{opts}{{{self.document_class}}}"),
                 *slot("before_package"),
                 *([] if self.builtin else [Line("document", f"\\usepackage{{{self.name}}}")]),
-                *values(text=True),
+                *values(),
                 *slot("after_package"),
                 Line("document", "\\begin{document}"),
-                *values(text=False),
                 *(line for i, node in enumerate(body) for line in node_lines(node, f"{type(node).__name__}[{i}]")),
                 Line("document", "\\end{document}"),
             )

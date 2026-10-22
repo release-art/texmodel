@@ -2,9 +2,11 @@ r"""etoolbox: Patching and programming tools.
 
 A header (the package is adopted): it declares the interface, `texmodel` writes calls and never the package."""
 
+from typing import Annotated
+
 from texmodel.components import Command
 from texmodel.package import Package
-from texmodel.types import Raw
+from texmodel.types import Raw, ValueKind
 
 package = Package("etoolbox", prefix="", adopted=True)
 
@@ -100,6 +102,39 @@ class SetToggle(Command):
 
 
 @package.command
+class IfNumGreater(Command):
+    r"""Choose by whether one integer is greater than another."""
+
+    cs = "ifnumgreater"
+    left: Raw
+    right: Raw
+    yes: Raw
+    no: Raw
+
+
+@package.command
+class IfNumLess(Command):
+    r"""Choose by whether one integer is less than another."""
+
+    cs = "ifnumless"
+    left: Raw
+    right: Raw
+    yes: Raw
+    no: Raw
+
+
+@package.command
+class IfNumEqual(Command):
+    r"""Choose by whether two integers are equal."""
+
+    cs = "ifnumequal"
+    left: Raw
+    right: Raw
+    yes: Raw
+    no: Raw
+
+
+@package.command
 class IfToggle(Command):
     r"""Choose by a switch."""
 
@@ -125,3 +160,24 @@ class AtEndEnvironment(Command):
     cs = "AtEndEnvironment"
     environment: Raw
     code: Raw
+
+
+def _toggle_setting(prefix: str, name: str, value: bool, _alias: str | None) -> str:  # noqa: FBT001
+    return (ToggleTrue if value else ToggleFalse)(Raw(f"{prefix}{name}")).render()
+
+
+TOGGLE = ValueKind(
+    "Toggle",
+    bool,
+    "boolean",
+    lambda prefix, name, _alias: (("control", f"{prefix}{name}", f"\\{prefix}{name}"),),
+    lambda prefix, name, default, alias: [
+        NewToggle(Raw(f"{prefix}{name}")).render(),
+        *([] if default is None else [_toggle_setting(prefix, name, default, alias)]),
+    ],
+    _toggle_setting,
+    needs=(package,),
+)
+Toggle = Annotated[bool, TOGGLE]
+"""`Value[Toggle]`: an etoolbox toggle (`\\newtoggle`, `\\toggletrue`), not a `\\newif`; written through the bindings
+above."""

@@ -5,12 +5,17 @@ Output is a pure function of the declaration: no timestamps, no hashes, no dict 
 
 import dataclasses
 import re
-from collections.abc import Mapping, Sequence
-from typing import cast
+from collections.abc import Callable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, cast
 
-from ..body import HOLE, Hole, Library, Syntax, text_of
+from ..body import HOLE, Hole, Library, Syntax
 from ..errors import DeclarationError
-from ..types import Choice, Colour, Length, Raw, balanced, escape, pdf_escape
+from ..interface import BRACE, SQUARE, Body, BodyKind, Delimiter, Gap, SlotGroup
+from ..types import Claim, Colour, Length, Raw, ValueKind, balanced, escape
+from .values import unprotected, value_ok, value_text
+
+if TYPE_CHECKING:
+    from ..package import Package
 
 _HOLE = re.compile(rf"{HOLE.pattern}|#(?P<digit>\d)")
 _BODY_TOKEN = re.compile(r"\\.|##|#(?P<name>[A-Za-z_]\w*)|#(?P<digit>\d)", re.DOTALL)  # `\#` is a character, not a hole
@@ -25,12 +30,26 @@ def snake(name: str) -> str:
 
 @dataclasses.dataclass(frozen=True)
 class Arg:
+    """One slot of a signature: the field `name`, what it `body` holds and how it is written."""
+
     name: str
-    optional: bool = False  # TeX's one optional argument: always first, empty when absent
-    raw: bool = False  # a `Raw` field passes through; a `Text` field is escaped (T3)
-    choice: type[Choice] | None = None  # a closed set: the member's value is the TeX (T1)
-    pdf: bool = False  # a `PdfString`: PDF-escaped, then inert to TeX (§21a 9)
+    body: Body
+    optional: bool = False  # may be left out (a field with a default; a token is always optional)
+    delimiter: Delimiter = BRACE
+    placed: bool = False  # declared with `arg()` (or a token): kept in declaration order, not moved first
+    fill: str | Gap = Gap.UNDECLARED  # written for this unset slot when a later optional one is set
+    sep: str = ","  # between the elements of a tuple or list
+    group: SlotGroup | None = None  # written together with the other slots of the group, or not at all
+    booleans: tuple[str, str] = ("true", "false")
     renamed_from: str | None = None  # the field's old name in data (§21a 15)
+    hint: Any = None  # the field's annotation, which the data layer validates against
+    default: Any = None  # the field's default; a `Text` / `Raw` one is what TeX uses for the unset optional argument
+    doc: str | None = None  # the field's documentation (`field(doc=)`), the schema's description
+    meta: Mapping[str, object] = dataclasses.field(default_factory=dict[str, object])  # the schema's `x-` keys
+
+    @property
+    def token(self) -> bool:
+        return self.body.kind is BodyKind.TOKEN
 
 
 @dataclasses.dataclass(frozen=True)
@@ -68,16 +87,17 @@ class EnvSpec:
 
 @dataclasses.dataclass(frozen=True)
 class ValueSpec:
-    """What the renderer needs to know about one `Value`: its type is its default's type, which decides the TeX."""
+    """What the renderer needs to know about one `Value`: its kind decides the TeX."""
 
     name: str  # the class name
     doc: str
-    default: (
-        Length | Colour | bool | str | Raw | None
-    )  # None: a `Value[Text]` or `Value[Raw]` whose default the hand-written package has
-    kind: str  # "Length" | "Colour" | "Bool" | "Text" | "Raw", for the provenance comment
+    default: object | None  # None: a `Value[Text]` / `Value[Raw]` the hand-written package defines, or a bare length
+    kind: ValueKind
     qualname: str
-    needs: tuple[str, ...]  # packages it needs (M14)
+    needs: tuple["str | Package", ...]  # packages it needs (M14): its kind's and the class's own
+    alias: str | None = None  # the name the class gives itself (`colour_name = "acInk"`)
+    cs: str | None = None  # the whole control sequence, when it is not prefix + class name (`cs = "acshowcrop"`)
+    meta: Mapping[str, object] = dataclasses.field(default_factory=dict[str, object])  # the schema's `x-` keys
 
 
 def check_name(name: str, what: str) -> None:
@@ -91,8 +111,60 @@ def check_name(name: str, what: str) -> None:
 
 
 def tex_arguments(args: tuple[Arg, ...]) -> tuple[Arg, ...]:
-    """TeX order: the optional argument first, then the required ones as declared."""
-    return (*(a for a in args if a.optional), *(a for a in args if not a.optional))
+    """TeX order: an optional field without `arg()` is TeX's one optional argument and comes first; every other slot
+    keeps its declaration order."""
+    first = tuple(a for a in args if a.optional and not a.placed)
+    return (*first, *(a for a in args if a not in first))
+
+
+def newcommand_fits(args: tuple[Arg, ...]) -> bool:
+    """Whether `\\newcommand` / `\\newenvironment` can define the signature: braces for the required arguments, at most
+    one optional argument in brackets, and it first. Anything else is defined with `\\NewDocumentCommand`."""
+    ordered = tex_arguments(args)
+    optionals = [a for a in ordered if a.optional]
+    return (
+        all(not a.token and a.group is None and a.delimiter == (SQUARE if a.optional else BRACE) for a in ordered)
+        and len(optionals) <= 1
+        and (not optionals or ordered[0].optional)
+    )
+
+
+def default_text(a: Arg) -> str:
+    """The TeX an unset optional slot reads as in the definition: its default, written as a call writes it, or empty
+    (no default, or a key list, list or tuple, which have no single-argument form)."""
+    if (
+        a.optional
+        and a.default is not None
+        and a.body.kind not in (BodyKind.TOKEN, BodyKind.KEYVALS, BodyKind.LIST, BodyKind.TUPLE)
+    ):
+        return argument_text(a, a.default)
+    return ""
+
+
+def xparse_letter(a: Arg, *, defaults: bool) -> str:
+    """The xparse argument type of a slot. With `defaults`, an optional one is `O{}` / `D(){}` (its default in the
+    braces, empty unless the field has a `Text` / `Raw` one), as `\\newcommand`'s `[]`; without, the letters alone
+    (`o`, `d()`), which is how signatures are compared."""
+    if a.token:
+        return "s" if a.body.token == "*" else f"t{a.body.token}"
+    d = a.delimiter
+    if not a.optional:
+        return "m" if d == BRACE else f"r{d.open}{d.close}"
+    if d == SQUARE:
+        return f"O{{{default_text(a)}}}" if defaults else "o"
+    return f"D{d.open}{d.close}{{{default_text(a)}}}" if defaults else f"d{d.open}{d.close}"
+
+
+def xparse_spec(args: tuple[Arg, ...], *, defaults: bool = True) -> str:
+    return "".join(xparse_letter(a, defaults=defaults) for a in tex_arguments(args))
+
+
+def canonical(signature_text: str) -> str:
+    """A signature as xparse letters: `[2][]` is `om`, `[2]` is `mm`, an xparse one is as it is."""
+    m = re.fullmatch(r"\[(\d)\](\[.*\])?", signature_text, re.DOTALL)
+    if not m:
+        return signature_text
+    return ("o" if m[2] else "") + "m" * (int(m[1]) - (1 if m[2] else 0))
 
 
 def rewrite_body(spec: Spec | EnvSpec, body: str) -> str:
@@ -136,8 +208,13 @@ def check_braces(spec: Spec | EnvSpec, *bodies: str) -> None:
 
 
 def signature(args: tuple[Arg, ...]) -> str:
+    """`[2][]` (two arguments, the first optional; `[2][\\mark]` with a default) when `\\newcommand` can define it, else
+    the xparse letters."""
     n = len(args)
-    return f"[{n}]" + ("[]" if any(a.optional for a in args) else "") if n else ""
+    if not newcommand_fits(args):
+        return xparse_spec(args, defaults=False)
+    optional = next((a for a in args if a.optional), None)
+    return f"[{n}]" + (wrap(SQUARE, default_text(optional)) if optional else "") if n else ""
 
 
 def _comment(doc: str) -> list[str]:
@@ -154,10 +231,24 @@ def _brace(syntax: Syntax) -> str:
     return "{" if syntax is Syntax.EXPL3 else "{%"
 
 
+def _definer(args: tuple[Arg, ...], *, environment: bool = False) -> str:
+    """The defining macro: `\\newcommand`, or xparse's when the signature needs it."""
+    if newcommand_fits(args):
+        return "\\newenvironment" if environment else "\\newcommand"
+    return "\\NewDocumentEnvironment" if environment else "\\NewDocumentCommand"
+
+
+def _parameters(args: tuple[Arg, ...]) -> str:
+    """After the name: `[2][]`, or `{om}`-style xparse letters in braces."""
+    if newcommand_fits(args):
+        return signature(args)
+    return f"{{{xparse_spec(args)}}}"
+
+
 def render_command(prefix: str, spec: Spec) -> str:
     check_braces(spec, spec.body)
     body = rewrite_body(spec, spec.body).replace("\r\n", "\n").rstrip()
-    head = f"\\newcommand{{\\{spec.cs or prefix + spec.name}}}{signature(spec.args)}{_brace(spec.syntax)}"
+    head = f"{_definer(spec.args)}{{\\{spec.cs or prefix + spec.name}}}{_parameters(spec.args)}{_brace(spec.syntax)}"
     lines = [*_comment(spec.doc), f"% from {spec.qualname} (body: {spec.origin})"]
     return "\n".join([*lines, *_wrapped(spec.syntax, [head, *body.splitlines(), "}"])])
 
@@ -175,7 +266,7 @@ def render_environment(prefix: str, spec: EnvSpec) -> str:
     end = spec.end.replace("\r\n", "\n").rstrip()
     brace = _brace(spec.syntax)
     definition = [
-        f"\\newenvironment{{{spec.cs or prefix + spec.name}}}{signature(spec.args)}{brace}",
+        f"{_definer(spec.args, environment=True)}{{{spec.cs or prefix + spec.name}}}{_parameters(spec.args)}{brace}",
         *begin.splitlines(),
         f"}}{brace}",
         *end.splitlines(),
@@ -186,31 +277,66 @@ def render_environment(prefix: str, spec: EnvSpec) -> str:
 
 
 def argument_text(arg: Arg, value: object, syntax: Syntax = Syntax.LATEX2E) -> str:
-    """The TeX of one argument value, without its braces: `Text` escaped, `Raw` as it is, a hole as `#name`; in expl3 a
-    space of text is `~`."""
-    if isinstance(value, Choice):
-        value = value.value
+    """The TeX of one argument value, without its delimiters: `Text` escaped, `Raw` as it is, a hole as `#name`; in
+    expl3 a space of text is `~`."""
     if isinstance(value, Hole):
         return f"#{value.name}"
-    if isinstance(value, Raw):
-        return value.tex
-    if arg.pdf:
-        pdf = f"\\detokenize{{{pdf_escape(str(value))}}}"
-        return pdf.replace(" ", "~") if syntax is Syntax.EXPL3 else pdf
-    return text_of(str(value), syntax)
+    return value_text(arg.body, value, syntax, booleans=arg.booleans, sep=arg.sep)
+
+
+def wrap(delimiter: Delimiter, text: str, *, key_list: bool = False) -> str:
+    """`text` between the delimiters; a closing delimiter anywhere in it is hidden by wrapping it in braces (T3). A key
+    list is wrapped only when its closing delimiter stands outside the braces its own values already have."""
+    if delimiter == BRACE:
+        return f"{{{text}}}"
+    if unprotected(text, delimiter.close) if key_list else delimiter.close in text:
+        return f"{delimiter.open}{{{text}}}{delimiter.close}"
+    return f"{delimiter.open}{text}{delimiter.close}"
 
 
 def argument(arg: Arg, value: object, syntax: Syntax = Syntax.LATEX2E) -> str:
-    """One call argument. `Text` is escaped, `Raw` passes through; a `]` in the optional one is wrapped (T3)."""
-    text = argument_text(arg, value, syntax)
-    if not arg.optional:
-        return f"{{{text}}}"
-    return f"[{{{text}}}]" if "]" in text else f"[{text}]"
+    """One call argument in its delimiters; a token is the character itself."""
+    if arg.token:
+        return arg.body.token or ""
+    return wrap(arg.delimiter, argument_text(arg, value, syntax), key_list=arg.body.kind is BodyKind.KEYVALS)
+
+
+def written(arg: Arg, value: object) -> bool:
+    """Whether the slot appears in the call: a token when `True`, an optional slot when set, and a required one always.
+    An empty key list in an optional slot is not set."""
+    if arg.token:
+        return value is True
+    if value is None:
+        return False
+    if arg.optional and arg.body.kind is BodyKind.KEYVALS and not isinstance(value, Hole):
+        return bool(cast("Any", value).render())
+    return True
 
 
 def arguments(args: tuple[Arg, ...], values: Mapping[str, object], syntax: Syntax = Syntax.LATEX2E) -> str:
-    """`[Sound]{A soft woof.}`: the optional argument first, and left out when it is `None`."""
-    return "".join(argument(a, values[a.name], syntax) for a in tex_arguments(args) if values[a.name] is not None)
+    """`[Sound]{A soft woof.}`: every written slot in TeX order. An optional slot left out while a later optional one is
+    written gets its `fill`; a slot left out otherwise is just not there (xparse needs nothing in its place)."""
+    ordered = tex_arguments(args)
+    shown = [written(a, values[a.name]) for a in ordered]
+    out: list[str] = []
+    for i, a in enumerate(ordered):
+        if shown[i]:
+            out.append(argument(a, values[a.name], syntax))
+        elif (
+            a.optional
+            and not a.token
+            and isinstance(a.fill, str)
+            and any(shown[j] and ordered[j].optional and not ordered[j].token for j in range(i + 1, len(ordered)))
+        ):
+            out.append(wrap(a.delimiter, a.fill))
+    return "".join(out)
+
+
+def argument_violations(a: Arg, value: object) -> str | None:
+    """Why `value` does not fit the slot, or None."""
+    if value is None and a.optional:
+        return None
+    return None if value_ok(a.body, value) else f"expected {a.body.describe()}, got {value!r}"
 
 
 _EXPL_SWITCH = re.compile(r"\\ExplSyntax(?:On|Off)(?![A-Za-z])")
@@ -242,50 +368,112 @@ def colour_name(prefix: str, name: str) -> str:
     return f"{prefix}-{snake(name).replace('_', '-')}"
 
 
-def bool_names(prefix: str, name: str) -> tuple[str, ...]:
-    """The control sequences `\\newif\\if<prefix><name>` defines besides the conditional itself."""
-    return (f"{prefix}{name}true", f"{prefix}{name}false")
+def _controls(*suffixes: str) -> Callable[[str, str, str | None], tuple[Claim, ...]]:
+    r"""The claims of a kind that takes `\<prefix><Name>` and `\<prefix><Name><suffix>` for each suffix."""
+    return lambda prefix, name, _alias: tuple(
+        ("control", c, f"\\{c}") for c in (f"{prefix}{name}", *(f"{prefix}{name}{x}" for x in suffixes))
+    )
 
 
-def setting(prefix: str, name: str, value: Length | Colour | bool | str | Raw) -> str:
-    """The line that gives a value its content: the default in the `.sty`, a document's `settings=` in the `.tex`."""
-    control = f"{prefix}{name}"
-    if isinstance(value, Raw):
-        return f"\\renewcommand{{\\{control}}}{{{value.tex}}}"
-    if isinstance(value, str):
-        return f"\\renewcommand{{\\{control}}}{{{escape(value)}}}"
-    if isinstance(value, Length):
-        return f"\\setlength{{\\{control}}}{{{value}}}"
-    if isinstance(value, bool):
-        return f"\\{control}{'true' if value else 'false'}"
-    return f"\\definecolor{{{colour_name(prefix, name)}}}{{{value.model}}}{{{value}}}"
+def _colour_claims(prefix: str, name: str, alias: str | None) -> tuple[Claim, ...]:
+    colour = alias or colour_name(prefix, name)
+    return (("colour", colour, f"colour {colour}"),)
+
+
+def _declared(
+    first: Callable[[str], list[str]], setting: Callable[[str, str, Any, str | None], str]
+) -> Callable[[str, str, Any, str | None], list[str]]:
+    """A definition that declares the name, then sets the default if there is one."""
+    return lambda prefix, name, default, alias: [
+        *first(f"{prefix}{name}"),
+        *([] if default is None else [setting(prefix, name, default, alias)]),
+    ]
+
+
+def _renew(prefix: str, name: str, value: Any, _alias: str | None) -> str:  # noqa: ANN401
+    return f"\\renewcommand{{\\{prefix}{name}}}{{{value.tex if isinstance(value, Raw) else escape(value)}}}"
+
+
+def _new(prefix: str, name: str, value: Any, _alias: str | None) -> list[str]:  # noqa: ANN401
+    return [f"\\newcommand{{\\{prefix}{name}}}{{{value.tex if isinstance(value, Raw) else escape(value)}}}"]
+
+
+def _set_flag(prefix: str, name: str, value: Any, _alias: str | None) -> str:  # noqa: ANN401
+    return f"\\{prefix}{name}{'true' if value else 'false'}"
+
+
+def _set_colour(prefix: str, name: str, value: Any, alias: str | None) -> str:  # noqa: ANN401
+    return f"\\definecolor{{{alias or colour_name(prefix, name)}}}{{{value.model}}}{{{value}}}"
+
+
+def _set_length(prefix: str, name: str, value: Any, _alias: str | None) -> str:  # noqa: ANN401
+    return f"\\setlength{{\\{prefix}{name}}}{{{value}}}"
+
+
+LENGTH = ValueKind(
+    "Length",
+    Length,
+    "string",
+    _controls(),
+    _declared(lambda c: [f"\\newlength{{\\{c}}}"], _set_length),
+    _set_length,
+    may_omit=True,
+    bare=True,
+)
+COLOUR = ValueKind(
+    "Colour",
+    Colour,
+    "string",
+    _colour_claims,
+    _declared(lambda _c: [], _set_colour),
+    _set_colour,
+    needs=("xcolor",),
+    named=True,
+)
+BOOL = ValueKind(
+    "Bool",
+    bool,
+    "boolean",
+    lambda prefix, name, _alias: (
+        *_controls("true", "false")(prefix, name, None),
+        ("control", f"if{prefix}{name}", f"\\if{prefix}{name}"),
+    ),
+    _declared(lambda c: [f"\\newif\\if{c}"], _set_flag),
+    _set_flag,
+    defines=lambda prefix, name, _alias: tuple(
+        ("control", n, f"\\{n}") for n in (f"if{prefix}{name}", f"{prefix}{name}true", f"{prefix}{name}false")
+    ),
+)
+TEXT_KIND = ValueKind(
+    "Text",
+    str,
+    "string",
+    _controls(),
+    _new,
+    _renew,
+    may_omit=True,
+    adoptable=True,
+)
+RAW_KIND = ValueKind(
+    "Raw",
+    Raw,
+    "string",
+    _controls(),
+    _new,
+    _renew,
+    may_omit=True,
+    adoptable=True,
+)
+
+
+def addressed(prefix: str, name: str, cs: str | None) -> tuple[str, str]:
+    """A value's prefix and name as its kind writes them: a `cs` is the whole control sequence."""
+    return ("", cs) if cs else (prefix, name)
 
 
 def render_value(prefix: str, spec: ValueSpec) -> str:
-    d, control = spec.default, f"{prefix}{spec.name}"
-    if isinstance(d, Raw):
-        return "\n".join(
-            [*_comment(spec.doc), f"% from {spec.qualname} (value: Raw)", f"\\newcommand{{\\{control}}}{{{d.tex}}}"]
-        )
-    if isinstance(d, str):
-        return "\n".join(
-            [
-                *_comment(spec.doc),
-                f"% from {spec.qualname} (value: Text)",
-                f"\\newcommand{{\\{control}}}{{{escape(d)}}}",
-            ]
-        )
-    d = cast("Length | Colour | bool", d)  # Package.value refuses a missing default
-    decl = (
-        [f"\\newlength{{\\{control}}}"]
-        if isinstance(d, Length)
-        else [f"\\newif\\if{control}"]
-        if isinstance(d, bool)
-        else []
-    )
-    return "\n".join(
-        [*_comment(spec.doc), f"% from {spec.qualname} (value: {spec.kind})", *decl, setting(prefix, spec.name, d)]
-    )
+    lines = spec.kind.declare(*addressed(prefix, spec.name, spec.cs), spec.default, spec.alias)
+    return "\n".join([*_comment(spec.doc), f"% from {spec.qualname} (value: {spec.kind.name})", *lines])
 
 
 def undeclared(prefix: str, text: str, declared: Mapping[str, str]) -> list[str]:
@@ -309,12 +497,20 @@ def check_references(prefix: str, spec: Spec | EnvSpec, text: str, declared: Map
         )
 
 
-def header_lines(name: str, version: str, date: str, description: str, stamp: str) -> list[str]:
-    """The first three lines of a generated `.sty`."""
+def header_lines(name: str, version: str, date: str | None, description: str, stamp: str, text: str = "") -> list[str]:
+    """The head of a generated `.sty`: the generator's line, then `text` as comment lines (the package's own header, if
+    any), `\\NeedsTeXFormat` and `\\ProvidesPackage`. LaTeX reads the first word of its bracket as a date, so a package
+    with no date has no bracket, and its version and description are a comment."""
+    provides = (
+        [f"\\ProvidesPackage{{{name}}}[{date} v{version} {description or name}]"]
+        if date
+        else [f"\\ProvidesPackage{{{name}}}", f"% v{version} {description or name}"]
+    )
     return [
         f"% {name}.sty -- {stamp}. Do not edit; run `texmodel build`.",
+        *_comment(text),
         "\\NeedsTeXFormat{LaTeX2e}",
-        f"\\ProvidesPackage{{{name}}}[{date} v{version} {description or name}]",
+        *provides,
     ]
 
 

@@ -261,6 +261,8 @@ def refs_in(piece: object) -> Iterator[Ref]:
     """Every `Ref` in a piece, nested ones included: they are what a body depends on."""
     if isinstance(piece, Ref):
         yield piece
+        for value in piece.values:  # a call inside an argument
+            yield from refs_in(value)
     elif isinstance(piece, Group | Seq):
         for inner in piece.pieces:
             yield from refs_in(inner)

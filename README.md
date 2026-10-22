@@ -6,8 +6,9 @@
 Declare a LaTeX document family once in Python types; get plain, readable, git-trackable `.sty` source out of it. The output
 is ordinary TeX: commit it, diff it, compile it with whatever LaTeX setup you already have.
 
-> **Status: 0.1.0, alpha.** The public API may change before 1.0. Release migrations, `texmodel-print` and the trust
-> and sandbox layers are planned, not built (see [the plan](docs/texmodel-plan.md)).
+> **Status: alpha.** The public API may change before 1.0. Release migrations, `texmodel-print` and the trust
+> and sandbox layers are planned, not built (see [the plan](docs/texmodel-plan.md)). What is missing today:
+> [known limitations](docs/known-limitations.md).
 
 ```zsh
 pip install texmodel                 # the library and the texmodel-build command
@@ -23,6 +24,8 @@ One distribution, two packages:
 
 ## texmodel
 
+Worked examples and practices: [the cookbook](docs/cookbook.md).
+
 ```python
 # acme_cards/__init__.py
 from texmodel.body import TemplateRef
@@ -31,6 +34,7 @@ from texmodel.package import Package
 from texmodel.types import CMYK, Colour, Length, Text
 
 pkg = Package("acme-cards", prefix="ac", version="1.4.0", date="2026/10/21")
+# `date=None` leaves the date out of \ProvidesPackage; `header="..."` adds comment lines under the generator's line
 
 @pkg.value
 class FactGap(Value[Length]):
@@ -145,6 +149,15 @@ A pointer (`package =`, and the argument of `texmodel render`) is `dotted.module
 package = "acme_cards.decks:Decks.birds"      # or "acme_cards.decks:make_package()"
 ```
 
+A family of packages (a core, its bases, one per series) is a list of pointers, or one pointer to an iterable of
+`Package`s; `build` and `check` cover them all together (a package name must be unique, as it is a file):
+
+```toml
+package = ["acme_cards.core:pkg", "acme_cards.birds:pkg"]      # or "acme_cards.family:all_packages()"
+```
+
+`texmodel schema` describes one package's data, so it needs a single `package`.
+
 ```zsh
 texmodel build     # writes generated/acme-cards.sty
 texmodel render docs:card   # writes card.tex from `card = pkg.document(...)` (or a function returning one); -o to choose
@@ -223,8 +236,14 @@ class FitSize(Command):
     available: Raw
 ```
 
-A component with `defined_by` has no body (`TM-M032`) and its block belongs to the same package (`TM-M033`). Whether TeX
-really defines it, with that many arguments, is checked by compiling: `texmodel_build.testkit.check_library(compiler, pkg)`
+A component with `defined_by` has no body (`TM-M032`) and its block belongs to the same package (`TM-M033`). `texmodel check`
+reads each block (`Package.check_parts()`, no TeX needed) and reports a declared component the block does not define with that
+signature (`TM-C010`, `TM-C011`), a public `<prefix>Name` the block defines that nothing declares (`TM-C012`), and a name
+defined twice (`TM-C013`; generation itself refuses it, `TM-P012`). The reading is regex-level (`\newcommand`, `\providecommand`,
+`\DeclareRobustCommand`, `\newenvironment`, the xparse family, `\newlength`, `\newtoggle`, `\newif`, `\definecolor`) and
+skips an expl3 block. A flag, toggle, length, colour or text setting a block defines is a `Value` with `defined_by` (no default;
+`cs = "..."` gives the whole control sequence, `colour_name` the colour's name). For the
+rest, whether TeX really defines it, with that many arguments, is checked by compiling: `texmodel_build.testkit.check_library(compiler, pkg)`
 builds `pkg.test_document(...)` with `export_probes(pkg)` (it writes `texmodel:probe:def.<cs>=yes|no` and
 `arity.<cs>=<n>` for each such component), compiles it, and returns `TM-C010` for a name the block does not define and
 `TM-C011` for another number of arguments (`?` is checked for existence only). The arity is the number of `#` in the macro's
@@ -234,6 +253,83 @@ builds `pkg.test_document(...)` with `export_probes(pkg)` (it writes `texmodel:p
 The PDF Info strings need no expl3 in a document: `PdfInfo(Title="...", Author="...")` in `before_package` or `after_package`
 writes each value PDF-escaped through `\csname pdfmanagement_add:nnn\endcsname`, and needs `RequireMetadata` in `before_class`
 (`TM-C009`). A key is letters only (`TM-M035`).
+
+### Parts filled from a model
+
+A package that starts from TeX you already have is a list of parts: `pkg.library(name, TemplateRef("brand.tex"), fill=model)`.
+`fill` is a mapping, a dataclass or a pydantic model, and the text's `<<name>>` holes (`<<a.b>>` into a nested model) are
+filled by type: `str` is escaped, `Raw` passes through, a `Length`, a colour model, a number or a flag is written as it is.
+A hole the model has no field for is an error (`TM-M041`), as is a value of another type (`TM-M040`); a model may hold more
+than the part uses. Without `fill` a block is carried exactly as it is. Components with `defined_by` then give decks typed
+calls to what the parts define. [The cookbook](docs/cookbook.md) has a worked example.
+
+### Arguments: slots, value types and key lists
+
+A field is an argument; its type says what it holds and `arg(...)` says how it is written (`texmodel.interface`).
+Without `arg()`, a required field is `{...}` and an optional one (a default) is TeX's one optional argument, `[...]`,
+written first. With `arg()` the slot keeps its declaration order, so any signature can be stated:
+
+```python
+from texmodel.interface import PAREN, SQUARE, Gap, SlotGroup, Star, arg
+
+class MakeBox(Command):                       # \makebox[3cm][c]{x}
+    cs = "makebox"
+    width: Length | None = arg(SQUARE, default=None, fill=Gap.REFUSE)   # `[c]` alone is not valid: refused
+    align: BoxAlign | None = arg(SQUARE, default=None)
+    text: Raw
+
+class Section(Command):                       # \section*[short]{long}
+    cs = "section"
+    starred: Star = arg(default=False)        # a token: `*`
+    short: Text | None = arg(SQUARE, default=None)
+    title: Text
+
+class Put(Command):                           # \put(1,2){x}
+    cs = "put"
+    at: tuple[int, int] = arg(PAREN)          # a tuple, written `1,2` (`sep=` changes the comma)
+    text: Raw
+```
+
+- **Slots.** `{}` `[]` `()` `<>` or your own `Delimiter`; a `Star` or other token; a slot left out is not written, and an
+  optional slot left out before a later optional one writes `fill=` (say `""` for empty brackets) or is refused
+  (`Gap.REFUSE`); declaring two optionals without saying which is `TM-M037`. A `SlotGroup` is written together or not at all.
+  Optional and token fields are keyword-only in Python wherever they stand, so give an optional one `default=None`.
+- **Value types.** `Text` (escaped), `PdfString`, `Raw`, `Length` (`Length("2mm")`, or `Length.expr(r"\linewidth")` for a TeX
+  expression), a colour model (`CMYK`, `RGB`, `Gray`) or a `ColourName` (`blue!50`), `int`, `float`, `bool` (`true`/`false`),
+  a `Choice`, a tuple, `NamedTuple`, dataclass or model of those, a `list`, and a `KeyVals`. A wrong value is a violation
+  with the field's path.
+- **Definitions.** A signature `\newcommand` can define keeps it. Several optional arguments, other delimiters or a token
+  are defined with `\NewDocumentCommand` / `\NewDocumentEnvironment` (xparse, in the LaTeX kernel; the arguments are
+  `#1`... in TeX order, an optional one left out is empty and a token is `\BooleanTrue` / `\BooleanFalse`). Stubs
+  and `check_interface` follow: `check_interface` reads `\NewDocumentCommand` family definitions as xparse letters.
+
+A key list (`\adjustbox{max width=\linewidth, center}{...}`) is a `KeyVals`, a frozen pydantic model: its field types say
+how each item is written, and its `KeyRules` say how the library reads it.
+
+```python
+from texmodel.interface import Flag, Item, OptionalValue, Switch
+from texmodel.keys import PGFKEYS
+from texmodel.keyvals import KeyVals, key
+
+class AdjustOptions(KeyVals, rules=PGFKEYS):
+    max_width: Length | None = key("max width")       # max width=3cm
+    center: Flag = False                              # center
+    clip: Switch | None = None                        # clip=true / clip=false
+    valign: VAlign | None = None                      # valign=t   (a Choice)
+    rounded: OptionalValue[Length] | None = key("rounded corners")   # rounded corners  /  rounded corners=2pt
+    style: Inner | None = key("every node/.style")    # every node/.style={draw=red}   (another KeyVals)
+    tags: list[Text] | None = None                    # tags=a,tags=b   (a list repeats the key)
+    extra: Item[Raw] | None = None                    # anything else, as written (an Item has no key)
+
+AdjustBox(AdjustOptions(max_width=Length.expr(r"\linewidth"), center=True), Raw("x"))
+```
+
+Items are written in declaration order and unset ones are left out. A `Text` value the library would split (`,` `=` `]`) is
+put in braces, and `exclusive` / `requires` on the class refuse combinations. Presets in `texmodel.keys` (`PGFKEYS`,
+`XKEYVAL`, `KVOPTIONS`, `L3KEYS`, `KEYVAL`) hold what a library does; `dataclasses.replace(PGFKEYS, booleans=("on", "off"))`
+makes another. They were measured, not assumed: `tests/test_texmodel/test_interface_tex.py` passes awkward values through
+pgfkeys, xkeyval, keyval and l3keys. All four read `,` `=` `]` safely when braced and strip a space at either end of a
+value, which `{{ a }}` keeps in three of them (`l3keys` trims whatever it is given, `KeyRules.edge_spaces`). `KVOPTIONS` is `XKEYVAL` without nesting and was not measured.
 
 ### Standard libraries
 
@@ -246,16 +342,17 @@ class IncludeGraphics(Command):
     r"""Place a picture: `\includegraphics[width=3cm]{a.png}`."""
     cs = "includegraphics"            # the TeX name, stated outright; without `cs` it is prefix + class name
     path: Raw
-    options: Raw | None = None        # TeX's one optional argument, written first
+    options: IncludeGraphicsOptions | None = None    # a KeyVals: TeX's one optional argument, written first
 ```
 
-A body that calls one (`IncludeGraphics.call(Hole("path"), options=Raw(r"width=\linewidth"))`) makes the generated `.sty`
+A body that calls one (`IncludeGraphics.call(Hole("path"), options=IncludeGraphicsOptions(width=Length.expr(r"\linewidth")))`) makes the generated `.sty`
 load the package; the kernel header (`builtin=True`) never does. A library whose commands no body calls, or that takes
 options, is loaded with `pkg.require(microtype, options=["protrusion=true"])`: `\RequirePackage[protrusion=true]{microtype}`,
 in that order, before the packages the bodies need. `tests/test_std` compiles a call of every declared name against the
-reference image, so a header that names a command TeX does not have fails, with the path of the call. A header covers
-required `{}` arguments and one leading `[]`; a library's own syntax (TikZ paths such as `\draw (0,0) -- (1,1);`, key-value
-declarations) is written as `Passthrough` or `Raw`.
+reference image, so a header that names a command TeX does not have fails, with the path of the call. `adjustbox`, `graphicx`,
+`geometry`, `tcolorbox` and `tikz` type their key lists, `calc` is a typed expression language (`dimen(Length("2cm")) * real(0.5) + widthof("abc")`, with `maxof`, `minof`, `ratio`, `glue`, `integer`, `counter_value`), and the kernel types `\vspace*`, `\makebox`, `\raisebox` and
+the sectioning commands; a library's own syntax (TikZ paths such as `\draw (0,0) -- (1,1);`) is written as `Passthrough`
+or `Raw`.
 
 ### A package that is already written in TeX
 
@@ -309,7 +406,7 @@ pkg.document(card, settings=[DeckName("R&D")])    # \renewcommand{\acDeckName}{R
 ```
 
 A generated package defines `\newcommand{\acDeckName}{Untitled}`; for an adopted one `texmodel check` expects the hand-written
-package to define the macro with no arguments. Length, colour and flag settings are written in the document body as before.
+package to define the macro with no arguments. Every setting, of any type, is written right after `\usepackage`, in the order given, before `after_package`.
 
 A `Value[Raw]` is the same for a setting that is TeX (`\newcommand{\acFooter}{\textit{draft}}`, renewed by `settings=[Footer(Raw(...))]`).
 A `PdfString` field holds text for the inside of a PDF literal string you write yourself (`\pdfextension info{/Subject (#text)}`):

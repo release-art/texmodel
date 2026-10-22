@@ -22,7 +22,7 @@ from texmodel.body import Hole
 from texmodel.components import Command, Passthrough
 from texmodel.package import Package, PreambleSlots
 from texmodel.std import MODULES, TEXLIVE
-from texmodel.types import Raw, Text
+from texmodel.types import Length, Raw, Text
 from texmodel_build.compiler import Compiler
 from texmodel_build.diagnostics import PackageError, Severity
 
@@ -52,7 +52,7 @@ def test_a_header_is_an_adopted_package_whose_components_all_name_their_control_
     assert package.builtin == (name == "latex")
     for cls in package.registered:
         assert cls.__doc__ and cls.__dict__["cs"] and cls.__tm_cs__ == cls.__dict__["cs"]  # pyright: ignore[reportAttributeAccessIssue]
-    if name in {"hyphenat", "anyfontsize", "calc"}:
+    if name in {"hyphenat", "anyfontsize"}:
         assert package.registered == ()  # loaded with Package.require; nothing to call
 
 
@@ -69,7 +69,9 @@ def test_a_body_that_calls_a_header_requires_its_package_and_a_builtin_one_requi
 
         def body(self):
             yield latex.Centering.call()
-            yield graphicx.IncludeGraphics.call(Hole("path"), options=Raw(r"width=\linewidth"))
+            yield graphicx.IncludeGraphics.call(
+                Hole("path"), options=graphicx.IncludeGraphicsOptions(width=Length.expr(r"\linewidth"))
+            )
 
     sty = pkg.render()
     assert r"\RequirePackage{graphicx}" in sty and "RequirePackage{latex}" not in sty
@@ -89,8 +91,8 @@ def latex_samples():
     pre = [k.DeclareOption(Raw("tmopt"), Raw("")), k.PassOptionsToPackage(Raw("final"), Raw("microtype"))]
     nodes = [
         k.NewLength(length),
-        k.SetLength(length, Raw("3mm")),
-        k.AddToLength(length, Raw("1mm")),
+        k.SetLength(length, Length("3mm")),
+        k.AddToLength(length, Length("1mm")),
         k.SetToWidth(length, Raw("abc")),
         k.SetToHeight(length, Raw("abc")),
         k.SetToDepth(length, Raw("abc")),
@@ -99,8 +101,20 @@ def latex_samples():
         k.StepCounter(counter),
         k.SetCounter(counter, value),
         k.Arabic(counter),
-        k.VSpace(Raw("1mm")),
-        k.HSpace(Raw("1mm")),
+        k.VSpace(length=Length("1mm")),
+        k.HSpace(length=Length("1mm")),
+        k.VSpace(starred=True, length=Length("1mm")),
+        k.HSpace(starred=True, length=Length("1mm")),
+        k.MakeBox(Raw("x")),
+        k.MakeBox(Raw("x"), width=Length("3cm")),
+        k.MakeBox(Raw("x"), width=Length("3cm"), align=k.BoxAlign.CENTRE),
+        k.RaiseBox(Length("1pt"), Raw("x")),
+        k.RaiseBox(Length("1pt"), Raw("x"), height=Length("2pt"), depth=Length("1pt")),
+        k.Section("S"),
+        k.Section("S", starred=True),
+        k.Section("S", short="s"),
+        k.Subsection("S", starred=True, short="s"),
+        k.Subsubsection("S"),
         k.NoIndent(),
         k.Par(),
         k.NewPage(),
@@ -147,7 +161,7 @@ def latex_samples():
         k.Center(body_of("x")),
         k.FlushLeft(body_of("x")),
         k.FlushRight(body_of("x")),
-        k.Minipage(body_of("x"), width=Raw("3cm"), position=Raw("t")),
+        k.Minipage(body_of("x"), width=Length("3cm"), position=k.BoxPosition.TOP),
         k.ClearPage(),
     ]
     return pre, nodes
@@ -158,7 +172,18 @@ def graphicx_samples():
 
     return [], [
         g.GraphicsPath(Raw("{}{img/}")),
-        g.IncludeGraphics(Raw("tm-pic.png"), options=Raw("width=1cm")),
+        g.IncludeGraphics(
+            Raw("tm-pic.png"),
+            options=g.IncludeGraphicsOptions(
+                width=Length("1cm"),
+                height=Length("1cm"),
+                keepaspectratio=True,
+                scale=0.5,
+                angle=0,
+                clip=True,
+                extra=Raw("trim=0 0 0 0"),
+            ),
+        ),
         g.IncludeGraphics(Raw("tm-pic.png")),
     ]
 
@@ -179,7 +204,9 @@ def xcolor_samples():
 def geometry_samples():
     from texmodel.std import geometry as g
 
-    return [g.Geometry(Raw("a4paper,margin=10mm"))], []
+    return [
+        g.Geometry(g.GeometryOptions(a4paper=True, margin=Length("10mm"), includehead=True, extra=Raw("heightrounded")))
+    ], []
 
 
 def etoolbox_samples():
@@ -203,6 +230,9 @@ def etoolbox_samples():
         e.ToggleFalse(Raw("tmt")),
         e.SetToggle(Raw("tmt"), Raw("true")),
         e.IfToggle(Raw("tmt"), Raw("y"), Raw("n")),
+        e.IfNumGreater(Raw("2"), Raw("1"), Raw("y"), Raw("n")),
+        e.IfNumLess(Raw("1"), Raw("2"), Raw("y"), Raw("n")),
+        e.IfNumEqual(Raw("1"), Raw("1"), Raw("y"), Raw("n")),
     ]
     return pre, nodes
 
@@ -237,14 +267,31 @@ def enumitem_samples():
 def adjustbox_samples():
     from texmodel.std import adjustbox as a
 
-    return [], [a.AdjustBox(Raw("max width=3cm"), Raw("x"))]
+    return [], [
+        a.AdjustBox(
+            a.AdjustBoxOptions(
+                max_width=Length.expr(r"\linewidth"),
+                center=True,
+                valign=a.VAlign.TOP,
+                frame=True,
+                margin=Length("1mm"),
+                scale=0.5,
+            ),
+            Raw("x"),
+        )
+    ]
 
 
 def tikz_samples():
     from texmodel.std import tikz as t
 
-    return [t.UseTikzLibrary(Raw("calc,positioning")), t.TikzSet(Raw("tmstyle/.style={draw}"))], [
-        t.Tikzpicture(body_of(r"\draw (0,0) -- (1,1);"), options=Raw("scale=1")),
+    return [t.UseTikzLibrary(Raw("calc,positioning")), t.TikzSet(t.TikzOptions(extra=Raw("tmstyle/.style={draw}")))], [
+        t.Tikzpicture(
+            body_of(r"\draw (0,0) -- (1,1);"),
+            options=t.TikzOptions(
+                scale=1, thick=True, draw="red", line_width=Length("1pt"), rounded_corners=True, extra=Raw("->")
+            ),
+        ),
         t.Tikzpicture(body_of(r"\node {x};")),
     ]
 
@@ -252,10 +299,15 @@ def tikz_samples():
 def tcolorbox_samples():
     from texmodel.std import tcolorbox as t
 
-    return [t.TcbUseLibrary(Raw("skins,fitting")), t.TcbSet(Raw("colback=white"))], [
-        t.Tcolorbox(body_of("x"), options=Raw("colback=white")),
+    return [t.TcbUseLibrary(Raw("skins,fitting")), t.TcbSet(t.TcolorboxOptions(colback="white"))], [
+        t.Tcolorbox(
+            body_of("x"),
+            options=t.TcolorboxOptions(
+                colback="white", colframe="black", boxrule=Length("0.5pt"), arc=Length("1mm"), sharp_corners=True
+            ),
+        ),
         t.Tcolorbox(body_of("x")),
-        t.Tcbox(Raw("x"), options=Raw("colback=white")),
+        t.Tcbox(Raw("x"), options=t.TcolorboxOptions(colback="white", opacityback=0.5)),
         t.Tcbox(Raw("x")),
     ]
 
@@ -270,6 +322,23 @@ def fontspec_samples():
     ], []
 
 
+def calc_samples():
+    from texmodel.std import (
+        calc as c,
+        latex as k,
+    )
+
+    counter, length, box = Raw("tmc"), Raw(r"\tmlen"), Raw(r"\tmtotal")
+    pre = [k.NewCounter(counter), k.NewLength(length), k.NewLength(box)]
+    return pre, [
+        c.SetCounter(counter, c.integer(7) / 2),
+        c.AddToCounter(counter, c.integer(2) * c.real(1.6)),
+        c.SetLength(length, c.widthof("abc") * c.real(0.5) + Length("1pt")),
+        c.AddToLength(length, c.glue(Length("1pt"), Length("1pt"))),
+        c.SetToTotalHeight(box, Raw("Ag")),
+    ]
+
+
 SAMPLES = {
     "latex": latex_samples,
     "graphicx": graphicx_samples,
@@ -280,7 +349,7 @@ SAMPLES = {
     "microtype": microtype_samples,
     "hyphenat": lambda: ([], []),
     "anyfontsize": lambda: ([], []),
-    "calc": lambda: ([], []),
+    "calc": calc_samples,
     "pdfrender": pdfrender_samples,
     "enumitem": enumitem_samples,
     "adjustbox": adjustbox_samples,

@@ -89,7 +89,7 @@ def test_a_document_of_declared_components_escapes_and_checks_the_grammar():
 
 def test_a_body_or_a_value_on_an_adopted_package_is_refused():
     pkg = Package("hand", prefix="hd", adopted=True)
-    with refused("TM-M023"):
+    with refused("TM-M032"):
 
         @pkg.command
         class Bodied(Command):
@@ -97,7 +97,7 @@ def test_a_body_or_a_value_on_an_adopted_package_is_refused():
 
             body = "x"
 
-    with refused("TM-M023"):
+    with refused("TM-M032"):
 
         @pkg.environment
         class Boxed(Environment):

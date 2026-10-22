@@ -20,7 +20,7 @@ import re
 import typing
 from collections.abc import Mapping, Sequence
 
-from ._internal.render import Arg, argument_text, signature, tex_arguments
+from ._internal.render import Arg, argument_text, newcommand_fits, signature, tex_arguments, xparse_spec
 from .body import HOLE, Comment, Cs, Group, Hole, Library, Lit, Ref, RefKind, Seq, TexRaw
 from .components import Command, Environment, Node, Passthrough, Resolved, control_name
 from .errors import DeclarationError, Violation
@@ -97,6 +97,14 @@ def detokenized(tex: str) -> str:
             while i < len(text) and text[i].isspace():
                 i += 1
     return "".join(out)
+
+
+def _text(a: Arg, value: object) -> str:
+    """What `#name` stands for in a body for this argument value: nothing for an unset one, and for a token what xparse
+    gives (`\\BooleanTrue`, `\\BooleanFalse`)."""
+    if a.token:
+        return r"\BooleanTrue" if value else r"\BooleanFalse"
+    return "" if value is None else argument_text(a, value)
 
 
 def _args(cls: type) -> tuple[Arg, ...]:
@@ -182,7 +190,7 @@ def _body(cls: type, which: int | None, values: Mapping[str, str], stubs: frozen
 
 def _ref(ref: Ref, values: Mapping[str, str], stubs: frozenset[type], out: _Out) -> None:
     mine = {
-        a.name: "" if v is None else values[v.name] if isinstance(v, Hole) else argument_text(a, v)
+        a.name: values[v.name] if isinstance(v, Hole) else _text(a, v)
         for a, v in zip(_args(ref.target), ref.values, strict=True)
     }
     if ref.target in stubs:
@@ -198,9 +206,7 @@ def _walk(node: Node, stubs: frozenset[type], out: _Out) -> None:
         out.write(node.tex.tex + "\n")
         return
     cls = type(node)
-    values = {
-        a.name: "" if getattr(node, a.name) is None else argument_text(a, getattr(node, a.name)) for a in _args(cls)
-    }
+    values = {a.name: _text(a, getattr(node, a.name)) for a in _args(cls)}
     if isinstance(node, Command):
         if cls in stubs:
             out.call(_call(cls, values, RefKind.CALL))
@@ -240,22 +246,28 @@ def stub_tex(stubs: Sequence[Component]) -> str:
         name, args = _control(cls), _args(cls)
         shown = "".join(f"{{#{i}}}" for i in range(1, len(args) + 1))
         arg_part = rf"\detokenize{{{shown}}}" if shown else ""
+        fits = newcommand_fits(args)
+        parameters = signature(args) if fits else f"{{{xparse_spec(args)}}}"
         if issubclass(cls, Environment):
+            definer = r"\renewenvironment" if fits else r"\RenewDocumentEnvironment"
             lines.append(rf"\providecommand{{\{name}}}{{}}\providecommand{{\end{name}}}{{}}")
             lines.append(
-                rf"\renewenvironment{{{name}}}{signature(args)}{{{_probe(f'begin:{name}', arg_part)}}}"
+                rf"{definer}{{{name}}}{parameters}{{{_probe(f'begin:{name}', arg_part)}}}"
                 rf"{{{_probe(f'end:{name}', '')}}}"
             )
         else:
+            definer = r"\renewcommand" if fits else r"\RenewDocumentCommand"
             lines.append(rf"\providecommand{{\{name}}}{{}}")
-            lines.append(rf"\renewcommand{{\{name}}}{signature(args)}{{{_probe(name, arg_part)}}}")
+            lines.append(rf"{definer}{{\{name}}}{parameters}{{{_probe(name, arg_part)}}}")
     return "\n".join(lines)
 
 
 def _defined(package: "Package") -> list[tuple[Component, Library]]:
     """The registered components a library block defines, with the block."""
     return [
-        (c, c.defined_by) for c in typing.cast("tuple[Component, ...]", package.registered) if c.defined_by is not None
+        (c, c.defined_by)
+        for c in package.registered
+        if issubclass(c, Command | Environment) and c.defined_by is not None
     ]
 
 

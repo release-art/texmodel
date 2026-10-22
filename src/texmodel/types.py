@@ -8,14 +8,18 @@ import dataclasses
 import enum
 import math
 import re
+import types
+from collections.abc import Callable
 from decimal import Decimal
 from fractions import Fraction
-from typing import TYPE_CHECKING, Annotated, ClassVar, Final
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Final
 
 from .errors import DeclarationError, ValidationError
 
 if TYPE_CHECKING:
     from pydantic_core import CoreSchema
+
+    from .package import Package
 
 
 class _TextMarker:
@@ -25,6 +29,41 @@ class _TextMarker:
 
 TEXT: Final = _TextMarker()
 Text = Annotated[str, TEXT]
+
+
+type Claim = tuple[
+    str, str, str
+]  # a name a value takes: its namespace ("control" | "colour"), the name, how to show it
+
+
+@dataclasses.dataclass(frozen=True)
+class ValueKind:
+    """What a `Value[T]` is: the type it holds, the names it claims, the TeX that declares and sets it. The built-in
+    kinds (length, colour, flag, text, raw) are in the renderer; a package adds its own, as etoolbox's `Toggle` does.
+    Give it to `Annotated[T, kind]` and `Value[...]` of that is the kind.
+
+    `declare(prefix, name, default, alias)` is the definition lines (`default` may be None), `setting(...)` the one line
+    that sets a value (a document's `settings=`); `alias` is the class's `colour_name`. `claims` are the names it takes
+    in the package; `defines` the names a library that defines it must define, when they are not the same.
+    """
+
+    name: str  # "Length", "Toggle": shown in provenance comments and errors
+    python: type | types.UnionType  # what a value is an instance of
+    json_type: str
+    claims: Callable[[str, str, str | None], tuple[Claim, ...]]
+    declare: Callable[[str, str, Any, str | None], list[str]]
+    setting: Callable[[str, str, Any, str | None], str]
+    needs: tuple["str | Package", ...] = ()  # packages it needs (M14): a name, or a `Package` of this project
+    defines: Callable[[str, str, str | None], tuple[Claim, ...]] | None = (
+        None  # what a library must define; else `claims`
+    )
+    named: bool = False  # the class may rename it (`colour_name`)
+    may_omit: bool = False  # the class may leave `default` out (an adopted `Text` / `Raw`; a length computed later)
+    bare: bool = False  # a package may declare it without a default
+    adoptable: bool = False  # an adopted package may declare it
+
+    def must_define(self, prefix: str, name: str, alias: str | None) -> tuple[Claim, ...]:
+        return (self.defines or self.claims)(prefix, name, alias)
 
 
 class _PdfMarker:
@@ -111,12 +150,12 @@ class Raw:
         from pydantic_core import core_schema as cs
 
         def make(value: object) -> Raw:
-            if isinstance(value, Raw):
+            if isinstance(value, cls):
                 return value
             if not isinstance(value, str):
                 raise ValueError("expected TeX as a string")  # noqa: TRY004  # pydantic reports ValueError, not TypeError
             try:
-                return Raw(value)
+                return cls(value)
             except ValidationError as exc:
                 raise ValueError(str(exc)) from exc
 
@@ -170,6 +209,9 @@ _INCHES_PER = {  # None: relative to the font, no fixed size
 }
 
 
+_COLOUR_PLACES = Decimal("0.00001")
+
+
 def _plain(d: Decimal) -> str:
     """No exponent, no trailing zeros, no `-0`: `2.0` -> `2`, `1e-05` -> `0.00001`."""
     s = format(d, "f")
@@ -180,6 +222,11 @@ def _plain(d: Decimal) -> str:
 
 def _decimal(x: float) -> Decimal:
     return Decimal(repr(float(x)))
+
+
+def plain_number(x: float) -> str:
+    """A number as TeX reads it: no exponent, no trailing zeros (`0.5`, `2`)."""
+    return _plain(_decimal(x))
 
 
 @dataclasses.dataclass(frozen=True, init=False)
@@ -220,6 +267,62 @@ class Length:
             raise DeclarationError(f"{self}: {self.unit} is relative to the font", code="TM-M016")
         return Fraction(self.value) * per
 
+    @staticmethod
+    def expr(tex: "Raw | str") -> "LengthExpr":
+        """A TeX length expression, which has no size in Python: `Length.expr(r"\\linewidth")`,
+        `Length.expr(r"0.5\\textwidth")`. Written as it is, braces balanced; a plain `str` is not a length, so this is
+        how to say one."""
+        return LengthExpr(tex)
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source: object, handler: object) -> CoreSchema:
+        """Data gives a length as `"2mm"`, or `{"expr": "\\linewidth"}` for an expression."""
+        from pydantic_core import core_schema as cs
+
+        def make(value: object) -> Length:
+            try:
+                if isinstance(value, Length):
+                    return value
+                if isinstance(value, str):
+                    return Length(value)
+                if isinstance(value, dict) and set(value) == {"expr"} and isinstance(value["expr"], str):  # pyright: ignore[reportUnknownArgumentType]
+                    return LengthExpr(value["expr"])
+            except (DeclarationError, ValidationError) as exc:
+                raise ValueError(str(exc)) from exc
+            raise ValueError('expected a length such as "2mm", or {"expr": "\\\\linewidth"}')
+
+        return cs.json_or_python_schema(
+            json_schema=cs.chain_schema(
+                [cs.union_schema([cs.str_schema(), cs.dict_schema()]), cs.no_info_plain_validator_function(make)]
+            ),
+            python_schema=cs.no_info_plain_validator_function(make),
+            serialization=cs.plain_serializer_function_ser_schema(
+                lambda length: {"expr": length.tex} if isinstance(length, LengthExpr) else str(length)
+            ),
+        )
+
+
+@dataclasses.dataclass(frozen=True, init=False)
+class LengthExpr(Length):
+    """A TeX length expression (`Length.expr`): a `Length` wherever one is asked for; only TeX knows its size."""
+
+    tex: str
+
+    def __init__(self, tex: "Raw | str") -> None:  # noqa: PLW0231  # a different constructor from Length's
+        text = tex.tex if isinstance(tex, Raw) else Raw(tex).tex
+        if not text.strip():
+            raise DeclarationError("Length.expr: empty", code="TM-M016")
+        object.__setattr__(self, "value", Decimal(0))
+        object.__setattr__(self, "unit", "")
+        object.__setattr__(self, "tex", text)
+
+    def __str__(self) -> str:
+        return self.tex
+
+    @property
+    def inches(self) -> Fraction:
+        raise DeclarationError(f"{self}: a TeX expression has no size in Python", code="TM-M016")
+
 
 class _Colour:
     """Components in [0, 1], refused outside it; `str()` is what `\\definecolor` takes."""
@@ -234,7 +337,8 @@ class _Colour:
                 )
 
     def __str__(self) -> str:
-        return ",".join(_plain(_decimal(v)) for v in vars(self).values())
+        """Components to five decimals: more is float noise (`0.7879999999999999`) that TeX would truncate."""
+        return ",".join(_plain(_decimal(v).quantize(_COLOUR_PLACES)) for v in vars(self).values())
 
 
 @dataclasses.dataclass(frozen=True)
