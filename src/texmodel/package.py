@@ -25,11 +25,12 @@ from ._internal.render import (
     undeclared,
 )
 from ._internal.scan import scan_declarations
+from .body import Whitespace
 from .components import Command, Environment, Node, Value, env_spec_of, spec_of, value_spec_of
 from .drift import stamp
 from .errors import DeclarationError, Violation
 from .plan import Line, Plan, node_lines
-from .types import Colour, Length, Raw
+from .types import Colour, Length, Raw, Text
 
 _NAME = re.compile(r"[a-z][a-z0-9-]*")
 _PREFIX = re.compile(r"[a-z]+")
@@ -68,6 +69,7 @@ class Package:
         description: str = "",
         document_class: str = "article",
         adopted: bool = False,
+        whitespace: Whitespace = Whitespace.KEEP,
     ) -> None:
         if not _NAME.fullmatch(name):
             raise DeclarationError(f"package name {name!r} must match [a-z][a-z0-9-]*", code="TM-P001")
@@ -79,6 +81,7 @@ class Package:
             raise DeclarationError(f"document class {document_class!r} must match [a-z][a-z0-9-]*", code="TM-P004")
         self.name, self.prefix, self.version, self.date, self.description = name, prefix, version, date, description
         self.document_class = document_class
+        self.whitespace = whitespace  # the policy of a body piece that names none (M8)
         self.adopted = adopted  # the `.sty` is hand-written; components only declare it (M9)
         self._items: list[Spec | EnvSpec | ValueSpec] = []  # registration order is output order
         self._controls: dict[str, str] = {}  # control sequence -> qualname of its declarer
@@ -97,7 +100,7 @@ class Package:
 
     def command[C: type[Command]](self, cls: C) -> C:
         """Register a command class."""
-        spec = spec_of(cls, declared_only=self.adopted)
+        spec = spec_of(cls, declared_only=self.adopted, whitespace=self.whitespace)
         if not self.adopted:
             render_command(self.prefix, spec)  # lints the body now, so a bad body is refused at import
         control = self.prefix + spec.name
@@ -107,7 +110,7 @@ class Package:
 
     def environment[E: type[Environment]](self, cls: E) -> E:
         """Register an environment class: `\\newenvironment` with its begin and end bodies."""
-        spec = env_spec_of(cls, declared_only=self.adopted)
+        spec = env_spec_of(cls, declared_only=self.adopted, whitespace=self.whitespace)
         if not self.adopted:
             render_environment(self.prefix, spec)  # lints both bodies now
         control = self.prefix + spec.name
@@ -115,17 +118,20 @@ class Package:
         cls.__tm_prefix__ = self.prefix
         return cls
 
-    def value[V: type[Value[Length] | Value[Colour] | Value[bool]]](self, cls: V) -> V:
-        """Register a value class: `\\newlength`, `\\definecolor` or `\\newif` by its type (M1a)."""
-        if self.adopted:
-            raise DeclarationError(
-                f"{cls.__qualname__}: an adopted package renders no TeX, so it cannot declare a value",
-                code="TM-P005",
-                hint="values are rendered into the .sty; declare the setting as a Command with no arguments",
-            )
+    def value[V: type[Value[Length] | Value[Colour] | Value[bool] | Value[Text]]](self, cls: V) -> V:
+        """Register a value class: `\\newlength`, `\\definecolor`, `\\newif` or `\\newcommand` by its type (M1a)."""
         spec = value_spec_of(cls)
+        if self.adopted and spec.kind != "Text":
+            raise DeclarationError(
+                f"{cls.__qualname__}: an adopted package can declare a Value[Text] only",
+                code="TM-P005",
+                path=spec.name,
+                hint="declare a length, colour or flag the hand-written package defines as a Command with no arguments",
+            )
+        if spec.default is None and not self.adopted:
+            raise DeclarationError(f"{cls.__qualname__}: no default", code="TM-M013", path=spec.name)
         control = self.prefix + spec.name
-        if isinstance(spec.default, Length):
+        if isinstance(spec.default, Length | str | None):
             claims = [(self._controls, control, f"\\{control}")]
         elif isinstance(spec.default, bool):
             claims = [(self._controls, c, f"\\{c}") for c in (control, *bool_names(self.prefix, spec.name))]
@@ -180,8 +186,8 @@ class Package:
         """
         found = scan_declarations("\n".join(sources), self.prefix)
         out: list[Violation] = []
-        for s in (i for i in self._items if isinstance(i, Spec | EnvSpec)):  # an adopted package has no values
-            control, want = self.prefix + s.name, signature(s.args)
+        for s in self._items:
+            control, want = self.prefix + s.name, "" if isinstance(s, ValueSpec) else signature(s.args)
             if control not in found:
                 out.append(Violation("TM-C010", s.name, f"\\{control} is declared but the sources do not define it"))
             elif found[control] != want:
@@ -199,7 +205,7 @@ class Package:
     def plan(
         self,
         *body: Node,
-        settings: Sequence[Value[Length] | Value[Colour] | Value[bool]] = (),
+        settings: Sequence[Value[Length] | Value[Colour] | Value[bool] | Value[Text]] = (),
         options: Sequence[str] = (),
         preamble: PreambleSlots | None = None,
     ) -> Plan:
@@ -237,6 +243,14 @@ class Package:
                 for tex in raw.tex.splitlines()
             ]
 
+        def values(text: bool) -> list[Line]:
+            """Text settings go before `\\begin{document}`, where a package reads them; the others go in the body."""
+            return [
+                Line(f"settings[{i}]", setting(type(v).__tm_prefix__, type(v).__name__, v.value))
+                for i, v in enumerate(settings)
+                if isinstance(v.value, str) == text
+            ]
+
         return Plan(
             (
                 Line("header", f"% {self.name} document -- {stamp(generator_version())}. Do not edit."),
@@ -244,12 +258,10 @@ class Package:
                 Line("document", f"\\documentclass{opts}{{{self.document_class}}}"),
                 *slot("before_package"),
                 Line("document", f"\\usepackage{{{self.name}}}"),
+                *values(text=True),
                 *slot("after_package"),
                 Line("document", "\\begin{document}"),
-                *(
-                    Line(f"settings[{i}]", setting(type(v).__tm_prefix__, type(v).__name__, v.value))
-                    for i, v in enumerate(settings)
-                ),
+                *values(text=False),
                 *(line for i, node in enumerate(body) for line in node_lines(node, f"{type(node).__name__}[{i}]")),
                 Line("document", "\\end{document}"),
             )
@@ -258,7 +270,7 @@ class Package:
     def document(
         self,
         *body: Node,
-        settings: Sequence[Value[Length] | Value[Colour] | Value[bool]] = (),
+        settings: Sequence[Value[Length] | Value[Colour] | Value[bool] | Value[Text]] = (),
         options: Sequence[str] = (),
         preamble: PreambleSlots | None = None,
     ) -> str:

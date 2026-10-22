@@ -2,7 +2,7 @@
 
 import enum
 
-from texmodel.components import Command, Environment
+from texmodel.components import Command, Environment, Value
 from texmodel.package import Package
 from texmodel.types import Choice, Raw, Text
 
@@ -22,9 +22,9 @@ class SlotLabel(Choice):
 SHOWN = {SlotLabel.FACT: "Fact", SlotLabel.SOUND: "Sound", SlotLabel.SPOT: "Spot", SlotLabel.WHERE: "Where"}
 
 
-@pkg.command
-class DeckName(Command):
-    """The deck name; set once per deck with `\\renewcommand`."""
+@pkg.value
+class DeckName(Value[Text]):
+    """The deck name printed on every card; the hand-written package defines the macro."""
 
 
 @pkg.command

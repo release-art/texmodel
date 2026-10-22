@@ -9,7 +9,7 @@ from typing import Any
 
 from texmodel.package import PreambleSlots
 from texmodel.plan import Plan
-from texmodel.types import Raw, escape
+from texmodel.types import Raw
 
 from . import legacy, model
 
@@ -30,10 +30,13 @@ def preamble(project: dict[str, Any]) -> PreambleSlots:
         before_class=(Raw(r"\def\deckBeforeClass{yes}"),),
         before_package=(Raw(r"\makeatletter\def\input@path{{res/}}\makeatother"),),
         after_package=(
-            Raw(rf"\renewcommand{{\cdDeckName}}{{{escape(project['deck_name'])}}}"),
             *(Raw(rf"\newcommand{{{label.value.tex}}}{{{model.SHOWN[label]}}}") for label in model.SlotLabel),
         ),
     )
+
+
+def settings(project: dict[str, Any]) -> list[model.DeckName]:
+    return [model.DeckName(project["deck_name"])]
 
 
 def card(number: int, source: dict[str, Any]) -> model.Card:
@@ -57,7 +60,8 @@ def nodes(folder: pathlib.Path = HERE) -> tuple[model.Card, ...]:
 
 
 def plan(folder: pathlib.Path = HERE) -> Plan:
-    return model.pkg.plan(*nodes(folder), preamble=preamble(load(folder)[0]))
+    project = load(folder)[0]
+    return model.pkg.plan(*nodes(folder), settings=settings(project), preamble=preamble(project))
 
 
 def deck(folder: pathlib.Path = HERE) -> str:

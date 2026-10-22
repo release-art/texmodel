@@ -41,7 +41,8 @@ rules known only to the author; errors that surface as log text far from the cau
 
 ### Non-goals
 
-- N1 Not a TeX parser, macro expander or AST. We model *interfaces*, not TeX.
+- N1 Not a TeX parser, macro expander or AST of existing TeX. We model *interfaces*; TeX we generate may be built from typed
+  pieces (§21a items 17, 19), but TeX we did not write is never read back into a tree.
 - N2 No layout solver; whether content fits is *measured* by TeX (C5).
 - N3 Not a replacement for writing LaTeX: bodies are TeX, hand-written TeX can be
   adopted (M9).
@@ -967,6 +968,7 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | The harness types any package warning (`PackageWarning`, `TM-X019`); a package's "does not fit" message is read by the consumer until `Measure` exists | decided 2026-10-22 |
 | Consumer evidence lives in a committed snapshot (`tests/consumers/`); the one `consumer` test reads the live deck read-only and is skipped without it | decided 2026-10-22 |
 | A source map is a `Plan`: output lines with the path that wrote each; the baseline for hand-edit detection is its JSON, stored beside the committed file | decided 2026-10-22 |
+| A text setting is `Value[Text]`: `\newcommand` with an escaped default in a generated `.sty`; `settings=` writes `\renewcommand` after `\usepackage` (before the preamble slot, not in the body); an adopted package may declare only a `Value[Text]`, checked as an argument-less command | decided 2026-10-22 |
 | A closed set is a `Choice` enum whose member values are the TeX (`Raw` passes through, `str` is escaped); data names a member by name | decided 2026-10-22 |
 | Documents are checked against the model's render, with no baseline file (`[tool.texmodel.documents]`, like `terraform plan`); hand edit and config change are not told apart | decided 2026-10-22 |
 | Pydantic v2 is a dependency, used at the data boundary only (`texmodel.spec`: `from_dict`, `to_dict`, `json_schema`); component classes stay stdlib frozen dataclasses; default (lax) coercion; its errors are mapped to `Violation` / `ValidationError` with `TM-C020` and `validate()`-style paths | decided 2026-10-22 |
@@ -1000,7 +1002,7 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 From running Gate B on a real card deck and its hand-written package family (private; `tests/consumers/card_deck/` keeps the
 shape with made-up data). Ordered by how much the consumer missed them. Each is a candidate, not a decision.
 
-1. **Typed settings and labels.** `Choice` (the enum field type) is built 2026-10-22; open: `Value[Text]` and `List`. Today a per-deck text setting is an
+1. **Typed settings and labels.** `Choice` (the enum field type) is built 2026-10-22; `Value[Text]` too (2026-10-22); open: `List`, and `Value[Raw]`. Today a per-deck text setting is an
    argument-less adopted Command whose value is `Raw` in the preamble, and a slot label is a `Raw` field fed by a consumer enum.
    `Enum` would also give a closed set of labels to validate and to export.
 2. **Typed over-set: `Measure` (C5).** A package reports "card X does not fit, needs A, has B" as its own warning; the harness
@@ -1052,7 +1054,40 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
     template directory argument or a `[tool.texmodel] templates` key, so bodies (`TemplateRef`) and adopted `sources` are found
     from configuration, not from the pointer. Today the cards-to-nodes step is consumer Python and a TOML frontend is parked
     (§21), so this reopens that decision. Decided 2026-10-22: log it, and make the existing pipeline operational first.
-17. **Gate B itself.** The ten-minute criterion needs a first-time author, timed. The "three real past defects" criterion needs
+17. **Typed references inside bodies, with automatic requires.** A body is text chunks plus references to declared components,
+    not an AST (N1 holds): `Fact.call(Hole("text"))` stands for `\acFact{#text}`, `Box.begin(...)` / `Box.end` for an
+    environment. The reference carries the class, so arity and the optional argument are checked when the body is defined and a
+    rename cannot leave a stale string. A reference to a component of another package records that package as a dependency
+    and the generated `.sty` gets `\RequirePackage{other}`, sorted and computed from the references (as M14), also for an
+    adopted package; a cycle between packages is refused. Plain strings with `#name` stay valid. The family check (G2) then
+    covers cross-package names without scanning. Needs: a body representation (string, or sequence of str and references),
+    package dependencies on `Package`, and an order for `\RequirePackage` lines.
+18. **Whitespace policy on a body token (the `%` at line ends).** Built 2026-10-22 (`texmodel.body`: `TexRaw`, `Whitespace`, body
+    sequences/generators, `Package(whitespace=)`); `EXPL3` mode and the pieces-with-calls part (items 17, 19) are open. Design: A newline in a macro body is a space token, so authors end
+    lines with `%`. Proposed: a body piece `TexRaw(body, whitespace=Whitespace.TRIM)` (distinct from `Raw`, a field value
+    without holes): `body` is `textwrap.dedent`ed and stripped of leading and trailing blank lines at construction, and
+    `Whitespace` (`@enum.unique`: `KEEP`, `TRIM`; later `EXPL3`) says how its line ends are written. `body()` (or any
+    generator) returns one `TexRaw` or a sequence of pieces and component calls (items 17, 19); each piece carries its own
+    policy. `TRIM` appends `%` to every line of the piece, including the last, except a line that already ends with `%`, a
+    comment line, or a blank line (a paragraph break); explicit spaces (`\ `, `~`) are untouched. `KEEP` writes the lines as
+    given, so a plain string or `TemplateRef` body (which means `KEEP`) renders exactly as today. Pieces are joined by newlines in
+    the output. `TemplateRef("f.tex", whitespace=...)` takes the same policy. The generated `.sty` still carries the `%`.
+    Lint: `\verb`-like content in a `TRIM` piece. Later mode: expl3 (`\ExplSyntaxOn`, M8 `syntax = expl3`), where whitespace is
+    ignored and no `%` is needed. The default is `KEEP`, explicit per piece, so no existing output changes.
+19. **Generated bodies that are well-formed by construction.** Beside hand-written TeX bodies (strings, `TemplateRef`), a
+    body may be built from a small constructive vocabulary: text (escaped), `Raw`, a group (balanced by construction), a
+    control sequence (name validated), a call to a declared component (arity and optional argument checked, item 17) and a
+    hole. It is an emitter, not a parser or expander: texmodel never reads TeX it did not write (N1 reworded to say so).
+    Conditions and loops stay in Python (one branch per `Choice` member is a loop emitting pieces). Adopted (hand-written)
+    packages keep declaring interfaces only.
+20. **Unit tests of generated code with stubbed dependencies.** The component references of a body (items 17, 19) say what to
+    stub. `pkg.test_document(node, stub=[Fact])` builds a `.tex` with the real definition of the component under test, a
+    stub per dependency that logs its call and arguments instead of typesetting, and the node. Stubs write
+    `texmodel:probe:<name>=<value>` lines (`\typeout` or `texio.write_nl`), which the harness already parses into typed
+    `Measurement` diagnostics (C5a), so a test asserts calls and arguments, not a PDF. A fast tier needs no TeX: walk the
+    structured pieces in Python with stubbed calls, to test what the generator decided. The LuaLaTeX tier checks the real macros
+    expand as expected; it does not prove layout. Order: item 17, the emitter, a stub runner in `texmodel-build`'s `testkit`.
+21. **Gate B itself.** The ten-minute criterion needs a first-time author, timed. The "three real past defects" criterion needs
     a consumer whose history records an escaping bug and an over-set card; the first consumer recorded only interface drift.
 
 ## 22. Risks

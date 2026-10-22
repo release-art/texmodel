@@ -77,7 +77,11 @@ def test_the_baseline_names_a_hand_edit_after_the_cards_have_moved_on(tmp_path):
     baseline.write_text(convert.plan().to_json(), encoding="utf-8")
     project, source = convert.load()
     source[0]["one_liners"][0]["text"] = "Changed in the config."
-    today = model.pkg.plan(*(convert.card(n, c) for n, c in enumerate(source, 1)), preamble=convert.preamble(project))
+    today = model.pkg.plan(
+        *(convert.card(n, c) for n, c in enumerate(source, 1)),
+        settings=convert.settings(project),
+        preamble=convert.preamble(project),
+    )
     on_disk = convert.deck().replace("scream-like bark.", "scream-like bark (edited).", 1)
     saved = Plan.from_json(baseline.read_text(encoding="utf-8"))
     assert [e.path for e in saved.edits(on_disk)] == ["Card[0]/CardBack[1]/LabelledSlot[3]"]  # hand edit

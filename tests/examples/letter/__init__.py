@@ -1,6 +1,7 @@
 """A letter: environment arguments, nested environments, `Raw`, and a value that needs another package."""
 
-from texmodel.components import Command, Environment, TemplateRef, Value
+from texmodel.body import TemplateRef
+from texmodel.components import Command, Environment, Value
 from texmodel.package import Package
 from texmodel.types import Bool, Colour, Gray, Length, Raw, Text
 

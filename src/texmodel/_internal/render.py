@@ -6,6 +6,7 @@ Output is a pure function of the declaration: no timestamps, no hashes, no dict 
 import dataclasses
 import re
 from collections.abc import Mapping, Sequence
+from typing import cast
 
 from ..errors import DeclarationError
 from ..types import Choice, Colour, Length, Raw, balanced, escape
@@ -61,8 +62,8 @@ class ValueSpec:
 
     name: str  # the class name
     doc: str
-    default: Length | Colour | bool
-    kind: str  # "Length" | "Colour" | "Bool", for the provenance comment
+    default: Length | Colour | bool | str | None  # None: a `Value[Text]` whose default the hand-written package has
+    kind: str  # "Length" | "Colour" | "Bool" | "Text", for the provenance comment
     qualname: str
     needs: tuple[str, ...]  # packages it needs (M14)
 
@@ -189,9 +190,11 @@ def bool_names(prefix: str, name: str) -> tuple[str, ...]:
     return (f"{prefix}{name}true", f"{prefix}{name}false")
 
 
-def setting(prefix: str, name: str, value: Length | Colour | bool) -> str:
+def setting(prefix: str, name: str, value: Length | Colour | bool | str) -> str:
     """The line that gives a value its content: the default in the `.sty`, a document's `settings=` in the `.tex`."""
     control = f"{prefix}{name}"
+    if isinstance(value, str):
+        return f"\\renewcommand{{\\{control}}}{{{escape(value)}}}"
     if isinstance(value, Length):
         return f"\\setlength{{\\{control}}}{{{value}}}"
     if isinstance(value, bool):
@@ -201,6 +204,15 @@ def setting(prefix: str, name: str, value: Length | Colour | bool) -> str:
 
 def render_value(prefix: str, spec: ValueSpec) -> str:
     d, control = spec.default, f"{prefix}{spec.name}"
+    if isinstance(d, str):
+        return "\n".join(
+            [
+                *_comment(spec.doc),
+                f"% from {spec.qualname} (value: Text)",
+                f"\\newcommand{{\\{control}}}{{{escape(d)}}}",
+            ]
+        )
+    d = cast("Length | Colour | bool", d)  # Package.value refuses a missing default
     decl = (
         [f"\\newlength{{\\{control}}}"]
         if isinstance(d, Length)

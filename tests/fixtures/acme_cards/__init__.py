@@ -1,6 +1,7 @@
 """A small package used by the tests: the committed `generated/acme-cards.sty` is its golden output."""
 
-from texmodel.components import Command, Environment, TemplateRef, Value
+from texmodel.body import TemplateRef
+from texmodel.components import Command, Environment, Value
 from texmodel.package import Package
 from texmodel.types import CMYK, Bool, Colour, Length, Text
 

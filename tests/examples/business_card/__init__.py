@@ -1,6 +1,7 @@
 """A business card: commands, values of every kind, and an environment whose children follow a grammar."""
 
-from texmodel.components import Command, Environment, TemplateRef, Value
+from texmodel.body import TemplateRef
+from texmodel.components import Command, Environment, Value
 from texmodel.package import Package
 from texmodel.types import CMYK, RGB, Bool, Colour, Length, Text
 

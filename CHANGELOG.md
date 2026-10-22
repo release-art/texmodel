@@ -50,6 +50,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `texmodel check` also compares committed documents with what the model renders now (`[tool.texmodel.documents]`, committed
   file to pointer). A pointer may return a `Plan`: a changed, removed or added line is reported with the path of the component
   that writes it. `texmodel render` accepts a `Plan` too. There is no baseline file: the model is the reference.
+- `Value[Text]` (M1a): a text setting. A generated package defines `\newcommand{\prefixName}{default}` (escaped); a document's
+  `settings=[Name("R&D")]` writes `\renewcommand{\prefixName}{R\&D}` after `\usepackage`, before the preamble slot; other
+  settings stay in the body. An adopted package may declare a `Value[Text]` (with no default): `check_interface` expects an
+  argument-less definition. Other adopted values are refused (`TM-P005`).
+- Body pieces (M8, new module `texmodel.body`): a body, `begin` or `end` may be a string, a `TemplateRef`, a `TexRaw` or a
+  sequence, iterator or generator of those. `TexRaw(body, whitespace=)` is dedented; `Whitespace.TRIM` adds `%` to each line end
+  (not to lines that end with one, comments or blank lines) so line ends make no space; `KEEP` writes lines as given.
+  `Package(whitespace=)` is the default for pieces that name none (`KEEP`). `TemplateRef` moves to `texmodel.body`.
+  `\verb` in a `TRIM` piece is refused (`TM-M025`).
 - `Package.plan(...)` (B2, D2): the document as `Plan`, lines with the path of what wrote them. `Plan.edits(text)` finds changed,
   removed and added lines by path, `path_of(n)` maps an output line (a log's `input line`) to its path, and `to_json` /
   `from_json` store it as a baseline beside the committed file. New module `texmodel.plan`.

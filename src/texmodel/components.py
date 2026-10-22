@@ -63,9 +63,7 @@ the class is defined.
 
 import dataclasses
 import inspect
-import os
 import sys
-import textwrap
 import types
 import typing
 from collections.abc import Sequence
@@ -80,8 +78,9 @@ from ._internal.render import (
     arguments,
     check_name,
 )
+from .body import TemplateRef, TexRaw, Whitespace, join, pieces_of
 from .errors import DeclarationError, Violation
-from .types import CMYK, RGB, TEXT, Choice, Colour, Gray, Length, Raw
+from .types import CMYK, RGB, TEXT, Choice, Colour, Gray, Length, Raw, Text
 
 type Node = Command | Environment
 
@@ -146,22 +145,11 @@ def _document(cls: type) -> str:
     return doc
 
 
-@dataclasses.dataclass(frozen=True, init=False)
-class TemplateRef:
-    """A body kept in a TeX file: `TemplateRef("fact.tex")`. Relative paths are relative to the module that defines the
-    component, so the reference works wherever the package is installed; there is no lookup by name."""
+def _source(cls: type, name: str) -> tuple[tuple[TexRaw, ...], str] | None:
+    """The class's own `body` / `begin` / `end` as (pieces, origin), or None.
 
-    path: Path
-
-    def __init__(self, path: str | os.PathLike[str]) -> None:
-        object.__setattr__(self, "path", Path(path))
-
-
-def _source(cls: type, name: str) -> tuple[str, str] | None:
-    """The class's own `body` / `begin` / `end` as (TeX, origin), or None.
-
-    It is a string (dedented), a `TemplateRef` (the file is read now), or a method returning either. A field of that
-    name is not a body.
+    It is a string, a `TemplateRef` (the file is read now), a `TexRaw`, a sequence, iterator or generator of those, or a
+    method returning any of them. A field of that name is not a body.
     """
     found: object = cls.__dict__.get(name)
     if found is None or name in inspect.get_annotations(cls):
@@ -176,26 +164,34 @@ def _source(cls: type, name: str) -> tuple[str, str] | None:
                 path=cls.__name__,
                 hint="it is read when the class is defined, so it cannot use self: return constant TeX",
             ) from exc
-    if isinstance(found, TemplateRef):
-        path = (
-            found.path
-            if found.path.is_absolute()
-            else Path(sys.modules[cls.__module__].__file__ or ".").parent / found.path
-        )
-        try:
-            return path.read_text(encoding="utf-8"), found.path.name
-        except OSError as exc:
-            raise DeclarationError(
-                f"{cls.__qualname__}.{name}: cannot read {path}: {exc.strerror}", code="TM-M005", path=cls.__name__
-            ) from exc
-    if not isinstance(found, str):
+    if (given := pieces_of(found)) is None:
         got = type(found).__name__
         raise DeclarationError(
-            f"{cls.__qualname__}.{name}: must be TeX (a string or a TemplateRef, or a method returning one), not {got}",
+            f"{cls.__qualname__}.{name}: must be TeX (a string, a TemplateRef, a TexRaw, a sequence of them, "
+            f"or a method returning one), not {got}",
             code="TM-M021",
             path=cls.__name__,
         )
-    return textwrap.dedent(found).strip("\n"), "inline"
+    origins: list[str] = []
+    out: list[TexRaw] = []
+    for piece in given:
+        if isinstance(piece, TemplateRef):
+            path = (
+                piece.path
+                if piece.path.is_absolute()
+                else Path(sys.modules[cls.__module__].__file__ or ".").parent / piece.path
+            )
+            try:
+                out.append(TexRaw(path.read_text(encoding="utf-8"), piece.whitespace))
+            except OSError as exc:
+                raise DeclarationError(
+                    f"{cls.__qualname__}.{name}: cannot read {path}: {exc.strerror}", code="TM-M005", path=cls.__name__
+                ) from exc
+            origins.append(piece.path.name)
+        else:
+            out.append(piece if isinstance(piece, TexRaw) else TexRaw(piece))
+            origins.append("inline")
+    return tuple(out), " + ".join(dict.fromkeys(origins))
 
 
 def _prefix(cls: type) -> str:
@@ -246,7 +242,7 @@ def _build(cls: type[_Node], unused: Sequence[str], *, init: bool) -> None:
 class Command(_Node):
     """A TeX command (`\\newcommand`) whose arguments are the class's fields."""
 
-    __tm_inline__: ClassVar[tuple[str, str] | None]
+    __tm_inline__: ClassVar[tuple[tuple[TexRaw, ...], str] | None]
 
     def __init_subclass__(cls, *, unused: Sequence[str] = (), **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -260,7 +256,7 @@ class Environment(_Node):
 
     content: tuple[Node, ...]
     children: ClassVar[Sequence[type | Repeat]] = ()  # the grammar: components in order, with counts (M4)
-    __tm_inline__: ClassVar[tuple[tuple[str, str] | None, tuple[str, str] | None]]
+    __tm_inline__: ClassVar[tuple[tuple[tuple[TexRaw, ...], str] | None, tuple[tuple[TexRaw, ...], str] | None]]
     __tm_grammar__: ClassVar[tuple[Repeat, ...]]
 
     def __init_subclass__(cls, *, unused: Sequence[str] = (), **kwargs: Any) -> None:
@@ -419,18 +415,22 @@ def _emit(node: Node) -> str:
     return "\n".join([f"\\begin{{{name}}}{args}", *map(_emit, node.content), f"\\end{{{name}}}"])
 
 
-def _required(cls: type, found: tuple[str, str] | None, option: str) -> tuple[str, str]:
+Source = tuple[tuple[TexRaw, ...], str]
+
+
+def _required(cls: type, found: Source | None, option: str, default: Whitespace) -> tuple[str, str]:
+    """The text of a body, with the package's default whitespace policy for pieces that have none, and its origin."""
     if found is None:
         raise DeclarationError(
             f"{cls.__module__}.{cls.__qualname__}: no {option}",
             code="TM-M006",
             path=cls.__name__,
-            hint=f'define `{option}` as a string, a TemplateRef("file.tex"), or a method returning either',
+            hint=f'define `{option}` as a string, a TemplateRef("file.tex"), a TexRaw, or a method returning one',
         )
-    return found
+    return join(found[0], default, f"{cls.__qualname__}.{option}"), found[1]
 
 
-def _declared_only(cls: type, *sources: tuple[str, str] | None) -> None:
+def _declared_only(cls: type, *sources: Source | None) -> None:
     """A component of an adopted package is only declared: a body would never render, so it is refused (M9)."""
     if any(sources):
         raise DeclarationError(
@@ -441,11 +441,11 @@ def _declared_only(cls: type, *sources: tuple[str, str] | None) -> None:
         )
 
 
-def spec_of(cls: type[Command], *, declared_only: bool = False) -> Spec:
+def spec_of(cls: type[Command], *, declared_only: bool = False, whitespace: Whitespace = Whitespace.KEEP) -> Spec:
     """The declaration as the renderer sees it, with its body (M8); `declared_only` (M9) has none."""
     if declared_only:
         _declared_only(cls, cls.__tm_inline__)
-    body, origin = ("", "declared") if declared_only else _required(cls, cls.__tm_inline__, "body")
+    body, origin = ("", "declared") if declared_only else _required(cls, cls.__tm_inline__, "body", whitespace)
     return Spec(
         cls.__name__,
         cls.__tm_doc__,
@@ -457,15 +457,17 @@ def spec_of(cls: type[Command], *, declared_only: bool = False) -> Spec:
     )
 
 
-def env_spec_of(cls: type[Environment], *, declared_only: bool = False) -> EnvSpec:
+def env_spec_of(
+    cls: type[Environment], *, declared_only: bool = False, whitespace: Whitespace = Whitespace.KEEP
+) -> EnvSpec:
     """As `spec_of`, with two bodies: `begin` and `end`."""
     if declared_only:
         _declared_only(cls, *cls.__tm_inline__)
         begin = end = ""
         origin = "declared"
     else:
-        begin, begin_origin = _required(cls, cls.__tm_inline__[0], "begin")
-        end, end_origin = _required(cls, cls.__tm_inline__[1], "end")
+        begin, begin_origin = _required(cls, cls.__tm_inline__[0], "begin", whitespace)
+        end, end_origin = _required(cls, cls.__tm_inline__[1], "end", whitespace)
         origin = " + ".join(dict.fromkeys((begin_origin, end_origin)))
     return EnvSpec(
         cls.__name__,
@@ -479,11 +481,12 @@ def env_spec_of(cls: type[Environment], *, declared_only: bool = False) -> EnvSp
     )
 
 
-_KINDS = {Length: "Length", Colour: "Colour", bool: "Bool"}  # the closed set `Value[T]` accepts (T2)
+_KINDS = {Length: "Length", Colour: "Colour", bool: "Bool", str: "Text"}  # the closed set `Value[T]` accepts (T2)
 
 
 class Value[T]:
-    """A typed setting: `\\newlength`, `\\definecolor` or `\\newif`, chosen by `T`; `default` is an instance of `T`."""
+    """A typed setting: `\\newlength`, `\\definecolor`, `\\newif` or `\\newcommand`, chosen by `T`; `default` is an
+    instance of `T`. A `Value[Text]` of an adopted package may leave `default` out: the hand-written package has it."""
 
     default: T  # not ClassVar[T]: pyright refuses type variables in ClassVar; subclasses assign it in the class body
     needs_packages: ClassVar[tuple[str, ...]] = ()  # data, not mutation: the package takes the union (M14)
@@ -510,16 +513,18 @@ class Value[T]:
             (typing.get_args(b)[0] for b in cls.__dict__.get("__orig_bases__", ()) if typing.get_origin(b) is Value),
             None,
         )
+        if typing.get_origin(arg) is typing.Annotated and TEXT in typing.get_args(arg)[1:]:
+            arg = str  # Text
         if arg not in _KINDS:
             raise DeclarationError(
-                f"{cls.__qualname__}: base must be Value[Length], Value[Colour] or Value[Bool], not {arg!r}",
+                f"{cls.__qualname__}: base must be Value of Length, Colour, Bool or Text, not {arg!r}",
                 code="TM-M012",
                 path=cls.__name__,
             )
-        if "default" not in cls.__dict__:
+        if "default" not in cls.__dict__ and arg is not str:
             raise DeclarationError(f"{cls.__qualname__}: no default", code="TM-M013", path=cls.__name__)
-        default = cls.__dict__["default"]
-        if not isinstance(default, arg):
+        default = cls.__dict__.get("default")
+        if default is not None and not isinstance(default, arg):
             raise DeclarationError(
                 f"{cls.__qualname__}: default {default!r} is not a {_KINDS[arg]}", code="TM-M014", path=cls.__name__
             )
@@ -528,11 +533,11 @@ class Value[T]:
         cls.needs_packages = tuple(sorted({*cls.needs_packages, *implied}))
 
 
-def value_spec_of(cls: type[Value[Length] | Value[Colour] | Value[bool]]) -> ValueSpec:
+def value_spec_of(cls: type[Value[Length] | Value[Colour] | Value[bool] | Value[Text]]) -> ValueSpec:
     return ValueSpec(
         cls.__name__,
         cls.__tm_doc__,
-        cls.__dict__["default"],
+        cls.__dict__.get("default"),
         cls.__tm_kind__,
         f"{cls.__module__}.{cls.__qualname__}",
         cls.needs_packages,

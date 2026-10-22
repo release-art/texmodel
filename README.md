@@ -20,7 +20,8 @@ This repository holds two packages, released in lockstep:
 
 ```python
 # acme_cards/__init__.py
-from texmodel.components import Command, Environment, TemplateRef, Value
+from texmodel.body import TemplateRef
+from texmodel.components import Command, Environment, Value
 from texmodel.package import Package
 from texmodel.types import CMYK, Bool, Colour, Length, Text
 
@@ -73,6 +74,21 @@ A `Value[T]` needs no body: its type decides the declaration (`Length` -> `\newl
 `\definecolor` named `ac-ink`, `Bool` -> `\newif`), and its `default` is an instance of `T`. Packages a value needs
 (`xcolor` for colours) are `\RequirePackage`d once, sorted. A body that names an undeclared `\acThing` is refused when
 `render()` / `texmodel check` runs (not at registration, since a body may name a component declared after it).
+
+A body may also be a `TexRaw` or a sequence or generator of pieces (strings, `TemplateRef`s, `TexRaw`s), each with its own
+`Whitespace` policy: `TRIM` writes the `%` at line ends for you, `KEEP` (the default, set per package with
+`Package(whitespace=)`) writes lines as given.
+
+```python
+from texmodel.body import TexRaw, Whitespace
+
+def body(self):
+    yield TexRaw(r"""
+        \par\noindent
+        {\color{ac-ink}#text}
+    """, whitespace=Whitespace.TRIM)       # \par\noindent%  {\color{ac-ink}#1}%
+    yield r"\par"
+```
 
 An environment has `begin` and `end` in the same way. A document is plain
 Python; `Text` fields are escaped, a `Raw` field passes TeX through, and everything wrong is reported at once:
@@ -165,6 +181,20 @@ document needs it: `before_class` for `\DocumentMetadata`, `before_package` for 
 `\graphicspath` and per-document `\renewcommand`s. A public name of the package used there (`\cdSafeInset`) that no
 component declares is refused with its path (`TM-M015`, `preamble.after_package[0]`). `tests/consumers/card_deck/` is a
 complete example: a hand-written package, the generator it replaces and a 3-card deck.
+
+### A text setting
+
+```python
+@pkg.value
+class DeckName(Value[Text]):
+    """The deck name printed on every card."""
+    default = "Untitled"          # an adopted package may leave it out: the hand-written TeX has it
+
+pkg.document(card, settings=[DeckName("R&D")])    # \renewcommand{\acDeckName}{R\&D}, after \usepackage
+```
+
+A generated package defines `\newcommand{\acDeckName}{Untitled}`; for an adopted one `texmodel check` expects the hand-written
+package to define the macro with no arguments. Length, colour and flag settings are written in the document body as before.
 
 ### A closed set of values
 

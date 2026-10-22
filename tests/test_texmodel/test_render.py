@@ -5,7 +5,8 @@ import pytest
 
 from texmodel import drift
 from texmodel._internal.render import snake
-from texmodel.components import Command, Environment, TemplateRef
+from texmodel.body import TemplateRef
+from texmodel.components import Command, Environment
 from texmodel.errors import DeclarationError
 from texmodel.package import Package, generator_version
 from texmodel.types import TEXT, Text
@@ -114,7 +115,7 @@ def test_a_missing_body_is_an_error_and_files_are_never_found_by_name(tmp_path, 
 
 def test_a_template_ref_reads_a_file_relative_to_the_defining_module_or_absolute(tmp_path, monkeypatch):
     (tmp_path / "ref_mod.py").write_text(
-        "from texmodel.components import Command, Environment, TemplateRef\n"
+        "from texmodel.body import TemplateRef\nfrom texmodel.components import Command, Environment\n"
         "class Rel(Command):\n"
         '    """Relative."""\n'
         '    body = TemplateRef("rel.tex")\n'
