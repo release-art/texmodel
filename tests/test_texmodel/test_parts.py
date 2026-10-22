@@ -282,3 +282,23 @@ def test_a_flag_with_a_cs_is_declared_and_set_under_that_name():
 
     assert "\\newif\\ifacshowcrop\n\\acshowcroptrue" in p.render()
     assert "\\acshowcropfalse" in p.document(settings=[Crop(False)])
+
+
+def test_a_definer_written_out_with_string_defines_nothing():
+    from texmodel._internal.scan import scan_declarations
+
+    text = (
+        "\\typeout{\\string\\providecommand\\string\\x}\\noexpand\\newcommand\\noexpand\\y\n\\providecommand\\acReal{x}"
+    )
+    assert scan_declarations(text) == {"acReal": ""}
+    assert scan_declarations("\\newenvironment{acBox}{}{}\\NewDocumentEnvironment{acOther}{}{}{}") == {
+        "acBox": "",
+        "acOther": "",
+    }
+
+
+def test_colour_components_are_written_to_five_decimals():
+    from texmodel.types import CMYK, RGB
+
+    assert str(RGB(78.8 / 100, 0, 1 / 3)) == "0.788,0,0.33333"
+    assert str(CMYK(0.1 + 0.2, 1, 0.000004, 0.5)) == "0.3,1,0,0.5"

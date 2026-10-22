@@ -406,7 +406,7 @@ pkg.document(card, settings=[DeckName("R&D")])    # \renewcommand{\acDeckName}{R
 ```
 
 A generated package defines `\newcommand{\acDeckName}{Untitled}`; for an adopted one `texmodel check` expects the hand-written
-package to define the macro with no arguments. Length, colour and flag settings are written in the document body as before.
+package to define the macro with no arguments. Every setting, of any type, is written right after `\usepackage`, in the order given, before `after_package`.
 
 A `Value[Raw]` is the same for a setting that is TeX (`\newcommand{\acFooter}{\textit{draft}}`, renewed by `settings=[Footer(Raw(...))]`).
 A `PdfString` field holds text for the inside of a PDF literal string you write yourself (`\pdfextension info{/Subject (#text)}`):

@@ -209,6 +209,9 @@ _INCHES_PER = {  # None: relative to the font, no fixed size
 }
 
 
+_COLOUR_PLACES = Decimal("0.00001")
+
+
 def _plain(d: Decimal) -> str:
     """No exponent, no trailing zeros, no `-0`: `2.0` -> `2`, `1e-05` -> `0.00001`."""
     s = format(d, "f")
@@ -334,7 +337,8 @@ class _Colour:
                 )
 
     def __str__(self) -> str:
-        return ",".join(_plain(_decimal(v)) for v in vars(self).values())
+        """Components to five decimals: more is float noise (`0.7879999999999999`) that TeX would truncate."""
+        return ",".join(_plain(_decimal(v).quantize(_COLOUR_PLACES)) for v in vars(self).values())
 
 
 @dataclasses.dataclass(frozen=True)

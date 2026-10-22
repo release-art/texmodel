@@ -10,19 +10,19 @@ argument type that texmodel does not model is reported as `?`, which matches no 
 import re
 
 _COMMENT = re.compile(r"(?<!\\)%[^\n]*")
+_LITERAL = r"(?<!\\string)(?<!\\noexpand)"  # `\string\providecommand` writes the word out; it defines nothing
 _DEFINITION = re.compile(
-    r"\\(?:newcommand|providecommand|DeclareRobustCommand|newenvironment)\*?\s*\{?\s*\\?(?P<name>[A-Za-z@]+)\s*\}?\s*"
-    r"(?:\[(?P<n>\d)\])?(?P<default>\[)?"
+    rf"{_LITERAL}\\(?:(?:newcommand|providecommand|DeclareRobustCommand)\*?\s*\{{?\s*\\|newenvironment\*?\s*\{{\s*)"
+    r"(?P<name>[A-Za-z@]+)\s*\}?\s*(?:\[(?P<n>\d)\])?(?P<default>\[)?"
 )
 _XPARSE = re.compile(
-    r"\\(?:New|Renew|Provide|Declare)(?:Expandable)?Document(?:Command|Environment)\s*\{?\s*\\?(?P<name>[A-Za-z@]+)\s*\}?\s*"
+    rf"{_LITERAL}\\(?:New|Renew|Provide|Declare)(?:Expandable)?Document"
+    r"(?:Command\s*\{?\s*\\|Environment\s*\{\s*)(?P<name>[A-Za-z@]+)\s*\}?\s*"
 )
-
-
 _NAME_ONLY = re.compile(
-    r"\\(?:(?:newlength|newsavebox|newfontfamily)\s*\{?\s*\\|newtoggle\s*\{)(?P<name>[A-Za-z@]+)"
+    rf"{_LITERAL}\\(?:(?:newlength|newsavebox|newfontfamily)\s*\{{?\s*\\|newtoggle\s*\{{)(?P<name>[A-Za-z@]+)"
 )  # `\newlength{\w}`, `\newsavebox{\b}`, `\newfontfamily\f`, `\newtoggle{t}`
-_NEWIF = re.compile(r"\\newif\s*\\if(?P<name>[A-Za-z@]+)")  # defines \ifX, \Xtrue and \Xfalse
+_NEWIF = re.compile(rf"{_LITERAL}\\newif\s*\\if(?P<name>[A-Za-z@]+)")  # defines \ifX, \Xtrue and \Xfalse
 _COLOUR = re.compile(r"\\(?:definecolor|colorlet|providecolor)\s*\{(?P<name>[^{}]+)\}")
 _COUNTER = re.compile(r"\\newcounter\s*\{(?P<name>[^{}]+)\}")
 

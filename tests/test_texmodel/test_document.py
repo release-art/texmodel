@@ -349,10 +349,10 @@ def test_a_document_is_complete_and_deterministic():
     assert tex.splitlines()[1:] == [
         "\\documentclass[a4paper,11pt]{article}",
         "\\usepackage{shop}",
-        "\\begin{document}",
         "\\setlength{\\shGap}{3mm}",
         "\\definecolor{sh-ink}{gray}{0.5}",
         "\\shTighttrue",
+        "\\begin{document}",
         "\\begin{shCard}",
         "\\shName{Rex}",
         "\\shFact{50\\% sure}",

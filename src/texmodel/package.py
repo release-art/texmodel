@@ -546,8 +546,9 @@ class Package:
                 for tex in tex_of(raw).tex.splitlines()
             ]
 
-        def values(text: bool) -> list[Line]:
-            """Text settings go before `\\begin{document}`, where a package reads them; the others go in the body."""
+        def values() -> list[Line]:
+            """Every setting goes right after the package, in the order given, so what the package computes in the
+            preamble already sees it."""
             return [
                 Line(
                     f"settings[{i}]",
@@ -556,7 +557,6 @@ class Package:
                     ),
                 )
                 for i, v in enumerate(settings)
-                if isinstance(v.value, str | Raw) == text
             ]
 
         return Plan(
@@ -566,10 +566,9 @@ class Package:
                 Line("document", f"\\documentclass{opts}{{{self.document_class}}}"),
                 *slot("before_package"),
                 *([] if self.builtin else [Line("document", f"\\usepackage{{{self.name}}}")]),
-                *values(text=True),
+                *values(),
                 *slot("after_package"),
                 Line("document", "\\begin{document}"),
-                *values(text=False),
                 *(line for i, node in enumerate(body) for line in node_lines(node, f"{type(node).__name__}[{i}]")),
                 Line("document", "\\end{document}"),
             )
