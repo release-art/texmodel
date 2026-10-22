@@ -24,6 +24,8 @@ One distribution, two packages:
 
 ## texmodel
 
+Worked examples and practices: [the cookbook](docs/cookbook.md).
+
 ```python
 # acme_cards/__init__.py
 from texmodel.body import TemplateRef

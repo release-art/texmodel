@@ -11,7 +11,7 @@ What texmodel does not do or does not check today. Planned work is in [the plan]
 - Python 3.15 and LuaLaTeX only. Compiling needs the reference image (or a local TeX Live with `latexmk`).
 - Not built: release migrations, `Doc` trees from data with migrations, trust levels and the injection corpus, the
   sandbox verification, `texmodel-print`, a rules layer, `List[T]` settings (`Value[...]` takes `Length`, `Colour`, `bool`,
-  `Text`, `Raw`).
+  `Text`, `Raw`, and a package's own kinds such as etoolbox's `Toggle`).
 - No check of what TeX would do with a value: a `Length` key is checked to be a length, not to be sensible for the package.
   Layout is not checked at all; `Overset` types a package's own "does not fit" warning.
 
