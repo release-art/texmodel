@@ -255,3 +255,6 @@ mutants/
 
 # test fixtures are real captured TeX logs
 !tests/fixtures/logs/*.log
+
+# Gate B report: describes a private consumer
+docs/briefs/gate-b-report.md

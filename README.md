@@ -121,6 +121,51 @@ texmodel check     # exit 1 if a committed generated file is stale, missing or o
   is not a field, an argument the body never uses, unbalanced braces, a name collision.
 - **Typed**: `Fact("A soft woof.")` type-checks; fields are `Text`, `Raw` or either `| None`; values are `Length`, `CMYK`/`RGB`/`Gray` (components in [0, 1], no conversion between models) or `bool`.
 
+### A package that is already written in TeX
+
+When the `.sty` is hand-written, declare what it defines instead of generating it: `adopted=True` (M9). The components
+have no body, `build` writes no file, documents are still checked and escaped, and `texmodel check` compares each
+declaration with the TeX it names (`\newcommand`, `\providecommand` and `\newenvironment` are read; a name defined any
+other way counts as missing):
+
+```python
+pkg = Package("card-deck", prefix="cd", adopted=True)     # the package name is the hand-written one
+
+@pkg.command
+class TalkAboutMe(Command):
+    """A question, with an optional answer."""
+    question: Text
+    answer: Text | None = None            # declared [2][]: \newcommand{\cdTalkAboutMe}[2][]{...}
+
+@pkg.command
+class DeckName(Command):                   # no fields: a setting the deck sets with \renewcommand
+    """The deck name printed on every card."""
+```
+
+```toml
+[tool.texmodel]
+prefix = "bb"
+package = "deck.model:pkg"
+sources = ["res/brand/*.sty"]            # globs, relative to pyproject.toml
+```
+
+```zsh
+texmodel check     # TM-C010: declared, not defined; TM-C011: defined with another signature
+```
+
+`Package.document(..., preamble=PreambleSlots(before_class=, before_package=, after_package=))` places `Raw` TeX where the
+document needs it: `before_class` for `\DocumentMetadata`, `before_package` for `\input@path`, `after_package` for
+`\graphicspath` and per-document `\renewcommand`s. A public name of the package used there (`\cdSafeInset`) that no
+component declares is refused with its path (`TM-M015`, `preamble.after_package[0]`). `tests/consumers/card_deck/` is a
+complete example: a hand-written package, the generator it replaces and a 3-card deck.
+
+### Where a line came from
+
+`pkg.plan(...)` takes the arguments of `pkg.document(...)` and returns a `Plan`: every output line with the path of what wrote it
+(`Card[1]/CardBack[1]/LabelledSlot[3]`, `preamble.after_package[0]`). `plan.text` is the document. Store `plan.to_json()` beside
+the committed file; `Plan.from_json(saved).edits(text)` then names each hand edit by the path it had when it was written, even
+if the model has changed since, and `plan.path_of(39)` names the component behind a log's `input line 39`.
+
 `texmodel.bundle` copies a manifest of files and refuses if any is missing (`stale` compares bytes, not timestamps);
 `texmodel.drift` is what `check` uses.
 
@@ -141,7 +186,8 @@ image = "releaseart/lualatex-python:latest"   # runs `docker run` over it; omit 
 
 - The compile log becomes typed diagnostics with stable codes: undefined control sequences (`TM-X010`), missing glyphs
   (`TM-X011`), overfull boxes (`TM-X012`), missing files (`TM-X013`), package errors (`TM-X014`), undefined references
-  (`TM-X018`), non-convergence with the `.aux` entries that keep moving (`TM-X030`), and a fallback so no failure is silent.
+  (`TM-X018`), package warnings with their continuation lines (`TM-X019`, how a hand-written package says a card does
+  not fit), non-convergence with the `.aux` entries that keep moving (`TM-X030`), and a fallback so no failure is silent.
 - Reproducibility is the image's job (`--epoch` pins `SOURCE_DATE_EPOCH`); there is no sandbox or cache here.
 - `texmodel-build verify` runs plugins from the `texmodel_build.verifiers` entry-point group. `pip install
   'texmodel-build[proof-pdf]'` adds [proof-pdf](https://github.com/release-art/proofpress). A verifier that cannot run, a

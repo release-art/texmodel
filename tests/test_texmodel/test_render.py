@@ -56,7 +56,7 @@ def test_package_arguments_are_validated():
         ({"name": "p", "prefix": "t", "date": "2026-10-21"}, "TM-P003"),
     ):
         with refused(code):
-            Package(**kw)
+            Package(**kw)  # pyright: ignore[reportArgumentType]  # the dict is mixed on purpose
 
 
 def test_declarations_are_refused_when_the_class_is_defined():

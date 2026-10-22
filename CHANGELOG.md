@@ -28,6 +28,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ExceptionGroup`. `repr()` of a node is the constructor expression.
 - `texmodel render module:attr [-o out.tex]` writes a document (a `str` from `Package.document()`, or a function returning
   one). An invalid document prints every violation with its code and path and exits 2.
+- Adopted packages (M9, minimal): `Package(..., adopted=True)` declares the interface of a hand-written `.sty`. Its components
+  have no body, `build` writes nothing, and `texmodel check` (with `[tool.texmodel] sources`) reports a declared name the
+  sources do not define (`TM-C010`) or define with another signature (`TM-C011`). A body or a `Value` on an adopted package
+  is refused (`TM-M023`, `TM-P005`).
+- `Package.document(..., preamble=PreambleSlots(before_class=, before_package=, after_package=))` (D3): `Raw` TeX around
+  `\documentclass` and `\usepackage`; public names of the package used there must be declared (`TM-M015`, with a path).
+- `texmodel_build`: a package's own warning is a typed `PackageWarning` (`TM-X019`) with its continuation lines joined and its
+  input line; an undefined control sequence inside an argument is named from TeX's `<argument>` line.
+- `Package.plan(...)` (B2, D2): the document as `Plan`, lines with the path of what wrote them. `Plan.edits(text)` finds changed,
+  removed and added lines by path, `path_of(n)` maps an output line (a log's `input line`) to its path, and `to_json` /
+  `from_json` store it as a baseline beside the committed file. New module `texmodel.plan`.
+- `tests/consumers/card_deck/`: a synthetic consumer (a hand-written package, the template generator it replaces, made-up
+  cards), its model and converter, and Gate B tests that compare printed output, find hand edits by path, and compile the
+  defect classes (interface drift, escaping, over-set).
 - `tests/examples/`: complete example packages with committed output, compared by the test suite and compiled by the
   `tex` suite.
 - `texmodel-build`: a second package in this repo (`harness/`) holding the compile and verify side; `texmodel` itself never

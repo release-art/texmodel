@@ -99,3 +99,17 @@ def test_aux_diff_names_the_labels_and_lines_that_moved():
 
 def test_aux_diff_names_a_moving_macro_by_its_name():
     assert aux_diff("\\gdef\\run{1}\n", "\\gdef\\run{2}\n") == ("run",)
+
+
+def test_a_package_warning_is_typed_with_its_continuation_lines_and_location():
+    """A hand-written package's log: a card that does not fit is a package warning, not an overfull box (C2)."""
+    (fit,) = kinds("overset.log")
+    assert (fit.package, fit.line, fit.severity, fit.code) == ("card-deck", 36, d.Severity.WARNING, "TM-X019")
+    assert fit.message == "Card 'Long-Eared Owl' does not fit. Its body needs 322.436pt and the card has 160.0pt"
+
+
+def test_an_undefined_name_inside_an_argument_is_read_from_the_argument_line():
+    """Real log: `\\setlength{\\cdSafeInset}` after a package removed the name; TeX shows it on `<argument>`."""
+    (found,) = kinds("undefined_in_argument.log")
+    assert isinstance(found, d.UndefinedControlSequence)
+    assert (found.name, found.file, found.line) == ("\\cdSafeInset", "./deck.tex", 11)

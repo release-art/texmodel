@@ -63,6 +63,16 @@ class PackageError(Diagnostic):
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
+class PackageWarning(Diagnostic):
+    """A package's own warning, with its continuation lines joined: how a hand-written package reports a card that does
+    not fit (`Card 'Moorhen' does not fit.`)."""
+
+    code: str = "TM-X019"
+    severity: Severity = Severity.WARNING
+    package: str = ""
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class RerunNeeded(Diagnostic):
     code: str = "TM-X015"
     severity: Severity = Severity.WARNING
@@ -124,6 +134,7 @@ KINDS: dict[str, type[Diagnostic]] = {
         OverfullBox,
         MissingFile,
         PackageError,
+        PackageWarning,
         RerunNeeded,
         UndefinedReference,
         DocumentRefusal,

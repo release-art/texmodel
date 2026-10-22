@@ -4,7 +4,7 @@ import pkgutil
 
 import texmodel
 
-PUBLIC = {"bundle", "cli", "components", "config", "drift", "errors", "package", "types"}
+PUBLIC = {"bundle", "cli", "components", "config", "drift", "errors", "package", "plan", "types"}
 
 
 def test_only_the_public_modules_sit_at_the_top_level():

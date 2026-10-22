@@ -1,5 +1,10 @@
-"""A `Package` is the container: its commands render to one `.sty` (G1), deterministically."""
+"""A `Package` is the container: its commands render to one `.sty` (G1), deterministically.
 
+An adopted package (M9) is the other way round: the `.sty` is hand-written, the components only declare its interface,
+and `check_interface` compares the two.
+"""
+
+import dataclasses
 import importlib.metadata
 import re
 from collections.abc import Sequence
@@ -16,16 +21,34 @@ from ._internal.render import (
     render_package,
     render_value,
     setting,
+    signature,
+    undeclared,
 )
+from ._internal.scan import scan_declarations
 from .components import Command, Environment, Node, Value, env_spec_of, spec_of, value_spec_of
 from .drift import stamp
 from .errors import DeclarationError, Violation
-from .types import Colour, Length
+from .plan import Line, Plan, node_lines
+from .types import Colour, Length, Raw
 
 _NAME = re.compile(r"[a-z][a-z0-9-]*")
 _PREFIX = re.compile(r"[a-z]+")
 _OPTION = re.compile(r"[A-Za-z0-9][A-Za-z0-9=.-]*")  # a class option is TeX, so it is not free text
 _DATE = re.compile(r"\d{4}/\d{2}/\d{2}")  # \ProvidesPackage's date slot: YYYY/MM/DD (G3)
+
+
+@dataclasses.dataclass(frozen=True)
+class PreambleSlots:
+    """TeX a document places around its class and package lines (D3), each slot a tuple of `Raw` in order.
+
+    `before_class` is where `\\DocumentMetadata` must go; `before_package` is for what the package needs when it
+    loads (`\\input@path`, package options); `after_package` is for what needs it loaded (`\\graphicspath`,
+    per-document `\\renewcommand`s). Public names of the package used here must be declared (M8).
+    """
+
+    before_class: tuple[Raw, ...] = ()
+    before_package: tuple[Raw, ...] = ()
+    after_package: tuple[Raw, ...] = ()
 
 
 def generator_version() -> str:
@@ -44,6 +67,7 @@ class Package:
         date: str = "1970/01/01",
         description: str = "",
         document_class: str = "article",
+        adopted: bool = False,
     ) -> None:
         if not _NAME.fullmatch(name):
             raise DeclarationError(f"package name {name!r} must match [a-z][a-z0-9-]*", code="TM-P001")
@@ -55,6 +79,7 @@ class Package:
             raise DeclarationError(f"document class {document_class!r} must match [a-z][a-z0-9-]*", code="TM-P004")
         self.name, self.prefix, self.version, self.date, self.description = name, prefix, version, date, description
         self.document_class = document_class
+        self.adopted = adopted  # the `.sty` is hand-written; components only declare it (M9)
         self._items: list[Spec | EnvSpec | ValueSpec] = []  # registration order is output order
         self._controls: dict[str, str] = {}  # control sequence -> qualname of its declarer
         self._colours: dict[str, str] = {}  # colour name -> qualname; its own namespace
@@ -72,8 +97,9 @@ class Package:
 
     def command[C: type[Command]](self, cls: C) -> C:
         """Register a command class."""
-        spec = spec_of(cls)
-        render_command(self.prefix, spec)  # lints the body now, so a bad body is refused at import
+        spec = spec_of(cls, declared_only=self.adopted)
+        if not self.adopted:
+            render_command(self.prefix, spec)  # lints the body now, so a bad body is refused at import
         control = self.prefix + spec.name
         self._add(spec, (self._controls, control, f"\\{control}"))
         cls.__tm_prefix__ = self.prefix
@@ -81,8 +107,9 @@ class Package:
 
     def environment[E: type[Environment]](self, cls: E) -> E:
         """Register an environment class: `\\newenvironment` with its begin and end bodies."""
-        spec = env_spec_of(cls)
-        render_environment(self.prefix, spec)  # lints both bodies now
+        spec = env_spec_of(cls, declared_only=self.adopted)
+        if not self.adopted:
+            render_environment(self.prefix, spec)  # lints both bodies now
         control = self.prefix + spec.name
         self._add(spec, (self._controls, control, f"\\{control}"))
         cls.__tm_prefix__ = self.prefix
@@ -90,6 +117,12 @@ class Package:
 
     def value[V: type[Value[Length] | Value[Colour] | Value[bool]]](self, cls: V) -> V:
         """Register a value class: `\\newlength`, `\\definecolor` or `\\newif` by its type (M1a)."""
+        if self.adopted:
+            raise DeclarationError(
+                f"{cls.__qualname__}: an adopted package renders no TeX, so it cannot declare a value",
+                code="TM-P005",
+                hint="values are rendered into the .sty; declare the setting as a Command with no arguments",
+            )
         spec = value_spec_of(cls)
         control = self.prefix + spec.name
         if isinstance(spec.default, Length):
@@ -114,6 +147,10 @@ class Package:
         Body references are checked here, not at registration: a body may name a component declared after it, so the
         family is only complete once someone asks for output (`files()` and `texmodel check` both do) (M8, G2).
         """
+        if self.adopted:
+            raise DeclarationError(
+                f"{self.name}: an adopted package renders no .sty", code="TM-P006", hint="the hand-written one is it"
+            )
         for s in self._items:
             if isinstance(s, Spec):
                 check_references(self.prefix, s, s.body, self._controls)
@@ -135,17 +172,55 @@ class Package:
             return render_value(self.prefix, s)
         return render_command(self.prefix, s) if isinstance(s, Spec) else render_environment(self.prefix, s)
 
-    def document(
+    def check_interface(self, *sources: str) -> list[Violation]:
+        """Every declared component is defined in `sources` (the hand-written TeX) with the signature declared (M9).
+
+        Read by `texmodel check` for an adopted package. A name that `sources` define some other way than
+        `\\newcommand`, `\\providecommand` or `\\newenvironment` counts as missing.
+        """
+        found = scan_declarations("\n".join(sources), self.prefix)
+        out: list[Violation] = []
+        for s in (i for i in self._items if isinstance(i, Spec | EnvSpec)):  # an adopted package has no values
+            control, want = self.prefix + s.name, signature(s.args)
+            if control not in found:
+                out.append(Violation("TM-C010", s.name, f"\\{control} is declared but the sources do not define it"))
+            elif found[control] != want:
+                out.append(
+                    Violation(
+                        "TM-C011",
+                        s.name,
+                        f"\\{control}: declared {want or 'without arguments'}, the sources define "
+                        f"{found[control] or 'no arguments'}",
+                        hint="change the declaration or the package so they agree",
+                    )
+                )
+        return out
+
+    def plan(
         self,
         *body: Node,
         settings: Sequence[Value[Length] | Value[Colour] | Value[bool]] = (),
         options: Sequence[str] = (),
-    ) -> str:
-        """A complete `.tex` (D1a, D2): pure, deterministic, no I/O. `settings` set values for the whole document.
+        preamble: PreambleSlots | None = None,
+    ) -> Plan:
+        """A complete `.tex` as lines with provenance (D1a, D2, B2): pure, deterministic, no I/O. `settings` set values
+        for the whole document.
 
         Everything wrong is reported at once, as an `ExceptionGroup` of `ValidationError` (E2).
         """
+        preamble = preamble or PreambleSlots()
         problems = [v for node in body for v in node.validate()]
+        problems += [
+            Violation(
+                "TM-M015",
+                f"preamble.{slot}[{i}]",
+                f"\\{word} is not declared by this package",
+                hint="declare it, or fix the name",
+            )
+            for slot in ("before_class", "before_package", "after_package")
+            for i, raw in enumerate(getattr(preamble, slot))
+            for word in undeclared(self.prefix, raw.tex, self._controls)
+        ]
         problems += [
             Violation("TM-C006", f"options[{i}]", f"class option {o!r} must match [A-Za-z0-9][A-Za-z0-9=.-]*")
             for i, o in enumerate(options)
@@ -154,19 +229,42 @@ class Package:
         if problems:
             raise ExceptionGroup("invalid document", [v.error() for v in problems])
         opts = f"[{','.join(options)}]" if options else ""
-        return "\n".join(
-            [
-                f"% {self.name} document -- {stamp(generator_version())}. Do not edit.",
-                f"\\documentclass{opts}{{{self.document_class}}}",
-                f"\\usepackage{{{self.name}}}",
-                "\\begin{document}",
-                *(setting(type(v).__tm_prefix__, type(v).__name__, v.value) for v in settings),
-                *(node.render() for node in body),
-                "\\end{document}",
-                "",
+
+        def slot(name: str) -> list[Line]:
+            return [
+                Line(f"preamble.{name}[{i}]", tex)
+                for i, raw in enumerate(getattr(preamble, name))
+                for tex in raw.tex.splitlines()
             ]
+
+        return Plan(
+            (
+                Line("header", f"% {self.name} document -- {stamp(generator_version())}. Do not edit."),
+                *slot("before_class"),
+                Line("document", f"\\documentclass{opts}{{{self.document_class}}}"),
+                *slot("before_package"),
+                Line("document", f"\\usepackage{{{self.name}}}"),
+                *slot("after_package"),
+                Line("document", "\\begin{document}"),
+                *(
+                    Line(f"settings[{i}]", setting(type(v).__tm_prefix__, type(v).__name__, v.value))
+                    for i, v in enumerate(settings)
+                ),
+                *(line for i, node in enumerate(body) for line in node_lines(node, f"{type(node).__name__}[{i}]")),
+                Line("document", "\\end{document}"),
+            )
         )
 
+    def document(
+        self,
+        *body: Node,
+        settings: Sequence[Value[Length] | Value[Colour] | Value[bool]] = (),
+        options: Sequence[str] = (),
+        preamble: PreambleSlots | None = None,
+    ) -> str:
+        """The `.tex` text of `plan(...)`."""
+        return self.plan(*body, settings=settings, options=options, preamble=preamble).text
+
     def files(self, *, version: str | None = None) -> dict[str, str]:
-        """Every generated file, by path relative to the output directory."""
-        return {f"{self.name}.sty": self.render(version=version)}
+        """Every generated file, by path relative to the output directory; an adopted package generates none."""
+        return {} if self.adopted else {f"{self.name}.sty": self.render(version=version)}

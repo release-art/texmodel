@@ -3,6 +3,7 @@
 import dataclasses
 import pathlib
 import tomllib
+from collections.abc import Sequence
 from typing import Any
 
 from .errors import DeclarationError
@@ -13,6 +14,7 @@ class Config:
     prefix: str
     package: str = ""  # "module:attribute" of the Package to build
     output: str = "generated"  # where `texmodel build` writes, relative to pyproject.toml
+    sources: Sequence[str] = ()  # globs of the hand-written TeX an adopted package declares (M9), from pyproject.toml
 
 
 def load_config(pyproject: pathlib.Path) -> Config:

@@ -210,18 +210,23 @@ def render_value(prefix: str, spec: ValueSpec) -> str:
     )
 
 
-def check_references(prefix: str, spec: Spec | EnvSpec, text: str, declared: Mapping[str, str]) -> None:
-    """Every `\\<prefix>Name` in a body is declared in the package (M8, G2); internals and other names are not ours."""
+def undeclared(prefix: str, text: str, declared: Mapping[str, str]) -> list[str]:
+    """The `\\<prefix>Name` control words in `text` that `declared` lacks, in order; internals and other names are not
+    ours."""
     public = re.compile(rf"{prefix}[A-Z][A-Za-z]*")
-    for m in _TOKEN.finditer(text):
-        word = m["word"]
-        if word and public.fullmatch(word) and word not in declared:
-            raise DeclarationError(
-                f"{spec.qualname}: body uses \\{word}, which no command or value of this package declares",
-                code="TM-M015",
-                path=spec.name,
-                hint="declare it, or fix the name",
-            )
+    words = (m["word"] for m in _TOKEN.finditer(text))
+    return [w for w in words if w and public.fullmatch(w) and w not in declared]
+
+
+def check_references(prefix: str, spec: Spec | EnvSpec, text: str, declared: Mapping[str, str]) -> None:
+    """Every `\\<prefix>Name` in a body is declared in the package (M8, G2)."""
+    if words := undeclared(prefix, text, declared):
+        raise DeclarationError(
+            f"{spec.qualname}: body uses \\{words[0]}, which no command or value of this package declares",
+            code="TM-M015",
+            path=spec.name,
+            hint="declare it, or fix the name",
+        )
 
 
 def render_package(

@@ -411,9 +411,22 @@ def _required(cls: type, found: tuple[str, str] | None, option: str) -> tuple[st
     return found
 
 
-def spec_of(cls: type[Command]) -> Spec:
-    """The declaration as the renderer sees it, with its body (M8)."""
-    body, origin = _required(cls, cls.__tm_inline__, "body")
+def _declared_only(cls: type, *sources: tuple[str, str] | None) -> None:
+    """A component of an adopted package is only declared: a body would never render, so it is refused (M9)."""
+    if any(sources):
+        raise DeclarationError(
+            f"{cls.__module__}.{cls.__qualname__}: has a body, but its package is adopted and renders no TeX",
+            code="TM-M023",
+            path=cls.__name__,
+            hint="remove the body: the hand-written package defines it",
+        )
+
+
+def spec_of(cls: type[Command], *, declared_only: bool = False) -> Spec:
+    """The declaration as the renderer sees it, with its body (M8); `declared_only` (M9) has none."""
+    if declared_only:
+        _declared_only(cls, cls.__tm_inline__)
+    body, origin = ("", "declared") if declared_only else _required(cls, cls.__tm_inline__, "body")
     return Spec(
         cls.__name__,
         cls.__tm_doc__,
@@ -425,11 +438,16 @@ def spec_of(cls: type[Command]) -> Spec:
     )
 
 
-def env_spec_of(cls: type[Environment]) -> EnvSpec:
+def env_spec_of(cls: type[Environment], *, declared_only: bool = False) -> EnvSpec:
     """As `spec_of`, with two bodies: `begin` and `end`."""
-    begin, begin_origin = _required(cls, cls.__tm_inline__[0], "begin")
-    end, end_origin = _required(cls, cls.__tm_inline__[1], "end")
-    origin = " + ".join(dict.fromkeys((begin_origin, end_origin)))
+    if declared_only:
+        _declared_only(cls, *cls.__tm_inline__)
+        begin = end = ""
+        origin = "declared"
+    else:
+        begin, begin_origin = _required(cls, cls.__tm_inline__[0], "begin")
+        end, end_origin = _required(cls, cls.__tm_inline__[1], "end")
+        origin = " + ".join(dict.fromkeys((begin_origin, end_origin)))
     return EnvSpec(
         cls.__name__,
         cls.__tm_doc__,

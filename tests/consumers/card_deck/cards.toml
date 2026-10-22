@@ -1,0 +1,77 @@
+[[cards]]
+name = "Red Fox"
+id = "11111111-aaaa"
+
+[[cards.one_liners]]
+label = "spot"
+text = "Orange fur and a bushy white-tipped tail."
+[[cards.one_liners]]
+label = "spot"
+text = "About 30 cm tall at the shoulder."
+[[cards.one_liners]]
+label = "spot"
+text = "Likes to hide under sheds."
+[[cards.one_liners]]
+label = "sound"
+text = "A loud, scream-like bark."
+[[cards.one_liners]]
+label = "where"
+text = "In gardens and parks."
+[[cards.one_liners]]
+label = "fact"
+text = "A fox can eat 50% of its weight in worms & grubs."
+[[cards.one_liners]]
+label = "fact"
+text = "Its whiskers help it feel in the dark."
+
+[[cards]]
+name = "Long-eared Owl"
+id = "22222222-bbbb"
+
+[[cards.one_liners]]
+label = "spot"
+text = "Orange eyes and tall feathery ‘ears’."
+[[cards.one_liners]]
+label = "spot"
+text = "Streaky brown, like tree bark."
+[[cards.one_liners]]
+label = "spot"
+text = "Sits very still by day."
+[[cards.one_liners]]
+label = "sound"
+text = "A soft “hoo-hoo” — repeated slowly."
+[[cards.one_liners]]
+label = "where"
+text = "In thick hedges and woods."
+[[cards.one_liners]]
+label = "fact"
+text = "It’s as quiet as a feather in flight."
+[[cards.one_liners]]
+label = "fact"
+text = "Owls swallow small prey whole."
+
+[[cards]]
+name = "Garden Snail"
+id = "33333333-cccc"
+
+[[cards.one_liners]]
+label = "spot"
+text = "A coiled shell on its back."
+[[cards.one_liners]]
+label = "spot"
+text = "Leaves a silver trail."
+[[cards.one_liners]]
+label = "spot"
+text = "Likes _damp_ logs ~ and stones."
+[[cards.one_liners]]
+label = "sound"
+text = "Silent, but you can hear it munch #1 leaves."
+[[cards.one_liners]]
+label = "where"
+text = "Under pots and in the veg patch."
+[[cards.one_liners]]
+label = "fact"
+text = "A snail has about 14,000 tiny teeth."
+[[cards.one_liners]]
+label = "fact"
+text = "It carries its home with it."

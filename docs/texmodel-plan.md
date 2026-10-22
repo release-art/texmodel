@@ -894,15 +894,18 @@ fix before building anything on top.
 
 | Step | Deliverable | Covers | Exit test |
 |---|---|---|---|
-| B0 | types, components, `children`, naming, rules, static glyph check; no TeX | M, T, D5, E2 | property tests, 100% coverage. **Partly built 2026-10-22**: `Text` (escaped), `Raw`, `Length`, `Colour`, `Bool`; `Command`, `Environment`, `Value[T]`; `children` grammar and `validate()` returning every violation; rules as a pluggable layer, `Markup`, `Int`, `Enum`, `List`, glyph check not yet |
-| B1 | bodies, package render, family check, lints, `build`, output-stability header | M8, M14, G1-G4, G7 | sample `.sty` byte-stable; hand edit fails `check`. **Built 2026-10-22** (also `texmodel render`, and `tests/examples/` goldens that the compile suite builds) |
-| B2 | Doc trees, document root, spec round trip, `show`/`plan`, source maps, trust levels, injection corpus, **sandbox verification task** | D1-D4a, C11, Z1-Z3 | hostile corpus passes; map resolves a real diagnostic |
-| B3 | schema/OpenAPI export, cross-validator test, free tests, probes and `Measure` | S, V1, C5, C5a | S4 passes; overset ⇒ diagnostic naming the item |
+| B0 | types, components, `children`, naming, rules, static glyph check; no TeX | M, T, D5, E2 | property tests, 100% coverage. **Partly built 2026-10-22**: `Text` (escaped), `Raw`, `Length`, `Colour`, `Bool`; `Command`, `Environment`, `Value[T]`; `children` grammar and `validate()` returning every violation; rules as a pluggable layer, `Markup`, `Int`, `Enum`, `List`, glyph check not yet. Gate B (2026-10-22) found `Enum`/`List`, text-valued settings and a grammar for "anywhere" items missing for the first consumer |
+| B1 | bodies, package render, family check, lints, `build`, output-stability header | M8, M14, G1-G4, G7 | sample `.sty` byte-stable; hand edit fails `check`. **Built 2026-10-22** (also `texmodel render`, and `tests/examples/` goldens that the compile suite builds). Adopted packages (M9, minimal): `adopted=True`, `Package.check_interface`, `texmodel check` with `sources` (2026-10-22) |
+| B2 | Doc trees, document root, spec round trip, `show`/`plan`, source maps, trust levels, injection corpus, **sandbox verification task** | D1-D4a, C11, Z1-Z3 | hostile corpus passes; map resolves a real diagnostic. **Partly built 2026-10-22**: Doc trees (constructor trees, `validate()`), the document root with `settings=`, `options=` and three preamble slots (`PreambleSlots`, D3, minimal); `Package.plan()` with per-line paths, `path_of` and a JSON baseline built (2026-10-22); spec round trip, `show`, trust levels, corpus, sandbox task and mapping a diagnostic automatically not built |
+| B3 | schema/OpenAPI export, cross-validator test, free tests, probes and `Measure` | S, V1, C5, C5a | S4 passes; overset ⇒ diagnostic naming the item. **Not built** (2026-10-22): schema export, `Measure`, probes. The harness types a package's own warning (`PackageWarning`, `TM-X019`), which is how the first consumer's brand package reports a card that does not fit |
 
 **Gate B (go/no-go).** On the first consumer: the generator's regex drift code is
 deleted; at least three real past defects (interface drift, an escaping bug, an
 over-set card) are shown to be caught by the new checks; adding a component takes an
 author under ten minutes. If not met, stop at the plumbing plus a smaller model layer.
+
+**Gate B was run on 2026-10-22 against a real private card deck (its snapshot is not kept in this repo; `tests/consumers/card_deck/` is a synthetic stand-in with the same shape); the evidence and the recommendation are in
+`docs/briefs/gate-b-report.md`.**
 
 ### Stage C: only if Gate B passes
 
@@ -957,6 +960,13 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | Hole syntax `#name`; internals free but must resolve | decided |
 | Documents are constructor trees (not `with` builders) | decided |
 | `children = [Fact.times(2, 3)]` multiplicity syntax (`times([from,] to)` with `to=None` for no limit, plus `times.any()` and `times.at_least_one()`; not operator overloading) | decided 2026-10-22 |
+| An adopted (declared-only) package is a flag on the package, `Package(..., adopted=True)`: no bodies, no `.sty`, `texmodel check` compares the declarations with `[tool.texmodel] sources` (alternatives: a per-component marker; a separate class; a manifest file, M9) | decided 2026-10-22 |
+| The interface check reads `\newcommand`, `\providecommand` and `\newenvironment` and compares the argument count and whether the first is optional; a name defined another way is missing (`TM-C010`, `TM-C011`) | decided 2026-10-22 |
+| Document preamble: `PreambleSlots(before_class, before_package, after_package)`, each a tuple of `Raw`, passed to `Package.document(preamble=)`; public names used there are linted (`TM-M015`) (alternatives: free strings; slots declared by the package; a root component with its own grammar) | decided 2026-10-22, minimal D3 |
+| A deck-level text setting (`\renewcommand{\bbDeckName}{...}`) is a declared, argument-less Command until `Value[Text]` exists | decided 2026-10-22, provisional |
+| The harness types any package warning (`PackageWarning`, `TM-X019`); a package's "does not fit" message is read by the consumer until `Measure` exists | decided 2026-10-22 |
+| Consumer evidence lives in a committed snapshot (`tests/consumers/`); the one `consumer` test reads the live deck read-only and is skipped without it | decided 2026-10-22 |
+| A source map is a `Plan`: output lines with the path that wrote each; the baseline for hand-edit detection is its JSON, stored beside the committed file | decided 2026-10-22 |
 | Python-only authoring; TOML/YAML frontend | parked, not planned |
 | Renames via `renamed_from` → pydantic aliases + release record | decided |
 | lualatex only in v1; capabilities explicit | decided |
@@ -981,6 +991,52 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | Exact list of built-in rule codes | open — B0 |
 
 ---
+
+## 21a. Gate B findings: ideas, gaps, improvements (2026-10-22)
+
+From running Gate B on a real card deck and its hand-written package family (private; `tests/consumers/card_deck/` keeps the
+shape with made-up data). Ordered by how much the consumer missed them. Each is a candidate, not a decision.
+
+1. **Typed settings and labels.** `Value[Text]`, an `Enum` field type and `List`. Today a per-deck text setting is an
+   argument-less adopted Command whose value is `Raw` in the preamble, and a slot label is a `Raw` field fed by a consumer enum.
+   `Enum` would also give a closed set of labels to validate and to export.
+2. **Typed over-set: `Measure` (C5).** A package reports "card X does not fit, needs A, has B" as its own warning; the harness
+   types it (`PackageWarning`) but the consumer reads the numbers by regex. Idea: a declared parser per package (message
+   shape to named measurements), or a probe convention the package can adopt; verdict per item against a declared bound.
+3. **Automatic diagnostic mapping.** `Plan.path_of(line)` exists; nothing yet maps `CompileResult` diagnostics through the
+   plan. Idea: `Compiler.compile(..., plan=)` adds `path` to every diagnostic with a line (C11).
+4. **Grammar escape hatches.** Ordered runs cannot say "this item may appear anywhere, any number of times" (a section
+   header) or hold a raw child (a layout `\vspace`). Ideas: an `Anywhere(X)` term; a `Raw` node allowed in a grammar by
+   declaration; interleaving of two runs. Without it a model cannot match a generator's layout, only its text.
+5. **Baseline workflow in the CLI.** `texmodel render` could write `<doc>.plan.json` beside the `.tex`, and `texmodel check`
+   compare a committed document with its plan (hand edits by path, config changes by path). Today the tests do it.
+6. **Hand-edit semantics.** The old regex tool separated a hand edit from a config change, matched cards by id, ignored a
+   triage tool's marker comment, and produced the config edit that imports a hand edit. Ideas: keyed children (path by id,
+   not position), a declared "comment marker to ignore" on the plan comparison, and an `import` hook that maps a path to a
+   source field.
+7. **Rules layer (D5) and placement (M5).** The package enforces counts itself with its own errors; texmodel duplicates them in
+   the grammar. A rule such as a reading-level bound belongs to neither.
+8. **Adoption scanner reach.** Reads `\newcommand`, `\providecommand`, `\newenvironment` only: not `\NewDocumentCommand`,
+   `\DeclareRobustCommand`, defaults other than the first argument, or `\newcommand*` forms with unusual spacing. Also: names
+   the package defines that the model does not declare (present-but-undeclared, M9), and renewals of declared names (M10).
+9. **PDF-string safety.** A deck's PDF Info string was cut inside a parenthesis, which silently swallowed the rest of the
+   dictionary. Idea: a `PdfString` type that escapes and balances; `Text` is TeX-escaped, not PDF-escaped.
+10. **Preamble.** Slots are three tuples of `Raw`. Ideas: typed entries (`PassOption`, `InputPath`, `GraphicsPath`), the
+    ordering rules in the plan's G3 as lints (input path before the package, graphics path after), and slots declared by
+    the package (D3).
+11. **Source maps beyond documents.** A `.sty` render could carry a plan too, so a `Package` diagnostic or a hand edit to a
+    generated `.sty` names the component.
+12. **Declared-only variants.** If a consumer mixes generated and adopted components in one package, `adopted=True` on the package
+    is too coarse; the alternative is a per-component marker. Revisit with the second consumer.
+13. **Consumer policies in the library?** Title case, apostrophe normalisation and PDF-subject cutting were consumer code. They
+    are probably policy, but a `Text` variant with a declared normaliser would remove the converter's busiest part.
+14. **Reference image.** `releaseart/lualatex-python` lacked `enumitem`, `hyphenat`, `anyfontsize`, `pdfrender` and `tikzfill`
+    (found by compiling a real brand package; `tlmgr install` adds them). Idea: a documented "full" tag, or a doctor check that
+    names missing packages for a given `.sty`. PDF/X-4 and PDF/A-2b output was never compiled in the test; an ICC profile
+    has to be supplied at test time.
+15. **Spec round trip** (`to_dict` / `from_dict`) is not needed by a TOML-driven consumer, but a second consumer may want it.
+16. **Gate B itself.** The ten-minute criterion needs a first-time author, timed. The "three real past defects" criterion needs
+    a consumer whose history records an escaping bug and an over-set card; the first consumer recorded only interface drift.
 
 ## 22. Risks
 

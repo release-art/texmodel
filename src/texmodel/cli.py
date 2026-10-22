@@ -96,11 +96,32 @@ def render(
     typer.echo(f"wrote {target}")
 
 
+def _check_interface(root: pathlib.Path, config: Config, package: Package) -> None:
+    """An adopted package (M9): every declared component is defined in `sources` with its declared signature."""
+    paths = sorted(p for glob in config.sources for p in root.glob(glob) if p.is_file())
+    if not paths:
+        raise DeclarationError(
+            f"{package.name} is adopted but `sources` matches no file",
+            code="TM-D030",
+            hint='set [tool.texmodel] sources = ["res/brand/*.sty"]',
+        )
+    violations = package.check_interface(*(p.read_text(encoding="utf-8", errors="replace") for p in paths))
+    for v in violations:
+        typer.echo(f"{v.code} {v.path}: {v.message}")
+    if violations:
+        raise typer.Exit(1)
+    typer.echo(f"ok: {len(paths)} source file(s) define what {package.name} declares")
+
+
 @app.command()
 @_exits
 def check() -> None:
-    """Fail if a committed generated file is stale, missing or orphaned. Exit 0 ok, 1 drift."""
+    """Fail if a generated file is stale, missing or orphaned, or an adopted package's interface drifted. Exit 0 ok, 1
+    drift."""
     root, config, package = _project()
+    if package.adopted:
+        _check_interface(root, config, package)
+        return
     out = root / config.output
     drift = check_drift(package.files(), out, owned=("*.sty",), version=generator_version())
     for label, names in (("stale", drift.stale), ("missing", drift.missing), ("orphaned", drift.orphaned)):

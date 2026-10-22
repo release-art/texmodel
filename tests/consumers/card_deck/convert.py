@@ -1,0 +1,64 @@
+"""`cards.toml` and `project.toml` to texmodel nodes and the preamble: the consumer's side of Gate B.
+
+Deck policies live here, not in the library: a typographic apostrophe prints straight, and a title is set in title case.
+"""
+
+import pathlib
+import tomllib
+from typing import Any
+
+from texmodel.package import PreambleSlots
+from texmodel.plan import Plan
+from texmodel.types import Raw, escape
+
+from . import legacy, model
+
+HERE = pathlib.Path(__file__).parent
+
+
+def load(folder: pathlib.Path = HERE) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    project = tomllib.loads((folder / "project.toml").read_text(encoding="utf-8"))
+    return project, tomllib.loads((folder / "cards.toml").read_text(encoding="utf-8"))["cards"]
+
+
+def text(value: str) -> str:
+    return value.replace("’", "'")
+
+
+def preamble(project: dict[str, Any]) -> PreambleSlots:
+    return PreambleSlots(
+        before_class=(Raw(r"\def\deckBeforeClass{yes}"),),
+        before_package=(Raw(r"\makeatletter\def\input@path{{res/}}\makeatother"),),
+        after_package=(
+            Raw(rf"\renewcommand{{\cdDeckName}}{{{escape(project['deck_name'])}}}"),
+            *(Raw(rf"\newcommand{{{label.macro.tex}}}{{{label.shown}}}") for label in model.SlotLabel),
+        ),
+    )
+
+
+def card(number: int, source: dict[str, Any]) -> model.Card:
+    by_label: dict[str, list[str]] = {}
+    for line in source["one_liners"]:
+        by_label.setdefault(line["label"], []).append(text(line["text"]))
+    slots = (
+        model.LabelledSlot(model.SlotLabel[label.upper()].macro, " ".join(by_label[label]))
+        for label in ("sound", "spot", "where")
+    )
+    return model.Card(
+        model.CardFront(model.CardImage(Raw(legacy.image(number, source)))),
+        model.CardBack(
+            model.Name(legacy.card_title(text(source["name"]))), *map(model.LeadFact, by_label["fact"]), *slots
+        ),
+    )
+
+
+def nodes(folder: pathlib.Path = HERE) -> tuple[model.Card, ...]:
+    return tuple(card(n, c) for n, c in enumerate(load(folder)[1], 1))
+
+
+def plan(folder: pathlib.Path = HERE) -> Plan:
+    return model.pkg.plan(*nodes(folder), preamble=preamble(load(folder)[0]))
+
+
+def deck(folder: pathlib.Path = HERE) -> str:
+    return plan(folder).text

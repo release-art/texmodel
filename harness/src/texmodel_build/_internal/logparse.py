@@ -16,6 +16,7 @@ from ..diagnostics import (
     MissingFile,
     OverfullBox,
     PackageError,
+    PackageWarning,
     RerunNeeded,
     TexError,
     UndefinedControlSequence,
@@ -35,6 +36,8 @@ _UNDEFINED_REF = re.compile(
 )
 _MISSING_FILE = re.compile(r"File `(?P<name>.+?)' not found")
 _PACKAGE_ERROR = re.compile(r"Package (?P<package>\S+) Error:\s*(?P<rest>.*)$")
+_PACKAGE_WARNING = re.compile(r"^Package (?P<package>\S+) Warning:\s*(?P<rest>.*)$")
+_ON_LINE = re.compile(r"\s*on input line (?P<line>\d+)\.?$")
 _PROBE = re.compile(r"^texmodel:probe:(?P<name>[^=\s]+)=(?P<value>.*)$")
 _REFUSE = re.compile(r"^texmodel:refuse:(?P<reason>.*)$")
 _PAGES = re.compile(r"Output written on .* \((?P<n>\d+) pages?, \d+ bytes\)")
@@ -59,12 +62,13 @@ def parse_log(text: str) -> tuple[Diagnostic, ...]:
         elif m := _BANG.match(line):
             _error(lines, i, m["msg"], None, _context(lines, i)[0], add)
         else:
-            _note(line, add)
+            _note(lines, i, add)
     return tuple(found.values())
 
 
-def _note(line: str, add: Callable[[Diagnostic], None]) -> None:
+def _note(lines: list[str], i: int, add: Callable[[Diagnostic], None]) -> None:
     """Lines that carry a finding without being an error message: missing glyphs, boxes, references, probes."""
+    line = lines[i]
     if m := _MISSING_CHAR.match(line):
         font = m["font"].strip('"')
         cp = m["cp"].upper()
@@ -85,6 +89,20 @@ def _note(line: str, add: Callable[[Diagnostic], None]) -> None:
         add(Measurement(message=line, name=m["name"], value=m["value"]))
     elif m := _REFUSE.match(line):
         add(DocumentRefusal(message=m["reason"]))
+    elif m := _PACKAGE_WARNING.match(line):
+        package = m["package"]
+        detail = [m["rest"].strip()]
+        for following in lines[i + 1 : i + 1 + _LOOKAHEAD]:
+            if not following.startswith(f"({package})"):
+                break
+            detail.append(following[len(package) + 2 :].strip())
+        message = " ".join(d for d in detail if d)
+        where = _ON_LINE.search(message)
+        add(
+            PackageWarning(
+                message=_ON_LINE.sub("", message), package=package, line=int(where["line"]) if where else None
+            )
+        )
 
 
 def page_count(text: str) -> int | None:
@@ -107,7 +125,10 @@ def _error(
     if msg.startswith(_CONSEQUENCE):
         return
     if msg.startswith("Undefined control sequence"):
-        cs = _CS.search(_context(lines, i)[1])
+        top = lines[i + 1] if i + 1 < len(lines) else ""
+        cs = _CS.search(
+            top if top and not _CONTEXT.match(top) else _context(lines, i)[1]
+        )  # `<argument> \name`, else `l.N`
         add(
             UndefinedControlSequence(
                 message=f"undefined control sequence {cs[1] if cs else '?'}",
