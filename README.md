@@ -23,7 +23,7 @@ This repository holds two packages, released in lockstep:
 from texmodel.body import TemplateRef
 from texmodel.components import Command, Environment, Value
 from texmodel.package import Package
-from texmodel.types import CMYK, Bool, Colour, Length, Text
+from texmodel.types import CMYK, Colour, Length, Text
 
 pkg = Package("acme-cards", prefix="ac", version="1.4.0", date="2026/10/21")
 
@@ -38,7 +38,7 @@ class Ink(Value[Colour]):
     default = CMYK(0, 0, 0, 0.95)
 
 @pkg.value
-class Compact(Value[Bool]):
+class Compact(Value[bool]):
     """Tighten the layout."""
     default = False
 
@@ -129,7 +129,6 @@ CardBack(Fact("x")).validate()   # [Violation(TM-C002 ...), Violation(TM-C001 pa
 ```toml
 # pyproject.toml
 [tool.texmodel]
-prefix = "ac"
 package = "acme_cards:pkg"
 output = "generated"
 ```
@@ -276,7 +275,6 @@ class DeckName(Command):                   # no fields: a setting the deck sets 
 
 ```toml
 [tool.texmodel]
-prefix = "bb"
 package = "deck.model:pkg"
 sources = ["res/brand/*.sty"]            # globs, relative to pyproject.toml
 ```

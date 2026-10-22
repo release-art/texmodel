@@ -11,7 +11,6 @@ from .errors import DeclarationError
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Config:
-    prefix: str
     package: str = ""  # pointer to the Package to build: "module:object", "module:ns.object" or "module:getter()"
     schema_output: str = ""  # where `texmodel schema` writes the JSON Schema of the package's data
     output: str = "generated"  # where `texmodel build` writes, relative to pyproject.toml
@@ -30,7 +29,4 @@ def load_config(pyproject: pathlib.Path) -> Config:
         raise DeclarationError(
             f"unknown [tool.texmodel] keys: {unknown}", code="TM-D002", hint=f"known: {sorted(known)}"
         )
-    try:
-        return Config(**table)
-    except TypeError as exc:
-        raise DeclarationError(f"[tool.texmodel]: {exc}", code="TM-D003") from exc
+    return Config(**table)

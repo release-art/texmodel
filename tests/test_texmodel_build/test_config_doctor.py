@@ -16,11 +16,11 @@ def test_build_config_defaults_and_targets(tmp_path):
     f = tmp_path / "pyproject.toml"
     f.write_text(
         '[tool.texmodel-build]\nimage = "img:1"\n[tool.texmodel-build.targets.card]\nsource = "card.tex"\n'
-        '[tool.texmodel-build.targets.deck]\nsource = "deck.tex"\nvariant = "print"\nprofile = "pdfx4"\n'
+        '[tool.texmodel-build.targets.deck]\nsource = "deck.tex"\n'
     )
     config = load_build_config(f)
     assert config.image == "img:1" and config.engine == "lualatex" and set(config.targets) == {"card", "deck"}
-    assert config.targets["deck"] == Target(name="deck", source="deck.tex", variant="print", profile="pdfx4")
+    assert config.targets["deck"] == Target(name="deck", source="deck.tex")
     f.write_text("[tool.texmodel-build]\n")
     assert load_build_config(f) == BuildConfig()
 

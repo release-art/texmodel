@@ -18,13 +18,13 @@ def test_every_error_is_a_texmodel_error_with_code_path_hint():
 
 def test_load_config(tmp_path):
     f = tmp_path / "pyproject.toml"
-    f.write_text('[tool.texmodel]\nprefix = "ac"\n')
-    assert load_config(f) == Config(prefix="ac")
+    f.write_text("[tool.texmodel]\n")
+    assert load_config(f) == Config()
 
 
 @pytest.mark.parametrize(
     ("body", "code"),
-    [("", "TM-D001"), ('[tool.texmodel]\nprefix = "a"\nbogus = 1\n', "TM-D002"), ("[tool.texmodel]\n", "TM-D003")],
+    [("", "TM-D001"), ("[tool.texmodel]\nbogus = 1\n", "TM-D002")],
 )
 def test_load_config_refuses(tmp_path, body, code):
     f = tmp_path / "pyproject.toml"

@@ -123,7 +123,7 @@ def test_interface_drift_is_what_texmodel_check_reports(tmp_path, monkeypatch):
 
     (tmp_path / "res").mkdir()
     (tmp_path / "pyproject.toml").write_text(
-        '[tool.texmodel]\nprefix = "cd"\npackage = "card_deck.model:pkg"\nsources = ["res/*.sty"]\n'
+        '[tool.texmodel]\npackage = "card_deck.model:pkg"\nsources = ["res/*.sty"]\n'
     )
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()

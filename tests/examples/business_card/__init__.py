@@ -3,7 +3,7 @@
 from texmodel.body import TemplateRef
 from texmodel.components import Command, Environment, Value
 from texmodel.package import Package
-from texmodel.types import CMYK, RGB, Bool, Colour, Length, Text
+from texmodel.types import CMYK, RGB, Colour, Length, Text
 
 pkg = Package("business-card", prefix="bc", version="1.0.0", date="2026/10/22", description="Business cards")
 
@@ -37,7 +37,7 @@ class Accent(Value[Colour]):
 
 
 @pkg.value
-class Compact(Value[Bool]):
+class Compact(Value[bool]):
     """Tighten the layout."""
 
     default = False

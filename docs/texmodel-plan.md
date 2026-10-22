@@ -643,7 +643,7 @@ Separate distributable; core stays I/O-light. Both reference consumers overlap h
 
 ```
 acme-cards/
-├── pyproject.toml                [project] metadata + [tool.texmodel] (prefix, engine, image)
+├── pyproject.toml                [project] metadata + [tool.texmodel]
 ├── acme_cards/
 │   ├── __init__.py               Package + small components
 │   ├── _shared.tex               shared includes

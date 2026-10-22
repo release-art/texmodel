@@ -156,9 +156,6 @@ class Choice(enum.Enum):
 
 # --- Values (T2, T4, T5): what a `Value[T]` holds. Immutable, validated on construction, stable to format. ---
 
-Bool = bool
-"""A TeX `\\newif`; plain `bool`."""
-
 _NUMBER = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)"
 _LENGTH = re.compile(rf"(?P<n>{_NUMBER})(?P<u>[a-z]+)")
 _INCHES_PER = {  # None: relative to the font, no fixed size

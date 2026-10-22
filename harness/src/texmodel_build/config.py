@@ -13,13 +13,11 @@ from .verify import Profile
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Target:
-    """A named build (C10): `[tool.texmodel-build.targets.<name>]`. `variant`/`profile` are carried for later layers."""
+    """A named build (C10): `[tool.texmodel-build.targets.<name>]`."""
 
     name: str
     source: str
     engine: str = "lualatex"
-    variant: str = ""
-    profile: str = ""  # verifier profile
     plan: str = ""  # pointer to the `Plan` behind `source`: diagnostics then name the component (B1)
 
 

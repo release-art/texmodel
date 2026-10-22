@@ -21,7 +21,7 @@ import typing
 from collections.abc import Mapping, Sequence
 
 from ._internal.render import Arg, argument_text, signature, tex_arguments
-from .body import Comment, Cs, Group, Hole, Library, Lit, Ref, RefKind, Seq, TexRaw
+from .body import HOLE, Comment, Cs, Group, Hole, Library, Lit, Ref, RefKind, Seq, TexRaw
 from .components import Command, Environment, Node, Passthrough, Resolved, control_name
 from .errors import DeclarationError, Violation
 from .types import Raw, escape
@@ -31,7 +31,6 @@ type Component = type[Command] | type[Environment]
 if typing.TYPE_CHECKING:
     from .package import Package
 
-_HOLE = re.compile(r"##|#(?P<name>[A-Za-z_]\w*)")
 _CONTROL_WORD = re.compile(r"\\[A-Za-z]+")
 _COUNTER = r"\tmstubcalls"
 _HEADS = {RefKind.CALL: "", RefKind.OPEN: "begin:", RefKind.CLOSE: "end:"}
@@ -166,7 +165,7 @@ def _pieces(pieces: Sequence[Resolved], values: Mapping[str, str], stubs: frozen
         if isinstance(piece, Comment):
             continue
         if isinstance(piece, TexRaw):
-            out.write(_HOLE.sub(lambda m: "#" if m[0] == "##" else values[m["name"]], piece.body))
+            out.write(HOLE.sub(lambda m: "#" if m[0] == "##" else values[m["name"]], piece.body))
         else:
             _inline(piece, values, stubs, out)
         out.write("\n")

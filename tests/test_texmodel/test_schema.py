@@ -101,13 +101,11 @@ def test_a_package_schema_has_every_component_and_value_and_validates_data():
 def test_texmodel_schema_writes_the_package_schema(tmp_path, monkeypatch):
     (tmp_path / "schemamod.py").write_text("from test_texmodel.test_schema import pkg\n", encoding="utf-8")
     (tmp_path / "pyproject.toml").write_text(
-        '[tool.texmodel]\nprefix = "sc"\npackage = "test_texmodel.test_schema:pkg"\nschema_output = "out/schema.json"\n'
+        '[tool.texmodel]\npackage = "test_texmodel.test_schema:pkg"\nschema_output = "out/schema.json"\n'
     )
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(cli.app, ["schema"])
     assert result.exit_code == 0 and "wrote out/schema.json" in result.stdout
     assert json.loads((tmp_path / "out" / "schema.json").read_text()) == json_schema(pkg)
-    (tmp_path / "pyproject.toml").write_text(
-        '[tool.texmodel]\nprefix = "sc"\npackage = "test_texmodel.test_schema:pkg"\n'
-    )
+    (tmp_path / "pyproject.toml").write_text('[tool.texmodel]\npackage = "test_texmodel.test_schema:pkg"\n')
     assert "TM-D033" in CliRunner().invoke(cli.app, ["schema"]).stderr

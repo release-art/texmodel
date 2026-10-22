@@ -99,9 +99,7 @@ def _show(result: CompileResult) -> None:
         where = (f" {d.file or '?'}:{d.line}" if d.line else "") + (f" [{d.path}]" if d.path else "")
         typer.echo(f"{d.severity.value:7} {d.code}{where} {d.message}" + (f" (x{d.count})" if d.count > 1 else ""))
     state = "ok" if result.ok else "FAILED"
-    typer.echo(
-        f"{state} {result.pdf or '(no pdf)'} ({result.pages} pages, {result.passes} passes, {result.seconds}s)" + ""
-    )
+    typer.echo(f"{state} {result.pdf or '(no pdf)'} ({result.pages} pages, {result.passes} passes, {result.seconds}s)")
 
 
 Image = Annotated[str | None, typer.Option(help="Reference image tag (default: [tool.texmodel-build] image).")]

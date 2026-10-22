@@ -7,7 +7,7 @@ import pytest
 from texmodel.components import Command, Value
 from texmodel.errors import DeclarationError
 from texmodel.package import Package
-from texmodel.types import CMYK, RGB, Bool, Colour, Gray, Length
+from texmodel.types import CMYK, RGB, Colour, Gray, Length
 
 
 def pkg() -> Package:
@@ -44,7 +44,7 @@ def test_each_type_renders_its_own_declaration():
         default = Gray(0.5)
 
     @p.value
-    class Compact(Value[Bool]):
+    class Compact(Value[bool]):
         """Tighten."""
 
         default = True
@@ -104,7 +104,7 @@ def test_registration_order_is_output_order_across_commands_and_values():
         body = "x"
 
     @p.value
-    class Second(Value[Bool]):
+    class Second(Value[bool]):
         """Second."""
 
         default = False
@@ -122,14 +122,14 @@ def test_registration_order_is_output_order_across_commands_and_values():
 def test_value_declarations_are_refused_when_the_class_is_defined():
     with refused("TM-M001"):
 
-        class Bad2(Value[Bool]):
+        class Bad2(Value[bool]):
             """Digits."""
 
             default = True
 
     with refused("TM-M002"):
 
-        class Undocumented(Value[Bool]):
+        class Undocumented(Value[bool]):
             default = True
 
     for base in (Value, Value[int], Value[CMYK], Value[Length | bool]):
@@ -146,7 +146,7 @@ def test_value_declarations_are_refused_when_the_class_is_defined():
             types.new_class("Wrong", (Value[Length],), None, lambda ns, d=default: ns.update(__doc__="Doc.", default=d))
     with refused("TM-M014"):
 
-        class IntForBool(Value[Bool]):
+        class IntForBool(Value[bool]):
             """1 is not a bool."""
 
             default = 1  # pyright: ignore[reportAssignmentType]
@@ -171,7 +171,7 @@ def test_collisions_stay_within_their_namespace():
     with refused("TM-M007") as info:
 
         @p.value
-        class Compact(Value[Bool]):  # noqa: F811  # pyright: ignore[reportRedeclaration]
+        class Compact(Value[bool]):  # noqa: F811  # pyright: ignore[reportRedeclaration]
             """Same control sequence."""
 
             default = False
@@ -205,7 +205,7 @@ def test_a_boolean_owns_its_switches():
     p = pkg()
 
     @p.value
-    class Compact(Value[Bool]):
+    class Compact(Value[bool]):
         """Flag."""
 
         default = False
@@ -246,7 +246,7 @@ def test_body_references_are_checked_when_output_is_asked_for_not_when_registere
         p.render()  # \acCompacttrue is still unknown
 
     @p.value
-    class Compact(Value[Bool]):
+    class Compact(Value[bool]):
         """Flag."""
 
         default = False

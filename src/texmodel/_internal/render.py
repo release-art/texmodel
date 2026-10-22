@@ -8,11 +8,11 @@ import re
 from collections.abc import Mapping, Sequence
 from typing import cast
 
-from ..body import Hole, Library, Syntax, text_of
+from ..body import HOLE, Hole, Library, Syntax, text_of
 from ..errors import DeclarationError
 from ..types import Choice, Colour, Length, Raw, balanced, escape, pdf_escape
 
-_HOLE = re.compile(r"##|#(?P<name>[A-Za-z_]\w*)|#(?P<digit>\d)")
+_HOLE = re.compile(rf"{HOLE.pattern}|#(?P<digit>\d)")
 _BODY_TOKEN = re.compile(r"\\.|##|#(?P<name>[A-Za-z_]\w*)|#(?P<digit>\d)", re.DOTALL)  # `\#` is a character, not a hole
 _CONTROL_WORD = re.compile(r"[A-Z][A-Za-z]*")
 _TOKEN = re.compile(r"%[^\n]*|\\(?P<word>[A-Za-z@]+)|\\.", re.DOTALL)  # comment | control word | control symbol

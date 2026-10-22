@@ -18,9 +18,7 @@ def project(tmp_path, monkeypatch):
     shutil.copytree(
         FIXTURES / "acme_cards", tmp_path / "acme_cards", ignore=shutil.ignore_patterns("generated", "__pycache__")
     )
-    (tmp_path / "pyproject.toml").write_text(
-        '[tool.texmodel]\nprefix = "ac"\npackage = "acme_cards:pkg"\noutput = "gen"\n'
-    )
+    (tmp_path / "pyproject.toml").write_text('[tool.texmodel]\npackage = "acme_cards:pkg"\noutput = "gen"\n')
     monkeypatch.chdir(tmp_path)
     yield tmp_path
     import sys
@@ -67,7 +65,7 @@ def test_check_says_which_texmodel_version_wrote_a_stale_file(project):
      ("acme_cards:Fact", "TM-D022")],
 )  # fmt: skip
 def test_bad_package_declarations_exit_2_with_a_code(project, package, code):
-    (project / "pyproject.toml").write_text(f'[tool.texmodel]\nprefix = "ac"\npackage = "{package}"\n')
+    (project / "pyproject.toml").write_text(f'[tool.texmodel]\npackage = "{package}"\n')
     for command in ("build", "check"):
         result = runner.invoke(cli.app, [command])
         assert result.exit_code == 2 and code in result.stderr
@@ -130,7 +128,7 @@ def pointers(project):
 
 @pytest.mark.parametrize("pointer", ["deckmod:Decks.main", "deckmod:get_pkg()", "deckmod:Decks.make()"])
 def test_a_package_pointer_may_name_a_nested_object_or_a_getter_to_call(pointers, pointer):
-    (pointers / "pyproject.toml").write_text(f'[tool.texmodel]\nprefix = "ac"\npackage = "{pointer}"\noutput = "gen"\n')
+    (pointers / "pyproject.toml").write_text(f'[tool.texmodel]\npackage = "{pointer}"\noutput = "gen"\n')
     assert runner.invoke(cli.app, ["build"]).exit_code == 0
     assert (pointers / "gen" / "acme-cards.sty").is_file()
 
@@ -142,13 +140,13 @@ def test_a_package_pointer_may_name_a_nested_object_or_a_getter_to_call(pointers
      ("deckmod:a..b", "TM-D020")],
 )  # fmt: skip
 def test_a_bad_pointer_exits_2_with_a_code(pointers, pointer, code):
-    (pointers / "pyproject.toml").write_text(f'[tool.texmodel]\nprefix = "ac"\npackage = "{pointer}"\n')
+    (pointers / "pyproject.toml").write_text(f'[tool.texmodel]\npackage = "{pointer}"\n')
     result = runner.invoke(cli.app, ["build"])
     assert result.exit_code == 2 and code in result.stderr
 
 
 def test_render_names_the_file_after_the_last_part_of_the_pointer(pointers):
-    (pointers / "pyproject.toml").write_text('[tool.texmodel]\nprefix = "ac"\n')
+    (pointers / "pyproject.toml").write_text("[tool.texmodel]\n")
     (pointers / "deckmod.py").write_text(
         (pointers / "deckmod.py").read_text()
         + "class Docs:\n    @staticmethod\n    def card():\n        return _pkg.document()\n"

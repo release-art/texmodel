@@ -170,9 +170,7 @@ def test_a_preamble_that_calls_an_undeclared_name_is_refused_with_its_path():
 
 @pytest.fixture
 def project(tmp_path, monkeypatch):
-    (tmp_path / "pyproject.toml").write_text(
-        '[tool.texmodel]\nprefix = "hd"\npackage = "adopted_hand:pkg"\nsources = ["res/*.sty"]\n'
-    )
+    (tmp_path / "pyproject.toml").write_text('[tool.texmodel]\npackage = "adopted_hand:pkg"\nsources = ["res/*.sty"]\n')
     (tmp_path / "adopted_hand.py").write_text(
         "from texmodel.components import Command\nfrom texmodel.package import Package\n"
         "from texmodel.types import Text\n"

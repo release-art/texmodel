@@ -3,7 +3,7 @@
 from texmodel.body import TemplateRef
 from texmodel.components import Command, Environment, Value
 from texmodel.package import Package
-from texmodel.types import CMYK, Bool, Colour, Length, Text
+from texmodel.types import CMYK, Colour, Length, Text
 
 pkg = Package("acme-cards", prefix="ac", version="1.4.0", date="2026/10/21", description="Cards for Acme")
 
@@ -23,7 +23,7 @@ class Ink(Value[Colour]):
 
 
 @pkg.value
-class Compact(Value[Bool]):
+class Compact(Value[bool]):
     """Tighten the layout."""
 
     default = False

@@ -125,7 +125,7 @@ class Ref:
         return dataclasses.replace(self, whitespace=whitespace)
 
 
-_COMMENT_HOLE = re.compile(r"##|#(?P<name>[A-Za-z_]\w*)")
+HOLE = re.compile(r"##|#(?P<name>[A-Za-z_]\w*)")  # `##` is a literal `#`
 
 
 @dataclass_transform(frozen_default=True)
@@ -165,7 +165,7 @@ class Comment:
                 path=f"{cls.__name__}.type",
                 hint="call the field something else, e.g. `kind`",
             )
-        holes = {m["name"] for m in _COMMENT_HOLE.finditer(cls.template) if m["name"]}
+        holes = {m["name"] for m in HOLE.finditer(cls.template) if m["name"]}
         if wrong := sorted(holes ^ set(cls.__tm_fields__)):
             raise DeclarationError(
                 f"{cls.__qualname__}: holes and fields differ: {wrong} (a hole must be a field, a field must be used)",
@@ -192,7 +192,7 @@ class Comment:
 
     def lines(self) -> tuple[str, ...]:
         """The comment, one `% ` line per line of the filled template (a blank line is `%`)."""
-        filled = _COMMENT_HOLE.sub(lambda m: "#" if m[0] == "##" else getattr(self, m["name"]), self.template)
+        filled = HOLE.sub(lambda m: "#" if m[0] == "##" else getattr(self, m["name"]), self.template)
         return tuple(f"% {line}".rstrip() for line in filled.strip("\n").splitlines())
 
     def render(self) -> str:

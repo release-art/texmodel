@@ -42,7 +42,7 @@ def project(tmp_path, monkeypatch):
         r"\newcommand{\ddItem}[1]{#1}" + "\n" + r"\newenvironment{ddBox}{}{}" + "\n"
     )
     (tmp_path / "pyproject.toml").write_text(
-        '[tool.texmodel]\nprefix = "dd"\npackage = "docmod:pkg"\nsources = ["res/*.sty"]\n'
+        '[tool.texmodel]\npackage = "docmod:pkg"\nsources = ["res/*.sty"]\n'
         '[tool.texmodel.documents]\n"deck.tex" = "docmod:plan()"\n"one.tex" = "docmod:text()"\n'
     )
     monkeypatch.chdir(tmp_path)
@@ -102,7 +102,7 @@ def test_render_without_a_pointer_writes_every_configured_document(project):
 def test_render_without_a_pointer_needs_documents_and_refuses_output(project):
     refused = runner.invoke(cli.app, ["render", "-o", "x.tex"])
     assert refused.exit_code == 2 and "TM-D031" in refused.stderr
-    (project / "pyproject.toml").write_text('[tool.texmodel]\nprefix = "dd"\n')
+    (project / "pyproject.toml").write_text("[tool.texmodel]\n")
     assert "TM-D031" in runner.invoke(cli.app, ["render"]).stderr
 
 

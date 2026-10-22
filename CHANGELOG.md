@@ -59,8 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bodies are explicit TeX: a `body` method returning it (or a string attribute), or a `TemplateRef("file.tex")`, resolved
   relative to the module that defines the class. `Environment` has `begin` / `end` in the same way. A method is read once,
   when the class is defined, and cannot use `self`; indentation and surrounding blank lines are removed.
-- `Value[Length | Colour | Bool]` renders `\newlength` + `\setlength`, `\definecolor` (`ac-ink`, `ac-brand-red`) or `\newif`.
-  `texmodel.types` has `Length`, `CMYK`, `RGB`, `Gray`, `Colour`, `Bool`, `Raw` and `escape`. `needs_packages` is data on the
+- `Value[Length | Colour | bool]` renders `\newlength` + `\setlength`, `\definecolor` (`ac-ink`, `ac-brand-red`) or `\newif`.
+  `texmodel.types` has `Length`, `CMYK`, `RGB`, `Gray`, `Colour`, `Raw` and `escape`. `needs_packages` is data on the
   component; the `.sty` emits the sorted union as `\RequirePackage` lines (M14). A body naming an undeclared
   `\<prefix>Name` is refused at `render()` / `texmodel check` (`TM-M015`).
 - Documents (T3, M4, D1, D1a, D2, E2): `Package.document(*nodes, settings=, options=)` renders a complete `.tex`. `Command` and

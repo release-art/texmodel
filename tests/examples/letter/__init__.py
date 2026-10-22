@@ -3,7 +3,7 @@
 from texmodel.body import TemplateRef
 from texmodel.components import Command, Environment, Value
 from texmodel.package import Package
-from texmodel.types import Bool, Colour, Gray, Length, Raw, Text
+from texmodel.types import Colour, Gray, Length, Raw, Text
 
 pkg = Package("letter-kit", prefix="lt", version="1.0.0", date="2026/10/22", description="Letters")
 
@@ -24,7 +24,7 @@ class Ink(Value[Colour]):
 
 
 @pkg.value
-class Draft(Value[Bool]):
+class Draft(Value[bool]):
     """Mark the letter as a draft."""
 
     default = False
