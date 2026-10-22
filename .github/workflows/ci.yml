@@ -16,8 +16,8 @@ jobs:
     env:
       PDM_NON_INTERACTIVE: 1
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.15"
       - run: python -m pip install pdm
@@ -39,8 +39,8 @@ jobs:
       TEXMODEL_REQUIRE_TEX: 1
       TEXMODEL_TEST_IMAGE: texmodel-test
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.15"
       - run: python -m pip install pdm

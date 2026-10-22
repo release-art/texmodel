@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- expl3 (E1, §21a 12, 18, 23): `Syntax` (`LATEX2E`, `EXPL3`) in `texmodel.body`; `TexRaw`, `TemplateRef` and `Cs` take `syntax=`, a
+- expl3: `Syntax` (`LATEX2E`, `EXPL3`) in `texmodel.body`; `TexRaw`, `TemplateRef` and `Cs` take `syntax=`, a
   component declares `syntax = Syntax.EXPL3` for a `cs` with `_` or `:`, and a body of two syntaxes is refused (`TM-M031`).
   `Package.library(name, source, syntax=)` carries verbatim TeX into the `.sty` (`TM-M011`, `TM-M034`); `defined_by = <Library>`
   declares a component the block defines (`TM-M032`, `TM-M033`). `texmodel.testing.export_probes` / `check_exports` and
@@ -19,35 +19,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A field named `type` is refused (`TM-M030`): data uses `"type"` to name the component. A package with no prefix needs `cs`
   on every component (`TM-P011`). `Package.require` options may hold braces and spaces (`colorprofiles={A=a.icc}`); a
   `Passthrough` naming an undeclared name of its package is refused with its path (`TM-M015`), as preamble `Raw` is.
-- `texmodel.std` (§21a 14): headers for the standard TeX libraries a deck loads (104 commands and environments in 16
+- `texmodel.std`: headers for the standard TeX libraries a deck loads (104 commands and environments in 16
   packages), checked by compiling a call of each against the reference image. `cs = "includegraphics"` on a component
   names its TeX command (`TM-M027` if it is not a control word); `Package(prefix="")` and `Package(builtin=True)` (the
   kernel: calling it requires no package); `Package.require(package, options=[...])` loads a package with options
   (`TM-P008`-`P010`).
-- `texmodel-build doctor --sty <glob>` (D2, §21a 14): lists the files that `\RequirePackage`, `\usepackage`, `\LoadClass` and
+- `texmodel-build doctor --sty <glob>`: lists the files that `\RequirePackage`, `\usepackage`, `\LoadClass` and
   `\tcbuselibrary` in those files name and `kpsewhich` cannot find, here or in the image, with a `tlmgr install` line; exit 3.
-- Stubbed unit tests of generated code (A3, §21a 20): `texmodel.testing.expand` and `Call` (fast tier, no TeX),
+- Stubbed unit tests of generated code: `texmodel.testing.expand` and `Call` (fast tier, no TeX),
   `Package.test_document(node, stub=[...])` and `texmodel_build.testkit.run_probes` (TeX tier); both tiers give the same calls.
-- Constructive body pieces (A2, §21a 19): `Group`, `Seq`, `Cs` (`TM-M027`) and `Lit` in `texmodel.body`, with `Hole`, `Ref` and
-  `Raw` inside; a top-level `Hole` is a body piece. A literal `\#` in a body is no longer read as a hole.
-- Package schema and renamed fields (C4, §21a 15): `json_schema(pkg)` and `texmodel schema` (`[tool.texmodel] schema_output`,
+- Constructive body pieces: `Group`, `Seq`, `Cs` (`TM-M027`) and `Lit` in `texmodel.body`, with `Hole`, `Ref` and
+  `Raw` inside; a top-level `Hole` is a body piece. A literal `\#` in a body is not a hole.
+- Package schema and renamed fields: `json_schema(pkg)` and `texmodel schema` (`[tool.texmodel] schema_output`,
   `TM-D033`); `field(renamed_from="old")` loads the old key, `to_dict` writes the new, the schema has `x-renamed-from`. A
   child's schema requires its `"type"` constant, so data matches one component.
-- Source maps for the `.sty` (D1, §21a 11): `Package.render_plan()` gives every line the path of its component or value
+- Source maps for the `.sty`: `Package.render_plan()` gives every line the path of its component or value
   (`header`, `requires`, `Fact`); `texmodel check` names a hand-edited `.sty` line by component. `Edit.kind` (`EditKind`)
   says added, removed or changed, so a blank line is not misread.
-- Typed preamble entries (C2, §21a 10): `PassOption`, `InputPath`, `GraphicsPath`, `RequireMetadata` in `texmodel.preamble`;
+- Typed preamble entries: `PassOption`, `InputPath`, `GraphicsPath`, `RequireMetadata` in `texmodel.preamble`;
   `PreambleSlots` accepts them beside `Raw`, and one in the wrong slot is `TM-C008`.
-- Grammar escape hatches (B3, §21a 4): `Anywhere(X)` grammar term and the `Passthrough(Raw)` node; `TM-M029` when a kind is
+- Grammar escape hatches: `Anywhere(X)` grammar term and the `Passthrough(Raw)` node; `TM-M029` when a kind is
   both ordered and floating. `from_dict`, `to_dict` and `json_schema` know `Passthrough`.
-- `PdfString` field type and `Value[Raw]` (C3, §21a 9, 1).
-- `Overset` (B2, `TM-X031`): `[tool.texmodel-build.measures.<name>]` (`package`, `pattern` with the groups `item`, `needs`,
+- `PdfString` field type and `Value[Raw]`.
+- `Overset` (`TM-X031`): `[tool.texmodel-build.measures.<name>]` (`package`, `pattern` with the groups `item`, `needs`,
   `has`, `kind = "fit"`) types a package's "does not fit" warning; `texmodel:probe:fit.<item>=<needs>/<has>` gives the same.
   A bad rule is refused when the config is read (`TM-D032`). With a plan, `Overset.path` names the component.
-- Documents in the CLI (B1): `texmodel render` with no pointer writes every `[tool.texmodel.documents]` entry to its path;
+- Documents in the CLI: `texmodel render` with no pointer writes every `[tool.texmodel.documents]` entry to its path;
   `texmodel-build compile --plan <pointer>` and a target's `plan = "<pointer>"` give diagnostics the component path.
   `texmodel.pointer` (`load_package`, `load_document`, `load_plan`) is public so the harness reads the same pointers.
-- `Comment` (§21a 21): `texmodel.body.Comment(text)` prefixes every line with `% `; a subclass declares fields and a `#name`
+- `Comment`: `texmodel.body.Comment(text)` prefixes every line with `% `; a subclass declares fields and a `#name`
   `template` (`TM-M028` for a hole that is not a field or a field never used). It is a body piece and a document node
   that is transparent to the grammar and has a plan path; `Plan.edits(text, ignore_comments=True)`; `from_dict` and
   `json_schema` take `comments=[...]`.
@@ -74,7 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   have no body, `build` writes nothing, and `texmodel check` (with `[tool.texmodel] sources`) reports a declared name the
   sources do not define (`TM-C010`) or define with another signature (`TM-C011`). A body or a `Value` on an adopted package
   is refused (`TM-M023`, `TM-P005`).
-- `Package.document(..., preamble=PreambleSlots(before_class=, before_package=, after_package=))` (D3): `Raw` TeX around
+- `Package.document(..., preamble=PreambleSlots(before_class=, before_package=, after_package=))`: `Raw` TeX around
   `\documentclass` and `\usepackage`; public names of the package used there must be declared (`TM-M015`, with a path).
 - `texmodel_build`: a package's own warning is a typed `PackageWarning` (`TM-X019`) with its continuation lines joined and its
   input line; an undefined control sequence inside an argument is named from TeX's `<argument>` line.
@@ -96,7 +96,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `settings=[Name("R&D")]` writes `\renewcommand{\prefixName}{R\&D}` after `\usepackage`, before the preamble slot; other
   settings stay in the body. An adopted package may declare a `Value[Text]` (with no default): `check_interface` expects an
   argument-less definition. Other adopted values are refused (`TM-P005`).
-- Typed references in bodies (§21a 17): `Fact.call(Hole("text"))` for a command (required arguments positional, the optional one by
+- Typed references in bodies: `Fact.call(Hole("text"))` for a command (required arguments positional, the optional one by
   keyword), `Box.open(title=...)` / `Box.close()` for an environment. An argument is a `Hole` (`#name`), a `Raw`, a `str` (escaped)
   or a `Choice`; arity and types are checked when the piece is built (`TM-M026`). The target must be registered first
   (`TM-M019`). A target of another package, adopted or not, becomes a `\RequirePackage` (sorted, once; `Package.depends_on`,
@@ -107,7 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (not to lines that end with one, comments or blank lines) so line ends make no space; `KEEP` writes lines as given.
   `Package(whitespace=)` is the default for pieces that name none (`KEEP`). `TemplateRef` moves to `texmodel.body`.
   `\verb` in a `TRIM` piece is refused (`TM-M025`).
-- `Package.plan(...)` (B2, D2): the document as `Plan`, lines with the path of what wrote them. `Plan.edits(text)` finds changed,
+- `Package.plan(...)` (D2): the document as `Plan`, lines with the path of what wrote them. `Plan.edits(text)` finds changed,
   removed and added lines by path, `path_of(n)` maps an output line (a log's `input line`) to its path, and `to_json` /
   `from_json` store it as a baseline beside the committed file. New module `texmodel.plan`.
 - `tests/consumers/card_deck/`: a synthetic consumer (a hand-written package, the template generator it replaces, made-up
