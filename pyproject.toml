@@ -14,10 +14,12 @@ classifiers = [
 requires-python = ">=3.15,<3.16"
 dependencies = [
     "typer>=0.27.3",
+    "pydantic>=2.14.1",
 ]
 
 [project.scripts]
 texmodel = "texmodel.cli:app"
+
 
 [project.urls]
 Homepage = "https://github.com/release-art/texmodel"
@@ -39,20 +41,23 @@ line-ending = "lf"
 order-by-type = true
 combine-as-imports = true
 force-wrap-aliases = true
-known-first-party = ["texmodel"]
+known-first-party = ["texmodel", "texmodel_build"]
 forced-separate = ["tests"]
 
 [tool.pyright]
-include = ["src", "tests"]
-strict = ["src"]
+include = ["src", "harness/src", "tests"]
+strict = ["src", "harness/src"]
+extraPaths = ["tests/consumers"]
 pythonVersion = "3.15"
 
 [tool.texmodel]
 prefix = "tm"
+
+[tool.texmodel-build]
 image = "releaseart/lualatex-python:latest"
 
 [tool.importlinter]
-root_package = "texmodel"
+root_packages = ["texmodel", "texmodel_build"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -62,12 +67,18 @@ source_modules = ["texmodel.errors", "texmodel.config"]
 forbidden_modules = ["typer", "texmodel.cli"]
 
 [[tool.importlinter.contracts]]
-name = "only _internal.spawn starts processes"
+name = "only texmodel_build._internal.spawn starts processes"
 type = "forbidden"
-source_modules = ["texmodel"]
+source_modules = ["texmodel", "texmodel_build"]
 forbidden_modules = ["subprocess"]
 allow_indirect_imports = true
-ignore_imports = ["texmodel._internal.spawn -> subprocess"]
+ignore_imports = ["texmodel_build._internal.spawn -> subprocess"]
+
+[[tool.importlinter.contracts]]
+name = "the core does not know the harness"
+type = "forbidden"
+source_modules = ["texmodel"]
+forbidden_modules = ["texmodel_build"]
 
 [tool.towncrier]
 package = "texmodel"
@@ -78,7 +89,7 @@ issue_format = ""
 start_string = "## [Unreleased]\n"
 
 [tool.mutmut]
-paths_to_mutate = ["src/texmodel/"]
+paths_to_mutate = ["src/texmodel/", "harness/src/texmodel_build/"]
 tests_dir = ["tests/"]
 pytest_add_cli_args = ["--no-cov"]
 
@@ -95,16 +106,25 @@ fallback_version = "0.0.0"
 package-dir = "src"
 includes = ["src/texmodel"]
 
+[tool.pdm.workspace]
+members = ["harness"]
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "-e file:///${PROJECT_ROOT}/harness#egg=texmodel-build",
+]
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
 [tool.pytest.ini_options]
-addopts = "-v -l --color=yes --cov=texmodel --cov-report term-missing --cov-fail-under=100 --no-cov-on-fail"
-pythonpath = ["src"]
+addopts = "-v -l --color=yes --cov=texmodel --cov=texmodel_build --cov-report term-missing --cov-fail-under=100 --no-cov-on-fail"
+pythonpath = ["src", "harness/src", "tests/consumers"]
 testpaths = ["tests"]
 timeout = 15
-markers = ["tex: needs the reference image with latexmk (skipped without it; TEXMODEL_REQUIRE_TEX=1 makes that a failure)"]
+markers = [
+    "tex: needs the reference image with latexmk (skipped without it; TEXMODEL_REQUIRE_TEX=1 makes that a failure)",
+]
 
 [dependency-groups]
 dev = [
@@ -118,4 +138,7 @@ dev = [
     "pip-audit>=2.7",
     "towncrier>=24.8",
     "mutmut>=3.0",
+    "proof-pdf>=0.3.3",
+    "hypothesis>=6",
+    "jsonschema>=4",
 ]

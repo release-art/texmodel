@@ -1,15 +1,12 @@
-# texmodel — project plan (consolidated, v0.3)
+# texmodel — project plan
 
-Supersedes `texmodel-spec.md`, `texmodel-ux.md` and `texmodel-design-v2.md` (moved to
-`superseded/`). One document: what it is, how it is used, what it must do, in what
-order it is built. Requirement ids are grouped by area and are the ids tests will cite
+One document: what it is, how it is used, what it must do, what is still open. Requirement ids are grouped by area and are the ids tests will cite
 (`@covers("X3")`): O objectives, N non-goals, M components, T types, D documents,
 G generation, C compile, V verification, S schema, I API contract, E errors, L plugins,
 B standard library, Z security, X versions, P print extra, U daily use, W engineering,
 A acceptance.
 
-*texmodel* is the project name (decided 2026-10-21; PyPI name free at the time, GitHub
-namespace, domains and trademarks not yet checked). The project is **application-agnostic**: it knows
+*texmodel* is the project name. The project is **application-agnostic**: it knows
 nothing about any brand, deck or business domain.
 
 ---
@@ -41,7 +38,8 @@ rules known only to the author; errors that surface as log text far from the cau
 
 ### Non-goals
 
-- N1 Not a TeX parser, macro expander or AST. We model *interfaces*, not TeX.
+- N1 Not a TeX parser, macro expander or AST of existing TeX. We model *interfaces*; TeX we generate may be built from typed
+  pieces (bodies built from `Group`, `Seq`, `Cs`, `Lit`, `Hole` and `Ref`), but TeX we did not write is never read back into a tree.
 - N2 No layout solver; whether content fits is *measured* by TeX (C5).
 - N3 Not a replacement for writing LaTeX: bodies are TeX, hand-written TeX can be
   adopted (M9).
@@ -59,7 +57,7 @@ rules known only to the author; errors that surface as log text far from the cau
 | **Package** | the container: components + bodies, rendering to a `.sty`/`.cls` |
 | **Doc** | an immutable tree built from component classes; renders to `.tex` |
 | **Spec** | a Doc as data (JSON); `doc.to_dict()` ≡ spec, `Doc.from_dict()` validates |
-| **Body** | the TeX implementing a Command/Environment, in a file or inline |
+| **Body** | the TeX implementing a Command/Environment, given explicitly: a string, a method returning one, or a `TemplateRef` to a file |
 | **Rule** | a pure check over a Doc returning structured violations |
 | **Target** | a named build: spec + engine + variant + verifier profile |
 | **Release** | a frozen version: schema, examples, migration chain |
@@ -95,16 +93,19 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   (M9). The namespace policy, rules and schema treat it as the same component with a
   boolean `star` field.
 - M1a **How each component renders.** A `Command` becomes `\newcommand` (body: M8);
-  an `Environment` becomes `\newenvironment` with two bodies, `<name>.begin.tex` and
-  `<name>.end.tex`, both found by name; a `Value[T]` needs no body, its type decides the
+  an `Environment` becomes `\newenvironment` with two bodies, `begin` and `end` (M8; the
+  arguments belong to `begin`, TeX gives `end` none); a `Value[T]` needs no body, its type decides the
   declaration (`\newcommand` for text and options, `\newlength`, `\definecolor`,
   `\newif`, `\newcounter`) and its `default` is an *instance of the type*
   (`default = Length("2mm")`, `default = CMYK(0, 0, 0, .95)`), which the type checker
-  and the validator both see. A missing or ambiguous body file is an error naming the
-  expected paths, never a silent empty body.
-- M4 **Grammar is one expression**: `children = [Name, Fact * (2, 3), Slot * (0, 3)]`.
-  A bare class means exactly one; `* n` is exactly n; `"?"`, `"*"`, `"+"` are
-  shorthands. This is the order, the counts and the placement of children. A static type
+  and the validator both see. A missing body, or a `TemplateRef` to a file that cannot be read, is
+  an error naming the class and the path, never a silent empty body.
+- M4 **Grammar is one expression**: `children = [Name, Fact.times(2, 3), Slot.times(3)]`.
+  A bare class means exactly one; `X.times(to)` allows 0 to `to`; `X.times(from_, to)`
+  allows `from_` to `to`, and `to=None` means no upper limit (`X.times(2, None)` is two or
+  more); `X.times(1)` is optional, `X.times.any()` any number (0 or more),
+  `X.times.at_least_one()` one or more. This is the
+  order, the counts and the placement of children. A static type
   checker verifies each child *is* an allowed component, not the counts or order
   (Python's types cannot express them); those are checked by `validate()` at
   construction time of the Doc, with the path of the offending child.
@@ -123,9 +124,16 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
 
 ### 3.3 Bodies
 
-- M8 A body is real TeX in `<snake_name>.tex` beside the class (found by name), or a
-  raw `body=` string for ≤3 lines (`texmodel refactor fmt` promotes). Files whose stem starts
-  with `_` are shared includes, rendered once.
+- M8 **A body is real TeX, given explicitly; nothing is found by name** (explicit is better
+  than implicit). A component defines `body` (an Environment: `begin` and `end`) as:
+  a string (dedented, so a raw triple-quoted string reads as it renders); a method
+  returning a string; or a `TemplateRef(path)`, or a method returning one. A
+  `TemplateRef` is read when the class is defined; a relative path is relative to the
+  module that defines the class, so it works wherever the package is installed. A method
+  is read once, at class definition, with no instance (`self` is `None`): it returns
+  constant TeX and cannot depend on field values (those are `#name` holes). A field
+  named `body`, `begin` or `end` is a field, not a body. Shared includes are ordinary TeX
+  (`\input`) or a shared `TemplateRef`; there is no implicit include rule.
   - `#name` is the argument of that name (rewritten to `#1`…); `##` is a literal `#`.
   - Everything else is literal TeX. Public names must exist in the registry.
     Internals (`\ac@x`) need no declaration but must be *defined* in some body.
@@ -225,13 +233,19 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   a Doc can be compared, deduplicated, cached, and asked which components it uses
   (`doc.components()`), and snapshots compare trees, not just text. `repr(doc)` is the
   constructor expression that rebuilds it (`CardBack(Name('Golden Retriever'), …)`),
-  used in error messages, goldens and debugging.
-- D1a **The document root.** A Package declares its root component, a `Document`
-  subclass: `Document(settings=[FactGap("3mm")], options=["nocrop"], body=[…])`. Its
-  `children` grammar is the package's top-level structure (preamble slots, `\begin{document}`
-  body). `settings=` is the one way to set a `Value` for the whole document; `Set(…)`
+  used in error messages, goldens and debugging. An environment's arguments are keywords
+  and its children are positional: `CardBack(Name("Rex"), Fact("a"), Fact("b"), title="T")`;
+  the class-level `children` is the grammar, the instance's `.content` the children.
+  `texmodel render module:attr` writes a document (a `str`, or a function returning one) to a file.
+- D1a **The document root.** `Package.document(*body, settings=[FactGap(Length("3mm"))],
+  options=["a4paper"])` renders a complete `.tex` (pure, deterministic, no I/O) and
+  raises every violation at once. Values are set with instances of the `Value` class,
+  type-checked against the declared type; class options are validated, since they are
+  TeX. `settings=` is the one way to set a `Value` for the whole document; `Set(…)`
   (D4a) is the one way to set it for a subtree; the class `default` is the fallback.
-  Rendering a Doc without a root is an error, so there is no half-document state.
+  The root as a component with its own `children` grammar (preamble slots,
+  `\begin{document}` body) is the next step; until then the body is a free sequence of
+  nodes and only environments carry a grammar.
 - D2 `doc.validate()`, `doc.render()` (str, pure, deterministic, no I/O),
   `doc.to_dict()`, `Doc.from_dict()` (migrates then validates), `doc.plan()` (every
   output line with provenance: model | body:line | user value).
@@ -324,53 +338,30 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
 - C7 **Out-of-tree builds**: intermediates never share a directory with sources;
   `clean` exists and uses `latexmk -c` (`-C` with `--all`), falling back to deleting
   the known intermediate extensions if `latexmk` cannot run.
-- C8 **Reference container**: the `releaseart/*` images (source repo
-  `release-art/proofpress`), consumed rather than built here. Two flavours observed
-  locally on 2026-10-21 (arm64): `releaseart/lualatex` 0.2.0 (TeX Live 2025, LuaHBTeX
-  1.22.0, ~750 MB, no Python, no Ghostscript) and `releaseart/lualatex-python` 0.3.2
-  (same TeX Live, Python 3.15.0, Ghostscript, veraPDF, ~1.26 GB, AGPL-3.0-or-later
-  licence label). Neither has `latexmk`, `pdm`, `uv`, `qpdf` or `pdftoppm`.
-  - The compile suite and verifier extras run in `lualatex-python` (it already has the
-    verifier tools V4/V5 need); plain `lualatex` is enough for `make --to pdf` in
+- C8 **Reference container**: the `releaseart/*` images (source repo `release-art/proofpress`), consumed rather than built
+  here: `releaseart/lualatex` (TeX Live 2025, LuaHBTeX; no Python, no Ghostscript) and `releaseart/lualatex-python` (same TeX
+  Live, Python 3.15, Ghostscript, veraPDF; AGPL-3.0-or-later licence label).
+  - The compile suite and verifier extras run in `lualatex-python`; plain `lualatex` is enough for `make --to pdf` in
     downstream projects that bring no Python.
-  - **`latexmk` is added to both images** (Perl 5.40 is already present); the install
-    route is in the next bullet. The driver uses `latexmk` as the single pass strategy
-    (reruns, bibtex/biber, indexes, glossaries); it launches it with
-    `-interaction=nonstopmode -file-line-error`, an out-of-tree `-outdir` (C7), and
-    reads the final `.log` and `.fdb_latexmk` itself for typed diagnostics and the
-    pass count. No second rerun implementation. `doctor` fails clearly if `latexmk`
-    is missing, and reports its version; `CompileResult` records that version too.
-  - Install route (confirmed 2026-10-21 against `/Users/ilo/Devel/Release.art/proofpress`,
-    which builds and releases the images): `latexmk` is a TeX Live package, absent from
-    both images (`tlmgr info latexmk` says not installed). Add `latexmk` to
-    `docker/texlive-packages.txt` there; the build already installs that list from the
-    frozen 2025 `tlnet-final` mirror, so no apt route and no second TeX tree. Perl is
-    already installed for tlmgr. Add a `command -v latexmk` check to `bin/docker/smoke.sh`.
-    texmodel does not build images; this is a change in the proofpress repo, then a
-    released tag that texmodel pins.
-  - The image is `releaseart/lualatex-python:latest`, not pinned (decided 2026-10-21, reversing
-    the earlier pin-by-version rule): texmodel follows the images, and proofpress is the same
-    owner's project. Reproducibility comes from recording, not pinning: every `CompileResult`
-    carries the image tag, its image id and its `org.opencontainers.image.revision` label,
-    and the compile cache key includes the image id, so a new `latest` is a cache miss and
-    never serves stale output. Goldens re-bless when the image moves. `[tool.texmodel] image`
-    can still name a version for a project that wants one.
-  - `doctor` verifies the image by running a probe (engine, `kpsewhich` of required
-    packages, tool presence) and reports capability gaps (e.g. "no verapdf: PDF/A
-    checks unavailable") rather than assuming.
-  - Findings from building A1: with the image's read-only root, `HOME=/tmp` is a tmpfs, so
-    luaotfload rebuilt its font database on every run; the driver mounts a persistent cache
-    (`TEXMFVAR`/`TEXMFCACHE`), one directory per image digest. `openin_any=p` (paranoid
-    reads) breaks luaotfload, so reads use `r` (restricted) and only `openout_any=p` is
-    paranoid: the read boundary is the container's mounts, not TeX's settings. latexmk
-    reports non-convergence on stderr. The pass count is the highest `Run number N`.
-  - Open: font set and ICC profiles in the images are unconfirmed (the image has ~100
-    fonts, no system ICC directory); the framework ships its own open-licence test
-    fonts and ICC profile as assets rather than relying on the image's.
-  - Licence: texmodel is MIT (decided 2026-10-21). Only `lualatex-python` and `full`
-    carry AGPL (they redistribute Ghostscript); `releaseart/lualatex` is LPPL/GPL only.
-    texmodel runs the image as a separate process and ships none of it, so its own
-    licence is unaffected; confirm that reading before the framework is distributed.
+  - The driver uses `latexmk` as the single pass strategy (reruns, bibtex/biber, indexes, glossaries), launched with
+    `-interaction=nonstopmode -file-line-error` and an out-of-tree `-outdir` (C7); it reads the final `.log` and
+    `.fdb_latexmk` itself for typed diagnostics and the pass count (the highest `Run number N`). `doctor` fails clearly if
+    `latexmk` is missing and reports its version. `latexmk` is a TeX Live package: it belongs in the image's
+    `docker/texlive-packages.txt` (proofpress repo).
+  - The image is `releaseart/lualatex-python:latest`, not pinned. Reproducibility comes from recording: every
+    `CompileResult` carries the image tag, its image id and its `org.opencontainers.image.revision` label, and the compile
+    cache key includes the image id. Goldens re-bless when the image moves. `[tool.texmodel] image` can name a version.
+  - `doctor` verifies the image by running a probe (engine, `kpsewhich` of required packages, tool presence) and reports
+    capability gaps rather than assuming.
+  - With the image's read-only root, `HOME=/tmp` is a tmpfs, so the driver mounts a persistent cache
+    (`TEXMFVAR`/`TEXMFCACHE`), one directory per image digest, or luaotfload rebuilds its font database on every run.
+    `openin_any=p` breaks luaotfload, so reads use `r` and only `openout_any=p` is paranoid: the read boundary is the
+    container's mounts, not TeX's settings. latexmk reports non-convergence on stderr.
+  - Open: the image's font set and ICC profiles are unconfirmed; the framework ships its own open-licence test fonts and ICC
+    profile as assets.
+  - Licence: texmodel is MIT. Only `lualatex-python` and `full` carry AGPL (they redistribute Ghostscript); `releaseart/lualatex`
+    is LPPL/GPL only. texmodel runs the image as a separate process and ships none of it; confirm that reading before the
+    framework is distributed.
 - C9 **Asset licence classes** (`open | embed-only | no-redistribute | no-service`,
   fixed enum): `bundle` refuses `no-redistribute`; a compile context
   (`internal | service`) refuses `no-service` assets.
@@ -476,7 +467,7 @@ nested, readability counts.
 | Question | The way |
 |---|---|
 | declare an interface | a component class (M1) |
-| write a body | a file by name; `body=` only for ≤3 lines (M8) |
+| write a body | `body` as a string or method, or a `TemplateRef` to a file (M8) |
 | set a value for the whole document | `Document(settings=[…])` (D1a) |
 | set a value for a subtree | `Set(…)` (D4a) |
 | build a document | constructors (D1) |
@@ -626,11 +617,11 @@ Separate distributable; core stays I/O-light. Both reference consumers overlap h
 
 ```
 acme-cards/
-├── pyproject.toml                [project] metadata + [tool.texmodel] (prefix, engine, image)
+├── pyproject.toml                [project] metadata + [tool.texmodel]
 ├── acme_cards/
 │   ├── __init__.py               Package + small components
 │   ├── _shared.tex               shared includes
-│   ├── fact.tex                  body of Fact (found by name)
+│   ├── fact.tex                  body of Fact (`body = TemplateRef("fact.tex")`)
 │   └── card_back/                a component promoted to a folder when it grows
 │       ├── __init__.py  body.tex  example.json  golden.tex  test_card_back.py
 ├── authored/                     adopted hand-written .cls/.sty + surface manifests
@@ -645,7 +636,7 @@ acme-cards/
 ### 15.2 A whole package
 
 ```python
-from texmodel import Package, Command, Environment, Value, Text, Length, Colour, CMYK, LuaLaTeX
+from texmodel import Package, Command, Environment, Value, TemplateRef, Text, Length, Colour, CMYK, LuaLaTeX
 
 pkg = Package("acme-cards", prefix="ac", engine=LuaLaTeX)
 
@@ -656,6 +647,7 @@ class Name(Command):
 class Fact(Command):
     """One short sentence under the title."""
     text: Text
+    body = TemplateRef("fact.tex")     # explicit: a file next to this module; nothing is found by name
 
 class Slot(Command):
     """A labelled paragraph; the label prints as its heading."""
@@ -664,7 +656,7 @@ class Slot(Command):
 
 class CardBack(Environment):
     """The back face of a card."""
-    children = [Name, Fact * (2, 3), Slot * (0, 3)]
+    children = [Name, Fact.times(2, 3), Slot.times(3)]
 
 class FactGap(Value[Length]):
     default = Length("2mm")
@@ -705,7 +697,7 @@ class Ink(Value[Colour]):
 | `change` / `release` | classify a change, scaffold its migration; cut a version | no |
 | `adopt FILE` | check a hand-written file against its manifest | no |
 | `bundle` / `install` | self-contained export; install into a TeX tree | yes |
-| `refactor rename\|promote\|fmt` | libcst-based rename of a component (class, body file, examples, goldens, rename record), promote to a folder, promote inline bodies to files | no |
+| `refactor rename\|promote\|fmt` | libcst-based rename of a component (class, its `TemplateRef` targets, examples, goldens, rename record), promote to a folder, promote inline bodies to files | no |
 | `clean` | remove build output (`latexmk -c`, `--all` for `-C`) | no |
 
 - U2 **Errors name a path, a code and the fix**, human first, JSON available:
@@ -740,7 +732,7 @@ churn, no migration file until `release`. A breaking change prints once at `buil
 - Body only → fragment + one generated hunk; schema untouched (the "internals only" signal).
 - Interface change → `build` classifies; arity or removal needs `release` to scaffold the
   migration; renames use `renamed_from`.
-- `texmodel refactor rename` (via libcst) rewrites class, body file name, examples,
+- `texmodel refactor rename` (via libcst) rewrites class, `TemplateRef` targets, examples,
   goldens and adds the rename record. `texmodel refactor promote Fact` moves a component
   into a folder.
 
@@ -766,7 +758,7 @@ texmodel check --tex         # compile suite + verifiers in the reference contai
   1 s; building a 100-component package under 2 s; schema export for it under 1 s;
   `texmodel --help` under 300 ms (lazy imports). Budgets are revisited, not silently
   loosened.
-- W3 **Platforms.** Python 3.15 only (decided 2026-10-21, as the reference images ship 3.15); TeX-less layers on Linux and
+- W3 **Platforms.** Python 3.15 only (the reference images ship 3.15); TeX-less layers on Linux and
   macOS (Windows best-effort); compiling is via the reference container on any host.
 - W4 **Documentation (Diataxis).** A tutorial (first package in fifteen minutes), how-to
   guides (add a component; adopt a hand-written class; cut a release; write a verifier
@@ -818,12 +810,15 @@ template strings for bodies (TeX braces fight interpolation).
 
 ## 18. Package structure
 
-Convention (decided 2026-10-21, as pydantic and proof-pdf do): public API is the top-level
+Two distributions in one repository, released in lockstep: `texmodel` (`src/`), the rendering
+core, which never spawns a process; and `texmodel-build` (`harness/`, import `texmodel_build`), the optional compile and
+verify side (§7, §8), configured in `[tool.texmodel-build]`. Consumers that already pin a toolchain in an image (as the
+owner's do) need only the first.
+
+Convention (as pydantic and proof-pdf do): public API is the top-level
 modules of `texmodel/`; private implementation lives in `texmodel/_internal/`. A test lists
 the public modules, so a new top-level module is a deliberate API decision (I1). The tree
-below is the target shape; as built so far, `compiler`, `engines`, `roots`, `targets`,
-`result`, `diagnostics`, `config`, `errors`, `cli` are public and `logparse`, `converge`,
-`env`, `cache`, `spawn` are `_internal`.
+below is the target shape.
 
 ```
 texmodel/
@@ -850,47 +845,43 @@ module that spawns processes. Python 3.15 (W3).
 
 ---
 
-## 19. Phasing: three stages with gates
+## 19. Open work
 
-The plumbing is the proven duplication; the model layer is the speculative part. So
-the work is staged and each gate is a real go/no-go, not a formality.
+Stages, in order; each gate is a real go/no-go.
 
-### Stage A: plumbing (valuable on its own)
+**Stage A (plumbing)** is built: the `latexmk` driver, typed diagnostics, verifier plugins, drift `check`, `bundle` / `install`.
+**Gate A:** both consumers delete their own driver/install/verify code in favour of it with their tests passing (A5).
 
-| Step | Deliverable | Covers | Exit test |
-|---|---|---|---|
-| A0 | repo, standards, API skeleton, errors, logging, `[tool.texmodel]`, CLI shell, `doctor` | I, E, W, U0 | gates green; `doctor` probes the image. **Done 2026-10-21** except the image probe, which moves to A1 (only `engine` may spawn processes) |
-| A1 | engine: `latexmk` driver, container integration, typed diagnostics, hermetic env, reproducible mode, build cache, `clean` | C1-C4, C6-C8, C10, C12 | compile suite green in CI; two builds byte-identical. **Built 2026-10-21**: suite passes locally in a derived image (`releaseart/lualatex-python` + `tlmgr install latexmk`) with byte-identical reproducible builds; the CI job is `continue-on-error` until proofpress releases an image with `latexmk` (change prepared, uncommitted there) |
-| A2 | verifier plugin API + built-ins, drift `check`, `bundle`/`install`, entry-point plugins | V4, V5, G5, G6, L1 | unconfirmable ⇒ fail demonstrated |
+**Stage B (model proof)** is built except:
 
-**Gate A.** Both consumers delete their own driver/install/verify code in favour of
-this stage with existing tests passing (acceptance A5). If that is not true, stop and
-fix before building anything on top.
+| Area | Not built | Covers |
+|---|---|---|
+| Types | `Markup`, `Int`, `List[T]`, static glyph check (T8a), rules as a pluggable layer | T, D5 |
+| Documents | `show`, trust levels, injection corpus, sandbox verification task | S3, Z1-Z3 |
+| Verification | cross-validator test (S4), free tests (V1) | S4, V1 |
 
-### Stage B: model proof (on one consumer's cards)
+**Gate B (go/no-go).** On the first consumer: the generator's regex drift code is deleted; at least three real past defects
+(interface drift, an escaping bug, an over-set card) are shown to be caught by the new checks; adding a component takes an
+author under ten minutes. The ten-minute criterion needs a first-time author, timed; the defects criterion needs a consumer
+whose history records an escaping bug and an over-set card. If not met, stop at the plumbing plus a smaller model layer.
 
-| Step | Deliverable | Covers | Exit test |
-|---|---|---|---|
-| B0 | types, components, `children`, naming, rules, static glyph check; no TeX | M, T, D5, E2 | property tests, 100% coverage |
-| B1 | bodies, package render, family check, lints, `build`, output-stability header | M8, M14, G1-G4, G7 | sample `.sty` byte-stable; hand edit fails `check` |
-| B2 | Doc trees, document root, spec round trip, `show`/`plan`, source maps, trust levels, injection corpus, **sandbox verification task** | D1-D4a, C11, Z1-Z3 | hostile corpus passes; map resolves a real diagnostic |
-| B3 | schema/OpenAPI export, cross-validator test, free tests, probes and `Measure` | S, V1, C5, C5a | S4 passes; overset ⇒ diagnostic naming the item |
-
-**Gate B (go/no-go).** On the first consumer: the generator's regex drift code is
-deleted; at least three real past defects (interface drift, an escaping bug, an
-over-set card) are shown to be caught by the new checks; adding a component takes an
-author under ten minutes. If not met, stop at the plumbing plus a smaller model layer.
-
-### Stage C: only if Gate B passes
+**Stage C (only if Gate B passes).**
 
 | Step | Deliverable | Covers |
 |---|---|---|
 | C0 | releases and migrations | X1-X10 |
-| C1 | adoption of hand-written TeX | M9, M10 |
-| C2 | `texmodel.std` | B1-B4 |
+| C1 | adoption of hand-written TeX beyond the minimal check (scanner reach, §21a 8) | M9, M10 |
 | C3 | equivalence and reference tests | V2a |
 | C4 | `texmodel-print` | P1-P4, T5-T7, C9 |
 | C5 | docs (Diataxis), performance budgets, 1.0 | W2, W4, W5, A1-A10 |
+
+**First release.** A brand package family generated by `texmodel` (the deck's `.sty` files hold about 130 definitions in 3000
+lines; port by family layer: core, canvas, card, series), then the deck as a model, then `v0.1.0`: a quickstart in the README,
+`pdm build` and an install from the wheel in a clean environment, a privacy grep on tracked files. Still missing for the
+brand: `Value[Length]` registers, counters, toggles, option processing (`\DeclareOption`, `\ProcessOptions`),
+`\AtBeginDocument` hooks, conditionals; TikZ path commands; `\newfontfamily\name[...]{...}` (a macro-name argument);
+commands with two optional arguments (`\makebox`, `\raisebox`); star forms (`\AddToShipoutPictureBG*`, `\newcommand*`).
+Each needs a decision.
 
 ---
 
@@ -926,10 +917,28 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | Decision | Status |
 |---|---|
 | Three components + types as the only extension point | decided |
-| Python signatures are the interface; bodies are TeX files | decided |
+| Python signatures are the interface; bodies are explicit TeX (string, method or `TemplateRef`), never found by name | decided |
+| A body method is read once at class definition and cannot use `self` | decided |
+| Environment: fields are keyword arguments, children positional; `children` is the grammar, `.content` the instance's children | decided |
+| `Package.document(...)` renders a `.tex`; values are set by `Value` instances in `settings=`; `texmodel render module:attr` writes a document to a file | decided |
+| A component may name its TeX command with `cs`; a package may have an empty prefix; the kernel is `builtin`; `Package.require` loads a library with options; headers for standard libraries live in `texmodel.std`, one module per package, verified by compiling a call of each | decided |
+| expl3: a syntax mode and verbatim library blocks, verified by compiling; no typed l3 vocabulary, no parser | decided |
+| A library block is verbatim (no `#name` rewriting, no `%`); a component it defines has no body and renders nothing; the arity probe is the `#` count of `\meaning` | decided |
+| `PdfInfo` writes Info strings through `pdfmanagement_add:nnn` and needs `RequireMetadata` (`TM-C009`); a document never contains expl3 syntax | decided |
+| A field cannot be called `type` (data's component name); an unprefixed package needs `cs` everywhere; `Passthrough` TeX is checked for undeclared names | decided |
+| `Anywhere` kinds are removed before ordered matching, so a kind is ordered or floating, never both (`TM-M029`) | decided |
+| `Comment` subclasses are passed to `from_dict` / `json_schema` as `comments=[...]`, not found by name; a body line starting with `%` is not scanned for `#name` holes | decided |
 | Hole syntax `#name`; internals free but must resolve | decided |
 | Documents are constructor trees (not `with` builders) | decided |
-| `children = [Fact * (2, 3)]` multiplicity syntax | decided |
+| `children = [Fact.times(2, 3)]` multiplicity syntax (`times([from,] to)` with `to=None` for no limit, plus `times.any()` and `times.at_least_one()`; not operator overloading) | decided |
+| An adopted (declared-only) package is a flag on the package, `Package(..., adopted=True)`: no bodies, no `.sty`, `texmodel check` compares the declarations with `[tool.texmodel] sources` | decided |
+| The interface check reads `\newcommand`, `\providecommand` and `\newenvironment` and compares the argument count and whether the first is optional; a name defined another way is missing (`TM-C010`, `TM-C011`) | decided |
+| Document preamble: `PreambleSlots(before_class, before_package, after_package)`, each a tuple of `Raw` or a typed entry, passed to `Package.document(preamble=)`; public names used there are linted (`TM-M015`) | decided |
+| The harness types any package warning (`PackageWarning`, `TM-X019`); `Overset` types a "does not fit" warning through a configured rule or a `fit.` probe | decided |
+| A source map is a `Plan`: output lines with the path that wrote each. Documents are checked against the model's render, with no baseline file (`[tool.texmodel.documents]`, like `terraform plan`); hand edit and config change are not told apart | decided |
+| A text setting is `Value[Text]`: `\newcommand` with an escaped default in a generated `.sty`; `settings=` writes `\renewcommand` after `\usepackage` (before the preamble slot, not in the body); an adopted package may declare only a `Value[Text]`, checked as an argument-less command | decided |
+| A closed set is a `Choice` enum whose member values are the TeX (`Raw` passes through, `str` is escaped); data names a member by name | decided |
+| Pydantic v2 is a dependency, used at the data boundary only (`texmodel.spec`: `from_dict`, `to_dict`, `json_schema`); component classes stay stdlib frozen dataclasses; default (lax) coercion; its errors are mapped to `Violation` / `ValidationError` with `TM-C020` and `validate()`-style paths | decided |
 | Python-only authoring; TOML/YAML frontend | parked, not planned |
 | Renames via `renamed_from` → pydantic aliases + release record | decided |
 | lualatex only in v1; capabilities explicit | decided |
@@ -937,21 +946,60 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | Licence classes: fixed small enum | decided |
 | `Snippet` targets: `tex` + `text` in v1 | decided |
 | Strict colour: no implicit conversion, explicit guarded variants | decided |
-| Reference container: the `releaseart/lualatex` and `releaseart/lualatex-python` images, `latest` (not pinned) | decided 2026-10-21 |
+| Reference container: the `releaseart/lualatex` and `releaseart/lualatex-python` images, `latest` (not pinned) | decided |
 | `latexmk` baked into the images and used as the single rerun strategy (no own loop) | decided |
-| Project and package name: `texmodel` (alternatives considered: texcontract, typedtex, texspec) | decided |
+| Project and package name: `texmodel` | decided |
 | API surface, error hierarchy (`ExceptionGroup`), plugins via entry points | decided |
-| `texmodel.std` ships in v1 stage C, built on the public API | decided |
+| `texmodel.std` ships built on the public API | decided |
 | Untrusted is the default trust level for `Doc.from_dict` | decided |
 | Config in `pyproject.toml` (`[tool.texmodel]`), no separate manifest | decided |
-| Staged phasing with Gate A and Gate B | decided (proposed 2026-10-21) |
-| Lua file access from `\directlua` inside the sandbox | open — verify in B2 |
-| Mutation testing: mutmut (runs on 3.15, `pdm run mutmut run`); score floor | tool decided 2026-10-21; floor open until `core`/`types`/`rules` exist (first run: 42 of 60 killed, survivors are message strings and hints) |
-| Project licence: MIT | decided 2026-10-21 |
-| Python 3.15 only | decided 2026-10-21 |
-| Image font/ICC content, and the MIT-vs-AGPL-image reading (C8) | open — check in A1 |
-| Snapshot library vs own `bless` | open — evaluate in C3 |
-| Exact list of built-in rule codes | open — B0 |
+| Staged phasing with Gate A and Gate B | decided |
+| Mutation testing: mutmut (`pdm run mutmut run`) | tool decided; score floor open |
+| Project licence: MIT; Python 3.15 only | decided |
+| Lua file access from `\directlua` inside the sandbox | open: verify (Z2) |
+| Image font/ICC content, and the MIT-vs-AGPL-image reading (C8) | open |
+| Snapshot library vs own `bless` | open: evaluate with V2a |
+| Exact list of built-in rule codes | open |
+
+---
+
+## 21a. Open ideas and gaps
+
+Each is a candidate, not a decision. The ones that can run unattended are batched in `docs/briefs/roadmap.md`.
+
+1. **`List[T]` fields.** Open: how a list renders (separator, per-item wrapper, empty list).
+2. **`Measure` beyond `fit`.** Other kinds than `fit`; a declared bound per item.
+3. **Diagnostic mapping.** A package warning's `input line N` has no file, so one raised inside another file is mislabelled (TeX
+   wraps log lines, so the file stack is not recoverable).
+4. **Grammar.** Interleaving of two runs.
+5. **Hand edit vs config change.** Telling them apart needs the old render (a saved plan or git).
+6. **Hand-edit semantics.** The old regex tool matched cards by id, ignored a triage tool's marker comment, and produced the
+   config edit that imports a hand edit. Ideas: keyed children (path by id, not position), a declared comment marker to ignore
+   in the plan comparison, an `import` hook that maps a path to a source field.
+7. **Rules layer (D5) and placement (M5).** The package enforces counts itself with its own errors; texmodel duplicates them in
+   the grammar. A rule such as a reading-level bound belongs to neither. Needs the `@rule` API and severities.
+8. **Adoption scanner reach (low priority).** Reads `\newcommand`, `\providecommand`, `\newenvironment` only: not
+   `\NewDocumentCommand`, `\DeclareRobustCommand`, `\newcommand*` forms with unusual spacing. Also: names the package
+   defines that the model does not declare (M9) and renewals of declared names (M10).
+9. **PDF strings.** Not verified: other engines, PDF/A validators.
+10. **Preamble.** Slots declared by the package (D3).
+11. **Declared-only variants.** If a consumer mixes generated and adopted components in one package, `adopted=True` on the package
+    is too coarse (`defined_by` covers a component a library block defines); the alternative is a per-component marker.
+    Revisit with a second consumer.
+12. **Consumer policies in the library?** Title case, apostrophe normalisation and PDF-subject cutting were consumer code. A
+    `Text` variant with a declared normaliser would remove the converter's busiest part.
+13. **Reference image.** PDF/X-4 and PDF/A-2b output was never compiled in the tests; an ICC profile has to be supplied at test
+    time. `texmodel-build doctor --sty` does not follow a package's own dependencies.
+14. **Spec round trip.** `Doc` with migrations (X); walking pydantic's field info for docs and constraints.
+15. **Data-driven rendering.** `texmodel render --data cards.toml <pointer>` against the project's templates, with no hand-written
+    converter. Needs a declared mapping from data fields to components, kept next to the components (joins, slot order, deck
+    policies like title case), and a `[tool.texmodel] templates` key so bodies and adopted `sources` are found from
+    configuration. Reopens the parked TOML frontend (§21).
+16. **Constructive bodies.** A per-piece whitespace policy for a constructive piece (it takes the package's); expl3 bodies.
+17. **Stubbed tests.** Stubs for values and settings, assertions on `Value` state, expl3.
+18. **`Comment`.** A registry of comment classes for data (the caller lists them today); keyed matching of comments (item 6).
+19. **expl3.** Whether a library block may become its own `.sty`; a parser option (a small function behind the static lints
+    would let a parser replace them).
 
 ---
 

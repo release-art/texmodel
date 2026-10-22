@@ -1,0 +1,49 @@
+[project]
+name = "texmodel-build"
+dynamic = ["version"]
+description = "Compile and verify LaTeX built from texmodel: a thin latexmk driver, typed log diagnostics, verifier plugins."
+authors = [{name = "Ilja Orlovs", email = "ilja@release.art"}]
+license = "MIT"
+license-files = ["LICENSE"]
+readme = "README.md"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.15",
+    "Typing :: Typed",
+]
+requires-python = ">=3.15,<3.16"
+dependencies = [
+    "texmodel",
+    "typer>=0.27.3",
+]
+
+[project.optional-dependencies]
+proof-pdf = ["proof-pdf>=0.3.3"]
+
+[project.urls]
+Homepage = "https://github.com/release-art/texmodel"
+Repository = "https://github.com/release-art/texmodel"
+
+[project.scripts]
+texmodel-build = "texmodel_build.cli:app"
+
+[project.entry-points."texmodel_build.verifiers"]
+proof-pdf = "texmodel_build._internal.proofpdf:ProofPdf"
+
+[tool.pdm]
+distribution = true
+
+# Lockstep with texmodel: the version is the same git tag (v1.2.3).
+[tool.pdm.version]
+source = "scm"
+tag_regex = '^v(?P<version>\d+\.\d+\.\d+.*)$'
+fallback_version = "0.0.0"
+
+[tool.pdm.build]
+package-dir = "src"
+includes = ["src/texmodel_build"]
+source-includes = ["README.md", "LICENSE"]
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"

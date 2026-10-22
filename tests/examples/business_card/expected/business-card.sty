@@ -1,0 +1,55 @@
+% business-card.sty -- generated with texmodel X.Y.Z. Do not edit; run `texmodel build`.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{business-card}[2026/10/22 v1.0.0 Business cards]
+
+\RequirePackage{xcolor}
+
+% Space under each line.
+% from business_card.Gap (value: Length)
+\newlength{\bcGap}
+\setlength{\bcGap}{2mm}
+
+% Width of a card.
+% from business_card.CardWidth (value: Length)
+\newlength{\bcCardWidth}
+\setlength{\bcCardWidth}{85mm}
+
+% The text colour (CMYK, so it stays black ink in print).
+% from business_card.Ink (value: Colour)
+\definecolor{bc-ink}{cmyk}{0,0,0,0.95}
+
+% The accent colour (RGB: screen only).
+% from business_card.Accent (value: Colour)
+\definecolor{bc-accent}{rgb}{0.7,0.1,0.2}
+
+% Tighten the layout.
+% from business_card.Compact (value: Bool)
+\newif\ifbcCompact
+\bcCompactfalse
+
+% The person's name, set as the title.
+% from business_card.Name (body: name.tex)
+\newcommand{\bcName}[1]{%
+\par\noindent{\Large\bfseries\color{bc-ink}#1}\par
+}
+
+% A job title in the accent colour.
+% from business_card.Title (body: inline)
+\newcommand{\bcTitle}[1]{%
+\par\noindent{\color{bc-accent}#1}\par
+}
+
+% One contact line; the label, if any, prints in bold before it.
+% from business_card.Contact (body: contact.tex)
+\newcommand{\bcContact}[2][]{%
+\par\noindent\ifx\relax#1\relax\else{\bfseries #1\quad}\fi #2\par\vspace{\bcGap}
+\ifbcCompact\vspace{-\bcGap}\fi
+}
+
+% One card: a name, an optional title and one to three contact lines.
+% from business_card.Card (body: card.begin.tex + card.end.tex)
+\newenvironment{bcCard}{%
+\begin{minipage}[t]{\bcCardWidth}\ifbcCompact\small\fi
+}{%
+\end{minipage}
+}

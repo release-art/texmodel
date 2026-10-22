@@ -1,0 +1,54 @@
+% acme-cards.sty -- generated with texmodel 0.1.0. Do not edit; run `texmodel build`.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{acme-cards}[2026/10/21 v1.4.0 Cards for Acme]
+
+\RequirePackage{xcolor}
+
+% Space under each fact.
+% from acme_cards.FactGap (value: Length)
+\newlength{\acFactGap}
+\setlength{\acFactGap}{2mm}
+
+% The text colour.
+% from acme_cards.Ink (value: Colour)
+\definecolor{ac-ink}{cmyk}{0,0,0,0.95}
+
+% Tighten the layout.
+% from acme_cards.Compact (value: Bool)
+\newif\ifacCompact
+\acCompactfalse
+
+% The subject's name, set as the title.
+% from acme_cards.Name (body: name.tex)
+\newcommand{\acName}[1]{%
+\par\noindent{\Large\bfseries #1}\par
+}
+
+% One short sentence under the title.
+% from acme_cards.Fact (body: fact.tex)
+\newcommand{\acFact}[1]{%
+\par\noindent{\color{ac-ink}#1}\par\vspace{\acFactGap}
+\ifacCompact\vspace{-\acFactGap}\fi
+}
+
+% A labelled paragraph; the label prints as its heading.
+% from acme_cards.Slot (body: slot.tex)
+\newcommand{\acSlot}[2][]{%
+\par\noindent
+\ifx\relax#1\relax\else{\bfseries #1\quad}\fi
+#2\par
+}
+
+% A thin horizontal rule.
+% from acme_cards.Rule (body: inline)
+\newcommand{\acRule}{%
+\par\noindent\rule{\linewidth}{0.4pt}\par
+}
+
+% The back face of a card.
+% from acme_cards.CardBack (body: card_back.begin.tex + card_back.end.tex)
+\newenvironment{acCardBack}{%
+\begin{minipage}[t]{\linewidth}
+}{%
+\end{minipage}
+}

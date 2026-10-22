@@ -1,0 +1,21 @@
+% composed-kit.sty -- generated with texmodel X.Y.Z. Do not edit; run `texmodel build`.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{composed-kit}[2026/10/22 v1.0.0 Calls base-kit by Python binding]
+
+\RequirePackage{base-kit}
+
+% A fact with a rule above it; the fact is base-kit's.
+% from composed.Entry (body: inline)
+\newcommand{\ckEntry}[1]{%
+\par\hrule%
+\vspace{1mm}%
+\bkFact{#1}%
+}
+
+% A titled panel of entries: base-kit's panel, opened and closed by reference.
+% from composed.Section (body: inline)
+\newenvironment{ckSection}[1]{%
+\begin{bkPanel}{#1}%
+}{%
+\end{bkPanel}%
+}

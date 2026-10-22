@@ -1,0 +1,4 @@
+./deck.tex:11: Undefined control sequence.
+<argument> \cdSafeInset 
+                        
+l.11 \setlength{\cdSafeInset}{3mm}

@@ -1,0 +1,17 @@
+% base-kit.sty -- generated with texmodel X.Y.Z. Do not edit; run `texmodel build`.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{base-kit}[2026/10/22 v1.0.0 The package that is called]
+
+% One fact, set as a paragraph.
+% from composed.Fact (body: inline)
+\newcommand{\bkFact}[1]{%
+\par\noindent #1\par
+}
+
+% A framed panel with a title.
+% from composed.Panel (body: inline)
+\newenvironment{bkPanel}[1]{%
+\par\noindent\textbf{#1}\begin{quote}
+}{%
+\end{quote}
+}

@@ -1,0 +1,30 @@
+%% A hand-written card package, the kind texmodel adopts: counters, a measured body, its own refusals.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{card-deck}
+\RequirePackage{etoolbox}
+
+\newcommand{\cdDeckName}{}
+\newcommand{\cdCardImage}[1]{\noindent[picture: #1]\par}
+\newlength{\cdBackHeight}
+\setlength{\cdBackHeight}{160pt}
+\newsavebox{\cd@box}
+\newcommand{\cd@name}{(unnamed)}
+
+\newenvironment{cdCard}{\clearpage}{}
+\newenvironment{cdCardFront}{}{\par}
+\newenvironment{cdCardBack}{%
+  \begin{lrbox}{\cd@box}\begin{minipage}{\textwidth}%
+}{%
+  \end{minipage}\end{lrbox}%
+  \ifdim\dimexpr\ht\cd@box+\dp\cd@box\relax>\cdBackHeight
+    \PackageWarning{card-deck}{Card '\cd@name' does not fit.\MessageBreak
+      Its body needs \the\dimexpr\ht\cd@box+\dp\cd@box\relax\space and the card has \the\cdBackHeight}%
+  \fi
+  \usebox{\cd@box}\par
+}
+
+\newcommand{\cdName}[1]{\gdef\cd@name{#1}\textbf{\large #1}\par}
+\newcommand{\cdLeadFact}[1]{#1\par}
+\newcommand{\cdLabelledSlot}[2]{\textbf{#1}: #2\par}
+\newcommand{\cdTalkAboutMe}[2][]{#2\ifblank{#1}{}{ (#1)}\par}
+\endinput

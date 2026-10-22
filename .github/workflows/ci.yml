@@ -16,14 +16,14 @@ jobs:
     env:
       PDM_NON_INTERACTIVE: 1
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.15"
       - run: python -m pip install pdm
       - run: pdm install --with dev
-      - run: pdm run ruff check src tests
-      - run: pdm run ruff format --check src tests
+      - run: pdm run ruff check src harness tests
+      - run: pdm run ruff format --check src harness tests
       - run: pdm run pyright
       - run: pdm run lint-imports
       - run: pdm run pip-audit
@@ -31,19 +31,19 @@ jobs:
 
 
   tex:
-    # The compile suite (V3) in the reference image. Not yet a gate (continue-on-error): releaseart/lualatex-python has
-    # no latexmk until proofpress releases it. Then delete the next line (plan A3). The image is `latest`, pulled fresh.
-    continue-on-error: true
+    # The compile suite (V3) in the reference image plus the TeX packages it lacks (docker/test/Dockerfile), built fresh on
+    # the current `latest`. A required gate (plan A3).
     runs-on: ubuntu-latest
     env:
       PDM_NON_INTERACTIVE: 1
       TEXMODEL_REQUIRE_TEX: 1
+      TEXMODEL_TEST_IMAGE: texmodel-test
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.15"
       - run: python -m pip install pdm
       - run: pdm install --with dev
-      - run: docker pull "$(pdm run python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['tool']['texmodel']['image'])")"
+      - run: bin/test-image.sh
       - run: pdm run pytest -m tex --no-cov

@@ -7,10 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+## [0.1.0] - 2026-10-22
 
-- Compile engine (plan A1): `texmodel.Compiler` runs `latexmk` with LuaLaTeX on the host or in the reference container
-  (no network, read-only root, limits), returning a typed `CompileResult` with parsed diagnostics (`TM-X0xx`), page and
-  pass counts, probes, and image/engine/latexmk versions. Reproducible mode (`epoch`), content-addressed compile cache,
-  ordered asset roots, convergence diagnostics, `clean`.
-- `texmodel compile`, `build` (targets from `[tool.texmodel.targets]`), `clean`; `doctor` probes the configured image.
+First release.
+
+- `texmodel`: declare LaTeX components (`Command`, `Environment`, `Value[T]`) as typed Python classes and render a
+  deterministic `.sty`, documents and a JSON schema; check committed output for drift; adopt hand-written TeX; a standard
+  library of headers (`texmodel.std`).
+- `texmodel-build`: a `latexmk` driver with typed diagnostics, and verifier plugins.
+
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/release-art/texmodel/releases/tag/v0.1.0

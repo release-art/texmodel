@@ -3,28 +3,20 @@
 import dataclasses
 import pathlib
 import tomllib
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from .errors import DeclarationError
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
-class Target:
-    """A named build (C10): `[tool.texmodel.targets.<name>]`. `variant` and `profile` are carried for later layers."""
-
-    name: str
-    source: str
-    engine: str = "lualatex"
-    variant: str = ""
-    profile: str = ""  # verifier profile (A2)
-
-
-@dataclasses.dataclass(frozen=True, kw_only=True)
 class Config:
-    prefix: str
-    engine: str = "lualatex"
-    image: str = ""
-    targets: dict[str, Target] = dataclasses.field(default_factory=dict[str, Target])
+    package: str = ""  # pointer to the Package to build: "module:object", "module:ns.object" or "module:getter()"
+    schema_output: str = ""  # where `texmodel schema` writes the JSON Schema of the package's data
+    output: str = "generated"  # where `texmodel build` writes, relative to pyproject.toml
+    # committed .tex -> pointer to what renders it
+    documents: Mapping[str, str] = dataclasses.field(default_factory=dict[str, str])
+    sources: Sequence[str] = ()  # globs of the hand-written TeX an adopted package declares (M9), from pyproject.toml
 
 
 def load_config(pyproject: pathlib.Path) -> Config:
@@ -37,8 +29,4 @@ def load_config(pyproject: pathlib.Path) -> Config:
         raise DeclarationError(
             f"unknown [tool.texmodel] keys: {unknown}", code="TM-D002", hint=f"known: {sorted(known)}"
         )
-    try:
-        targets = {name: Target(name=name, **body) for name, body in table.pop("targets", {}).items()}
-        return Config(**table, targets=targets)
-    except TypeError as exc:
-        raise DeclarationError(f"[tool.texmodel]: {exc}", code="TM-D003") from exc
+    return Config(**table)
