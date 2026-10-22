@@ -9,7 +9,7 @@ from hypothesis import (
     strategies as st,
 )
 
-from texmodel.components import Command, Environment, Repeat, Value
+from texmodel.components import Command, Count, Environment, Repeat, Value
 from texmodel.errors import DeclarationError, ValidationError
 from texmodel.package import Package
 from texmodel.types import Colour, Gray, Length, Raw, Text, balanced, escape
@@ -70,7 +70,7 @@ def shop():
         begin = "\\begin{center}#title"
         end = "\\end{center}"
 
-        children = [Name, Fact * (2, 3), Slot * (0, 3)]
+        children = [Name, Fact.times(2, 3), Slot.times(3)]
         title: Text | None = None
 
     @p.value
@@ -220,7 +220,7 @@ def test_nested_environments_validate_their_own_children():
         begin = "b"
         end = "e"
 
-        children = [Leaf * "+"]
+        children = [Leaf.times(1, Count.Any)]
 
     @p.environment
     class Outer(Environment):
@@ -229,7 +229,7 @@ def test_nested_environments_validate_their_own_children():
         begin = "b"
         end = "e"
 
-        children = [Inner * "?", Leaf * "*"]
+        children = [Inner.times(1), Leaf.times(Count.Any)]
 
     assert Outer(Inner(Leaf()), Leaf()).validate() == []
     assert [v.path for v in Outer(Inner()).validate()] == ["Outer/Inner[0]"]
@@ -241,16 +241,20 @@ def test_nested_environments_validate_their_own_children():
 
 def test_grammar_terms_and_their_refusals():
     s = shop()
-    assert s.Fact * 2 == Repeat(s.Fact, 2, 2) and s.Fact * (1, 4) == Repeat(s.Fact, 1, 4)
-    assert [str(x) for x in (s.Fact * "?", s.Fact * "*", s.Fact * "+", s.Fact * 1)] == [
-        "0-1 Fact",
-        "0 or more Fact",
-        "1 or more Fact",
-        "1 Fact",
-    ]
-    for bad in ("x", (3, 2), -1, (-1, 2)):
+    assert s.Fact.times(3) == Repeat(s.Fact, 0, 3) and s.Fact.times(1, 4) == Repeat(s.Fact, 1, 4)
+    assert [
+        str(x)
+        for x in (
+            s.Fact.times(1),
+            s.Fact.times(Count.Any),
+            s.Fact.times(1, Count.Any),
+            s.Fact.times(2, 2),
+            s.Fact.times(1, 1),
+        )
+    ] == ["0-1 Fact", "0 or more Fact", "1 or more Fact", "2 Fact", "1 Fact"]
+    for bad in ((3, 2), (-1,), (-1, 2), (0,), (1.5,), (1, "x"), ("x",), (1, 2.5), (Count.Any, 3)):
         with refused("TM-M020"):
-            _ = s.Fact * bad  # pyright: ignore[reportOperatorIssue]
+            s.Fact.times(*bad)  # pyright: ignore[reportArgumentType]
     with refused("TM-M020"):
 
         class Bad(Environment):

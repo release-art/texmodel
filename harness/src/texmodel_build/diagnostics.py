@@ -5,6 +5,7 @@ import enum
 from typing import Any, cast
 
 
+@enum.unique
 class Severity(enum.StrEnum):
     ERROR = "error"
     WARNING = "warning"

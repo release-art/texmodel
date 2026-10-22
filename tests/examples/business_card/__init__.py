@@ -78,7 +78,7 @@ class Card(Environment):
     begin = TemplateRef("card.begin.tex")
     end = TemplateRef("card.end.tex")
 
-    children = [Name, Title * "?", Contact * (1, 3)]
+    children = [Name, Title.times(1), Contact.times(1, 3)]
 
 
 ada = Card(

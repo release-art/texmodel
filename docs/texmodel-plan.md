@@ -102,9 +102,11 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   (`default = Length("2mm")`, `default = CMYK(0, 0, 0, .95)`), which the type checker
   and the validator both see. A missing body, or a `TemplateRef` to a file that cannot be read, is
   an error naming the class and the path, never a silent empty body.
-- M4 **Grammar is one expression**: `children = [Name, Fact * (2, 3), Slot * (0, 3)]`.
-  A bare class means exactly one; `* n` is exactly n; `"?"`, `"*"`, `"+"` are
-  shorthands. This is the order, the counts and the placement of children. A static type
+- M4 **Grammar is one expression**: `children = [Name, Fact.times(2, 3), Slot.times(3)]`.
+  A bare class means exactly one; `X.times(to)` allows 0 to `to`; `X.times(from_, to)`
+  allows `from_` to `to`, and `to` may be `Count.Any` (no upper limit): `X.times(Count.Any)`
+  is any number, `X.times(1, Count.Any)` one or more, `X.times(1)` optional. This is the
+  order, the counts and the placement of children. A static type
   checker verifies each child *is* an allowed component, not the counts or order
   (Python's types cannot express them); those are checked by `validate()` at
   construction time of the Doc, with the path of the offending child.
@@ -678,7 +680,7 @@ class Slot(Command):
 
 class CardBack(Environment):
     """The back face of a card."""
-    children = [Name, Fact * (2, 3), Slot * (0, 3)]
+    children = [Name, Fact.times(2, 3), Slot.times(3)]
 
 class FactGap(Value[Length]):
     default = Length("2mm")
@@ -953,7 +955,7 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | `texmodel render module:attr` writes a document to a file | decided 2026-10-22 |
 | Hole syntax `#name`; internals free but must resolve | decided |
 | Documents are constructor trees (not `with` builders) | decided |
-| `children = [Fact * (2, 3)]` multiplicity syntax | decided |
+| `children = [Fact.times(2, 3)]` multiplicity syntax (`times([from,] to)`, `Count.Any`; not operator overloading) | decided 2026-10-22 |
 | Python-only authoring; TOML/YAML frontend | parked, not planned |
 | Renames via `renamed_from` → pydantic aliases + release record | decided |
 | lualatex only in v1; capabilities explicit | decided |

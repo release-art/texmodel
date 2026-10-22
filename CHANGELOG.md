@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `\<prefix>Name` is refused at `render()` / `texmodel check` (`TM-M015`).
 - Documents (T3, M4, D1, D1a, D2, E2): `Package.document(*nodes, settings=, options=)` renders a complete `.tex`. `Command` and
   `Environment` instances `render()` and `validate()`. `Text` fields are escaped; `Raw` is a distinct, brace-balanced type
-  for TeX that must pass through. An environment's `children = [Name, Fact * (2, 3), ...]` grammar is checked by
+  for TeX that must pass through. An environment's `children = [Name, Fact.times(2, 3), ...]` grammar is checked by
   `validate()`, which returns every `Violation` with a path (`TM-C001`-`C003`, `C006`, `C007`); rendering raises them as an
   `ExceptionGroup`. `repr()` of a node is the constructor expression.
 - `texmodel render module:attr [-o out.tex]` writes a document (a `str` from `Package.document()`, or a function returning

@@ -25,7 +25,7 @@ An `Environment` also holds children, whose order and counts are its grammar (M4
 @pkg.environment
 class CardBack(Environment):
     '''The back face of a card.'''
-    children = [Name, Fact * (2, 3), Slot * (0, 3)]     # `* "?"`, `* "*"`, `* "+"` are shorthands
+    children = [Name, Fact.times(2, 3), Slot.times(3)]     # Name: one; Fact: 2 to 3; Slot: 0 to 3
     begin = r'\begin{minipage}{\linewidth}'
     end = r'\end{minipage}'
 
@@ -61,6 +61,7 @@ the class is defined.
 """
 
 import dataclasses
+import enum
 import inspect
 import os
 import sys
@@ -84,12 +85,17 @@ from .types import CMYK, RGB, TEXT, Colour, Gray, Length, Raw
 
 type Node = Command | Environment
 
-_SHORT = {"?": (0, 1), "*": (0, None), "+": (1, None)}
+
+@enum.unique
+class Count(enum.Enum):
+    """An upper bound with no limit: `Contact.times(1, Count.Any)` is one or more."""
+
+    Any = "any"
 
 
 @dataclasses.dataclass(frozen=True)
 class Repeat:
-    """How many of one component a grammar allows in a row (M4): `Fact * (2, 3)`, `Slot * "?"`, `Name` (exactly one)."""
+    """How many of one component a grammar allows in a row (M4): `Fact.times(2, 3)`; a bare `Name` is exactly one."""
 
     kind: type
     lo: int
@@ -103,15 +109,25 @@ class Repeat:
 
 
 class _Meta(type):
-    """Lets a component class be multiplied into a grammar term."""
+    """Gives every component class `.times(...)`, so a grammar term reads `Fact.times(2, 3)`."""
 
-    def __mul__(cls, count: int | tuple[int, int] | str) -> Repeat:
-        bounds = _SHORT.get(count) if isinstance(count, str) else (count, count) if isinstance(count, int) else count
-        if bounds is None or bounds[0] < 0 or (bounds[1] is not None and bounds[1] < bounds[0]):
+    def times(cls, a: int | Count, b: int | Count | None = None) -> Repeat:
+        """`times(to)` allows 0 to `to`; `times(from_, to)` allows `from_` to `to`; `to` may be `Count.Any`."""
+        lo, hi = (0, a) if b is None else (a, b)
+        if not isinstance(lo, int) or not (isinstance(hi, int) or hi is Count.Any):
             raise DeclarationError(
-                f"{cls.__name__} * {count!r}: use n, (lo, hi), '?', '*' or '+'", code="TM-M020", path=cls.__name__
+                f"{cls.__name__}.times: counts are ints, and the upper one may be Count.Any",
+                code="TM-M020",
+                path=cls.__name__,
             )
-        return Repeat(cls, *bounds)
+        bound = None if hi is Count.Any else hi
+        if lo < 0 or (bound is not None and bound < max(lo, 1)):
+            raise DeclarationError(
+                f"{cls.__name__}.times: need 0 <= from <= to and 1 <= to, got from={lo}, to={hi!r}",
+                code="TM-M020",
+                path=cls.__name__,
+            )
+        return Repeat(cls, lo, bound)
 
 
 def _document(cls: type) -> str:

@@ -70,4 +70,4 @@ class CardBack(Environment):
     begin = TemplateRef("card_back.begin.tex")
     end = TemplateRef("card_back.end.tex")
 
-    children = [Name, Fact * (2, 3), Slot * (0, 3)]
+    children = [Name, Fact.times(2, 3), Slot.times(3)]

@@ -56,7 +56,7 @@ class Slot(Command):
 @pkg.environment
 class CardBack(Environment):
     """The back face of a card."""
-    children = [Name, Fact * (2, 3), Slot * (0, 3)]   # order and counts; `* "?"`, `* "*"`, `* "+"` also work
+    children = [Name, Fact.times(2, 3), Slot.times(3)]   # in order: Name once, Fact 2 to 3, Slot 0 to 3
     begin = r"\begin{minipage}{\linewidth}"
     end = r"\end{minipage}"
 ```
