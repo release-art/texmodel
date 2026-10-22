@@ -14,7 +14,6 @@ First release.
 - `texmodel`: declare LaTeX components (`Command`, `Environment`, `Value[T]`) as typed Python classes and render a
   deterministic `.sty`, documents and a JSON schema; check committed output for drift; adopt hand-written TeX; a standard
   library of headers (`texmodel.std`).
-- `texmodel-build`: a `latexmk` driver with typed diagnostics, and verifier plugins.
 
 [Unreleased]: https://github.com/release-art/texmodel/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/release-art/texmodel/releases/tag/v0.1.0

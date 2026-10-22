@@ -810,8 +810,8 @@ template strings for bodies (TeX braces fight interpolation).
 
 ## 18. Package structure
 
-Two distributions in one repository, released in lockstep: `texmodel` (`src/`), the rendering
-core, which never spawns a process; and `texmodel-build` (`harness/`, import `texmodel_build`), the optional compile and
+Two packages in one distribution, `texmodel`: `texmodel` (`src/texmodel`), the rendering
+core, which never spawns a process; and `texmodel_build` (`src/texmodel_build`, command `texmodel-build`), the optional compile and
 verify side (§7, §8), configured in `[tool.texmodel-build]`. Consumers that already pin a toolchain in an image (as the
 owner's do) need only the first.
 

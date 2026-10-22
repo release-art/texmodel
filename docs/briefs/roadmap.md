@@ -22,8 +22,8 @@ Needs an owner decision first:  X1 data-driven render   X2 hand-edit semantics  
 - Tests: pytest, hypothesis where there is a law, `monkeypatch` (no manual `sys.path` edits), 100% coverage across both
   packages. Consumer-shaped tests use `tests/consumers/card_deck/` (synthetic, made-up data). **Never** add anything from a
   real or private deck or brand package to this repo.
-- Done = all of these pass with no new warnings: `pdm run ruff format --check src harness tests`,
-  `pdm run ruff check src harness tests`, `pdm run pyright`, `pdm run lint-imports`, `pdm run pytest` (100%),
+- Done = all of these pass with no new warnings: `pdm run ruff format --check src tests`,
+  `pdm run ruff check src tests`, `pdm run pyright`, `pdm run lint-imports`, `pdm run pytest` (100%),
   `pdm run pip-audit`, `TEXMODEL_REQUIRE_TEX=1 pdm run pytest -m tex --no-cov` (needs Docker).
 - Update the README, `CHANGELOG.md` and the plan (remove the item from §21a; add decision rows to §21). Report at the end: what
   changed, what was verified, what was not, failures included. If a decision turns out to be large or irreversible, stop,

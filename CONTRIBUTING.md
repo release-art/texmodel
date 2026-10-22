@@ -16,7 +16,7 @@ bin/test.sh                           # pytest, 100% coverage gate
   After an intended output change: `UPDATE_GOLDEN=1 pdm run pytest tests/test_texmodel/test_examples.py`, review the diff.
 - Every `enum.Enum` (and `StrEnum`) is decorated with `@enum.unique`.
 - Code is formatted and linted with ruff, type-checked with pyright (strict on `src`, 0 errors), runs on Python 3.15.
-- Two packages: `src/texmodel` (the library; never imports `texmodel_build` or spawns a process) and `harness/src/texmodel_build`
+- Two packages: `src/texmodel` (the library; never imports `texmodel_build` or spawns a process) and `src/texmodel_build`
   (the optional build side; only `_internal/spawn.py` may import `subprocess`). import-linter enforces both.
 - Public API is the top-level modules of each package; everything else lives in `_internal/` and may change freely, as in
   pydantic. A new module goes in `_internal` unless users should import it (then add it to `PUBLIC` in that package's
