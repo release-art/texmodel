@@ -110,3 +110,46 @@ def test_render_refuses_what_is_not_a_document(docs):
         result = runner.invoke(cli.app, ["render", spec])
         assert result.exit_code == 2 and code in result.stderr
     assert runner.invoke(cli.app, ["render", "mydocs:boom"]).exit_code != 0  # a foreign error group is not swallowed
+
+
+@pytest.fixture
+def pointers(project):
+    (project / "deckmod.py").write_text(
+        "from acme_cards import pkg as _pkg\n"
+        "class Decks:\n    main = _pkg\n    @staticmethod\n    def make():\n        return _pkg\n"
+        "def get_pkg():\n    return _pkg\n"
+        "def needs_argument(x):\n    return _pkg\n"
+    )
+    yield project
+    import sys
+
+    sys.modules.pop("deckmod", None)
+
+
+@pytest.mark.parametrize("pointer", ["deckmod:Decks.main", "deckmod:get_pkg()", "deckmod:Decks.make()"])
+def test_a_package_pointer_may_name_a_nested_object_or_a_getter_to_call(pointers, pointer):
+    (pointers / "pyproject.toml").write_text(f'[tool.texmodel]\nprefix = "ac"\npackage = "{pointer}"\noutput = "gen"\n')
+    assert runner.invoke(cli.app, ["build"]).exit_code == 0
+    assert (pointers / "gen" / "acme-cards.sty").is_file()
+
+
+@pytest.mark.parametrize(
+    ("pointer", "code"),
+    [("deckmod:needs_argument()", "TM-D021"), ("deckmod:Decks.nope", "TM-D021"), ("deckmod:Decks.main()", "TM-D021"),
+     ("deckmod:", "TM-D020"), (":x", "TM-D020"), ("deck mod:x", "TM-D020"), ("deckmod:get_pkg(1)", "TM-D020"),
+     ("deckmod:a..b", "TM-D020")],
+)  # fmt: skip
+def test_a_bad_pointer_exits_2_with_a_code(pointers, pointer, code):
+    (pointers / "pyproject.toml").write_text(f'[tool.texmodel]\nprefix = "ac"\npackage = "{pointer}"\n')
+    result = runner.invoke(cli.app, ["build"])
+    assert result.exit_code == 2 and code in result.stderr
+
+
+def test_render_names_the_file_after_the_last_part_of_the_pointer(pointers):
+    (pointers / "pyproject.toml").write_text('[tool.texmodel]\nprefix = "ac"\n')
+    (pointers / "deckmod.py").write_text(
+        (pointers / "deckmod.py").read_text()
+        + "class Docs:\n    @staticmethod\n    def card():\n        return _pkg.document()\n"
+    )
+    result = runner.invoke(cli.app, ["render", "deckmod:Docs.card()"])
+    assert result.exit_code == 0 and (pointers / "card.tex").is_file()

@@ -36,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `\documentclass` and `\usepackage`; public names of the package used there must be declared (`TM-M015`, with a path).
 - `texmodel_build`: a package's own warning is a typed `PackageWarning` (`TM-X019`) with its continuation lines joined and its
   input line; an undefined control sequence inside an argument is named from TeX's `<argument>` line.
+- Pointers (`[tool.texmodel] package`, `texmodel render`) are `module:object`, `module:namespace.object` or `module:getter()`;
+  a trailing `()` calls the getter with no arguments. A malformed pointer is `TM-D020`; a failed import, lookup or call is `TM-D021`.
 - `Package.plan(...)` (B2, D2): the document as `Plan`, lines with the path of what wrote them. `Plan.edits(text)` finds changed,
   removed and added lines by path, `path_of(n)` maps an output line (a log's `input line`) to its path, and `to_json` /
   `from_json` store it as a baseline beside the committed file. New module `texmodel.plan`.

@@ -94,6 +94,13 @@ package = "acme_cards:pkg"
 output = "generated"
 ```
 
+A pointer (`package =`, and the argument of `texmodel render`) is `dotted.module:object`, `dotted.module:namespace.object`
+(attributes are followed) or `dotted.module:getter()` (called with no arguments; its result is used):
+
+```toml
+package = "acme_cards.decks:Decks.birds"      # or "acme_cards.decks:make_package()"
+```
+
 ```zsh
 texmodel build     # writes generated/acme-cards.sty
 texmodel render docs:card   # writes card.tex from `card = pkg.document(...)` (or a function returning one); -o to choose

@@ -12,7 +12,7 @@ from .errors import DeclarationError
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Config:
     prefix: str
-    package: str = ""  # "module:attribute" of the Package to build
+    package: str = ""  # pointer to the Package to build: "module:object", "module:ns.object" or "module:getter()"
     output: str = "generated"  # where `texmodel build` writes, relative to pyproject.toml
     sources: Sequence[str] = ()  # globs of the hand-written TeX an adopted package declares (M9), from pyproject.toml
 

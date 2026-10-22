@@ -65,7 +65,9 @@ def _project() -> tuple[pathlib.Path, Config, Package]:
     config = load_config(root / "pyproject.toml")
     if not config.package:
         raise DeclarationError(
-            "no package declared", code="TM-D023", hint='set [tool.texmodel] package = "module:attr"'
+            "no package declared",
+            code="TM-D023",
+            hint='set [tool.texmodel] package = "module:object" or "module:getter()"',
         )
     return root, config, load_package(config.package, root)
 
@@ -85,11 +87,16 @@ def build() -> None:
 @app.command()
 @_exits
 def render(
-    document: Annotated[str, typer.Argument(help="module:attribute: a str from Package.document(), or a function.")],
+    document: Annotated[
+        str,
+        typer.Argument(
+            help="Pointer (module:object, module:ns.object, module:getter()) to a str from Package.document()."
+        ),
+    ],
     output: Annotated[pathlib.Path | None, typer.Option("--output", "-o", help="Default <attribute>.tex.")] = None,
 ) -> None:
     """Write a document to a .tex file. An invalid document reports every violation and exits 2."""
-    target = output or pathlib.Path(f"{document.partition(':')[2]}.tex")
+    target = output or pathlib.Path(f"{document.partition(':')[2].removesuffix('()').rpartition('.')[2]}.tex")
     text = load_document(document, pathlib.Path.cwd())
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text, encoding="utf-8")
