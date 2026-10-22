@@ -958,6 +958,7 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | Environment: fields are keyword arguments, children positional; `children` is the grammar, `.content` the instance's children | decided 2026-10-22 |
 | `Package.document(...)` renders a `.tex`; values are set by `Value` instances in `settings=` | decided 2026-10-22 |
 | `texmodel render module:attr` writes a document to a file | decided 2026-10-22 |
+| `Comment` subclasses are passed to `from_dict` / `json_schema` as `comments=[...]`, not found by name; a body line starting with `%` is not scanned for `#name` holes | decided 2026-10-22 |
 | Hole syntax `#name`; internals free but must resolve | decided |
 | Documents are constructor trees (not `with` builders) | decided |
 | `children = [Fact.times(2, 3)]` multiplicity syntax (`times([from,] to)` with `to=None` for no limit, plus `times.any()` and `times.at_least_one()`; not operator overloading) | decided 2026-10-22 |
@@ -1090,7 +1091,8 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
     `Measurement` diagnostics (C5a), so a test asserts calls and arguments, not a PDF. A fast tier needs no TeX: walk the
     structured pieces in Python with stubbed calls, to test what the generator decided. The LuaLaTeX tier checks the real macros
     expand as expected; it does not prove layout. Order: item 17, the emitter, a stub runner in `texmodel-build`'s `testkit`.
-21. **`Comment` node.** Every line it renders is prefixed `%`; a subclass declares fields and a `#name` template (an audit block
+21. **`Comment` node.** Built 2026-10-22 (`texmodel.body.Comment`, `TM-M028`, `Plan.edits(ignore_comments=)`, `from_dict(comments=)`). Open: a
+    registry of comment classes for data (today the caller lists them), and keyed matching of comments (item 6). Every line it renders is prefixed `%`; a subclass declares fields and a `#name` template (an audit block
     above a card). Usable as a body piece and as a document node; transparent to the grammar; named in the plan; skippable in
     `Plan.edits`. Brief: `docs/briefs/roadmap.md` A4.
 22. **Gate B itself.** The ten-minute criterion needs a first-time author, timed. The "three real past defects" criterion needs

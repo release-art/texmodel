@@ -271,6 +271,29 @@ Everything wrong comes at once as an `ExceptionGroup` of `ValidationError` (`TM-
 for a `Plan` every difference names the component that writes the line (`changed  deck.tex Card[1]/CardBack[1]/LabelledSlot[3]: ...`),
 so a hand edit and a stale render read the same; a `str` is compared whole. Exit 1 on any difference; `texmodel render` rewrites.
 
+### Comments
+
+```python
+from texmodel.body import Comment
+
+class CardHeader(Comment):
+    """The audit block above a card."""
+    template = """
+        Card: #name
+          id: #id
+    """
+    name: str
+    id: str
+
+pkg.document(CardHeader("Red Fox", "11111111-aaaa"), Card(...))     # % Card: Red Fox / %   id: 11111111-aaaa
+```
+
+Every line of a `Comment` is prefixed `% `, so a value cannot leave it; nothing is escaped (`##` is a `#` in a template). It
+is a body piece (`yield Comment("why this is 3mm")`) and a document node: a child of an environment or a top-level node, and
+transparent to the grammar (not counted, never listed, paths keep the real index: `Card[3]/CardHeader[0]`). It needs no
+package registration. `plan.edits(text, ignore_comments=True)` skips lines that are comments on both sides;
+`from_dict(cls, data, comments=[CardHeader])` and `json_schema(cls, comments=[...])` know it as a child (`"type": "CardHeader"`).
+
 ### Where a line came from
 
 `pkg.plan(...)` takes the arguments of `pkg.document(...)` and returns a `Plan`: every output line with the path of what wrote it

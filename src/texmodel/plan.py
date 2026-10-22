@@ -40,6 +40,11 @@ def node_lines(node: Node, path: str) -> Iterator[Line]:
     yield Line(path, rendered[-1])
 
 
+def _compared(line: str, ignore_comments: bool) -> str:
+    """A comment line compares equal to any other comment line when comments are ignored."""
+    return "%" if ignore_comments and line.lstrip().startswith("%") else line
+
+
 @dataclasses.dataclass(frozen=True)
 class Plan:
     lines: tuple[Line, ...]
@@ -52,11 +57,15 @@ class Plan:
         """The path that wrote line `number` (1-based, as TeX counts), e.g. from a log's `input line 39`."""
         return self.lines[number - 1].path
 
-    def edits(self, text: str) -> list[Edit]:
-        """What `text` changed against this plan; each difference carries the path of the line it replaced."""
+    def edits(self, text: str, *, ignore_comments: bool = False) -> list[Edit]:
+        """What `text` changed against this plan; each difference carries the path of the line it replaced. With
+        `ignore_comments`, a line that is a comment (starts with `%`) in both is not compared, so a changed audit block
+        is no edit; a comment turned into text, or text into a comment, still is."""
         found = text.splitlines()
         out: list[Edit] = []
-        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, [x.tex for x in self.lines], found).get_opcodes():
+        a = [_compared(x.tex, ignore_comments) for x in self.lines]
+        b = [_compared(x, ignore_comments) for x in found]
+        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b).get_opcodes():
             if tag == "equal":
                 continue
             for k in range(max(i2 - i1, j2 - j1)):

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `Comment` (§21a 21): `texmodel.body.Comment(text)` prefixes every line with `% `; a subclass declares fields and a `#name`
+  `template` (`TM-M028` for a hole that is not a field or a field never used). It is a body piece and a document node
+  that is transparent to the grammar and has a plan path; `Plan.edits(text, ignore_comments=True)`; `from_dict` and
+  `json_schema` take `comments=[...]`.
 - Rendering core (plan B): `texmodel.components` (`Command`, `Environment`, `Value[T]`, `TemplateRef`), `texmodel.package.Package`
   and `texmodel.types`. A component is a class; its fields are its arguments (an optional field is keyword-only and TeX's
   one optional argument) and its docstring is its documentation. `Package.render()` writes a deterministic `.sty` with a

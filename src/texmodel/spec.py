@@ -21,38 +21,54 @@ from typing import Annotated, Any
 
 import pydantic
 
+from .body import Comment
 from .components import Command, Environment, Node
 from .errors import ValidationError, Violation
 from .types import Choice, Raw
 
-_MODELS: dict[type[Environment], type[pydantic.BaseModel]] = {}
+_MODELS: dict[tuple[type[Environment], tuple[type[Comment], ...]], type[pydantic.BaseModel]] = {}
+_COMMENT_MODELS: dict[type[Comment], type[pydantic.BaseModel]] = {}
 
 
 def _tag(value: object) -> object:
     return value.get("type") if isinstance(value, Mapping) else type(value).__name__  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
 
 
-def _child(kind: type) -> Any:  # noqa: ANN401  # a pydantic type, built at run time
-    return kind if issubclass(kind, Command) else _model(typing.cast(type[Environment], kind))
+def _comment_model(kind: type[Comment]) -> type[pydantic.BaseModel]:
+    if kind not in _COMMENT_MODELS:
+        fields: dict[str, Any] = dict.fromkeys(kind.__tm_fields__, (str, ...))
+        _COMMENT_MODELS[kind] = pydantic.create_model(kind.__name__, __doc__=kind.__doc__, **fields)
+        _COMMENT_MODELS[kind].__tm_cls__ = kind  # pyright: ignore[reportAttributeAccessIssue]
+    return _COMMENT_MODELS[kind]
 
 
-def _model(cls: type[Environment]) -> type[pydantic.BaseModel]:
-    """The pydantic model of an environment: `content` limited to its grammar's components, and its arguments."""
-    if cls not in _MODELS:
-        tagged = tuple(Annotated[_child(t.kind), pydantic.Tag(t.kind.__name__)] for t in cls.__tm_grammar__)
+def _model(cls: type[Environment], comments: tuple[type[Comment], ...]) -> type[pydantic.BaseModel]:
+    """The pydantic model of an environment: `content` limited to its grammar's components and to `Comment` and
+    `comments` (a comment is not in a grammar), and its arguments."""
+    if (cls, comments) not in _MODELS:
+        members: list[Any] = []
+        for t in cls.__tm_grammar__:
+            kind = t.kind
+            members.append(
+                kind if issubclass(kind, Command) else _model(typing.cast(type[Environment], kind), comments)
+            )
+        members += map(_comment_model, (Comment, *comments))
+        tagged = tuple(Annotated[m, pydantic.Tag(m.__name__)] for m in members)
         fields: dict[str, Any] = {"content": (list[Annotated[typing.Union[tagged], pydantic.Discriminator(_tag)]], ...)}  # noqa: UP007
         for a in cls.__tm_args__:
             kind = a.choice or (Raw if a.raw else str)
             fields[a.name] = (kind | None, None) if a.optional else (kind, ...)
-        _MODELS[cls] = pydantic.create_model(cls.__name__, **fields)
-        _MODELS[cls].__tm_cls__ = cls  # pyright: ignore[reportAttributeAccessIssue]
-    return _MODELS[cls]
+        _MODELS[cls, comments] = pydantic.create_model(cls.__name__, **fields)
+        _MODELS[cls, comments].__tm_cls__ = cls  # pyright: ignore[reportAttributeAccessIssue]
+    return _MODELS[cls, comments]
 
 
 def _node(value: Any) -> Node:  # noqa: ANN401  # an instance of a model built at run time, or a Command
     if isinstance(value, Command):
         return value
-    cls: type[Environment] = value.__tm_cls__
+    cls: type[Environment] | type[Comment] = value.__tm_cls__
+    if issubclass(cls, Comment):
+        return cls(**{f: getattr(value, f) for f in cls.__tm_fields__})
     args = {a.name: getattr(value, a.name) for a in cls.__tm_args__}
     return cls(*(_node(c) for c in value.content), **args)
 
@@ -72,12 +88,15 @@ def _path(root: str, loc: Sequence[str | int]) -> str:
     return path if index is None else f"{path}/content[{index}]"  # a child no component of the grammar fits
 
 
-def from_dict(cls: type[Command] | type[Environment], data: Mapping[str, object]) -> Node:
-    """The node `data` describes, as an instance of `cls`; raises an `ExceptionGroup` of `ValidationError` (E2)."""
+def from_dict(
+    cls: type[Command] | type[Environment], data: Mapping[str, object], *, comments: Sequence[type[Comment]] = ()
+) -> Node:
+    """The node `data` describes, as an instance of `cls`; raises an `ExceptionGroup` of `ValidationError` (E2).
+    A child may also be a `Comment` (`"type": "Comment"`, `"text"`) or an instance of one of `comments`."""
     try:
         if issubclass(cls, Command):
             return pydantic.TypeAdapter(cls).validate_python(data)  # pyright: ignore[reportUnknownVariableType]
-        return _node(_model(cls).model_validate(data))
+        return _node(_model(cls, tuple(comments)).model_validate(data))
     except pydantic.ValidationError as exc:
         raise ExceptionGroup(
             f"invalid {cls.__name__}",
@@ -91,6 +110,8 @@ def from_dict(cls: type[Command] | type[Environment], data: Mapping[str, object]
 def to_dict(node: Node) -> dict[str, object]:
     """The data of `node`, in the shape `from_dict` reads; an optional field that is `None` is left out."""
     out: dict[str, object] = {"type": type(node).__name__}
+    if isinstance(node, Comment):
+        return out | {f: getattr(node, f) for f in node.__tm_fields__}
     for a in type(node).__tm_args__:
         value = getattr(node, a.name)
         if value is not None:
@@ -100,11 +121,11 @@ def to_dict(node: Node) -> dict[str, object]:
     return out
 
 
-def json_schema(cls: type[Command] | type[Environment]) -> dict[str, Any]:
-    """JSON Schema of the data `from_dict(cls, ...)` accepts; docstrings are descriptions."""
+def json_schema(cls: type[Command] | type[Environment], *, comments: Sequence[type[Comment]] = ()) -> dict[str, Any]:
+    """JSON Schema of the data `from_dict(cls, ..., comments=)` accepts; docstrings are descriptions."""
     if issubclass(cls, Command):
         return pydantic.TypeAdapter(cls).json_schema()
-    return _model(cls).model_json_schema()
+    return _model(cls, tuple(comments)).model_json_schema()
 
 
 __all__ = ["ValidationError", "from_dict", "json_schema", "to_dict"]

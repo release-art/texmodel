@@ -2,6 +2,7 @@
 
 import enum
 
+from texmodel.body import Comment
 from texmodel.components import Command, Environment, Value
 from texmodel.package import Package
 from texmodel.types import Choice, Raw, Text
@@ -83,3 +84,14 @@ class Card(Environment):
     """One card: its front, then its back."""
 
     children = [CardFront, CardBack]
+
+
+class CardHeader(Comment):
+    """The audit block above a card."""
+
+    template = """
+        Card: #name
+          id: #id
+    """
+    name: str
+    id: str

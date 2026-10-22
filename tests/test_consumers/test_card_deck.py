@@ -19,9 +19,9 @@ PICTURE = re.compile(r"\\cdCardImage\{[^}]*\}")
 
 
 def printed(tex: str) -> str:
-    """What a `.tex` prints, to compare: no comments, one space, none inside braces, no picture lines, no `\\vspace`
-    (a layout nudge the generator adds and the package's grammar does not carry)."""
-    tex = re.sub(r"(?<!\\)%[^\n]*", "", tex)
+    """What a `.tex` prints, to compare: no comments but the card audit blocks, one space, none inside braces, no
+    picture lines, no `\\vspace` (a layout nudge the generator adds and the package's grammar does not carry)."""
+    tex = re.sub(r"(?<!\\)%(?! Card: | {3}id: )[^\n]*", "", tex)
     tex = PICTURE.sub("", tex.replace(r"\vspace*{1mm}", ""))
     return re.sub(r" ?([{}]) ?", r"\1", re.sub(r"\s+", " ", tex)).strip()
 
@@ -36,6 +36,14 @@ def test_the_model_prints_what_the_generator_printed_for_every_card():
     assert len(ours) == len(theirs) == 4  # the preamble, then 3 cards
     assert ours[0] == theirs[0], "the preamble prints something else"
     assert [a == b for a, b in zip(ours[1:], theirs[1:], strict=True)] == [True] * 3
+
+
+def test_the_audit_blocks_are_the_models_comment_nodes():
+    audit = re.compile(r"^% Card: .*\n%   id: .*$", re.MULTILINE)
+    assert len(audit.findall(convert.deck())) == 3
+    assert audit.findall(convert.deck()) == audit.findall(legacy.deck())
+    paths = [x.path for x in convert.plan().lines if x.tex.startswith("%") and "id: " in x.tex]
+    assert paths == ["CardHeader[0]", "CardHeader[2]", "CardHeader[4]"]
 
 
 def test_the_picture_paths_follow_the_generators_naming():
@@ -55,7 +63,7 @@ def test_a_hand_edited_slot_is_named_by_card_and_slot_without_reading_the_tex():
     plan = convert.plan()
     assert plan.edits(plan.text) == []
     (found,) = plan.edits(plan.text.replace("scream-like bark.", "scream-like bark (edited).", 1))
-    assert found.path == "Card[0]/CardBack[1]/LabelledSlot[3]"
+    assert found.path == "Card[1]/CardBack[1]/LabelledSlot[3]"
     assert found.expected.endswith("A loud, scream-like bark.}")
     assert found.found.endswith("scream-like bark (edited).}")
 
@@ -65,7 +73,7 @@ def test_a_removed_line_and_an_added_line_are_reported_too():
     lines = plan.text.splitlines()
     dropped = next(i for i, ln in enumerate(lines) if r"\cdName{Garden Snail}" in ln)
     (gone,) = plan.edits("\n".join(lines[:dropped] + lines[dropped + 1 :]))
-    assert (gone.path, gone.found) == ("Card[2]/CardBack[1]/Name[0]", "")
+    assert (gone.path, gone.found) == ("Card[5]/CardBack[1]/Name[0]", "")
     (added,) = plan.edits(plan.text.replace(r"\end{document}", "stray\n" + r"\end{document}"))
     assert (added.expected, added.found) == ("", "stray")
 
@@ -78,14 +86,14 @@ def test_the_baseline_names_a_hand_edit_after_the_cards_have_moved_on(tmp_path):
     project, source = convert.load()
     source[0]["one_liners"][0]["text"] = "Changed in the config."
     today = model.pkg.plan(
-        *(convert.card(n, c) for n, c in enumerate(source, 1)),
+        *convert.body(source),
         settings=convert.settings(project),
         preamble=convert.preamble(project),
     )
     on_disk = convert.deck().replace("scream-like bark.", "scream-like bark (edited).", 1)
     saved = Plan.from_json(baseline.read_text(encoding="utf-8"))
-    assert [e.path for e in saved.edits(on_disk)] == ["Card[0]/CardBack[1]/LabelledSlot[3]"]  # hand edit
-    assert [e.path for e in saved.edits(today.text)] == ["Card[0]/CardBack[1]/LabelledSlot[4]"]  # config moved on
+    assert [e.path for e in saved.edits(on_disk)] == ["Card[1]/CardBack[1]/LabelledSlot[3]"]  # hand edit
+    assert [e.path for e in saved.edits(today.text)] == ["Card[1]/CardBack[1]/LabelledSlot[4]"]  # config moved on
 
 
 def test_known_gap_a_line_triaged_by_a_tool_reads_as_a_hand_edit():
@@ -159,6 +167,9 @@ def test_the_cards_round_trip_through_data_and_the_schema_covers_the_grammar():
 
     for card in convert.nodes():
         assert from_dict(model.Card, to_dict(card)) == card
-    schema = json_schema(model.Card)
-    assert set(schema["$defs"]) >= {"CardFront", "CardBack", "LabelledSlot", "TalkAboutMe"}
+    header = model.CardHeader("Red Fox", "1")
+    inside = model.Card(header, *convert.nodes()[0].content)
+    assert from_dict(model.Card, to_dict(inside), comments=[model.CardHeader]) == inside
+    schema = json_schema(model.Card, comments=[model.CardHeader])
+    assert set(schema["$defs"]) >= {"CardFront", "CardBack", "LabelledSlot", "TalkAboutMe", "CardHeader", "Comment"}
     assert schema["$defs"]["TalkAboutMe"]["required"] == ["question"]

@@ -78,12 +78,12 @@ from ._internal.render import (
     arguments,
     check_name,
 )
-from .body import Hole, Ref, RefKind, TemplateRef, TexRaw, Whitespace, join, pieces_of
+from .body import Comment, Hole, Ref, RefKind, TemplateRef, TexRaw, Whitespace, join, pieces_of
 from .errors import DeclarationError, Violation
 from .types import CMYK, RGB, TEXT, Choice, Colour, Gray, Length, Raw, Text
 
-type Node = Command | Environment
-Source = tuple[tuple[TexRaw | Ref, ...], str]  # a body's pieces and where they came from
+type Node = Command | Environment | Comment
+Source = tuple[tuple[TexRaw | Ref | Comment, ...], str]  # a body's pieces and where they came from
 
 
 @dataclasses.dataclass(frozen=True)
@@ -146,11 +146,11 @@ def _document(cls: type) -> str:
     return doc
 
 
-def _source(cls: type, name: str) -> tuple[tuple[TexRaw | Ref, ...], str] | None:
+def _source(cls: type, name: str) -> Source | None:
     """The class's own `body` / `begin` / `end` as (pieces, origin), or None.
 
-    It is a string, a `TemplateRef` (the file is read now), a `TexRaw`, a `Ref`, a sequence, iterator or generator of
-    those, or a method returning any of them. A field of that name is not a body.
+    It is a string, a `TemplateRef` (the file is read now), a `TexRaw`, a `Ref`, a `Comment`, a sequence, iterator or
+    generator of those, or a method returning any of them. A field of that name is not a body.
     """
     found: object = cls.__dict__.get(name)
     if found is None or name in inspect.get_annotations(cls):
@@ -168,13 +168,13 @@ def _source(cls: type, name: str) -> tuple[tuple[TexRaw | Ref, ...], str] | None
     if (given := pieces_of(found)) is None:
         got = type(found).__name__
         raise DeclarationError(
-            f"{cls.__qualname__}.{name}: must be TeX (a string, a TemplateRef, a TexRaw, a Ref, a sequence of them, "
-            f"or a method returning one), not {got}",
+            f"{cls.__qualname__}.{name}: must be TeX (a string, a TemplateRef, a TexRaw, a Ref, a Comment, a sequence "
+            f"of them, or a method returning one), not {got}",
             code="TM-M021",
             path=cls.__name__,
         )
     origins: list[str] = []
-    out: list[TexRaw | Ref] = []
+    out: list[TexRaw | Ref | Comment] = []
     for piece in given:
         if isinstance(piece, TemplateRef):
             path = (
@@ -190,7 +190,7 @@ def _source(cls: type, name: str) -> tuple[tuple[TexRaw | Ref, ...], str] | None
                 ) from exc
             origins.append(piece.path.name)
         else:
-            out.append(piece if isinstance(piece, TexRaw | Ref) else TexRaw(piece))
+            out.append(piece if isinstance(piece, TexRaw | Ref | Comment) else TexRaw(piece))
             origins.append("inline")
     return tuple(out), " + ".join(dict.fromkeys(origins))
 
@@ -344,7 +344,7 @@ def _ref_text(ref: Ref, owner: str) -> str:
     }[ref.kind]
 
 
-def _repr(node: Node) -> str:
+def _repr(node: Command | Environment) -> str:
     """The constructor expression that rebuilds the node (D1): required fields positional, optional ones by keyword."""
     shown = [repr(c) for c in node.content] if isinstance(node, Environment) else []
     for a in type(node).__tm_args__:
@@ -423,7 +423,7 @@ def _kind(hint: Any) -> str | type[Choice] | None:
     return "raw" if members and all(m is Raw for m in members) else None
 
 
-def _violations(node: Node, path: str) -> list[Violation]:
+def _violations(node: Command | Environment, path: str) -> list[Violation]:
     cls = type(node)
     out: list[Violation] = []
     for a in cls.__tm_args__:
@@ -440,14 +440,16 @@ def _violations(node: Node, path: str) -> list[Violation]:
 
 
 def _grammar_violations(node: Environment, path: str) -> list[Violation]:
-    """Match the children against the grammar: each term takes its run of that component, in order."""
-    grammar, content = type(node).__tm_grammar__, node.content
+    """Match the children against the grammar: each term takes its run of that component, in order. A `Comment` is
+    skipped, and every path keeps the child's real position."""
+    grammar = type(node).__tm_grammar__
+    content = [(j, c) for j, c in enumerate(node.content) if not isinstance(c, Comment)]
     allowed = ", ".join(map(str, grammar)) or "nothing"
     out: list[Violation] = []
     i = 0
     for term in grammar:
         n = 0
-        while i < len(content) and (term.hi is None or n < term.hi) and type(content[i]) is term.kind:
+        while i < len(content) and (term.hi is None or n < term.hi) and type(content[i][1]) is term.kind:
             i, n = i + 1, n + 1
         if n < term.lo:
             out.append(
@@ -455,8 +457,8 @@ def _grammar_violations(node: Environment, path: str) -> list[Violation]:
                     "TM-C002", path, f"{type(node).__name__}: expected {term}, found {n}", hint=f"allowed: {allowed}"
                 )
             )
-    for j in range(i, len(content)):
-        found = type(content[j]).__name__
+    for j, child in content[i:]:
+        found = type(child).__name__
         out.append(
             Violation(
                 "TM-C001",
@@ -468,13 +470,15 @@ def _grammar_violations(node: Environment, path: str) -> list[Violation]:
     return out
 
 
-def _render(node: Node) -> str:
+def _render(node: Command | Environment) -> str:
     if violations := _violations(node, type(node).__name__):
         raise ExceptionGroup(f"invalid {type(node).__name__}", [v.error() for v in violations])
     return _emit(node)
 
 
 def _emit(node: Node) -> str:
+    if isinstance(node, Comment):
+        return node.render()
     cls = type(node)
     name = f"{_prefix(cls)}{cls.__name__}"
     args = arguments(cls.__tm_args__, {a.name: getattr(node, a.name) for a in cls.__tm_args__})

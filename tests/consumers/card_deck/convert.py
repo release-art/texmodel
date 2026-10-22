@@ -59,9 +59,14 @@ def nodes(folder: pathlib.Path = HERE) -> tuple[model.Card, ...]:
     return tuple(card(n, c) for n, c in enumerate(load(folder)[1], 1))
 
 
+def body(cards: list[dict[str, Any]]) -> tuple[model.CardHeader | model.Card, ...]:
+    """Each card under its audit block."""
+    return tuple(node for n, c in enumerate(cards, 1) for node in (model.CardHeader(c["name"], c["id"]), card(n, c)))
+
+
 def plan(folder: pathlib.Path = HERE) -> Plan:
-    project = load(folder)[0]
-    return model.pkg.plan(*nodes(folder), settings=settings(project), preamble=preamble(project))
+    project, cards = load(folder)
+    return model.pkg.plan(*body(cards), settings=settings(project), preamble=preamble(project))
 
 
 def deck(folder: pathlib.Path = HERE) -> str:

@@ -17,11 +17,13 @@ def body(self):
 import dataclasses
 import enum
 import os
+import re
 import textwrap
 from collections.abc import Callable, Generator, Iterator, Sequence
 from pathlib import Path
+from typing import ClassVar, dataclass_transform
 
-from .errors import DeclarationError
+from .errors import DeclarationError, Violation
 
 
 @enum.unique
@@ -87,17 +89,84 @@ class Ref:
         return dataclasses.replace(self, whitespace=whitespace)
 
 
-type BodyPiece = TexRaw | str | TemplateRef | Ref
+_COMMENT_HOLE = re.compile(r"##|#(?P<name>[A-Za-z_]\w*)")
+
+
+@dataclass_transform(frozen_default=True)
+class Comment:
+    """A comment (§21a 21): every line it renders starts with `% `, so no value can leave it, and nothing is escaped.
+    `Comment("note")` is a text; a subclass declares fields and a `template` with `#name` holes (`##` is a `#`):
+
+    ```python
+    class CardHeader(Comment):
+        '''The audit block above a card.'''
+        template = "Card: #name"
+        name: str
+    ```
+
+    As a body piece it renders its lines in place; as a child of an environment or a top-level node of a document it is
+    transparent to the grammar. It claims no control sequence, so no package registers it. A hole that is not a field,
+    or a field the template never uses, is refused when the class is defined (`TM-M028`)."""
+
+    template: ClassVar[str] = "#text"
+    __tm_fields__: ClassVar[tuple[str, ...]] = ("text",)
+    text: str
+
+    def __init__(self, text: str) -> None:
+        object.__setattr__(self, "text", textwrap.dedent(text).strip("\n"))
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        if "template" not in cls.__dict__:
+            raise DeclarationError(f"{cls.__qualname__}: no template", code="TM-M028", path=cls.__name__)
+        cls.template = textwrap.dedent(cls.template).strip("\n")
+        dataclasses.dataclass(frozen=True)(cls)
+        cls.__tm_fields__ = tuple(f.name for f in dataclasses.fields(cls))  # pyright: ignore[reportArgumentType]
+        holes = {m["name"] for m in _COMMENT_HOLE.finditer(cls.template) if m["name"]}
+        if wrong := sorted(holes ^ set(cls.__tm_fields__)):
+            raise DeclarationError(
+                f"{cls.__qualname__}: holes and fields differ: {wrong} (a hole must be a field, a field must be used)",
+                code="TM-M028",
+                path=cls.__name__,
+                hint="use #name for each field, ## for a literal #",
+            )
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise dataclasses.FrozenInstanceError(name)
+
+    def __eq__(self, other: object) -> bool:
+        return type(other) is type(self) and other.text == self.text  # pyright: ignore[reportAttributeAccessIssue]
+
+    def __hash__(self) -> int:
+        return hash((type(self), self.text))
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.text!r})"
+
+    def validate(self) -> list[Violation]:
+        """A comment breaks no rule."""
+        return []
+
+    def lines(self) -> tuple[str, ...]:
+        """The comment, one `% ` line per line of the filled template (a blank line is `%`)."""
+        filled = _COMMENT_HOLE.sub(lambda m: "#" if m[0] == "##" else getattr(self, m["name"]), self.template)
+        return tuple(f"% {line}".rstrip() for line in filled.strip("\n").splitlines())
+
+    def render(self) -> str:
+        return "\n".join(self.lines())
+
+
+type BodyPiece = TexRaw | str | TemplateRef | Ref | Comment
 type BodyT = BodyPiece | Sequence[BodyPiece] | Iterator[BodyPiece] | Generator[BodyPiece]
 
 
 def pieces_of(value: object) -> tuple[BodyPiece, ...] | None:
     """The pieces of what a body gave, or `None` if it is not a body."""
-    if isinstance(value, TexRaw | str | TemplateRef | Ref):
+    if isinstance(value, TexRaw | str | TemplateRef | Ref | Comment):
         return (value,)
     if isinstance(value, Sequence | Iterator):
         found = tuple(value)  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
-        if all(isinstance(p, TexRaw | str | TemplateRef | Ref) for p in found):  # pyright: ignore[reportUnknownVariableType]
+        if all(isinstance(p, TexRaw | str | TemplateRef | Ref | Comment) for p in found):  # pyright: ignore[reportUnknownVariableType]
             return found  # pyright: ignore[reportUnknownVariableType]
     return None
 
@@ -109,10 +178,15 @@ def _trim(line: str) -> str:
     return f"{line}%"
 
 
-def join(pieces: Sequence[TexRaw | Ref], default: Whitespace, owner: str, ref_text: Callable[[Ref], str]) -> str:
+def join(
+    pieces: Sequence[TexRaw | Ref | Comment], default: Whitespace, owner: str, ref_text: Callable[[Ref], str]
+) -> str:
     """The text of a body: pieces joined by newlines, each with its policy applied; `ref_text` writes a `Ref`."""
     out: list[str] = []
     for piece in pieces:
+        if isinstance(piece, Comment):
+            out.extend(piece.lines())
+            continue
         policy = piece.whitespace or default
         if isinstance(piece, Ref):
             out.append(_trim(ref_text(piece)) if policy is Whitespace.TRIM else ref_text(piece))

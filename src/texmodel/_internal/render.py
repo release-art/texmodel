@@ -109,7 +109,8 @@ def rewrite_body(spec: Spec | EnvSpec, body: str) -> str:
         used.add(m["name"])
         return f"#{position[m['name']]}"
 
-    text = _HOLE.sub(sub, body)
+    # a comment line is not TeX: its `#` are text (a `Comment` body piece may hold any)
+    text = "\n".join(ln if ln.lstrip().startswith("%") else _HOLE.sub(sub, ln) for ln in body.split("\n"))
     if unused := sorted(set(position) - used - set(spec.unused)):
         raise DeclarationError(
             f"{spec.qualname}: body never uses {unused}; use them, or list them in unused=(...)",
