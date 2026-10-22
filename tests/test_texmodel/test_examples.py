@@ -4,7 +4,6 @@ import importlib
 import os
 import pathlib
 import re
-import sys
 
 import pytest
 
@@ -13,13 +12,10 @@ NAMES = sorted(p.name for p in EXAMPLES.iterdir() if (p / "__init__.py").is_file
 _STAMP = re.compile(r"generated with texmodel \d+\.\d+\.\d+")
 
 
-def produced(name: str) -> dict[str, str]:
+def produced(name: str, monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
     """The files an example generates, with the generator version masked so a release does not churn the goldens."""
-    sys.path.insert(0, str(EXAMPLES))
-    try:
-        module = importlib.import_module(name)
-    finally:
-        sys.path.remove(str(EXAMPLES))
+    monkeypatch.syspath_prepend(str(EXAMPLES))
+    module = importlib.import_module(name)
     files = {f"{module.pkg.name}.sty": module.pkg.render(), **{f"{n}.tex": t for n, t in module.documents.items()}}
     return {path: _STAMP.sub("generated with texmodel X.Y.Z", text) for path, text in files.items()}
 
@@ -29,9 +25,9 @@ def test_there_are_examples():
 
 
 @pytest.mark.parametrize("name", NAMES)
-def test_an_example_renders_to_its_golden(name):
+def test_an_example_renders_to_its_golden(name, monkeypatch):
     expected = EXAMPLES / name / "expected"
-    files = produced(name)
+    files = produced(name, monkeypatch)
     if os.environ.get("UPDATE_GOLDEN"):
         expected.mkdir(exist_ok=True)
         for old in expected.iterdir():

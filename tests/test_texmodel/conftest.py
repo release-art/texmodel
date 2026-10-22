@@ -1,5 +1,4 @@
 import pathlib
-import sys
 
 import pytest
 
@@ -9,9 +8,7 @@ FIXTURES = pathlib.Path(__file__).parent.parent / "fixtures"
 @pytest.fixture(scope="session")
 def acme():
     """The fixture package (tests/fixtures/acme_cards), imported once."""
-    sys.path.insert(0, str(FIXTURES))
-    try:
+    with pytest.MonkeyPatch.context() as monkeypatch:  # session scope, so not the function-scoped fixture
+        monkeypatch.syspath_prepend(str(FIXTURES))
         import acme_cards  # pyright: ignore[reportMissingImports]
-    finally:
-        sys.path.remove(str(FIXTURES))
     return acme_cards
