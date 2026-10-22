@@ -261,3 +261,20 @@ def test_a_pointer_names_one_package_or_a_family_of_distinct_names(family):
         load_packages(["fam:core", "other:core"], family)
     with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-D022"):
         load_package("fam:Fact", family)
+
+
+def test_the_header_may_have_no_date_and_carry_a_text_of_its_own():
+    head = (
+        Package("hd-demo", prefix="hd", date=None, header="Property of the studio.\nDo not forward.")
+        .render()
+        .splitlines()
+    )
+    assert head[0].startswith("% hd-demo.sty -- generated with texmodel")
+    assert head[1:5] == [
+        "% Property of the studio.",
+        "% Do not forward.",
+        "\\NeedsTeXFormat{LaTeX2e}",
+        "\\ProvidesPackage{hd-demo}[v0.0.0 hd-demo]",
+    ]
+    with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-P003"):
+        Package("hd-demo", prefix="hd", date="soon")

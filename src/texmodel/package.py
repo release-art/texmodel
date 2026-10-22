@@ -108,8 +108,9 @@ class Package:
         *,
         prefix: str,
         version: str = "0.0.0",
-        date: str = "1970/01/01",
+        date: str | None = "1970/01/01",
         description: str = "",
+        header: str = "",
         document_class: str = "article",
         adopted: bool = False,
         builtin: bool = False,
@@ -119,11 +120,12 @@ class Package:
             raise DeclarationError(f"package name {name!r} must match [a-z][a-z0-9-]*", code="TM-P001")
         if not _PREFIX.fullmatch(prefix):
             raise DeclarationError(f"prefix {prefix!r} must be lowercase letters, or empty", code="TM-P002")
-        if not _DATE.fullmatch(date):
+        if date is not None and not _DATE.fullmatch(date):
             raise DeclarationError(f"date {date!r} must be YYYY/MM/DD (\\ProvidesPackage's date slot)", code="TM-P003")
         if not _NAME.fullmatch(document_class):
             raise DeclarationError(f"document class {document_class!r} must match [a-z][a-z0-9-]*", code="TM-P004")
         self.name, self.prefix, self.version, self.date, self.description = name, prefix, version, date, description
+        self.header = header  # comment lines under the generator's line, for what the file's readers should know
         self.document_class = document_class
         self.whitespace = whitespace  # the policy of a body piece that names none (M8)
         self.adopted = adopted  # the `.sty` is hand-written; components only declare it (M9)
@@ -307,7 +309,9 @@ class Package:
                 check_references(self.prefix, s, s.body, self._controls)
             elif isinstance(s, EnvSpec):
                 check_references(self.prefix, s, s.begin + "\n" + s.end, self._controls)
-        head = header_lines(self.name, self.version, self.date, self.description, stamp(version or generator_version()))
+        head = header_lines(
+            self.name, self.version, self.date, self.description, stamp(version or generator_version()), self.header
+        )
         requires = require_lines(self.require_entries())
         lines = [
             *(Line("header", tex) for tex in head),

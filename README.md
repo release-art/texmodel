@@ -34,6 +34,7 @@ from texmodel.package import Package
 from texmodel.types import CMYK, Colour, Length, Text
 
 pkg = Package("acme-cards", prefix="ac", version="1.4.0", date="2026/10/21")
+# `date=None` leaves the date out of \ProvidesPackage; `header="..."` adds comment lines under the generator's line
 
 @pkg.value
 class FactGap(Value[Length]):

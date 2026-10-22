@@ -485,12 +485,14 @@ def check_references(prefix: str, spec: Spec | EnvSpec, text: str, declared: Map
         )
 
 
-def header_lines(name: str, version: str, date: str, description: str, stamp: str) -> list[str]:
-    """The first three lines of a generated `.sty`."""
+def header_lines(name: str, version: str, date: str | None, description: str, stamp: str, text: str = "") -> list[str]:
+    """The head of a generated `.sty`: the generator's line, then `text` as comment lines (the package's own header, if
+    any), `\\NeedsTeXFormat` and `\\ProvidesPackage`, whose date slot is left out when the package has no date."""
     return [
         f"% {name}.sty -- {stamp}. Do not edit; run `texmodel build`.",
+        *_comment(text),
         "\\NeedsTeXFormat{LaTeX2e}",
-        f"\\ProvidesPackage{{{name}}}[{date} v{version} {description or name}]",
+        f"\\ProvidesPackage{{{name}}}[{f'{date} ' if date else ''}v{version} {description or name}]",
     ]
 
 
