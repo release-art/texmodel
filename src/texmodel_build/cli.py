@@ -125,7 +125,7 @@ def main(verbose: int = typer.Option(0, "--verbose", "-v", count=True, help="-v 
 @app.command()
 def version() -> None:
     """Print the installed version."""
-    typer.echo(importlib.metadata.version("texmodel-build"))
+    typer.echo(importlib.metadata.version("texmodel"))
 
 
 def _image_status(tag: str) -> dict[str, Any]:
