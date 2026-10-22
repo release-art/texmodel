@@ -9,12 +9,12 @@ from typing import Annotated, Any
 
 import typer
 
-from ._internal.loader import load_document, load_package
 from .config import Config, load_config
 from .drift import check_drift
 from .errors import DeclarationError, TexmodelError, ValidationError
 from .package import Package, generator_version
 from .plan import Plan
+from .pointer import load_document, load_package
 
 app = typer.Typer(pretty_exceptions_enable=False, help="Typed models for LaTeX.", no_args_is_help=True)
 
@@ -85,23 +85,40 @@ def build() -> None:
         typer.echo(f"wrote {path.relative_to(root)}")
 
 
+def _write(rendered: str | Plan, target: pathlib.Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(rendered.text if isinstance(rendered, Plan) else rendered, encoding="utf-8")
+    typer.echo(f"wrote {target}")
+
+
 @app.command()
 @_exits
 def render(
     document: Annotated[
-        str,
+        str | None,
         typer.Argument(
-            help="Pointer (module:object, module:getter()) to a str or Plan from Package.document() / plan()."
+            help="Pointer (module:object, module:getter()) to a str or Plan from Package.document() / plan(). "
+            "Without one, every [tool.texmodel.documents] entry is written to its path."
         ),
-    ],
+    ] = None,
     output: Annotated[pathlib.Path | None, typer.Option("--output", "-o", help="Default <attribute>.tex.")] = None,
 ) -> None:
-    """Write a document to a .tex file. An invalid document reports every violation and exits 2."""
-    target = output or pathlib.Path(f"{document.partition(':')[2].removesuffix('()').rpartition('.')[2]}.tex")
-    rendered = load_document(document, pathlib.Path.cwd())
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(rendered.text if isinstance(rendered, Plan) else rendered, encoding="utf-8")
-    typer.echo(f"wrote {target}")
+    """Write a document to a .tex file, or all configured documents. An invalid document reports every violation and
+    exits 2."""
+    root = pathlib.Path.cwd()
+    if document is not None:
+        target = output or pathlib.Path(f"{document.partition(':')[2].removesuffix('()').rpartition('.')[2]}.tex")
+        _write(load_document(document, root), target)
+        return
+    documents = load_config(root / "pyproject.toml").documents
+    if output or not documents:
+        raise DeclarationError(
+            "no document to render" if not documents else "--output needs a document pointer",
+            code="TM-D031",
+            hint='pass a pointer, or declare [tool.texmodel.documents] "deck.tex" = "module:plan()"',
+        )
+    for name, pointer in sorted(documents.items()):
+        _write(load_document(pointer, root), root / name)
 
 
 def _check_interface(root: pathlib.Path, config: Config, package: Package) -> bool:

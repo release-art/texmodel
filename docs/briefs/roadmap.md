@@ -9,7 +9,7 @@ dependency graph; batches in different lines touch different files and may run i
 0 hygiene
 A line:  A1 references ──> A2 emitter ──> A3 stub tests      A4 Comment node (independent)
 B line:  B1 documents CLI        B2 measure         B3 grammar hatches
-C line:  C1 scanner reach        C2 preamble types  C3 small types       C4 package schema + aliases
+C line:  C1 scanner reach (low priority)  C2 preamble types  C3 small types       C4 package schema + aliases
 D line:  D1 source maps for .sty D2 doctor for .sty
 Needs an owner decision first:  X1 data-driven render   X2 hand-edit semantics   X3 rules layer   X4 List
 ```
@@ -143,7 +143,10 @@ stop stripping comments in `printed()` for the model side.
 
 ---
 
-## B1. Documents in the CLI (plan 5, 3)
+## B1. Documents in the CLI (plan 5, 3) — built 2026-10-22
+
+Built: `texmodel/pointer.py`, render-all, `--plan`, target `plan =`. Not built: the package-warning file stack (TeX wraps
+log lines, so it is not reliably recoverable); `Compiler` keeps the documented "assume the source file" rule.
 
 **Depends on.** Nothing. **Touches.** `cli.py`, `config.py`, `_internal/loader.py` (expose a public pointer loader, e.g.
 `texmodel/pointer.py`, so the harness can use it without importing `_internal`), `harness/.../cli.py`, `compiler.py`, tests.
@@ -185,6 +188,10 @@ paths; `from_dict`/`to_dict` round trip; schema.
 ---
 
 ## C1. Adoption scanner reach (plan 8)
+
+**Priority: low.** Reading existing TeX is secondary: the interface of a hand-written package is declared and reviewed by
+hand, so the scanner need not cover every form. Run this batch last, or only when a real package needs one form; do not
+add scanner complexity otherwise.
 
 **Depends on.** Nothing. **Touches.** `_internal/scan.py`, `package.py`, `cli.py`, tests.
 **Decisions made.**
@@ -256,6 +263,6 @@ list with the `tlmgr install` line. Exit 3 if any are missing. No network use.
 
 ## Suggested order
 
-0, then A1, A4, B1, B2, C1, C2, A2, B3, C3, C4, D1, D2, A3. A1 first because three batches need its references; the rest are
+0, then A1, A4, B1 (built), B2, C2, A2, B3, C3, C4, D1, D2, A3, and C1 last (low priority). A1 first because three batches need its references; the rest are
 ordered so that batches touching `cli.py`/`package.py` do not run at the same time. Between batches: run the gates, read the
 report, then start the next.

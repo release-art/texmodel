@@ -1,10 +1,13 @@
 import json
 import shutil
+import sys
 
 import pytest
 from typer.testing import CliRunner
 
 from texmodel_build import cli
+from texmodel_build.compiler import Compiler
+from texmodel_build.config import Target
 from texmodel_build.targets import build_targets
 
 runner = CliRunner()
@@ -107,9 +110,6 @@ def test_build_refuses_unknown_or_missing_targets(toolchain, project):
 
 
 def test_build_targets_summary_lines(toolchain, project):
-    from texmodel_build.compiler import Compiler
-    from texmodel_build.config import Target
-
     summary = build_targets([Target(name="a", source="card.tex")], Compiler(), root=project, outdir=project / "o")
     assert summary.ok and summary.lines()[0].startswith("ok     a: 0 error(s), 1 page(s)")
 
@@ -141,3 +141,44 @@ def test_doctor_reports_an_unusable_image(toolchain, project, monkeypatch):
     result = runner.invoke(cli.app, ["doctor"])
     assert result.exit_code == 3 and "image   img:1:" in result.stdout and "docker pull img:1" in result.stdout
     assert json.loads(runner.invoke(cli.app, ["doctor", "--json"]).stdout)["image"]["ok"] is False
+
+
+UNDEFINED = (
+    "./card.tex:2: Undefined control sequence.\nl.2 \\x\n(1 page)\nOutput written on card.pdf (1 page, 9 bytes).\n"
+)
+
+
+@pytest.fixture
+def planned(project, monkeypatch):
+    """`card.tex` is the text of a Plan the module `cardplan` builds."""
+    (project / "cardplan.py").write_text(
+        "from texmodel.plan import Line, Plan\n"
+        "def plan():\n    return Plan((Line('header', '%'), Line('Card[0]/Name[0]', 'x')))\n"
+        "def text():\n    return 'plain'\n"
+    )
+    yield project
+    sys.modules.pop("cardplan", None)
+
+
+def test_compile_with_a_plan_names_the_component_behind_a_diagnostic(toolchain, planned):
+    toolchain.log = (
+        "./card.tex:2: Undefined control sequence.\nl.2 \\x\n(1 page)\nOutput written on card.pdf (1 page, 9 bytes).\n"
+    )
+    bad = runner.invoke(cli.app, ["compile", "card.tex", "--plan", "cardplan:plan()"])
+    assert bad.exit_code == 1 and "[Card[0]/Name[0]]" in bad.stdout
+    wrong = runner.invoke(cli.app, ["compile", "card.tex", "--plan", "cardplan:text()"])
+    assert wrong.exit_code == 2 and "TM-D025" in wrong.stderr
+
+
+def test_a_target_may_name_the_plan_behind_its_source(toolchain, planned):
+    (planned / "pyproject.toml").write_text(
+        '[tool.texmodel-build]\n[tool.texmodel-build.targets.card]\nsource = "card.tex"\nplan = "cardplan:plan()"\n'
+    )
+    toolchain.log = (
+        "./card.tex:2: Undefined control sequence.\nl.2 \\x\n(1 page)\nOutput written on card.pdf (1 page, 9 bytes).\n"
+    )
+    assert runner.invoke(cli.app, ["build", "card", "--local"]).exit_code == 1
+    summary = build_targets(
+        [Target(name="card", source="card.tex", plan="cardplan:plan()")], Compiler(), root=planned, outdir=planned / "o"
+    )
+    assert summary.results["card"].diagnostics[0].path == "Card[0]/Name[0]"

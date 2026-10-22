@@ -57,7 +57,8 @@ class ImageInfo:
 
 def _located(diagnostic: Diagnostic, source: pathlib.Path, plan: Plan) -> Diagnostic:
     """Add the plan's path for the diagnostic's line. A line with no file (a package's `on input line N`) is taken to be
-    in `source`; ponytail: a package warning raised inside another file is then mislabelled."""
+    in `source`; ponytail: a package warning raised inside another file is then mislabelled (the `(./file.tex` stack
+    is not recovered from the log: TeX wraps log lines, so counting parentheses is not reliable)."""
     here = diagnostic.file is None or pathlib.PurePath(diagnostic.file).name == source.name
     if diagnostic.line is None or not here or not 1 <= diagnostic.line <= len(plan.lines):
         return diagnostic

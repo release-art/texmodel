@@ -89,3 +89,27 @@ def test_a_missing_document_and_a_stale_str_document_fail(project):
 def test_render_writes_the_text_of_a_plan(project):
     render_both()
     assert (project / "deck.tex").read_text() == __import__("docmod").plan().text
+
+
+def test_render_without_a_pointer_writes_every_configured_document(project):
+    result = runner.invoke(cli.app, ["render"])
+    assert result.exit_code == 0 and "wrote " in result.stdout
+    assert (project / "deck.tex").read_text() == __import__("docmod").plan().text
+    assert (project / "one.tex").read_text() == __import__("docmod").text()
+    assert runner.invoke(cli.app, ["check"]).exit_code == 0
+
+
+def test_render_without_a_pointer_needs_documents_and_refuses_output(project):
+    refused = runner.invoke(cli.app, ["render", "-o", "x.tex"])
+    assert refused.exit_code == 2 and "TM-D031" in refused.stderr
+    (project / "pyproject.toml").write_text('[tool.texmodel]\nprefix = "dd"\n')
+    assert "TM-D031" in runner.invoke(cli.app, ["render"]).stderr
+
+
+def test_a_plan_pointer_must_name_a_plan(project):
+    from texmodel.errors import DeclarationError
+    from texmodel.pointer import load_plan
+
+    assert load_plan("docmod:plan()", project).lines
+    with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-D025"):
+        load_plan("docmod:text()", project)

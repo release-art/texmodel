@@ -19,6 +19,7 @@ class Target:
     engine: str = "lualatex"
     variant: str = ""
     profile: str = ""  # verifier profile
+    plan: str = ""  # pointer to the `Plan` behind `source`: diagnostics then name the component (B1)
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)

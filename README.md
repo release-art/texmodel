@@ -269,7 +269,8 @@ Everything wrong comes at once as an `ExceptionGroup` of `ValidationError` (`TM-
 
 `texmodel check` renders each pointer from today's model and compares it with the committed file, like `terraform plan`:
 for a `Plan` every difference names the component that writes the line (`changed  deck.tex Card[1]/CardBack[1]/LabelledSlot[3]: ...`),
-so a hand edit and a stale render read the same; a `str` is compared whole. Exit 1 on any difference; `texmodel render` rewrites.
+so a hand edit and a stale render read the same; a `str` is compared whole. Exit 1 on any difference; `texmodel render` with no
+pointer rewrites every configured document.
 
 ### Comments
 
@@ -303,7 +304,7 @@ if the model has changed since, and `plan.path_of(39)` names the component behin
 that for every diagnostic in the source: `diagnostic.path` is the component behind its line.
 
 `texmodel.bundle` copies a manifest of files and refuses if any is missing (`stale` compares bytes, not timestamps);
-`texmodel.drift` is what `check` uses.
+`texmodel.drift` is what `check` uses; `texmodel.pointer` resolves `module:object` pointers (a package, a document, a `Plan`).
 
 ## texmodel-build
 
@@ -311,6 +312,7 @@ that for every diagnostic in the source: `diagnostic.path` is the component behi
 texmodel-build doctor                       # tools on this machine, and what the configured image has
 texmodel-build compile doc.tex              # exit 0 ok, 1 errors in the document, 3 tool or image missing
 texmodel-build compile doc.tex --json --epoch 1700000000 --root generated
+texmodel-build compile deck.tex --plan "deck.build:plan()"   # diagnostics name the component: [Card[1]/CardBack[1]/Name[0]]
 texmodel-build build -j 4                   # every [tool.texmodel-build.targets.*]
 texmodel-build verify out/*.pdf             # verifier plugins; anything unconfirmable fails
 ```

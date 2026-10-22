@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Documents in the CLI (B1): `texmodel render` with no pointer writes every `[tool.texmodel.documents]` entry to its path;
+  `texmodel-build compile --plan <pointer>` and a target's `plan = "<pointer>"` give diagnostics the component path.
+  `texmodel.pointer` (`load_package`, `load_document`, `load_plan`) is public so the harness reads the same pointers.
 - `Comment` (§21a 21): `texmodel.body.Comment(text)` prefixes every line with `% `; a subclass declares fields and a `#name`
   `template` (`TM-M028` for a hole that is not a field or a field never used). It is a body piece and a document node
   that is transparent to the grammar and has a plan path; `Plan.edits(text, ignore_comments=True)`; `from_dict` and

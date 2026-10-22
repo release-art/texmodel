@@ -5,6 +5,8 @@ import pathlib
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
 
+from texmodel.pointer import load_plan
+
 from .compiler import Compiler
 from .config import Target
 from .engines import get_engine
@@ -34,7 +36,8 @@ def build_targets(
 
     def one(target: Target) -> CompileResult:
         mine = dataclasses.replace(compiler, engine=get_engine(target.engine))
-        return mine.compile(root / target.source, outdir / target.name)
+        plan = load_plan(target.plan, root) if target.plan else None
+        return mine.compile(root / target.source, outdir / target.name, plan=plan)
 
     with ThreadPoolExecutor(max_workers=max(1, jobs)) as pool:
         return BuildSummary({t.name: r for t, r in zip(chosen, pool.map(one, chosen), strict=True)})

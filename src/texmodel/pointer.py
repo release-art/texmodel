@@ -1,4 +1,5 @@
-"""Find what a project names with a pointer: its `Package` (`[tool.texmodel] package`) or a document."""
+"""Find what a project names with a pointer (`module:object`, `module:getter()`): its `Package`, a document or a `Plan`.
+Public, so the build harness reads the same pointers."""
 
 import importlib
 import pathlib
@@ -6,9 +7,9 @@ import re
 import sys
 from typing import Any
 
-from ..errors import DeclarationError
-from ..package import Package
-from ..plan import Plan
+from .errors import DeclarationError
+from .package import Package
+from .plan import Plan
 
 _POINTER = re.compile(
     r"(?P<module>[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*):(?P<attr>[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)(?P<call>\(\))?"
@@ -55,3 +56,15 @@ def load_document(spec: str, root: pathlib.Path) -> str | Plan:
             hint="point at a str or Plan from Package.document() / plan(), or a function returning one",
         )
     return text
+
+
+def load_plan(spec: str, root: pathlib.Path) -> Plan:
+    """The `Plan` a pointer names (`Package.plan()`), for the line-to-component map of a diagnostic (B2, D2)."""
+    found = load_document(spec, root)
+    if not isinstance(found, Plan):
+        raise DeclarationError(
+            f"{spec!r} is a str, not a Plan",
+            code="TM-D025",
+            hint="point at Package.plan(...) (or a function returning one): a str has no line-to-component map",
+        )
+    return found

@@ -1010,15 +1010,16 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
    types it (`PackageWarning`) but the consumer reads the numbers by regex. Idea: a declared parser per package (message
    shape to named measurements), or a probe convention the package can adopt; verdict per item against a declared bound.
 3. **Automatic diagnostic mapping.** Built 2026-10-22: `Compiler.compile(..., plan=)` adds `path` to every diagnostic located in
-   the source (C11). Open: a package warning's `input line N` has no file, so one raised inside another file is mislabelled;
-   the CLI has no way to pass a plan (it needs the baseline workflow, item 5); diagnostics from `.sty` files get no path.
+   the source (C11); the CLI passes a plan with `--plan` or a target's `plan =` (B1). Open: a package warning's `input line N`
+   has no file, so one raised inside another file is mislabelled (the log's file stack is not recovered: TeX wraps log lines); diagnostics from `.sty` files get no path.
 4. **Grammar escape hatches.** Ordered runs cannot say "this item may appear anywhere, any number of times" (a section
    header) or hold a raw child (a layout `\vspace`). Ideas: an `Anywhere(X)` term; a `Raw` node allowed in a grammar by
    declaration; interleaving of two runs. Without it a model cannot match a generator's layout, only its text.
 5. **Documents in the CLI.** Built 2026-10-22 without a baseline file (the model is the reference, as in `terraform plan`):
    `[tool.texmodel.documents]` maps a committed `.tex` to a pointer returning a `Plan`; `texmodel check` names each difference
-   by component path. Open: telling a hand edit from a config change needs the old render (a saved plan or git); passing a
-   plan pointer to `texmodel-build compile` so diagnostics print paths; `texmodel render` for every configured document at once.
+   by component path. Also built 2026-10-22 (B1): `texmodel render` with no pointer writes every configured document;
+   `texmodel-build compile --plan` and a target's `plan =` print paths. Open: telling a hand edit from a config change needs the
+   old render (a saved plan or git).
 6. **Hand-edit semantics.** The old regex tool separated a hand edit from a config change, matched cards by id, ignored a
    triage tool's marker comment, and produced the config edit that imports a hand edit. Ideas: keyed children (path by id,
    not position), a declared "comment marker to ignore" on the plan comparison, and an `import` hook that maps a path to a

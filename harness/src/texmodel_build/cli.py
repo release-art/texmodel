@@ -13,6 +13,7 @@ from typing import Annotated, Any
 import typer
 
 from texmodel.errors import DeclarationError, TexmodelError
+from texmodel.pointer import load_plan
 
 from .compiler import Compiler
 from .config import BuildConfig, load_build_config
@@ -183,10 +184,14 @@ def compile_(
     epoch: Epoch = None,
     passes: Passes = 5,
     as_json: AsJson = False,
+    plan: Annotated[
+        str | None, typer.Option(help="Pointer to the Plan that wrote SOURCE: diagnostics then name the component.")
+    ] = None,
 ) -> None:
     """Compile SOURCE with latexmk. Exit 0 ok, 1 errors in the document, 3 tool or image missing."""
     comp = _compiler(image, local, root, epoch, passes)
-    result = comp.compile(source, outdir or BUILD_DIR / "build" / source.stem)
+    found = load_plan(plan, pathlib.Path.cwd()) if plan else None
+    result = comp.compile(source, outdir or BUILD_DIR / "build" / source.stem, plan=found)
     if as_json:
         typer.echo(json.dumps(result.to_dict(), indent=2))
     else:
