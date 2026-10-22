@@ -74,6 +74,11 @@ assert pkg.check_parts() == []  # \acFact takes one argument, as declared; nothi
 - **The scan is regex-level.** It reads `\newcommand`, `\providecommand`, `\DeclareRobustCommand`, `\newenvironment`, the
   xparse family, `\newlength` and `\newtoggle`. A name defined any other way (`\def`, `\csname`) counts as missing, and an
   expl3 part is not read.
+- **A setting a part defines is a `Value` with `defined_by`.** A flag (`\newif`, with its `\Xtrue` and `\Xfalse`), a
+  toggle, a length, a colour (`\definecolor`, `\colorlet`, named with `colour_name`) or a text setting is declared
+  once, renders nothing, and is set from a document as any `Value` is. It has no `default`: the part has it. `cs = "..."`
+  names the whole control sequence when it is not prefix + class name (`cs = "acshowcrop"` for `\ifacshowcrop`).
+  Counters, saveboxes and font families are read for duplicates (`\newcounter`, `\newsavebox`, `\newfontfamily`).
 - **Decks use the components.** A deck built from `Fact("...")` gets typed constructors, arity at the call site, escaping,
   `from_dict` and the schema, from declarations that cost a few lines per macro.
 

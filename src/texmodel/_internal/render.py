@@ -96,6 +96,7 @@ class ValueSpec:
     qualname: str
     needs: tuple["str | Package", ...]  # packages it needs (M14): its kind's and the class's own
     alias: str | None = None  # the name the class gives itself (`colour_name = "acInk"`)
+    cs: str | None = None  # the whole control sequence, when it is not prefix + class name (`cs = "acshowcrop"`)
     meta: Mapping[str, object] = dataclasses.field(default_factory=dict[str, object])  # the schema's `x-` keys
 
 
@@ -433,9 +434,15 @@ BOOL = ValueKind(
     "Bool",
     bool,
     "boolean",
-    _controls("true", "false"),
+    lambda prefix, name, _alias: (
+        *_controls("true", "false")(prefix, name, None),
+        ("control", f"if{prefix}{name}", f"\\if{prefix}{name}"),
+    ),
     _declared(lambda c: [f"\\newif\\if{c}"], _set_flag),
     _set_flag,
+    defines=lambda prefix, name, _alias: tuple(
+        ("control", n, f"\\{n}") for n in (f"if{prefix}{name}", f"{prefix}{name}true", f"{prefix}{name}false")
+    ),
 )
 TEXT_KIND = ValueKind(
     "Text",
@@ -459,8 +466,13 @@ RAW_KIND = ValueKind(
 )
 
 
+def addressed(prefix: str, name: str, cs: str | None) -> tuple[str, str]:
+    """A value's prefix and name as its kind writes them: a `cs` is the whole control sequence."""
+    return ("", cs) if cs else (prefix, name)
+
+
 def render_value(prefix: str, spec: ValueSpec) -> str:
-    lines = spec.kind.declare(prefix, spec.name, spec.default, spec.alias)
+    lines = spec.kind.declare(*addressed(prefix, spec.name, spec.cs), spec.default, spec.alias)
     return "\n".join([*_comment(spec.doc), f"% from {spec.qualname} (value: {spec.kind.name})", *lines])
 
 

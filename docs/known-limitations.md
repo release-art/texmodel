@@ -6,7 +6,8 @@ What texmodel does not do or does not check today. Planned work is in [the plan]
 
 - No TeX parser (plan N1). Interfaces are declared, never read back from TeX texmodel did not write. The adoption scanner
   (`check_interface`) reads `\newcommand`, `\providecommand`, `\DeclareRobustCommand`, `\newenvironment`, the xparse `\NewDocumentCommand` family,
-  `\newlength` and `\newtoggle`; a name defined another way counts as missing, and a library written in expl3 is not read, and an xparse type it does not model (`v`, `u`, `g`, `e`) is reported as
+  `\newlength`, `\newsavebox`, `\newfontfamily`, `\newtoggle`, `\newif`, `\definecolor`/`\colorlet` and `\newcounter`; a name
+  defined another way counts as missing, and a library written in expl3 is not read, and an xparse type it does not model (`v`, `u`, `g`, `e`) is reported as
   `?` and matches nothing.
 - Python 3.15 and LuaLaTeX only. Compiling needs the reference image (or a local TeX Live with `latexmk`).
 - Not built: release migrations, `Doc` trees from data with migrations, trust levels and the injection corpus, the

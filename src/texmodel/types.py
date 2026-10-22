@@ -43,7 +43,8 @@ class ValueKind:
     Give it to `Annotated[T, kind]` and `Value[...]` of that is the kind.
 
     `declare(prefix, name, default, alias)` is the definition lines (`default` may be None), `setting(...)` the one line
-    that sets a value (a document's `settings=`); `alias` is the class's `colour_name`.
+    that sets a value (a document's `settings=`); `alias` is the class's `colour_name`. `claims` are the names it takes
+    in the package; `defines` the names a library that defines it must define, when they are not the same.
     """
 
     name: str  # "Length", "Toggle": shown in provenance comments and errors
@@ -53,10 +54,16 @@ class ValueKind:
     declare: Callable[[str, str, Any, str | None], list[str]]
     setting: Callable[[str, str, Any, str | None], str]
     needs: tuple["str | Package", ...] = ()  # packages it needs (M14): a name, or a `Package` of this project
+    defines: Callable[[str, str, str | None], tuple[Claim, ...]] | None = (
+        None  # what a library must define; else `claims`
+    )
     named: bool = False  # the class may rename it (`colour_name`)
     may_omit: bool = False  # the class may leave `default` out (an adopted `Text` / `Raw`; a length computed later)
     bare: bool = False  # a package may declare it without a default
     adoptable: bool = False  # an adopted package may declare it
+
+    def must_define(self, prefix: str, name: str, alias: str | None) -> tuple[Claim, ...]:
+        return (self.defines or self.claims)(prefix, name, alias)
 
 
 class _PdfMarker:

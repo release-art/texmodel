@@ -265,7 +265,9 @@ def stub_tex(stubs: Sequence[Component]) -> str:
 def _defined(package: "Package") -> list[tuple[Component, Library]]:
     """The registered components a library block defines, with the block."""
     return [
-        (c, c.defined_by) for c in typing.cast("tuple[Component, ...]", package.registered) if c.defined_by is not None
+        (c, c.defined_by)
+        for c in package.registered
+        if issubclass(c, Command | Environment) and c.defined_by is not None
     ]
 
 

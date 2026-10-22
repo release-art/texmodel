@@ -1,6 +1,7 @@
 """Reading the declaration forms of a hand-written package (M9): `\\newcommand`, `\\providecommand`,
 `\\DeclareRobustCommand`, `\\newenvironment`, xparse's `\\NewDocumentCommand` family, and the names with no arguments
-that `\\newlength` and etoolbox's `\\newtoggle` declare.
+that `\\newlength`, `\\newsavebox`, `\\newfontfamily`, etoolbox's `\\newtoggle` and `\\newif` (with `\\Xtrue` and
+`\\Xfalse`) declare. Colours (`\\definecolor`, `\\colorlet`) and counters (`\\newcounter`) are names of their own.
 
 Only these forms are read, so a name defined any other way is reported as missing rather than guessed at. An xparse
 argument type that texmodel does not model is reported as `?`, which matches no declaration.
@@ -19,8 +20,11 @@ _XPARSE = re.compile(
 
 
 _NAME_ONLY = re.compile(
-    r"\\(?:newlength\s*\{?\s*\\|newtoggle\s*\{)(?P<name>[A-Za-z@]+)"
-)  # `\newlength{\w}`, `\newtoggle{t}`
+    r"\\(?:(?:newlength|newsavebox|newfontfamily)\s*\{?\s*\\|newtoggle\s*\{)(?P<name>[A-Za-z@]+)"
+)  # `\newlength{\w}`, `\newsavebox{\b}`, `\newfontfamily\f`, `\newtoggle{t}`
+_NEWIF = re.compile(r"\\newif\s*\\if(?P<name>[A-Za-z@]+)")  # defines \ifX, \Xtrue and \Xfalse
+_COLOUR = re.compile(r"\\(?:definecolor|colorlet|providecolor)\s*\{(?P<name>[^{}]+)\}")
+_COUNTER = re.compile(r"\\newcounter\s*\{(?P<name>[^{}]+)\}")
 
 
 def _group(text: str, start: int) -> tuple[str, int] | None:
@@ -68,6 +72,20 @@ def _skip_default(spec: str, i: int) -> int:
     return found[1] if found else i
 
 
+def _newif_names(name: str) -> tuple[str, str, str]:
+    return f"if{name}", f"{name}true", f"{name}false"
+
+
+def scan_colours(text: str) -> frozenset[str]:
+    """The colour names `\\definecolor`, `\\colorlet` and `\\providecolor` define: not control sequences."""
+    return frozenset(m["name"].strip() for m in _COLOUR.finditer(_COMMENT.sub("", text)))
+
+
+def scan_counters(text: str) -> frozenset[str]:
+    """The counters `\\newcounter` defines: not control sequences either."""
+    return frozenset(m["name"].strip() for m in _COUNTER.finditer(_COMMENT.sub("", text)))
+
+
 def scan_declarations(text: str, prefix: str = "") -> dict[str, str]:
     """`{"cdTalkAboutMe": "[2][]"}`: each name starting with `prefix` that `text` defines, with its signature in the
     form `render.signature` writes (`""` for none, `[n]`, or `[n][]` when the first argument is optional; for an xparse
@@ -80,6 +98,7 @@ def scan_declarations(text: str, prefix: str = "") -> dict[str, str]:
         spec = _group(text, m.end())
         found.append((m.start(), m["name"], xparse_letters(spec[0]) if spec else "?"))
     found += [(m.start(), m["name"], "") for m in _NAME_ONLY.finditer(text)]
+    found += [(m.start(), n, "") for m in _NEWIF.finditer(text) for n in _newif_names(m["name"])]
     out: dict[str, str] = {}
     for _, name, sig in sorted(found):
         if name.startswith(prefix) and name not in out:

@@ -795,6 +795,8 @@ class Value[T]:
     default: T  # not ClassVar[T]: pyright refuses type variables in ClassVar; subclasses assign it in the class body
     needs_packages: ClassVar[tuple["str | Package", ...]] = ()  # data, not mutation: the package takes the union (M14)
     colour_name: ClassVar[str | None] = None  # a `Value[Colour]`'s name when it is not `<prefix>-<kebab>` (`"acInk"`)
+    cs: ClassVar[str | None] = None  # the whole control sequence, when it is not prefix + class name (`"acshowcrop"`)
+    defined_by: ClassVar[Library | None] = None  # the library block that defines it, so it renders no definition
     meta: ClassVar[Mapping[str, object]] = {}  # the schema's `x-` keys on this value
     __tm_doc__: ClassVar[str]
     __tm_kind__: ClassVar[ValueKind]
@@ -825,8 +827,22 @@ class Value[T]:
                 code="TM-M012",
                 path=cls.__name__,
             )
-        if "default" not in cls.__dict__ and not kind.may_omit:
+        defined = cls.defined_by is not None
+        if "default" not in cls.__dict__ and not kind.may_omit and not defined:
             raise DeclarationError(f"{cls.__qualname__}: no default", code="TM-M013", path=cls.__name__)
+        if defined and "default" in cls.__dict__:
+            raise DeclarationError(
+                f"{cls.__qualname__}: has a default, but a library block defines it",
+                code="TM-M032",
+                path=cls.__name__,
+                hint="remove the default: the block is the definition",
+            )
+        if "cs" in cls.__dict__:
+            if kind.named:
+                raise DeclarationError(
+                    f"{cls.__qualname__}: a colour is named with colour_name, not cs", code="TM-M012", path=cls.__name__
+                )
+            Cs(cls.__dict__["cs"], Syntax.LATEX2E)  # a control word (TM-M027)
         if cls.colour_name is not None and not kind.named:
             raise DeclarationError(
                 f"{cls.__qualname__}: colour_name belongs to a Value[Colour]", code="TM-M012", path=cls.__name__
@@ -854,5 +870,6 @@ def value_spec_of(cls: type[AnyValue]) -> ValueSpec:
         f"{cls.__module__}.{cls.__qualname__}",
         cls.needs_packages,
         cls.colour_name,
+        cls.cs,
         cls.meta,
     )

@@ -1,5 +1,7 @@
 """A library is a part that declares what it defines (§21a 12): the declarations are checked against its TeX."""
 
+import types
+
 import pytest
 from typer.testing import CliRunner
 
@@ -142,3 +144,141 @@ def test_a_hole_with_no_field_or_a_value_of_an_unknown_type_is_refused():
     ]:
         with pytest.raises(DeclarationError, check=lambda e, code=code: e.code == code):
             fill(template, model)
+
+
+def test_a_flag_a_toggle_a_length_and_a_colour_can_be_defined_by_a_library():
+    from texmodel.components import Value
+    from texmodel.std.etoolbox import Toggle
+    from texmodel.types import Colour, Length
+
+    p = Package("p", prefix="ac")
+    lib = p.library(
+        "hand",
+        r"""
+        \newif\ifacShow
+        \newif\ifacshowcrop
+        \newtoggle{acDraft}
+        \newlength{\acGap}
+        \definecolor{acTechCut}{cmyk}{0,1,1,0}
+        \colorlet{acTint}{acTechCut!20}
+        \newcounter{ac@facts}
+        \newsavebox{\ac@box}
+        """,
+    )
+
+    @p.value
+    class Show(Value[bool]):
+        """Show."""
+
+        defined_by = lib
+
+    @p.value
+    class Crop(Value[bool]):
+        """Crop; the name is lower case."""
+
+        defined_by = lib
+        cs = "acshowcrop"
+
+    @p.value
+    class Draft(Value[Toggle]):
+        """Draft."""
+
+        defined_by = lib
+
+    @p.value
+    class Gap(Value[Length]):
+        """Gap."""
+
+        defined_by = lib
+
+    @p.value
+    class TechCut(Value[Colour]):
+        """Cut line."""
+
+        defined_by = lib
+        colour_name = "acTechCut"
+
+    @p.value
+    class Tint(Value[Colour]):
+        """Tint."""
+
+        defined_by = lib
+        colour_name = "acTint"
+
+    assert p.check_parts() == []
+    assert p.render().count("\\newif\\ifacShow") == 1  # the library's own; the value renders nothing
+
+
+def test_a_value_a_library_does_not_define_is_reported_and_a_second_definition_is_a_duplicate():
+    from texmodel.components import Value
+    from texmodel.types import Colour
+
+    p = Package("p", prefix="ac")
+    lib = p.library("hand", "\\newif\\ifacShow\n\\definecolor{acInk}{gray}{0}\n\\newcounter{n}")
+    p.library("more", "\\definecolor{acInk}{gray}{1}\n\\newcounter{n}")
+
+    @p.value
+    class Missing(Value[bool]):
+        """No such flag."""
+
+        defined_by = lib
+
+    @p.value
+    class Ink(Value[Colour]):
+        """Ink."""
+
+        defined_by = lib
+        colour_name = "acInk"
+
+    @p.value
+    class Paper(Value[Colour]):
+        """Paper."""
+
+        defined_by = lib
+        colour_name = "acPaper"
+
+    found = [(v.code, v.message) for v in p.check_parts()]
+    assert ("TM-C010", "\\acMissingtrue is declared but library hand does not define it") in found
+    assert ("TM-C010", "colour acPaper is declared but library hand does not define it") in found
+    assert ("TM-C013", "colour acInk is defined by library hand and by library more") in found
+    assert ("TM-C013", "counter n is defined by library hand and by library more") in found
+
+
+def test_a_value_cs_and_defined_by_are_checked_when_the_class_is_defined():
+    from texmodel.components import Value
+    from texmodel.types import Colour, Gray, Length
+
+    p = Package("p", prefix="ac")
+    lib = p.library("hand", "\\newlength{\\acGap}")
+    for base, attrs, code in [
+        (Value[Length], {"defined_by": lib, "default": Length("1mm")}, "TM-M032"),
+        (Value[Colour], {"cs": "acb", "default": Gray(0)}, "TM-M012"),
+        (Value[Length], {"cs": "Not A Word", "default": Length("1mm")}, "TM-M027"),
+    ]:
+        with pytest.raises(DeclarationError, check=lambda e, code=code: e.code == code):
+            types.new_class("Bad", (base,), None, lambda ns, attrs=attrs: ns.update(__doc__="Bad.", **attrs))
+    other = Package("q", prefix="ac")
+
+    class Foreign(Value[Length]):
+        """Defined by another package's library."""
+
+        defined_by = lib
+
+    with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-M033"):
+        other.value(Foreign)
+
+
+def test_a_flag_with_a_cs_is_declared_and_set_under_that_name():
+    from texmodel.components import Value
+
+    p = Package("p", prefix="ac")
+
+    @p.value
+    class Crop(Value[bool]):
+        """Crop marks."""
+
+        cs = "acshowcrop"
+        default = True
+
+    assert "\\newif\\ifacshowcrop\n\\acshowcroptrue" in p.render()
+    assert "\\acshowcropfalse" in p.document(settings=[Crop(False)])

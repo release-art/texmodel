@@ -11,11 +11,13 @@ import re
 import textwrap
 import typing
 from collections.abc import Iterator, Sequence
+from typing import NamedTuple
 
 from ._internal.render import (
     EnvSpec,
     Spec,
     ValueSpec,
+    addressed,
     canonical,
     check_references,
     header_lines,
@@ -28,10 +30,10 @@ from ._internal.render import (
     signature,
     undeclared,
 )
-from ._internal.scan import scan_declarations
+from ._internal.scan import scan_colours, scan_counters, scan_declarations
 from ._internal.values import fill_text
 from .body import Library, Syntax, TemplateRef, Whitespace, template_text
-from .components import AnyValue, Command, Environment, Node, Passthrough, env_spec_of, spec_of, value_spec_of
+from .components import AnyValue, Command, Environment, Node, Passthrough, Value, env_spec_of, spec_of, value_spec_of
 from .drift import stamp
 from .errors import DeclarationError, Violation
 from .plan import Line, Plan, node_lines
@@ -102,6 +104,41 @@ def generator_version() -> str:
     return m[0] if m else "0.0.0"
 
 
+class _Defs(NamedTuple):
+    """What a library defines: control sequences with their signatures, and names of other kinds (colours, counters)."""
+
+    controls: dict[str, str]
+    others: frozenset[tuple[str, str]]
+
+    def pairs(self) -> list[tuple[str, str]]:
+        return [*(("control", n) for n in self.controls), *sorted(self.others)]
+
+
+def _shown(kind: str, name: str) -> str:
+    return f"\\{name}" if kind == "control" else f"{kind} {name}"
+
+
+def _compare(who: str, lib: str, defs: _Defs, wanted: Sequence[tuple[str, str, str]]) -> list[Violation]:
+    """`who` wants these names (kind, name, signature) from library `lib`: each must be defined, as declared."""
+    out: list[Violation] = []
+    for kind, name, want in wanted:
+        if (kind, name) not in defs.pairs():
+            out.append(
+                Violation("TM-C010", who, f"{_shown(kind, name)} is declared but library {lib} does not define it")
+            )
+        elif kind == "control" and canonical(defs.controls[name]) != canonical(want):
+            out.append(
+                Violation(
+                    "TM-C011",
+                    who,
+                    f"{_shown(kind, name)}: declared {want or 'without arguments'}, library {lib} defines "
+                    f"{defs.controls[name] or 'no arguments'}",
+                    hint="change the declaration or the library so they agree",
+                )
+            )
+    return out
+
+
 class Package:
     def __init__(
         self,
@@ -167,7 +204,7 @@ class Package:
         self._classes.append(cls)
         return cls
 
-    def _own_library(self, cls: type[Command] | type[Environment]) -> None:
+    def _own_library(self, cls: type[Command] | type[Environment] | type[AnyValue]) -> None:
         """The block that defines a component is this package's (`TM-M033`)."""
         if cls.defined_by is not None and cls.defined_by.owner is not self:
             raise DeclarationError(
@@ -237,13 +274,15 @@ class Package:
                 path=spec.name,
                 hint="declare a length, colour or flag the hand-written package defines as a Command with no arguments",
             )
-        if spec.default is None and not self.adopted and not spec.kind.bare:
+        self._own_library(cls)
+        if spec.default is None and not self.adopted and not spec.kind.bare and cls.defined_by is None:
             raise DeclarationError(f"{cls.__qualname__}: no default", code="TM-M013", path=spec.name)
         tables = {"control": self._controls, "colour": self._colours}
         claims = [
-            (tables[table], key, shown) for table, key, shown in spec.kind.claims(self.prefix, spec.name, spec.alias)
+            (tables[table], key, shown)
+            for table, key, shown in spec.kind.claims(*addressed(self.prefix, spec.name, spec.cs), spec.alias)
         ]
-        self._add(spec, *claims)
+        self._add(spec, *claims, rendered=cls.defined_by is None)
         cls.__tm_prefix__ = self.prefix
         self._classes.append(cls)
         return cls
@@ -372,68 +411,71 @@ class Package:
                 )
         return out
 
-    def _parts(self) -> dict[str, dict[str, str]]:
-        """The control sequences each library defines, by library name, with their signatures (the forms `scan` reads);
-        a library written in expl3 is not read."""
+    def _parts(self) -> dict[str, "_Defs"]:
+        """What each library defines, by library name, in the forms `scan` reads; a library written in expl3 is not
+        read."""
         return {
-            i.name: scan_declarations(i.text)
+            i.name: _Defs(
+                scan_declarations(i.text),
+                frozenset(
+                    [*(("colour", n) for n in scan_colours(i.text)), *(("counter", n) for n in scan_counters(i.text))]
+                ),
+            )
             for i in self._items
             if isinstance(i, Library) and i.syntax is Syntax.LATEX2E
         }
 
     def _duplicates(self) -> list[str]:
-        """A control sequence defined twice: by two libraries, or by a library and a component this package renders."""
-        owner = {
-            (s.cs or self.prefix + s.name) if not isinstance(s, ValueSpec) else self.prefix + s.name: s.name
-            for s in self._items
-            if not isinstance(s, Library)
-        }
+        """A name defined twice: by two libraries, or by a library and a component or value this package renders."""
+        owner: dict[tuple[str, str], str] = {}
+        for s in (i for i in self._items if not isinstance(i, Library)):
+            if isinstance(s, ValueSpec):
+                names = [(t, k) for t, k, _ in s.kind.claims(*addressed(self.prefix, s.name, s.cs), s.alias)]
+            else:
+                names = [("control", s.cs or self.prefix + s.name)]
+            owner.update(dict.fromkeys(names, s.name))
         out: list[str] = []
-        for lib, names in self._parts().items():
-            for name in names:
-                if name in owner:
-                    out.append(f"\\{name} is defined by {owner[name]} and by library {lib}")
-                owner.setdefault(name, f"library {lib}")
+        for lib, defs in self._parts().items():
+            for kind, name in defs.pairs():
+                if (kind, name) in owner:
+                    out.append(f"{_shown(kind, name)} is defined by {owner[kind, name]} and by library {lib}")
+                owner.setdefault((kind, name), f"library {lib}")
         return out
 
     def check_parts(self) -> list[Violation]:
-        """What each library defines against what this package declares (§21a 12): a component with `defined_by` is
-        defined by that library with its signature (`TM-C010`, `TM-C011`), a public name (`<prefix>Name`) a library
-        defines is declared (`TM-C012`), and no name is defined twice (`TM-C013`). Read by `texmodel check`."""
+        """What each library defines against what this package declares (§21a 12): a component or value with
+        `defined_by` is defined by that library, with its signature (`TM-C010`, `TM-C011`), a public name
+        (`<prefix>Name`) a library defines is declared (`TM-C012`), and no name is defined twice (`TM-C013`). Read by
+        `texmodel check`."""
         parts = self._parts()
         out: list[Violation] = []
         for cls in (c for c in self._classes if issubclass(c, Command | Environment)):
             lib = cls.defined_by
-            if lib is None or lib.name not in parts:
+            if lib is not None and lib.name in parts:
+                out += _compare(
+                    cls.__name__, lib.name, parts[lib.name], [("control", cls.__tm_cs__, signature(cls.__tm_args__))]
+                )
+        for member in self._classes:
+            if not issubclass(member, Value):
                 continue
-            control, want, found = cls.__tm_cs__, signature(cls.__tm_args__), parts[lib.name]
-            if control not in found:
-                out.append(
-                    Violation(
-                        "TM-C010", cls.__name__, f"\\{control} is declared but library {lib.name} does not define it"
-                    )
+            value = typing.cast("type[Value[object]]", member)
+            lib = value.defined_by
+            if lib is not None and lib.name in parts:
+                names = value.__tm_kind__.must_define(
+                    *addressed(self.prefix, value.__name__, value.cs), value.colour_name
                 )
-            elif canonical(found[control]) != canonical(want):
-                out.append(
-                    Violation(
-                        "TM-C011",
-                        cls.__name__,
-                        f"\\{control}: declared {want or 'without arguments'}, library {lib.name} defines "
-                        f"{found[control] or 'no arguments'}",
-                        hint="change the declaration or the library so they agree",
-                    )
-                )
+                out += _compare(value.__name__, lib.name, parts[lib.name], [(t, k, "") for t, k, _ in names])
         if self.prefix:
             public = re.compile(rf"{self.prefix}[A-Z][A-Za-z]*")
-            for lib, names in parts.items():
+            for lib, defs in parts.items():
                 out += [
                     Violation(
                         "TM-C012",
                         lib,
-                        f"\\{n} is defined by library {lib} but no component declares it",
+                        f"\\{n} is defined by library {lib} but nothing declares it",
                         hint="declare it, or give the helper a name outside the public namespace (an @ in it)",
                     )
-                    for n in names
+                    for n in defs.controls
                     if public.fullmatch(n) and n not in self._controls
                 ]
         return out + [Violation("TM-C013", self.name, message) for message in self._duplicates()]
@@ -509,7 +551,9 @@ class Package:
             return [
                 Line(
                     f"settings[{i}]",
-                    type(v).__tm_kind__.setting(type(v).__tm_prefix__, type(v).__name__, v.value, type(v).colour_name),
+                    type(v).__tm_kind__.setting(
+                        *addressed(type(v).__tm_prefix__, type(v).__name__, type(v).cs), v.value, type(v).colour_name
+                    ),
                 )
                 for i, v in enumerate(settings)
                 if isinstance(v.value, str | Raw) == text

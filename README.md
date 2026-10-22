@@ -240,7 +240,9 @@ A component with `defined_by` has no body (`TM-M032`) and its block belongs to t
 reads each block (`Package.check_parts()`, no TeX needed) and reports a declared component the block does not define with that
 signature (`TM-C010`, `TM-C011`), a public `<prefix>Name` the block defines that nothing declares (`TM-C012`), and a name
 defined twice (`TM-C013`; generation itself refuses it, `TM-P012`). The reading is regex-level (`\newcommand`, `\providecommand`,
-`\DeclareRobustCommand`, `\newenvironment`, the xparse family, `\newlength`, `\newtoggle`) and skips an expl3 block. For the
+`\DeclareRobustCommand`, `\newenvironment`, the xparse family, `\newlength`, `\newtoggle`, `\newif`, `\definecolor`) and
+skips an expl3 block. A flag, toggle, length, colour or text setting a block defines is a `Value` with `defined_by` (no default;
+`cs = "..."` gives the whole control sequence, `colour_name` the colour's name). For the
 rest, whether TeX really defines it, with that many arguments, is checked by compiling: `texmodel_build.testkit.check_library(compiler, pkg)`
 builds `pkg.test_document(...)` with `export_probes(pkg)` (it writes `texmodel:probe:def.<cs>=yes|no` and
 `arity.<cs>=<n>` for each such component), compiles it, and returns `TM-C010` for a name the block does not define and
