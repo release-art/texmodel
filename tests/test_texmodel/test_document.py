@@ -177,12 +177,12 @@ def test_environment_arguments_are_keywords_and_checked():
     with refused("TM-M004"):
 
         class IntArg(Environment):
-            """An int field."""
+            """A dict field."""
 
             begin = "b"
             end = "e"
 
-            n: int = 0
+            n: dict[str, str] | None = None
 
 
 def test_the_grammar_reports_every_problem_with_a_path():

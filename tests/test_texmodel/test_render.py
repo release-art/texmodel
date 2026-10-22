@@ -76,7 +76,7 @@ def test_declarations_are_refused_when_the_class_is_defined():
         class Undocumented(Command):
             text: Text
 
-    with refused("TM-M003"):
+    with refused("TM-M037"):
 
         class TwoOptional(Command):
             """Two optional arguments."""
@@ -87,9 +87,9 @@ def test_declarations_are_refused_when_the_class_is_defined():
     with refused("TM-M004"):
 
         class WrongType(Command):
-            """An int field."""
+            """A bytes field."""
 
-            n: int
+            n: bytes
 
 
 def test_a_missing_body_is_an_error_and_files_are_never_found_by_name(tmp_path, monkeypatch):

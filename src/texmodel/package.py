@@ -17,6 +17,7 @@ from ._internal.render import (
     Spec,
     ValueSpec,
     bool_names,
+    canonical,
     check_references,
     colour_name,
     header_lines,
@@ -338,7 +339,7 @@ class Package:
         """Every declared component is defined in `sources` (the hand-written TeX) with the signature declared (M9).
 
         Read by `texmodel check` for an adopted package. A name that `sources` define some other way than
-        `\\newcommand`, `\\providecommand` or `\\newenvironment` counts as missing.
+        `\\newcommand`, `\\providecommand`, `\\newenvironment` or an xparse `\\NewDocumentCommand` counts as missing.
         """
         found = scan_declarations("\n".join(sources))
         out: list[Violation] = []
@@ -349,7 +350,7 @@ class Package:
             )
             if control not in found:
                 out.append(Violation("TM-C010", s.name, f"\\{control} is declared but the sources do not define it"))
-            elif found[control] != want:
+            elif canonical(found[control]) != canonical(want):
                 out.append(
                     Violation(
                         "TM-C011",

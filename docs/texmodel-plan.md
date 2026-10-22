@@ -83,10 +83,13 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   Python requires; the renderer emits them where TeX needs them (`\newcommand` allows
   one optional argument, first). So `class Slot: text: Text; label: Text | None = None`
   is called `Slot("A soft woof.", label="Sound")` and renders `\acSlot[Sound]{A soft woof.}`.
-  TeX argument order is derived from the declaration, never written twice.
-- M3 Invalid layouts are refused at class definition: more than one optional argument
-  (a `\newcommand` limit), `xparse` key-value arguments (unsupported v1), duplicate or
-  reserved names — with a message naming class and field.
+  TeX argument order is derived from the declaration, never written twice. The full
+  slot model (delimiters, several optionals, tokens, groups, key lists) is in
+  the README ("Arguments: slots, value types and key lists").
+- M3 Invalid layouts are refused at class definition: an optional argument followed by
+  another without saying what is written when it is left out (`TM-M037`), a group member
+  that is not optional, a token without a default, duplicate or reserved names — with a
+  message naming class and field.
 - M3a **Starred forms are supported** as a declared variant (`starred=True` on a
   Command or Environment gives `\name*` / `\begin{name*}` with the same signature).
   Common in real TeX (`\section*`, `table*`) and met immediately by adoption scanning
@@ -184,7 +187,7 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   escape/parse, doc string. Registered in a closed vocabulary; additions arrive with
   property tests.
 - T2 Shipping types: `Text`, `Markup` (tiny subset: emphasis, strong, break, nbsp),
-  `Raw`, `Int`, `Bool`, `Length`, `Colour` (`CMYK`/`RGB`/`Gray`/`Spot`),
+  `Raw`, `Int`, `Float`, `Bool`, `Length`, `Colour` (`CMYK`/`RGB`/`Gray`/`Spot`),
   `Path[Kind]`, `Enum`, `List[T]`, `Union` (tagged), `Font`, `Snippet`, `PgfStyle`,
   `Cycle[T]`.
 - T3 `Text` is escaped on render (`& % $ # _ { } ~ ^ \`). `Raw` is accepted only where
@@ -938,6 +941,8 @@ Each needs a decision.
 | A source map is a `Plan`: output lines with the path that wrote each. Documents are checked against the model's render, with no baseline file (`[tool.texmodel.documents]`, like `terraform plan`); hand edit and config change are not told apart | decided |
 | A text setting is `Value[Text]`: `\newcommand` with an escaped default in a generated `.sty`; `settings=` writes `\renewcommand` after `\usepackage` (before the preamble slot, not in the body); an adopted package may declare only a `Value[Text]`, checked as an argument-less command | decided |
 | A closed set is a `Choice` enum whose member values are the TeX (`Raw` passes through, `str` is escaped); data names a member by name | decided |
+| A macro's interface is slots (delimiter, optional or required, token, group) holding typed values or a `KeyVals`; `arg()` states a slot, an optional field without it is TeX's one optional argument, first; a signature `\newcommand` cannot define is defined with xparse (`\NewDocumentCommand`), not xargs. Details in the README | decided |
+| `KeyVals` is a frozen pydantic model whose field types give the item kind, with a `KeyRules` preset per key library (`texmodel.keys`); the presets are measured by compiling | decided |
 | Pydantic v2 is a dependency, used at the data boundary only (`texmodel.spec`: `from_dict`, `to_dict`, `json_schema`); component classes stay stdlib frozen dataclasses; default (lax) coercion; its errors are mapped to `Violation` / `ValidationError` with `TM-C020` and `validate()`-style paths | decided |
 | Python-only authoring; TOML/YAML frontend | parked, not planned |
 | Renames via `renamed_from` → pydantic aliases + release record | decided |

@@ -74,9 +74,13 @@ from ._internal.render import (
     EnvSpec,
     Spec,
     ValueSpec,
+    argument_violations,
     arguments,
     check_name,
+    tex_arguments,
+    written,
 )
+from ._internal.values import value_ok
 from .body import (
     Comment,
     Cs,
@@ -98,7 +102,8 @@ from .body import (
     template_text,
 )
 from .errors import DeclarationError, Violation
-from .types import CMYK, PDF, RGB, TEXT, Choice, Colour, Gray, Length, Raw, Text
+from .interface import BRACE, RAW_BODY, SQUARE, ArgOptions, BodyKind, Gap, arg, body_of
+from .types import CMYK, RGB, TEXT, Choice, Colour, Gray, Length, Raw, Text
 
 type Node = Command | Environment | Passthrough | Comment
 Resolved = TexRaw | Ref | Comment | Group | Seq | Cs | Lit | Hole
@@ -274,6 +279,7 @@ def _build(cls: type[_Node], unused: Sequence[str], *, init: bool) -> None:
             if spec.default is not dataclasses.MISSING:
                 spec.kw_only = True
             setattr(cls, name, spec)
+
     dataclasses.dataclass(frozen=True, init=init, repr=False)(cls)
     cls.__doc__ = doc
     cls.__tm_args__ = _arguments(cls)  # pyright: ignore[reportArgumentType]
@@ -285,7 +291,7 @@ def field(*, renamed_from: str, default: Any = dataclasses.MISSING) -> Any:  # n
     return dataclasses.field(default=default, metadata={"renamed_from": renamed_from})
 
 
-@dataclass_transform(frozen_default=True, field_specifiers=(field,))
+@dataclass_transform(frozen_default=True, field_specifiers=(field, arg))
 class Command(_Node):
     """A TeX command (`\\newcommand`) whose arguments are the class's fields."""
 
@@ -329,7 +335,7 @@ class Environment(_Node):
         """A body piece that ends this environment, `\\end{acBox}` (§21a 17)."""
         return _ref(cls, RefKind.CLOSE, (), {})
 
-    def __init__(self, *content: Node, **args: str | Raw | None) -> None:
+    def __init__(self, *content: Node, **args: object) -> None:
         fields = {f.name: f for f in dataclasses.fields(self) if f.name != "content"}
         if unknown := sorted(set(args) - set(fields)):
             raise TypeError(f"{type(self).__name__}() got unexpected keyword arguments {unknown}")
@@ -346,11 +352,11 @@ class Passthrough(_Node):
     list it (`Passthrough.times.any()`, or `Anywhere(Passthrough)`) before an environment accepts one."""
 
     tex: Raw
-    __tm_args__: ClassVar[tuple[Arg, ...]] = (Arg("tex", raw=True),)
+    __tm_args__: ClassVar[tuple[Arg, ...]] = (Arg("tex", RAW_BODY, hint=Raw),)
     __tm_doc__: ClassVar[str] = "TeX written as it is."
 
 
-type ArgValue = Hole | Raw | str | Choice
+type ArgValue = object  # a Hole, or a value of the argument's type
 
 
 def _ref(cls: type, kind: RefKind, required: tuple[ArgValue, ...], optional: dict[str, ArgValue]) -> Ref:
@@ -366,10 +372,8 @@ def _ref(cls: type, kind: RefKind, required: tuple[ArgValue, ...], optional: dic
     problems += [f"missing argument {a.name!r}" for a in declared if not a.optional and a.name not in values]
     for a in declared:
         value = values.get(a.name)
-        if value is not None and not isinstance(value, Hole | (a.choice or (Raw if a.raw else str))):
-            problems.append(
-                f"{a.name!r} must be a Hole or a {'Choice member' if a.choice else 'Raw' if a.raw else 'str'}"
-            )
+        if value is not None and not (isinstance(value, Hole) or value_ok(a.body, value)):
+            problems.append(f"{a.name!r} must be a Hole or {a.body.describe()}")
     if problems and kind is not RefKind.CLOSE:
         raise DeclarationError(
             f"{cls.__name__}.{kind.value}(): " + "; ".join(problems),
@@ -401,12 +405,14 @@ def _ref_text(ref: Ref, owner: str, syntax: Syntax) -> str:
 def _repr(node: Command | Environment | Passthrough) -> str:
     """The constructor expression that rebuilds the node (D1): required fields positional, optional ones by keyword."""
     shown = [repr(c) for c in node.content] if isinstance(node, Environment) else []
+    keywords: list[str] = []
     for a in type(node).__tm_args__:
         v = getattr(node, a.name)
-        if a.optional and v is not None:
-            shown.append(f"{a.name}={v!r}")
+        if a.optional and v is not None and v is not False:
+            keywords.append(f"{a.name}={v!r}")
         elif not a.optional and not isinstance(node, Environment):
             shown.append(repr(v))
+    shown += keywords
     return f"{type(node).__name__}({', '.join(shown)})"
 
 
@@ -450,32 +456,75 @@ def _arguments(cls: type[Command] | type[Environment]) -> tuple[Arg, ...]:
             continue
         if f.name == "type":
             raise _reserved_type(cls)
-        kind = _kind(hints[f.name])
-        if kind is None:
+        body = body_of(hints[f.name])
+        if body is None:
             raise DeclarationError(
                 f"{cls.__qualname__}.{f.name}: unsupported type {hints[f.name]!r}; "
-                "use Text, PdfString, Raw or a Choice, or one of them | None",
+                "use Text, PdfString, ColourName, Raw, Length, a colour model, int, bool, a Choice, a KeyVals, "
+                "a tuple or list of those, or Star; any of them | None",
                 code="TM-M004",
                 path=f"{cls.__name__}.{f.name}",
             )
-        choice = _choice(cls, f.name, kind) if isinstance(kind, type) else None
+        if body.choice is not None:
+            _choice(cls, f.name, body.choice)
+        options: ArgOptions | None = f.metadata.get("tm")
+        token = body.kind is BodyKind.TOKEN
+        if token and f.default is dataclasses.MISSING:
+            raise DeclarationError(
+                f"{cls.__qualname__}.{f.name}: a token is False unless given",
+                code="TM-M039",
+                path=f"{cls.__name__}.{f.name}",
+                hint=f"write `{f.name}: Star = arg(default=False)`",
+            )
+        optional = token or f.default is not dataclasses.MISSING
+        delimiter = options.delimiter if options and options.delimiter else SQUARE if optional and not token else BRACE
         args.append(
             Arg(
                 f.name,
-                optional=f.default is not dataclasses.MISSING,
-                raw=kind == "raw",
-                choice=choice,
-                pdf=kind == "pdf",
+                body,
+                optional=optional,
+                delimiter=delimiter,
+                placed=options is not None or token,
+                fill=options.fill if options else Gap.UNDECLARED,
+                sep=(options.sep if options else None) or ",",
+                group=options.group if options else None,
+                booleans=(options.booleans if options else None) or ("true", "false"),
                 renamed_from=f.metadata.get("renamed_from"),
+                hint=hints[f.name],
             )
         )
-    if sum(a.optional for a in args) > 1:
-        raise DeclarationError(
-            f"{cls.__qualname__}: more than one optional argument (TeX's \\newcommand allows one)",
-            code="TM-M003",
-            path=cls.__name__,
-        )
+    _check_signature(cls, tuple(args))
     return tuple(args)
+
+
+def _check_signature(cls: type, args: tuple[Arg, ...]) -> None:
+    """The declaration errors of a signature: a group member is optional, and an optional slot followed by
+    another optional one says what is written, or that it is refused, when it is left out and the other is set."""
+    for a in args:
+        if a.group is not None and (not a.optional or a.token):
+            raise DeclarationError(
+                f"{cls.__qualname__}.{a.name}: a member of group {a.group.name!r} must be an optional field with a "
+                "default",
+                code="TM-M038",
+                path=f"{cls.__name__}.{a.name}",
+            )
+    ordered = tex_arguments(args)
+    for i, a in enumerate(ordered):
+        if (
+            a.optional
+            and not a.token
+            and a.fill is Gap.UNDECLARED
+            and any(
+                b.optional and not b.token and (a.group is None or b.group is not a.group) for b in ordered[i + 1 :]
+            )
+        ):
+            raise DeclarationError(
+                f"{cls.__qualname__}.{a.name}: an optional argument followed by another optional one must say what is "
+                "written when it is left out and the other is set",
+                code="TM-M037",
+                path=f"{cls.__name__}.{a.name}",
+                hint='declare it with arg(fill="") to write empty delimiters, or arg(fill=Gap.REFUSE) to refuse that',
+            )
 
 
 def _choice(cls: type, field: str, kind: type[Choice]) -> type[Choice]:
@@ -493,41 +542,46 @@ def _choice(cls: type, field: str, kind: type[Choice]) -> type[Choice]:
     return kind
 
 
-def _kind(hint: Any) -> str | type[Choice] | None:
-    """`"text"` for `Text` / `Text | None`, `"raw"` for `Raw` / `Raw | None`, the class for a `Choice` (or `| None`)."""
-    members = [
-        m for m in (typing.get_args(hint) if isinstance(hint, types.UnionType) else (hint,)) if m is not type(None)
-    ]
-    if members and all(typing.get_origin(m) is typing.Annotated and TEXT in typing.get_args(m)[1:] for m in members):
-        return "text"
-    if members and all(typing.get_origin(m) is typing.Annotated and PDF in typing.get_args(m)[1:] for m in members):
-        return "pdf"
-    if len(members) == 1 and isinstance(members[0], type) and issubclass(members[0], Choice):
-        return members[0]
-    return "raw" if members and all(m is Raw for m in members) else None
-
-
 def _violations(node: Command | Environment | Passthrough, path: str) -> list[Violation]:
     cls = type(node)
     out: list[Violation] = []
     for a in cls.__tm_args__:
-        v = getattr(node, a.name)
-        if not (v is None and a.optional or isinstance(v, a.choice or (Raw if a.raw else str))):
-            want = (
-                f"one of {list(a.choice.__members__)}"
-                if a.choice
-                else "Raw"
-                if a.raw
-                else "PdfString"
-                if a.pdf
-                else "Text"
-            )
-            out.append(Violation("TM-C003", f"{path}.{a.name}", f"{a.name}: expected {want}, got {v!r}"))
+        if why := argument_violations(a, getattr(node, a.name)):
+            out.append(Violation("TM-C003", f"{path}.{a.name}", f"{a.name}: {why}"))
+    out += _slot_violations(node, path)
     if isinstance(node, Environment):
         out += _grammar_violations(node, path)
         for i, child in enumerate(node.content):
             if isinstance(child, Command | Environment | Passthrough):  # pyright: ignore[reportUnnecessaryIsInstance]
                 out += _violations(child, f"{path}/{type(child).__name__}[{i}]")
+    return out
+
+
+def _slot_violations(node: Command | Environment | Passthrough, path: str) -> list[Violation]:
+    """Slots that are written together or not at all (`TM-C004`), and a skipped slot that is refused (`TM-C005`)."""
+    out: list[Violation] = []
+    ordered = tex_arguments(type(node).__tm_args__)
+    shown = [written(a, getattr(node, a.name)) for a in ordered]
+    for group in dict.fromkeys(a.group for a in ordered if a.group is not None):
+        members = [(a, s) for a, s in zip(ordered, shown, strict=True) if a.group is group]
+        if 0 < sum(s for _, s in members) < len(members):
+            unset = [a.name for a, s in members if not s]
+            out.append(
+                Violation(
+                    "TM-C004", path, f"group {group.name!r}: {unset} not set, the others are", hint="set all or none"
+                )
+            )
+    for i, a in enumerate(ordered):
+        if (
+            not shown[i]
+            and a.optional
+            and not a.token
+            and a.fill is Gap.REFUSE
+            and any(s and b.optional and not b.token for s, b in zip(shown[i + 1 :], ordered[i + 1 :], strict=True))
+        ):
+            out.append(
+                Violation("TM-C005", f"{path}.{a.name}", f"{a.name} is left out but a later optional argument is set")
+            )
     return out
 
 

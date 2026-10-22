@@ -182,6 +182,11 @@ def _decimal(x: float) -> Decimal:
     return Decimal(repr(float(x)))
 
 
+def plain_number(x: float) -> str:
+    """A number as TeX reads it: no exponent, no trailing zeros (`0.5`, `2`)."""
+    return _plain(_decimal(x))
+
+
 @dataclasses.dataclass(frozen=True, init=False)
 class Length:
     """A TeX dimension: `Length("2mm")`, `Length(1.5, "pt")`. Units are kept as written, never converted."""
@@ -219,6 +224,62 @@ class Length:
         if per is None:
             raise DeclarationError(f"{self}: {self.unit} is relative to the font", code="TM-M016")
         return Fraction(self.value) * per
+
+    @staticmethod
+    def expr(tex: "Raw | str") -> "LengthExpr":
+        """A TeX length expression, which has no size in Python: `Length.expr(r"\\linewidth")`,
+        `Length.expr(r"0.5\\textwidth")`. Written as it is, braces balanced; a plain `str` is not a length, so this is
+        how to say one."""
+        return LengthExpr(tex)
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source: object, handler: object) -> CoreSchema:
+        """Data gives a length as `"2mm"`, or `{"expr": "\\linewidth"}` for an expression."""
+        from pydantic_core import core_schema as cs
+
+        def make(value: object) -> Length:
+            try:
+                if isinstance(value, Length):
+                    return value
+                if isinstance(value, str):
+                    return Length(value)
+                if isinstance(value, dict) and set(value) == {"expr"} and isinstance(value["expr"], str):  # pyright: ignore[reportUnknownArgumentType]
+                    return LengthExpr(value["expr"])
+            except (DeclarationError, ValidationError) as exc:
+                raise ValueError(str(exc)) from exc
+            raise ValueError('expected a length such as "2mm", or {"expr": "\\\\linewidth"}')
+
+        return cs.json_or_python_schema(
+            json_schema=cs.chain_schema(
+                [cs.union_schema([cs.str_schema(), cs.dict_schema()]), cs.no_info_plain_validator_function(make)]
+            ),
+            python_schema=cs.no_info_plain_validator_function(make),
+            serialization=cs.plain_serializer_function_ser_schema(
+                lambda length: {"expr": length.tex} if isinstance(length, LengthExpr) else str(length)
+            ),
+        )
+
+
+@dataclasses.dataclass(frozen=True, init=False)
+class LengthExpr(Length):
+    """A TeX length expression (`Length.expr`): a `Length` wherever one is asked for; only TeX knows its size."""
+
+    tex: str
+
+    def __init__(self, tex: "Raw | str") -> None:  # noqa: PLW0231  # a different constructor from Length's
+        text = tex.tex if isinstance(tex, Raw) else Raw(tex).tex
+        if not text.strip():
+            raise DeclarationError("Length.expr: empty", code="TM-M016")
+        object.__setattr__(self, "value", Decimal(0))
+        object.__setattr__(self, "unit", "")
+        object.__setattr__(self, "tex", text)
+
+    def __str__(self) -> str:
+        return self.tex
+
+    @property
+    def inches(self) -> Fraction:
+        raise DeclarationError(f"{self}: a TeX expression has no size in Python", code="TM-M016")
 
 
 class _Colour:

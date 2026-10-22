@@ -26,7 +26,6 @@ from .body import Comment
 from .components import Command, Environment, Node, Passthrough, Value
 from .errors import ValidationError, Violation
 from .package import Package
-from .types import Choice, Raw
 
 _MODELS: dict[tuple[type[Environment], tuple[type[Comment], ...]], type[pydantic.BaseModel]] = {}
 _COMMENT_MODELS: dict[type[Comment], type[pydantic.BaseModel]] = {}
@@ -78,8 +77,7 @@ def _model(cls: type[Environment], comments: tuple[type[Comment], ...]) -> type[
         tagged = tuple(Annotated[m, pydantic.BeforeValidator(r), pydantic.Tag(m.__name__)] for m, r in members)
         fields: dict[str, Any] = {"content": (list[Annotated[typing.Union[tagged], pydantic.Discriminator(_tag)]], ...)}  # noqa: UP007
         for a in cls.__tm_args__:
-            kind = a.choice or (Raw if a.raw else str)
-            fields[a.name] = (kind | None, None) if a.optional else (kind, ...)
+            fields[a.name] = (a.hint | None, None) if a.optional else (a.hint, ...)
         _MODELS[cls, comments] = pydantic.create_model(cls.__name__, **fields)
         _MODELS[cls, comments].__tm_cls__ = cls  # pyright: ignore[reportAttributeAccessIssue]
     return _MODELS[cls, comments]
@@ -140,8 +138,8 @@ def to_dict(node: Node) -> dict[str, object]:
         return out | {f: getattr(node, f) for f in node.__tm_fields__}
     for a in type(node).__tm_args__:
         value = getattr(node, a.name)
-        if value is not None:
-            out[a.name] = value.tex if isinstance(value, Raw) else value.name if isinstance(value, Choice) else value
+        if value is not None and value is not False:
+            out[a.name] = pydantic.TypeAdapter(a.hint).dump_python(value, mode="json", exclude_defaults=True)
     if isinstance(node, Environment):
         out["content"] = [to_dict(child) for child in node.content]
     return out

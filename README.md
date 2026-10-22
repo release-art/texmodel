@@ -235,6 +235,74 @@ The PDF Info strings need no expl3 in a document: `PdfInfo(Title="...", Author="
 writes each value PDF-escaped through `\csname pdfmanagement_add:nnn\endcsname`, and needs `RequireMetadata` in `before_class`
 (`TM-C009`). A key is letters only (`TM-M035`).
 
+### Arguments: slots, value types and key lists
+
+A field is an argument; its type says what it holds and `arg(...)` says how it is written (`texmodel.interface`).
+Without `arg()`, a required field is `{...}` and an optional one (a default) is TeX's one optional argument, `[...]`,
+written first. With `arg()` the slot keeps its declaration order, so any signature can be stated:
+
+```python
+from texmodel.interface import PAREN, SQUARE, Gap, SlotGroup, Star, arg
+
+class MakeBox(Command):                       # \makebox[3cm][c]{x}
+    cs = "makebox"
+    width: Length | None = arg(SQUARE, default=None, fill=Gap.REFUSE)   # `[c]` alone is not valid: refused
+    align: BoxAlign | None = arg(SQUARE, default=None)
+    text: Raw
+
+class Section(Command):                       # \section*[short]{long}
+    cs = "section"
+    starred: Star = arg(default=False)        # a token: `*`
+    short: Text | None = arg(SQUARE, default=None)
+    title: Text
+
+class Put(Command):                           # \put(1,2){x}
+    cs = "put"
+    at: tuple[int, int] = arg(PAREN)          # a tuple, written `1,2` (`sep=` changes the comma)
+    text: Raw
+```
+
+- **Slots.** `{}` `[]` `()` `<>` or your own `Delimiter`; a `Star` or other token; a slot left out is not written, and an
+  optional slot left out before a later optional one writes `fill=` (say `""` for empty brackets) or is refused
+  (`Gap.REFUSE`); declaring two optionals without saying which is `TM-M037`. A `SlotGroup` is written together or not at all.
+  Optional and token fields are keyword-only in Python wherever they stand, so give an optional one `default=None`.
+- **Value types.** `Text` (escaped), `PdfString`, `Raw`, `Length` (`Length("2mm")`, or `Length.expr(r"\linewidth")` for a TeX
+  expression), a colour model (`CMYK`, `RGB`, `Gray`) or a `ColourName` (`blue!50`), `int`, `float`, `bool` (`true`/`false`),
+  a `Choice`, a tuple, `NamedTuple`, dataclass or model of those, a `list`, and a `KeyVals`. A wrong value is a violation
+  with the field's path.
+- **Definitions.** A signature `\newcommand` can define keeps it. Several optional arguments, other delimiters or a token
+  are defined with `\NewDocumentCommand` / `\NewDocumentEnvironment` (xparse, in the LaTeX kernel; the arguments are
+  `#1`... in TeX order, an optional one left out is empty and a token is `\BooleanTrue` / `\BooleanFalse`). Stubs
+  and `check_interface` follow: `check_interface` reads `\NewDocumentCommand` family definitions as xparse letters.
+
+A key list (`\adjustbox{max width=\linewidth, center}{...}`) is a `KeyVals`, a frozen pydantic model: its field types say
+how each item is written, and its `KeyRules` say how the library reads it.
+
+```python
+from texmodel.interface import Flag, Item, OptionalValue, Switch
+from texmodel.keys import PGFKEYS
+from texmodel.keyvals import KeyVals, key
+
+class AdjustOptions(KeyVals, rules=PGFKEYS):
+    max_width: Length | None = key("max width")       # max width=3cm
+    center: Flag = False                              # center
+    clip: Switch | None = None                        # clip=true / clip=false
+    valign: VAlign | None = None                      # valign=t   (a Choice)
+    rounded: OptionalValue[Length] | None = key("rounded corners")   # rounded corners  /  rounded corners=2pt
+    style: Inner | None = key("every node/.style")    # every node/.style={draw=red}   (another KeyVals)
+    tags: list[Text] | None = None                    # tags=a,tags=b   (a list repeats the key)
+    extra: Item[Raw] | None = None                    # anything else, as written (an Item has no key)
+
+AdjustBox(AdjustOptions(max_width=Length.expr(r"\linewidth"), center=True), Raw("x"))
+```
+
+Items are written in declaration order and unset ones are left out. A `Text` value the library would split (`,` `=` `]`) is
+put in braces, and `exclusive` / `requires` on the class refuse combinations. Presets in `texmodel.keys` (`PGFKEYS`,
+`XKEYVAL`, `KVOPTIONS`, `L3KEYS`, `KEYVAL`) hold what a library does; `dataclasses.replace(PGFKEYS, booleans=("on", "off"))`
+makes another. They were measured, not assumed: `tests/test_texmodel/test_interface_tex.py` passes awkward values through
+pgfkeys, xkeyval, keyval and l3keys. All four read `,` `=` `]` safely when braced and strip a space at either end of a
+value, which `{{ a }}` keeps in three of them (`l3keys` trims whatever it is given, `KeyRules.edge_spaces`). `KVOPTIONS` is `XKEYVAL` without nesting and was not measured.
+
 ### Standard libraries
 
 `texmodel.std` has a header for each TeX library a deck loads: `latex` (the kernel), `graphicx`, `xcolor`, `geometry`,
@@ -246,16 +314,17 @@ class IncludeGraphics(Command):
     r"""Place a picture: `\includegraphics[width=3cm]{a.png}`."""
     cs = "includegraphics"            # the TeX name, stated outright; without `cs` it is prefix + class name
     path: Raw
-    options: Raw | None = None        # TeX's one optional argument, written first
+    options: IncludeGraphicsOptions | None = None    # a KeyVals: TeX's one optional argument, written first
 ```
 
-A body that calls one (`IncludeGraphics.call(Hole("path"), options=Raw(r"width=\linewidth"))`) makes the generated `.sty`
+A body that calls one (`IncludeGraphics.call(Hole("path"), options=IncludeGraphicsOptions(width=Length.expr(r"\linewidth")))`) makes the generated `.sty`
 load the package; the kernel header (`builtin=True`) never does. A library whose commands no body calls, or that takes
 options, is loaded with `pkg.require(microtype, options=["protrusion=true"])`: `\RequirePackage[protrusion=true]{microtype}`,
 in that order, before the packages the bodies need. `tests/test_std` compiles a call of every declared name against the
-reference image, so a header that names a command TeX does not have fails, with the path of the call. A header covers
-required `{}` arguments and one leading `[]`; a library's own syntax (TikZ paths such as `\draw (0,0) -- (1,1);`, key-value
-declarations) is written as `Passthrough` or `Raw`.
+reference image, so a header that names a command TeX does not have fails, with the path of the call. `adjustbox`, `graphicx`,
+`geometry`, `tcolorbox` and `tikz` type their key lists, and the kernel types `\vspace*`, `\makebox`, `\raisebox` and
+the sectioning commands; a library's own syntax (TikZ paths such as `\draw (0,0) -- (1,1);`) is written as `Passthrough`
+or `Raw`.
 
 ### A package that is already written in TeX
 
