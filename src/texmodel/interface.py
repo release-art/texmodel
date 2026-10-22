@@ -26,6 +26,7 @@ import dataclasses
 import enum
 import types
 import typing
+from collections.abc import Mapping
 from typing import Annotated, Any, Final, Literal
 
 from .errors import DeclarationError
@@ -134,6 +135,8 @@ def arg(
     group: SlotGroup | None = None,
     booleans: tuple[str, str] | None = None,
     renamed_from: str | None = None,
+    doc: str | None = None,
+    meta: Mapping[str, object] | None = None,
     kw_only: bool = True,
 ) -> Any:  # noqa: ANN401  # as dataclasses.field
     """How a field is written as an argument. Give an optional field `default=None` (so a type checker knows it).
@@ -146,6 +149,10 @@ def arg(
     metadata: dict[str, object] = {"tm": ArgOptions(delimiter, fill, sep, group, booleans)}
     if renamed_from is not None:
         metadata["renamed_from"] = renamed_from
+    if doc is not None:
+        metadata["doc"] = doc
+    if meta is not None:
+        metadata["meta"] = dict(meta)
     return dataclasses.field(default=default, kw_only=kw_only, metadata=metadata)
 
 

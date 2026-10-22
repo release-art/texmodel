@@ -228,15 +228,17 @@ class Package:
                 path=spec.name,
                 hint="declare a length, colour or flag the hand-written package defines as a Command with no arguments",
             )
-        if spec.default is None and not self.adopted:
+        if spec.default is None and not self.adopted and spec.kind != "Length":
             raise DeclarationError(f"{cls.__qualname__}: no default", code="TM-M013", path=spec.name)
         control = self.prefix + spec.name
         if isinstance(spec.default, Length | str | Raw | None):
             claims = [(self._controls, control, f"\\{control}")]
+        elif spec.kind == "Toggle":
+            claims = [(self._controls, control, f"\\{control}")]
         elif isinstance(spec.default, bool):
             claims = [(self._controls, c, f"\\{c}") for c in (control, *bool_names(self.prefix, spec.name))]
         else:
-            name = colour_name(self.prefix, spec.name)
+            name = spec.colour or colour_name(self.prefix, spec.name)
             claims = [(self._colours, name, f"colour {name}")]
         self._add(spec, *claims)
         cls.__tm_prefix__ = self.prefix
@@ -431,7 +433,16 @@ class Package:
         def values(text: bool) -> list[Line]:
             """Text settings go before `\\begin{document}`, where a package reads them; the others go in the body."""
             return [
-                Line(f"settings[{i}]", setting(type(v).__tm_prefix__, type(v).__name__, v.value))
+                Line(
+                    f"settings[{i}]",
+                    setting(
+                        type(v).__tm_prefix__,
+                        type(v).__name__,
+                        v.value,
+                        colour=type(v).colour_name,
+                        toggle=type(v).__tm_kind__ == "Toggle",
+                    ),
+                )
                 for i, v in enumerate(settings)
                 if isinstance(v.value, str | Raw) == text
             ]

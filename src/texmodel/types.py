@@ -27,6 +27,14 @@ TEXT: Final = _TextMarker()
 Text = Annotated[str, TEXT]
 
 
+class _ToggleMarker:
+    def __repr__(self) -> str:
+        return "Toggle"
+
+
+TOGGLE: Final = _ToggleMarker()  # marks `texmodel.std.etoolbox.Toggle`, which a `Value` reads as an etoolbox toggle
+
+
 class _PdfMarker:
     def __repr__(self) -> str:
         return "PdfString"

@@ -66,7 +66,7 @@ import inspect
 import sys
 import types
 import typing
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar, dataclass_transform, overload
 
 from ._internal.render import (
@@ -103,7 +103,7 @@ from .body import (
 )
 from .errors import DeclarationError, Violation
 from .interface import BRACE, RAW_BODY, SQUARE, ArgOptions, BodyKind, Gap, arg, body_of
-from .types import CMYK, RGB, TEXT, Choice, Colour, Gray, Length, Raw, Text
+from .types import CMYK, RGB, TEXT, TOGGLE, Choice, Colour, Gray, Length, Raw, Text
 
 type Node = Command | Environment | Passthrough | Comment
 Resolved = TexRaw | Ref | Comment | Group | Seq | Cs | Lit | Hole
@@ -244,6 +244,9 @@ class _Node(metaclass=_Meta):
     syntax: ClassVar[Syntax] = Syntax.LATEX2E  # the names `cs` may have: `Syntax.EXPL3` allows `_` and `:`
     defined_by: ClassVar[Library | None] = None  # the library block that defines it, so it renders no definition
     __tm_package__: ClassVar[object]  # the `Package` it was registered with
+    meta: ClassVar[
+        Mapping[str, object]
+    ] = {}  # the schema's `x-` keys on this component (`meta = {"audience": "deck"}`)
 
     def __repr__(self) -> str:
         return _repr(self)  # pyright: ignore[reportArgumentType]
@@ -285,10 +288,18 @@ def _build(cls: type[_Node], unused: Sequence[str], *, init: bool) -> None:
     cls.__tm_args__ = _arguments(cls)  # pyright: ignore[reportArgumentType]
 
 
-def field(*, renamed_from: str, default: Any = dataclasses.MISSING) -> Any:  # noqa: ANN401  # as dataclasses.field
+def field(
+    *,
+    renamed_from: str | None = None,
+    doc: str | None = None,
+    meta: Mapping[str, object] | None = None,
+    default: Any = dataclasses.MISSING,  # noqa: ANN401  # as dataclasses.field
+) -> Any:  # noqa: ANN401
     """A field that data (`from_dict`) may still name `renamed_from`: `to_dict` and the schema use the field's name, the
-    old key loads, and the schema records it as `x-renamed-from` (§21a 15). `default` makes it optional."""
-    return dataclasses.field(default=default, metadata={"renamed_from": renamed_from})
+    old key loads, and the schema records it as `x-renamed-from` (§21a 15). `doc` is its description in the schema and
+    `meta` its `x-` keys (`meta={"audience": "deck"}` is `x-audience`). `default` makes it optional."""
+    metadata = {k: v for k, v in {"renamed_from": renamed_from, "doc": doc, "meta": meta and dict(meta)}.items() if v}
+    return dataclasses.field(default=default, metadata=metadata)
 
 
 @dataclass_transform(frozen_default=True, field_specifiers=(field, arg))
@@ -491,6 +502,9 @@ def _arguments(cls: type[Command] | type[Environment]) -> tuple[Arg, ...]:
                 booleans=(options.booleans if options else None) or ("true", "false"),
                 renamed_from=f.metadata.get("renamed_from"),
                 hint=hints[f.name],
+                default=None if f.default is dataclasses.MISSING else f.default,
+                doc=f.metadata.get("doc"),
+                meta=f.metadata.get("meta") or {},
             )
         )
     _check_signature(cls, tuple(args))
@@ -745,7 +759,7 @@ _KINDS = {
     bool: "Bool",
     str: "Text",
     Raw: "Raw",
-}  # the closed set `Value[T]` accepts (T2)
+}  # the closed set `Value[T]` accepts (T2); a `Toggle` is a `bool` whose kind reads "Toggle"
 
 
 class Value[T]:
@@ -754,6 +768,8 @@ class Value[T]:
 
     default: T  # not ClassVar[T]: pyright refuses type variables in ClassVar; subclasses assign it in the class body
     needs_packages: ClassVar[tuple[str, ...]] = ()  # data, not mutation: the package takes the union (M14)
+    colour_name: ClassVar[str | None] = None  # a `Value[Colour]`'s name when it is not `<prefix>-<kebab>` (`"bbInk"`)
+    meta: ClassVar[Mapping[str, object]] = {}  # the schema's `x-` keys on this value
     __tm_doc__: ClassVar[str]
     __tm_kind__: ClassVar[str]
     __tm_type__: ClassVar[type | types.UnionType]
@@ -777,23 +793,31 @@ class Value[T]:
             (typing.get_args(b)[0] for b in cls.__dict__.get("__orig_bases__", ()) if typing.get_origin(b) is Value),
             None,
         )
-        if typing.get_origin(arg) is typing.Annotated and TEXT in typing.get_args(arg)[1:]:
+        marks = typing.get_args(arg)[1:] if typing.get_origin(arg) is typing.Annotated else ()
+        toggle = TOGGLE in marks
+        if TEXT in marks:
             arg = str  # Text
+        elif toggle:
+            arg = bool
         if arg not in _KINDS:
             raise DeclarationError(
-                f"{cls.__qualname__}: base must be Value of Length, Colour, Bool, Text or Raw, not {arg!r}",
+                f"{cls.__qualname__}: base must be Value of Length, Colour, Bool, Toggle, Text or Raw, not {arg!r}",
                 code="TM-M012",
                 path=cls.__name__,
             )
-        if "default" not in cls.__dict__ and arg not in (str, Raw):
+        if "default" not in cls.__dict__ and arg not in (str, Raw, Length):  # a length may be computed later
             raise DeclarationError(f"{cls.__qualname__}: no default", code="TM-M013", path=cls.__name__)
+        if cls.colour_name is not None and arg is not Colour:
+            raise DeclarationError(
+                f"{cls.__qualname__}: colour_name belongs to a Value[Colour]", code="TM-M012", path=cls.__name__
+            )
         default = cls.__dict__.get("default")
         if default is not None and not isinstance(default, arg):
             raise DeclarationError(
                 f"{cls.__qualname__}: default {default!r} is not a {_KINDS[arg]}", code="TM-M014", path=cls.__name__
             )
-        implied = ("xcolor",) if isinstance(default, (CMYK, RGB, Gray)) else ()
-        cls.__tm_doc__, cls.__tm_kind__, cls.__tm_type__ = doc, _KINDS[arg], arg
+        implied = ("xcolor",) if isinstance(default, (CMYK, RGB, Gray)) else ("etoolbox",) if toggle else ()
+        cls.__tm_doc__, cls.__tm_kind__, cls.__tm_type__ = doc, "Toggle" if toggle else _KINDS[arg], arg
         cls.needs_packages = tuple(sorted({*cls.needs_packages, *implied}))
 
 
@@ -808,4 +832,6 @@ def value_spec_of(cls: type[AnyValue]) -> ValueSpec:
         cls.__tm_kind__,
         f"{cls.__module__}.{cls.__qualname__}",
         cls.needs_packages,
+        cls.colour_name,
+        cls.meta,
     )

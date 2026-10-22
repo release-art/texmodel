@@ -138,7 +138,7 @@ def test_value_declarations_are_refused_when_the_class_is_defined():
 
     with refused("TM-M013"):
 
-        class NoDefault(Value[Length]):
+        class NoDefault(Value[Colour]):
             """No default."""
 
     for default in ("2mm", 2, 0):

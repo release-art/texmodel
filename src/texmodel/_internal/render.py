@@ -40,6 +40,9 @@ class Arg:
     booleans: tuple[str, str] = ("true", "false")
     renamed_from: str | None = None  # the field's old name in data (§21a 15)
     hint: Any = None  # the field's annotation, which the data layer validates against
+    default: Any = None  # the field's default; a `Text` / `Raw` one is what TeX uses for the unset optional argument
+    doc: str | None = None  # the field's documentation (`field(doc=)`), the schema's description
+    meta: Mapping[str, object] = dataclasses.field(default_factory=dict[str, object])  # the schema's `x-` keys
 
     @property
     def token(self) -> bool:
@@ -87,10 +90,12 @@ class ValueSpec:
     doc: str
     default: (
         Length | Colour | bool | str | Raw | None
-    )  # None: a `Value[Text]` or `Value[Raw]` whose default the hand-written package has
-    kind: str  # "Length" | "Colour" | "Bool" | "Text" | "Raw", for the provenance comment
+    )  # None: a `Value[Text]` / `Value[Raw]` the hand-written package defines, or a `Value[Length]` with none
+    kind: str  # "Length" | "Colour" | "Bool" | "Toggle" | "Text" | "Raw", for the provenance comment
     qualname: str
     needs: tuple[str, ...]  # packages it needs (M14)
+    colour: str | None = None  # a colour's name when it is not `<prefix>-<kebab>` (`colour_name = "bbInk"`)
+    meta: Mapping[str, object] = dataclasses.field(default_factory=dict[str, object])  # the schema's `x-` keys
 
 
 def check_name(name: str, what: str) -> None:
@@ -122,17 +127,25 @@ def newcommand_fits(args: tuple[Arg, ...]) -> bool:
     )
 
 
+def default_text(a: Arg) -> str:
+    """The TeX an unset optional slot reads as: empty, or its `Text` / `Raw` default."""
+    if a.optional and a.body.kind in (BodyKind.TEXT, BodyKind.RAW) and isinstance(a.default, str | Raw):
+        return argument_text(a, a.default)
+    return ""
+
+
 def xparse_letter(a: Arg, *, defaults: bool) -> str:
-    """The xparse argument type of a slot. With `defaults`, an optional one is `O{}` / `D(){}`, an empty default, as
-    `\\newcommand`'s `[]`; without, the letters alone (`o`, `d()`), which is how signatures are compared."""
+    """The xparse argument type of a slot. With `defaults`, an optional one is `O{}` / `D(){}` (its default in the
+    braces, empty unless the field has a `Text` / `Raw` one), as `\\newcommand`'s `[]`; without, the letters alone
+    (`o`, `d()`), which is how signatures are compared."""
     if a.token:
         return "s" if a.body.token == "*" else f"t{a.body.token}"
     d = a.delimiter
     if not a.optional:
         return "m" if d == BRACE else f"r{d.open}{d.close}"
     if d == SQUARE:
-        return "O{}" if defaults else "o"
-    return f"D{d.open}{d.close}{{}}" if defaults else f"d{d.open}{d.close}"
+        return f"O{{{default_text(a)}}}" if defaults else "o"
+    return f"D{d.open}{d.close}{{{default_text(a)}}}" if defaults else f"d{d.open}{d.close}"
 
 
 def xparse_spec(args: tuple[Arg, ...], *, defaults: bool = True) -> str:
@@ -141,7 +154,7 @@ def xparse_spec(args: tuple[Arg, ...], *, defaults: bool = True) -> str:
 
 def canonical(signature_text: str) -> str:
     """A signature as xparse letters: `[2][]` is `om`, `[2]` is `mm`, an xparse one is as it is."""
-    m = re.fullmatch(r"\[(\d)\](\[\])?", signature_text)
+    m = re.fullmatch(r"\[(\d)\](\[.*\])?", signature_text, re.DOTALL)
     if not m:
         return signature_text
     return ("o" if m[2] else "") + "m" * (int(m[1]) - (1 if m[2] else 0))
@@ -188,11 +201,13 @@ def check_braces(spec: Spec | EnvSpec, *bodies: str) -> None:
 
 
 def signature(args: tuple[Arg, ...]) -> str:
-    """`[2][]` (two arguments, the first optional) when `\\newcommand` can define it, else the xparse letters."""
+    """`[2][]` (two arguments, the first optional; `[2][\\mark]` with a default) when `\\newcommand` can define it, else
+    the xparse letters."""
     n = len(args)
     if not newcommand_fits(args):
         return xparse_spec(args, defaults=False)
-    return f"[{n}]" + ("[]" if any(a.optional for a in args) else "") if n else ""
+    optional = next((a for a in args if a.optional), None)
+    return f"[{n}]" + (wrap(SQUARE, default_text(optional)) if optional else "") if n else ""
 
 
 def _comment(doc: str) -> list[str]:
@@ -351,8 +366,16 @@ def bool_names(prefix: str, name: str) -> tuple[str, ...]:
     return (f"{prefix}{name}true", f"{prefix}{name}false")
 
 
-def setting(prefix: str, name: str, value: Length | Colour | bool | str | Raw) -> str:
-    """The line that gives a value its content: the default in the `.sty`, a document's `settings=` in the `.tex`."""
+def setting(
+    prefix: str,
+    name: str,
+    value: Length | Colour | bool | str | Raw,
+    *,
+    colour: str | None = None,
+    toggle: bool = False,
+) -> str:
+    """The line that gives a value its content: the default in the `.sty`, a document's `settings=` in the `.tex`.
+    `colour` names a colour that is not `<prefix>-<kebab>`; `toggle` writes a bool as an etoolbox toggle."""
     control = f"{prefix}{name}"
     if isinstance(value, Raw):
         return f"\\renewcommand{{\\{control}}}{{{value.tex}}}"
@@ -361,8 +384,9 @@ def setting(prefix: str, name: str, value: Length | Colour | bool | str | Raw) -
     if isinstance(value, Length):
         return f"\\setlength{{\\{control}}}{{{value}}}"
     if isinstance(value, bool):
-        return f"\\{control}{'true' if value else 'false'}"
-    return f"\\definecolor{{{colour_name(prefix, name)}}}{{{value.model}}}{{{value}}}"
+        word = "true" if value else "false"
+        return f"\\toggle{word}{{{control}}}" if toggle else f"\\{control}{word}"
+    return f"\\definecolor{{{colour or colour_name(prefix, name)}}}{{{value.model}}}{{{value}}}"
 
 
 def render_value(prefix: str, spec: ValueSpec) -> str:
@@ -379,17 +403,17 @@ def render_value(prefix: str, spec: ValueSpec) -> str:
                 f"\\newcommand{{\\{control}}}{{{escape(d)}}}",
             ]
         )
-    d = cast("Length | Colour | bool", d)  # Package.value refuses a missing default
     decl = (
         [f"\\newlength{{\\{control}}}"]
-        if isinstance(d, Length)
+        if spec.kind == "Length"
+        else [f"\\newtoggle{{{control}}}"]
+        if spec.kind == "Toggle"
         else [f"\\newif\\if{control}"]
         if isinstance(d, bool)
         else []
     )
-    return "\n".join(
-        [*_comment(spec.doc), f"% from {spec.qualname} (value: {spec.kind})", *decl, setting(prefix, spec.name, d)]
-    )
+    given = [] if d is None else [setting(prefix, spec.name, d, colour=spec.colour, toggle=spec.kind == "Toggle")]
+    return "\n".join([*_comment(spec.doc), f"% from {spec.qualname} (value: {spec.kind})", *decl, *given])
 
 
 def undeclared(prefix: str, text: str, declared: Mapping[str, str]) -> list[str]:

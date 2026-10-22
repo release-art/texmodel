@@ -172,21 +172,39 @@ def _requires_type(node: object) -> None:
             _requires_type(value)
 
 
+def _x_keys(meta: Mapping[str, object]) -> dict[str, object]:
+    """`{"audience": "deck"}` as `{"x-audience": "deck"}`."""
+    return {f"x-{k}": v for k, v in meta.items()}
+
+
 def _annotate(schema: dict[str, Any], classes: Iterable[type], comments: Iterable[type] = ()) -> None:
-    """Name every component by its `"type"` constant, and record `x-renamed-from` on each renamed field (§21a 15)."""
+    """Name every component by its `"type"` constant, record `x-renamed-from` on each renamed field (§21a 15), and add
+    the `doc` and `meta` of fields and components (`x-` keys)."""
     named = _reachable(classes)
     kinds = {*named, *(c.__name__ for c in (Comment, *comments))}
     for node in (schema, *schema.get("$defs", {}).values()):
         title = str(node.get("title"))
         if title in kinds:
             node.setdefault("properties", {})["type"] = {"const": title}
+        node |= _x_keys(getattr(named.get(title), "meta", {}))
         for a in getattr(named.get(title), "__tm_args__", ()):
-            if a.renamed_from and a.name in node.get("properties", {}):
-                node["properties"][a.name]["x-renamed-from"] = a.renamed_from
+            if a.name in (props := node.get("properties", {})):
+                if a.renamed_from:
+                    props[a.name]["x-renamed-from"] = a.renamed_from
+                if a.doc:
+                    props[a.name]["description"] = a.doc
+                props[a.name] |= _x_keys(a.meta)
     _requires_type(schema)
 
 
-_VALUE_TYPES = {"Length": "string", "Colour": "string", "Bool": "boolean", "Text": "string", "Raw": "string"}
+_VALUE_TYPES = {
+    "Length": "string",
+    "Colour": "string",
+    "Bool": "boolean",
+    "Toggle": "boolean",
+    "Text": "string",
+    "Raw": "string",
+}
 
 
 def _package_schema(package: Package, comments: tuple[type[Comment], ...]) -> dict[str, Any]:
@@ -209,6 +227,7 @@ def _package_schema(package: Package, comments: tuple[type[Comment], ...]) -> di
                 "title": cls.__name__,
                 "description": cls.__tm_doc__,
                 "type": _VALUE_TYPES[cls.__tm_kind__],
+                **_x_keys(cls.meta),
             }
     _annotate(schema, nodes, comments)
     return schema
