@@ -290,7 +290,9 @@ first public release.
 
 **Built.** Explicit control-sequence names (`cs`), empty prefix, `builtin` packages, `Package.require`, and `texmodel.std`
 (16 libraries). **Next, in order:**
-1. **Std gaps the brand needs.** expl3 (`\pdfmanagement_add:nnn`, `\fp_eval:n`, `\seq_`, `\tl_`): names with `_` and `:` that
+1. **expl3 (decided 2026-10-22): batch E1, `docs/briefs/expl3.md`.** A syntax mode plus verbatim library blocks, verified by
+   compiling snippets, no typed l3 vocabulary, no parser. Until it is built, algorithmic expl3 stays a hand-written adopted file.
+   **Other std gaps the brand needs.** expl3 (`\pdfmanagement_add:nnn`, `\fp_eval:n`, `\seq_`, `\tl_`): names with `_` and `:` that
    `Cs` refuses; TikZ path commands; `\newfontfamily\name[...]{...}` (a macro name argument); commands with two optional
    arguments (`\makebox`, `\raisebox`); star forms (`\AddToShipoutPictureBG*`, `\newcommand*`). Each needs a decision.
 2. **Generating the brand family.** The deck's `.sty` files hold about 130 definitions, 3000 lines. Port by family layer

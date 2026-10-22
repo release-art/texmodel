@@ -959,6 +959,7 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | `Package.document(...)` renders a `.tex`; values are set by `Value` instances in `settings=` | decided 2026-10-22 |
 | `texmodel render module:attr` writes a document to a file | decided 2026-10-22 |
 | A component may name its TeX command with `cs`; a package may have an empty prefix; the kernel is `builtin`; `Package.require` loads a library with options; headers for standard libraries live in `texmodel.std`, one module per package, verified by compiling a call of each | decided 2026-10-22 |
+| expl3: a syntax mode and verbatim library blocks, verified by compiling; no typed l3 vocabulary, no parser (brief `docs/briefs/expl3.md`) | decided 2026-10-22 |
 | A field cannot be called `type` (data's component name); an unprefixed package needs `cs` everywhere; `Passthrough` TeX is checked for undeclared names | decided 2026-10-22 |
 | `Anywhere` kinds are removed before ordered matching, so a kind is ordered or floating, never both (`TM-M029`) | decided 2026-10-22 |
 | `Comment` subclasses are passed to `from_dict` / `json_schema` as `comments=[...]`, not found by name; a body line starting with `%` is not scanned for `#name` holes | decided 2026-10-22 |
@@ -1113,6 +1114,13 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
     registry of comment classes for data (today the caller lists them), and keyed matching of comments (item 6). Every line it renders is prefixed `%`; a subclass declares fields and a `#name` template (an audit block
     above a card). Usable as a body piece and as a document node; transparent to the grammar; named in the plan; skippable in
     `Plan.edits`. Brief: `docs/briefs/roadmap.md` A4.
+23. **expl3.** Decided 2026-10-22, brief `docs/briefs/expl3.md` (batch E1): expl3 is a syntax mode (`Syntax.EXPL3`) and a source
+    kind (verbatim library blocks, `Package.library`, components `defined_by` a block), not a typed language; no parser;
+    syntax and interface are verified by tests that compile the code with lualatex (`export_probes`, `check_library`); the
+    PDF Info strings use a typed `PdfInfo` preamble entry (`\csname pdfmanagement_add:nnn\endcsname`, verified) so documents
+    never need expl3. Rejected: a typed l3 vocabulary (algorithms gain nothing from Python wrappers), and keeping expl3 out
+    of texmodel (the brand's title-fitting code is the first consumer's). Open: whether a library block may become its own
+    `.sty`; a parser option (memory note `project-tex-parser-option`).
 22. **Gate B itself.** The ten-minute criterion needs a first-time author, timed. The "three real past defects" criterion needs
     a consumer whose history records an escaping bug and an over-set card; the first consumer recorded only interface drift.
 
