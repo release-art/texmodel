@@ -9,6 +9,16 @@ A acceptance.
 *texmodel* is the project name. The project is **application-agnostic**: it knows
 nothing about any brand, deck or business domain.
 
+**How to read this document.** It is the target specification plus the decisions log (§21). The README and the cookbook
+describe what exists; §21 is the record of what was decided and built; §19 and §21a list what is open. Many ids below
+describe work that is *not built*. Checked against the code (v0.3.0), these are not built: scoped overrides `Set` (D4a),
+rules and `@rule` (D5), placement (M5), the `Namespace` policy (M6), `engine`/`kind`/`base` on `Package` and engine
+capabilities (M11, M13), `Markup`, `Path`, `Font`, `Snippet`, `PgfStyle`, `Cycle` and colour variants (T2, T5-T9), trust
+levels and limits (Z1), `texmodel explain` (E4), a `@covers` check (A2, V7), benchmarks (W2), `libcst` refactors and
+`texmodel init|show|try|make|change|release|adopt` (U1: the commands are `texmodel build|check|render|schema` and
+`texmodel-build doctor|compile|clean`), and migrations and releases (§13). Print (§14) and the sandbox (§12, Z2-Z3) are
+planned. Read an unmarked id as a requirement unless §21 or the README shows it built.
+
 ---
 
 ## 1. Purpose
@@ -73,14 +83,14 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
 ### 3.1 Three components
 
 - M1 **Command**, **Environment**, **Value[T]** are the only components. `Value[T]`
-  covers settings, lengths, colours, toggles, counters and options; the type says
-  which. Anything else (fonts, spot colours, snippets, pgf styles, colour cycles,
+  covers settings, lengths, colours, flags, toggles and text or TeX settings; the kind says
+  which (`ValueKind`, §21). A counter is read in a library (duplicates) but is not a kind. Anything else (fonts, spot colours, snippets, pgf styles, colour cycles,
   role tables) is a *type*, never a new kind.
 - M2 A component's Python signature is its interface. Fields are annotated; docs come
-  from the class docstring and `field(doc=…)` (texmodel's own `field`, lowercase like
-  `dataclasses.field`, also carrying `renamed_from`, X3). **Optional arguments are
-  keyword-only in Python** (`T | None = default`) and come after the required ones, as
-  Python requires; the renderer emits them where TeX needs them (`\newcommand` allows
+  from the class docstring and `field(doc=…, meta=…)` (texmodel's own `field`, lowercase like
+  `dataclasses.field`, also carrying `renamed_from`, X3; `meta` becomes `x-` keys in the schema). **Optional arguments are
+  keyword-only in Python** (`T | None = arg(default=None)`, so a type checker reads them as keyword-only and accepts
+  required fields after them); the renderer emits them where TeX needs them (`\newcommand` allows
   one optional argument, first). So `class Slot: text: Text; label: Text | None = None`
   is called `Slot("A soft woof.", label="Sound")` and renders `\acSlot[Sound]{A soft woof.}`.
   TeX argument order is derived from the declaration, never written twice. The full
@@ -99,7 +109,7 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   an `Environment` becomes `\newenvironment` with two bodies, `begin` and `end` (M8; the
   arguments belong to `begin`, TeX gives `end` none); a `Value[T]` needs no body, its type decides the
   declaration (`\newcommand` for text and options, `\newlength`, `\definecolor`,
-  `\newif`, `\newcounter`) and its `default` is an *instance of the type*
+  `\newif`, `\newtoggle`) and its `default` is an *instance of the type*
   (`default = Length("2mm")`, `default = CMYK(0, 0, 0, .95)`), which the type checker
   and the validator both see. A missing body, or a `TemplateRef` to a file that cannot be read, is
   an error naming the class and the path, never a silent empty body.
@@ -158,7 +168,8 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
 
 ### 3.5 Packages and classes
 
-- M11 `Package(name, prefix, engine, kind="package"|"class", base=…)`. `kind="class"`
+- M11 `Package(name, prefix=, version=, date=, description=, header=, document_class=, adopted=, builtin=,
+  whitespace=)` is built. Planned: `engine`, and `kind="package"|"class"` with `base=…`; `kind="class"`
   adds class options and `\LoadClass`. Document shape is not assumed: prose, fixed
   canvas slides and small bleeding pieces must all be expressible.
 - M12 Layering is a DAG (`requires`/`layer`); cycles are errors. `graphlib` orders it.
@@ -285,7 +296,8 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   sequence used must be declared somewhere in it; every internal used must be defined.
 - G3 Known engine traps are encoded as lints with the failure they prevent:
   `\ProvidesPackage/Class` date field linted by **grammar** (`YYYY/MM/DD [vX.Y]
-  description`; a bare dotted version in the date slot is an error), `\input@path`
+  description`; a bare dotted version in the date slot is an error; a package with no date has no bracket at all,
+  because LaTeX reads its first word as a date), `\input@path`
   before `\usepackage` and `\graphicspath` after, fonts resolved by the font loader,
   missing-glyph-is-only-a-warning.
 - G4 **Version binding**: a package version may be bound to an external source; the
@@ -431,8 +443,8 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
 ## 9. Schema and introspection
 
 - S1 `texmodel` exports JSON Schema 2020-12 (`$id` URN) and OpenAPI 3.1
-  `components.schemas`. Extensions are `x-texmodel-*`: call, arguments, placement,
-  order, form, skeleton.
+  `components.schemas`. Extensions are `x-` keys: `x-renamed-from` (X3), the keys of a field's or component's `meta`
+  (`x-<key>`), and `x-tex-key` on key lists. Planned: call, arguments, placement, order, form, skeleton.
 - S2 A schema field exists iff a model field exists; no hand-edited schema.
 - S3 `show NAME` gives signature, rules, placement, count, example; `show SPEC` gives
   the annotated plan. `--json` is a complete machine-readable manual.
@@ -448,15 +460,15 @@ The user-facing contract. Python's own design principles (the Zen) are the
 tie-breaker: one obvious way, explicit over implicit, errors never silent, flat over
 nested, readability counts.
 
-- I1 **One import surface.** `from texmodel import …` is the public API (components,
-  types, `Package`, `Doc` helpers, errors). Sub-packages with their own surface are
-  exactly `texmodel.std`, `texmodel.testkit`, `texmodel.verify`, and the print extra.
-  Everything else is underscore-private; `__all__` is explicit; import-linter forbids
-  deep imports in examples and docs.
+- I1 **One import surface.** The top-level modules of `texmodel` are the public API (`texmodel.components`,
+  `.types`, `.package`, `.interface`, `.keyvals`, `.errors`, `.spec`, `.std`, …); everything in `texmodel._internal` is
+  private, and a test lists the public modules (§18). Planned: a flat `from texmodel import …` re-export.
 - I2 **Semantic versioning of the framework itself.** Deprecations emit
   `DeprecationWarning` naming the replacement and are removed no earlier than two minor
   releases later. A public-API snapshot (e.g. `griffe`) runs in CI and fails on any
-  unreviewed breaking change. Changelog fragments (towncrier) are required per PR.
+  unreviewed breaking change. Changelog fragments (towncrier) are required per PR. **Until 1.0 this is planned, not
+  practised:** a 0.x release may break the API, and says so under `Changed` or `Removed`; the changelog is edited by hand
+  under `[Unreleased]` (CONTRIBUTING).
 - I3 **Typing.** `py.typed`; the library is pyright-strict clean; no `Any` in public
   signatures; `Value[T]` is generic so defaults are checked; no `**kwargs`
   pass-through; options are keyword-only; mode switches are enums, not booleans;
@@ -513,7 +525,10 @@ Without common building blocks every real document needs `Raw`, which is the opp
 of the point. Opt-in package, built with the *same public API as user packages*
 (dogfooding; no private hooks), shipping its own bodies, goldens and docs.
 
-- B1 v1 contents: `Paragraph`, `Section`/`Subsection` (starred variants, M3a),
+- B1 **As built**, `texmodel.std` is typed headers for TeX packages (`latex`, `calc`, `etoolbox`, `xcolor`, `tikz`,
+  `graphicx`, …), one module per package, written in adopted mode and verified by compiling a call of each (§21). The list
+  that follows is the original idea of a library of document elements; it is not built and is not the plan.
+  v1 contents: `Paragraph`, `Section`/`Subsection` (starred variants, M3a),
   `Itemize`/`Enumerate`/`Description` with `Item`, `Table` (typed columns, header row,
   totals, decimal-aligned numeric columns), `Figure` with `Caption` and
   `Path[Image]`, `Label`/`Ref`, `Footnote`, `Include`, `Emph`/`Strong` via `Markup`,
@@ -637,6 +652,8 @@ acme-cards/
 ```
 
 ### 15.2 A whole package
+
+Illustrative: `engine=` and the top-level import are planned (M11, I1). The README's first example is the working one.
 
 ```python
 from texmodel import Package, Command, Environment, Value, TemplateRef, Text, Length, Colour, CMYK, LuaLaTeX
@@ -806,8 +823,9 @@ stringly-typed arguments, escaping by mutable flag, global mutable config, raw
 subprocess exceptions, package propagation by tree mutation.
 
 Rejected: SQL/Django migration libraries; `jsonpatch`/`glom` for migration steps
-(plain Python is clearer); Jinja/`string.Template`/`$name` hole syntaxes; 3.14
-template strings for bodies (TeX braces fight interpolation).
+(plain Python is clearer); Jinja/`string.Template`/`$name` hole syntaxes for bodies (a body's holes are `#name`); 3.14
+template strings for bodies (TeX braces fight interpolation). The one other hole is `<<name>>`, which only
+`Package.library(fill=)` reads, from a typed model, and which has no logic: loops and conditionals stay in Python.
 
 ---
 
@@ -880,11 +898,10 @@ whose history records an escaping bug and an over-set card. If not met, stop at 
 
 **First release.** A brand package family generated by `texmodel` (the deck's `.sty` files hold about 130 definitions in 3000
 lines; port by family layer: core, canvas, card, series), then the deck as a model, then `v0.1.0`: a quickstart in the README,
-`pdm build` and an install from the wheel in a clean environment, a privacy grep on tracked files. Still missing for the
-brand: `Value[Length]` registers, counters, toggles, option processing (`\DeclareOption`, `\ProcessOptions`),
-`\AtBeginDocument` hooks, conditionals; TikZ path commands; `\newfontfamily\name[...]{...}` (a macro-name argument);
-commands with two optional arguments (`\makebox`, `\raisebox`); star forms (`\AddToShipoutPictureBG*`, `\newcommand*`).
-Each needs a decision.
+`pdm build` and an install from the wheel in a clean environment, a privacy grep on tracked files. Released as v0.2.0 and v0.3.0 (0.1.0 was never published). The brand port is the first consumer; its remaining
+frictions come back as notes and are fixed in the next minor. Not covered yet: option processing (`\ProcessOptions`) beyond
+the `\DeclareOption` header, TikZ path commands, `\newfontfamily\name[...]{...}` as a typed call (the scan reads its
+definition), and star forms (`\AddToShipoutPictureBG*`).
 
 ---
 
@@ -935,7 +952,7 @@ Each needs a decision.
 | Documents are constructor trees (not `with` builders) | decided |
 | `children = [Fact.times(2, 3)]` multiplicity syntax (`times([from,] to)` with `to=None` for no limit, plus `times.any()` and `times.at_least_one()`; not operator overloading) | decided |
 | An adopted (declared-only) package is a flag on the package, `Package(..., adopted=True)`: no bodies, no `.sty`, `texmodel check` compares the declarations with `[tool.texmodel] sources` | decided |
-| The interface check reads `\newcommand`, `\providecommand` and `\newenvironment` and compares the argument count and whether the first is optional; a name defined another way is missing (`TM-C010`, `TM-C011`) | decided |
+| The interface check compares the argument count and whether the first is optional of what the scan reads (§21a 8); a name defined another way is missing (`TM-C010`, `TM-C011`) | decided |
 | Document preamble: `PreambleSlots(before_class, before_package, after_package)`, each a tuple of `Raw` or a typed entry, passed to `Package.document(preamble=)`; public names used there are linted (`TM-M015`) | decided |
 | The harness types any package warning (`PackageWarning`, `TM-X019`); `Overset` types a "does not fit" warning through a configured rule or a `fit.` probe | decided |
 | A source map is a `Plan`: output lines with the path that wrote each. Documents are checked against the model's render, with no baseline file (`[tool.texmodel.documents]`, like `terraform plan`); hand edit and config change are not told apart | decided |
@@ -950,6 +967,7 @@ Each needs a decision.
 | `[tool.texmodel] package` is one pointer, a list of them, or a pointer to an iterable of packages; `build` and `check` cover the family together; `schema` needs one | decided |
 | `\ProvidesPackage` carries a date only when the package has one (LaTeX reads the first word of its bracket as a date); `header` adds comment lines under the generator's line | decided |
 | An optional argument's scalar default is TeX's default in the definition; a call inside a `Raw` argument is a `Ref` or `Seq`; counting rules in TeX are built from `StepCounter`, `IfNumGreater` and friends (cookbook), with no flag in the library | decided |
+| A shared base is `abstract=True` (fields, `body` or `begin`/`end`, `children` for its subclasses; no docstring or control-word name; never registered, `TM-M043`); a value has a control sequence (`control_name`) unless it is a colour (`TM-M042`) and a readable default (`Value.declared_default()`) | decided |
 | Python-only authoring; TOML/YAML frontend | parked, not planned |
 | Renames via `renamed_from` → pydantic aliases + release record | decided |
 | lualatex only in v1; capabilities explicit | decided |
@@ -1039,5 +1057,6 @@ Each is a candidate, not a decision. The ones that can run unattended are batche
   additions need a user-facing case and the same tests and docs.
 - **Sandbox gaps.** Mitigation: Z2 is a verification task with a test, not an assumption;
   until proven, untrusted specs never include `Raw` (Z1).
-- **Pydantic coupling.** Mitigation: it is hidden behind `types`; public signatures do
-  not expose its classes.
+- **Pydantic coupling.** Mitigation: it is used at the data boundary (`spec`) and for `KeyVals` and `library(fill=)`
+  models; component classes stay stdlib dataclasses. `KeyVals` is a pydantic model in public signatures, a decided
+  exception (§21).

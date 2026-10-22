@@ -5,7 +5,10 @@ done looks like. Source of the ideas: `docs/texmodel-plan.md` §21a. Batches tha
 run at the same time.
 
 ```
-C1 scanner reach (low priority)
+No batch is ready to run unattended. Candidates, each small once an owner picks it:
+  K1 a counter as a ValueKind (`\newcounter`; claims a counter namespace, so a package declares it and a part defining it is checked)
+  K2 external sources checked both ways (a name a hand-written `.sty` defines that nothing declares, as a library's `TM-C012`)
+  K3 output-change labelling (G7): `check` names the minor release that changed a generated file, the changelog marks it
 Needs an owner decision first:  X1 data-driven render   X2 hand-edit semantics   X3 rules layer   X4 List   X5 Gate B
 ```
 
@@ -14,8 +17,8 @@ Needs an owner decision first:  X1 data-driven render   X2 hand-edit semantics  
 - Work in `/Users/ilo/Devel/Release.art/texmodel`. Read `README.md`, `CONTRIBUTING.md`, the plan sections named in the batch,
   and the modules named under "Touches". Do not commit, push or change GitHub settings.
 - Conventions (they override defaults): explicit over implicit (named methods and enums, no name-based lookup, no magic
-  strings); every `Enum` is decorated with `@enum.unique`; nothing is released, so docs, comments and `CHANGELOG.md`
-  (`## [Unreleased]`) describe the current state only (no "changed", "no longer", "formerly"); errors are
+  strings); every `Enum` is decorated with `@enum.unique`; docs and comments describe the current state only (no "changed", "no longer", "formerly");
+  `CHANGELOG.md` (`## [Unreleased]`) lists what differs from the last release under Added, Changed, Removed and Fixed; errors are
   `DeclarationError(msg, code=, path=, hint=)` with a new stable `TM-xxxx` code (grep for the next free one); frozen
   dataclasses; no `Any` in public signatures; only `cli.py` prints; line length 120; docstrings cite plan ids; lean diffs,
   reuse what exists, no scaffolding for later.
