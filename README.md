@@ -6,8 +6,13 @@
 Declare a LaTeX document family once in Python types; get plain, readable, git-trackable `.sty` source out of it. The output
 is ordinary TeX: commit it, diff it, compile it with whatever LaTeX setup you already have.
 
-> **Status: pre-alpha, not on PyPI.** One component kind (`Command`) renders to a `.sty` today. Environments, values,
-> `Doc` trees, schema export and migrations are designed (see [the plan](docs/texmodel-plan.md)) but not built.
+> **Status: 0.1.0, alpha.** The public API may change before 1.0. Release migrations, `texmodel-print` and the trust
+> and sandbox layers are planned, not built (see [the plan](docs/texmodel-plan.md)).
+
+```zsh
+pip install texmodel                 # the library
+pip install texmodel-build           # optional: the latexmk driver and verifiers
+```
 
 This repository holds two packages, released in lockstep:
 
@@ -482,11 +487,7 @@ image = "releaseart/lualatex-python:latest"   # runs `docker run` over it; omit 
 
 ## Where it is going
 
-| Step | Contents | State |
-|---|---|---|
-| A | build harness: compile, typed diagnostics, verifier plugins, drift, bundle | built |
-| B | rendering core: types, `Command`/`Environment`/`Value`, `.sty`, `Doc` trees, schema | `Command` → `.sty` and `build`/`check` done |
-| C | migrations, adopting hand-written TeX, a standard library, docs, 1.0 | after B |
+Open work is in [the plan](docs/texmodel-plan.md) (§19, §21a) and [the roadmap](docs/briefs/roadmap.md).
 
 ## Development
 

@@ -15,7 +15,7 @@ from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
 from texmodel.body import Comment, Cs, Group, Hole, Lit, RefKind, Seq
 from texmodel.components import Command, Environment, Passthrough
 from texmodel.package import Package
-from texmodel.testing import Call, detokenized, expand
+from texmodel.testing import Call, detokenized, expand, stub_tex
 from texmodel.types import Raw, Text
 from texmodel_build.errors import CompileError
 from texmodel_build.testkit import run_probes
@@ -113,6 +113,7 @@ def test_optional_arguments_comments_passthrough_and_adopted_components():
 
     node = Box(Slot("a"), Comment("note"), Passthrough(Raw(r"\vspace{1mm}")), Slot("b", label="L"))
     out = expand(node, [Slot])
+    assert r"\renewenvironment{sdBox}" in stub_tex([Box])
     assert calls(out) == [Call("sdSlot", ("", "a")), Call("sdSlot", ("L", "b"))]
     assert r"\vspace{1mm}" in "".join(x for x in out if isinstance(x, str)) and "note" not in "".join(
         x for x in out if isinstance(x, str)
