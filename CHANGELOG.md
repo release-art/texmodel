@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `texmodel.std` (§21a 14): headers for the standard TeX libraries a deck loads (103 commands and environments in 16
+  packages), checked by compiling a call of each against the reference image. `cs = "includegraphics"` on a component
+  names its TeX command (`TM-M027` if it is not a control word); `Package(prefix="")` and `Package(builtin=True)` (the
+  kernel: calling it requires no package); `Package.require(package, options=[...])` loads a package with options
+  (`TM-P008`-`P010`).
 - `texmodel-build doctor --sty <glob>` (D2, §21a 14): lists the files that `\RequirePackage`, `\usepackage`, `\LoadClass` and
   `\tcbuselibrary` in those files name and `kpsewhich` cannot find, here or in the image, with a `tlmgr install` line; exit 3.
 - Stubbed unit tests of generated code (A3, §21a 20): `texmodel.testing.expand` and `Call` (fast tier, no TeX),

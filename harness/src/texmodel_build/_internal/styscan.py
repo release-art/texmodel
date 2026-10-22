@@ -17,7 +17,7 @@ SAFE_NAME = re.compile(r"[A-Za-z0-9._-]+")  # also the only names the toolchain 
 
 def _file(cmd: str, name: str) -> str:
     if cmd == "tcbuselibrary":
-        return f"tcblibrary{name}.code.tex"
+        return f"tcb{name}.code.tex"
     return f"{name}.cls" if cmd.startswith("LoadClass") else f"{name}.sty"
 
 

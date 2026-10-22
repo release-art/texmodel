@@ -37,7 +37,7 @@ from .testing import Component, stub_tex
 from .types import Length, Raw
 
 _NAME = re.compile(r"[a-z][a-z0-9-]*")
-_PREFIX = re.compile(r"[a-z]+")
+_PREFIX = re.compile(r"[a-z]*")  # empty: the package of a standard TeX library, whose names carry none
 _OPTION = re.compile(r"[A-Za-z0-9][A-Za-z0-9=.-]*")  # a class option is TeX, so it is not free text
 _DATE = re.compile(r"\d{4}/\d{2}/\d{2}")  # \ProvidesPackage's date slot: YYYY/MM/DD (G3)
 
@@ -84,12 +84,13 @@ class Package:
         description: str = "",
         document_class: str = "article",
         adopted: bool = False,
+        builtin: bool = False,
         whitespace: Whitespace = Whitespace.KEEP,
     ) -> None:
         if not _NAME.fullmatch(name):
             raise DeclarationError(f"package name {name!r} must match [a-z][a-z0-9-]*", code="TM-P001")
         if not _PREFIX.fullmatch(prefix):
-            raise DeclarationError(f"prefix {prefix!r} must be lowercase letters", code="TM-P002")
+            raise DeclarationError(f"prefix {prefix!r} must be lowercase letters, or empty", code="TM-P002")
         if not _DATE.fullmatch(date):
             raise DeclarationError(f"date {date!r} must be YYYY/MM/DD (\\ProvidesPackage's date slot)", code="TM-P003")
         if not _NAME.fullmatch(document_class):
@@ -98,6 +99,8 @@ class Package:
         self.document_class = document_class
         self.whitespace = whitespace  # the policy of a body piece that names none (M8)
         self.adopted = adopted  # the `.sty` is hand-written; components only declare it (M9)
+        self.builtin = builtin  # always loaded (the LaTeX kernel): calling it requires no package
+        self._requires: list[tuple[Package, tuple[str, ...]]] = []  # `require()`, in order
         self._items: list[Spec | EnvSpec | ValueSpec] = []  # registration order is output order
         self._controls: dict[str, str] = {}  # control sequence -> qualname of its declarer
         self._calls: list[type] = []  # components its bodies call, in order (§21a 17)
@@ -122,9 +125,9 @@ class Package:
         spec = spec_of(cls, declared_only=self.adopted, whitespace=self.whitespace)
         if not self.adopted:
             render_command(self.prefix, spec)  # lints the body now, so a bad body is refused at import
-        control = self.prefix + spec.name
+        control = spec.cs or self.prefix + spec.name
         self._add(spec, (self._controls, control, f"\\{control}"))
-        cls.__tm_prefix__, cls.__tm_package__ = self.prefix, self
+        cls.__tm_prefix__, cls.__tm_package__, cls.__tm_cs__ = self.prefix, self, control
         self._classes.append(cls)
         return cls
 
@@ -133,9 +136,9 @@ class Package:
         spec = env_spec_of(cls, declared_only=self.adopted, whitespace=self.whitespace)
         if not self.adopted:
             render_environment(self.prefix, spec)  # lints both bodies now
-        control = self.prefix + spec.name
+        control = spec.cs or self.prefix + spec.name
         self._add(spec, (self._controls, control, f"\\{control}"))
-        cls.__tm_prefix__, cls.__tm_package__ = self.prefix, self
+        cls.__tm_prefix__, cls.__tm_package__, cls.__tm_cs__ = self.prefix, self, control
         self._classes.append(cls)
         return cls
 
@@ -169,18 +172,36 @@ class Package:
         """Every registered command, environment and value class, in registration order."""
         return tuple(self._classes)
 
+    def require(self, package: "Package", *, options: Sequence[str] = ()) -> None:
+        """Load `package` with `\\RequirePackage[options]{name}` in this package's `.sty`, before the packages its
+        components need. For a library whose commands bodies do not call (microtype, hyphenat) or that takes options."""
+        if package.builtin:
+            raise DeclarationError(f"{package.name} is always loaded", code="TM-P008", path=self.name)
+        if bad := [o for o in options if not _OPTION.fullmatch(o)]:
+            raise DeclarationError(f"package option {bad[0]!r} must match [A-Za-z0-9][A-Za-z0-9=.-]*", code="TM-P009")
+        if any(p is package for p, _ in self._requires):
+            raise DeclarationError(f"{package.name} is already required by {self.name}", code="TM-P010", path=self.name)
+        self._requires.append((package, tuple(options)))
+
     @property
     def depends_on(self) -> tuple["Package", ...]:
-        """The other packages whose components its bodies call, in first-use order (§21a 17)."""
-        found = (typing.cast("Package", t.__tm_package__) for t in self._calls)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
-        return tuple(dict.fromkeys(p for p in found if p is not self))
+        """The other packages this one requires or whose components its bodies call (§21a 17), in first-use order."""
+        called = (typing.cast("Package", t.__tm_package__) for t in self._calls)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
+        found = (*(p for p, _ in self._requires), *called)
+        return tuple(dict.fromkeys(p for p in found if p is not self and not p.builtin))
+
+    def require_entries(self) -> list[tuple[str, tuple[str, ...]]]:
+        """What the `.sty` loads: `require()`d packages in order with their options, then, sorted, the packages the
+        values need (M14) and the components call that are not already loaded; computed, never collected by mutation."""
+        explicit = [(p.name, o) for p, o in self._requires]
+        needs = {p for s in self._items if isinstance(s, ValueSpec) for p in s.needs}
+        rest = sorted({*needs, *(p.name for p in self.depends_on)} - {n for n, _ in explicit})
+        return [*explicit, *((n, ()) for n in rest)]
 
     @property
     def required_packages(self) -> tuple[str, ...]:
-        """The union of what the components declare (M14) and the packages they call, sorted; computed, never
-        collected by mutation."""
-        needs = {p for s in self._items if isinstance(s, ValueSpec) for p in s.needs}
-        return tuple(sorted({*needs, *(p.name for p in self.depends_on)}))
+        """The names `require_entries` loads, in order."""
+        return tuple(n for n, _ in self.require_entries())
 
     def _check_cycles(self, path: tuple["Package", ...] = ()) -> None:
         """A package that (through others) requires itself cannot load (`TM-P007`)."""
@@ -213,7 +234,7 @@ class Package:
             elif isinstance(s, EnvSpec):
                 check_references(self.prefix, s, s.begin + "\n" + s.end, self._controls)
         head = header_lines(self.name, self.version, self.date, self.description, stamp(version or generator_version()))
-        requires = require_lines(self.required_packages)
+        requires = require_lines(self.require_entries())
         lines = [
             *(Line("header", tex) for tex in head),
             Line("requires", ""),
@@ -238,10 +259,13 @@ class Package:
         Read by `texmodel check` for an adopted package. A name that `sources` define some other way than
         `\\newcommand`, `\\providecommand` or `\\newenvironment` counts as missing.
         """
-        found = scan_declarations("\n".join(sources), self.prefix)
+        found = scan_declarations("\n".join(sources))
         out: list[Violation] = []
         for s in self._items:
-            control, want = self.prefix + s.name, "" if isinstance(s, ValueSpec) else signature(s.args)
+            control, want = (
+                (s.cs or self.prefix + s.name) if not isinstance(s, ValueSpec) else self.prefix + s.name,
+                "" if isinstance(s, ValueSpec) else signature(s.args),
+            )
             if control not in found:
                 out.append(Violation("TM-C010", s.name, f"\\{control} is declared but the sources do not define it"))
             elif found[control] != want:
@@ -320,7 +344,7 @@ class Package:
                 *slot("before_class"),
                 Line("document", f"\\documentclass{opts}{{{self.document_class}}}"),
                 *slot("before_package"),
-                Line("document", f"\\usepackage{{{self.name}}}"),
+                *([] if self.builtin else [Line("document", f"\\usepackage{{{self.name}}}")]),
                 *values(text=True),
                 *slot("after_package"),
                 Line("document", "\\begin{document}"),

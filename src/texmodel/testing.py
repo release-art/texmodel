@@ -22,7 +22,7 @@ from collections.abc import Mapping, Sequence
 
 from ._internal.render import Arg, argument_text, signature, tex_arguments
 from .body import Comment, Cs, Group, Hole, Lit, Ref, RefKind, Seq, TexRaw
-from .components import Command, Environment, Node, Passthrough, Resolved
+from .components import Command, Environment, Node, Passthrough, Resolved, control_name
 from .errors import DeclarationError
 from .types import Raw, escape
 
@@ -102,16 +102,15 @@ def _args(cls: type) -> tuple[Arg, ...]:
 
 
 def _control(cls: type) -> str:
-    """The control sequence name of a registered component: its package's prefix and its class name."""
-    prefix: str | None = getattr(cls, "__tm_prefix__", None)
-    if prefix is None:
+    """The control sequence name of a registered component, or a refusal to stub what no package registered."""
+    if not hasattr(cls, "__tm_cs__"):
         raise DeclarationError(
             f"{cls.__name__}: not registered with a package, so it cannot be stubbed",
             code="TM-M019",
             path=cls.__name__,
             hint="stub a class decorated with its package's command / environment",
         )
-    return f"{prefix}{cls.__name__}"
+    return control_name(cls)
 
 
 def _call(cls: type, values: Mapping[str, str], kind: RefKind) -> Call:

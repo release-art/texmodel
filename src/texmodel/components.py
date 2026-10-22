@@ -222,13 +222,15 @@ def _source(cls: type, name: str) -> Source | None:
     return tuple(out), " + ".join(dict.fromkeys(origins))
 
 
-def _prefix(cls: type) -> str:
-    prefix: str | None = getattr(cls, "__tm_prefix__", None)
-    if prefix is None:
+def control_name(cls: type) -> str:
+    """The control sequence of a registered component, without the backslash: its `cs`, else its package's prefix and
+    its class name."""
+    name: str | None = getattr(cls, "__tm_cs__", None)
+    if name is None:
         raise DeclarationError(
             f"{cls.__qualname__}: not registered with a package", code="TM-M019", hint="decorate it with @pkg.command"
         )
-    return prefix
+    return name
 
 
 class _Node(metaclass=_Meta):
@@ -238,6 +240,8 @@ class _Node(metaclass=_Meta):
     __tm_args__: ClassVar[tuple[Arg, ...]]
     __tm_doc__: ClassVar[str]
     __tm_prefix__: ClassVar[str]  # set when a package registers the class
+    __tm_cs__: ClassVar[str]  # likewise: the control sequence, see `control_name`
+    cs: ClassVar[str | None] = None  # the TeX name, when it is not prefix + class name (`cs = "includegraphics"`)
     __tm_package__: ClassVar[object]  # the `Package` it was registered with
 
     def __repr__(self) -> str:
@@ -265,6 +269,8 @@ def _build(cls: type[_Node], unused: Sequence[str], *, init: bool) -> None:
     """Turn a declared class into a frozen dataclass whose fields are its arguments."""
     cls.__tm_doc__ = doc = _document(cls)
     cls.__tm_unused__ = tuple(unused)
+    if "cs" in cls.__dict__:
+        Cs(cls.__dict__["cs"])  # a control word: letters and @ only (TM-M027)
     # Optional fields are keyword-only (M2): mark them before the dataclass is built.
     for name in inspect.get_annotations(cls):
         if name in cls.__dict__ and not name.startswith("__"):
@@ -379,15 +385,14 @@ def _ref(cls: type, kind: RefKind, required: tuple[ArgValue, ...], optional: dic
 
 def _ref_text(ref: Ref, owner: str) -> str:
     """The TeX a reference stands for. The target must be registered: its prefix is part of the name."""
-    prefix: str | None = getattr(ref.target, "__tm_prefix__", None)
-    if prefix is None:
+    if not hasattr(ref.target, "__tm_cs__"):
         raise DeclarationError(
             f"{owner}: calls {ref.target.__name__}, which is not registered with a package",
             code="TM-M019",
             path=owner,
             hint="register it (decorate it with its package's command/environment) before the body that calls it",
         )
-    name = f"{prefix}{ref.target.__name__}"
+    name = control_name(ref.target)
     declared = typing.cast("type[Command] | type[Environment]", ref.target).__tm_args__
     args = arguments(declared, {a.name: v for a, v in zip(declared, ref.values, strict=True)})
     return {
@@ -564,7 +569,7 @@ def _emit(node: Node) -> str:
     if isinstance(node, Passthrough):
         return node.tex.tex
     cls = type(node)
-    name = f"{_prefix(cls)}{cls.__name__}"
+    name = control_name(cls)
     args = arguments(cls.__tm_args__, {a.name: getattr(node, a.name) for a in cls.__tm_args__})
     if isinstance(node, Command):
         return f"\\{name}{args}"
@@ -613,6 +618,7 @@ def spec_of(cls: type[Command], *, declared_only: bool = False, whitespace: Whit
         f"{cls.__module__}.{cls.__qualname__}",
         cls.__tm_unused__,
         refs,
+        cls.__dict__.get("cs"),
     )
 
 
@@ -639,6 +645,7 @@ def env_spec_of(
         f"{cls.__module__}.{cls.__qualname__}",
         cls.__tm_unused__,
         refs,
+        cls.__dict__.get("cs"),
     )
 
 

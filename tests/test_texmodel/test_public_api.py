@@ -18,6 +18,7 @@ PUBLIC = {
     "preamble",
     "testing",
     "spec",
+    "std",
     "types",
 }
 

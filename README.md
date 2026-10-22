@@ -191,6 +191,28 @@ class Rating(Command):
 texmodel writes this TeX and never reads TeX it did not write. The pieces are lines in the package's `Whitespace` policy;
 a `Ref` inside a `Group` still makes its package a requirement.
 
+### Standard libraries
+
+`texmodel.std` has a header for each TeX library a deck loads: `latex` (the kernel), `graphicx`, `xcolor`, `geometry`,
+`etoolbox`, `eso_pic`, `microtype`, `hyphenat`, `anyfontsize`, `calc`, `pdfrender`, `enumitem`, `adjustbox`, `tikz`,
+`tcolorbox`, `fontspec`. A header is an adopted package with no prefix whose components name their TeX command with `cs`:
+
+```python
+class IncludeGraphics(Command):
+    r"""Place a picture: `\includegraphics[width=3cm]{a.png}`."""
+    cs = "includegraphics"            # the TeX name, stated outright; without `cs` it is prefix + class name
+    path: Raw
+    options: Raw | None = None        # TeX's one optional argument, written first
+```
+
+A body that calls one (`IncludeGraphics.call(Hole("path"), options=Raw(r"width=\linewidth"))`) makes the generated `.sty`
+load the package; the kernel header (`builtin=True`) never does. A library whose commands no body calls, or that takes
+options, is loaded with `pkg.require(microtype, options=["protrusion=true"])`: `\RequirePackage[protrusion=true]{microtype}`,
+in that order, before the packages the bodies need. `tests/test_std` compiles a call of every declared name against the
+reference image, so a header that names a command TeX does not have fails, with the path of the call. A header covers
+required `{}` arguments and one leading `[]`; a library's own syntax (TikZ paths such as `\draw (0,0) -- (1,1);`, key-value
+declarations) is written as `Passthrough` or `Raw`.
+
 ### A package that is already written in TeX
 
 When the `.sty` is hand-written, declare what it defines instead of generating it: `adopted=True` (M9). The components
@@ -432,6 +454,8 @@ image = "releaseart/lualatex-python:latest"   # runs `docker run` over it; omit 
 See [CONTRIBUTING.md](CONTRIBUTING.md). `bin/autoformat.sh` runs ruff, strict pyright and import-linter over both packages;
 `bin/test.sh` runs pytest with a 100% coverage gate. The container compile suite is `pytest -m tex`; it skips without an
 image that has `latexmk`, and `TEXMODEL_REQUIRE_TEX=1` turns that skip into a failure (`TEXMODEL_TEST_IMAGE` sets the image).
+`bin/test-image.sh` builds `texmodel-test` from `docker/test/Dockerfile`: the published reference image plus the few TeX
+packages the suite needs that it does not carry yet (`TEXMODEL_TEST_IMAGE=texmodel-test pdm run pytest -m tex`); CI uses it.
 
 Public API is the top-level modules of each package; everything under `_internal` may change. Report vulnerabilities as
 described in [SECURITY.md](SECURITY.md).

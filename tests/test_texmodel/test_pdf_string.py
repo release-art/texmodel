@@ -11,7 +11,8 @@ from hypothesis import (
 from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.components import Command, Value
-from texmodel.package import Package
+from texmodel.package import Package, PreambleSlots
+from texmodel.preamble import RequireMetadata
 from texmodel.spec import from_dict, json_schema, to_dict
 from texmodel.types import PDF, PdfString, Raw, Text, pdf_escape
 
@@ -156,6 +157,7 @@ CORPUS = [
 
 TITLE_ROUTES = {
     "pdfextension": r"\pdfextension info{/#key\space(#text)}",
+    "pdfmanagement": r"\csname pdfmanagement_add:nnn\endcsname{Info}{#key}{(#text)}",  # needs \DocumentMetadata
 }
 
 
@@ -183,7 +185,8 @@ def test_the_info_dictionary_holds_exactly_the_text(compiler, tmp_path: pathlib.
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "info-demo.sty").write_text(pkg.render(), encoding="utf-8")
     nodes = [put(f"K{i}", text) for i, text in enumerate(CORPUS)]
-    (tmp_path / "src" / "d.tex").write_text(pkg.document(*nodes), encoding="utf-8")
+    managed = PreambleSlots(before_class=(RequireMetadata(),)) if route == "pdfmanagement" else None
+    (tmp_path / "src" / "d.tex").write_text(pkg.document(*nodes, preamble=managed), encoding="utf-8")
     result = compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out")
     assert result.ok, [(x.message, x.code) for x in result.diagnostics]
     with pikepdf.open(result.pdf) as pdf:  # pyright: ignore[reportArgumentType]

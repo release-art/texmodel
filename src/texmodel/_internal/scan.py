@@ -12,9 +12,9 @@ _DEFINITION = re.compile(
 )
 
 
-def scan_declarations(text: str, prefix: str) -> dict[str, str]:
-    """`{"cdTalkAboutMe": "[2][]"}`: each public name of `prefix` that `text` defines, with its signature in the form
-    `render.signature` writes (`""` for none, `[n]`, or `[n][]` when the first argument is optional). The first
+def scan_declarations(text: str, prefix: str = "") -> dict[str, str]:
+    """`{"cdTalkAboutMe": "[2][]"}`: each name starting with `prefix` that `text` defines, with its signature in the
+    form `render.signature` writes (`""` for none, `[n]`, or `[n][]` when the first argument is optional). The first
     definition of a name wins."""
     found: dict[str, str] = {}
     for m in _DEFINITION.finditer(_COMMENT.sub("", text)):

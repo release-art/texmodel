@@ -37,7 +37,7 @@ class Arg:
 class Spec:
     """What the renderer needs to know about one command."""
 
-    name: str  # the class name; the control sequence is prefix + name
+    name: str  # the class name; the control sequence is `cs`, else prefix + name
     doc: str
     args: tuple[Arg, ...]  # declared order; the optional one (at most one) is first in TeX
     body: str
@@ -45,6 +45,7 @@ class Spec:
     qualname: str  # module.Class, for the provenance comment
     unused: tuple[str, ...] = ()
     refs: tuple[type, ...] = ()  # components its body calls (§21a 17)
+    cs: str | None = None  # the control sequence when the class names it, else prefix + name
 
 
 @dataclasses.dataclass(frozen=True)
@@ -60,6 +61,7 @@ class EnvSpec:
     qualname: str
     unused: tuple[str, ...] = ()
     refs: tuple[type, ...] = ()
+    cs: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -146,7 +148,7 @@ def render_command(prefix: str, spec: Spec) -> str:
     lines = _comment(spec.doc)
     lines += [
         f"% from {spec.qualname} (body: {spec.origin})",
-        f"\\newcommand{{\\{prefix}{spec.name}}}{signature(spec.args)}{{%",
+        f"\\newcommand{{\\{spec.cs or prefix + spec.name}}}{signature(spec.args)}{{%",
     ]
     return "\n".join([*lines, *body.splitlines(), "}"])
 
@@ -165,7 +167,7 @@ def render_environment(prefix: str, spec: EnvSpec) -> str:
     lines = _comment(spec.doc)
     lines += [
         f"% from {spec.qualname} (body: {spec.origin})",
-        f"\\newenvironment{{{prefix}{spec.name}}}{signature(spec.args)}{{%",
+        f"\\newenvironment{{{spec.cs or prefix + spec.name}}}{signature(spec.args)}{{%",
         *begin.splitlines(),
         "}{%",
         *end.splitlines(),
@@ -251,7 +253,9 @@ def render_value(prefix: str, spec: ValueSpec) -> str:
 
 def undeclared(prefix: str, text: str, declared: Mapping[str, str]) -> list[str]:
     """The `\\<prefix>Name` control words in `text` that `declared` lacks, in order; internals and other names are not
-    ours."""
+    ours. A package with no prefix has no namespace to police."""
+    if not prefix:
+        return []
     public = re.compile(rf"{prefix}[A-Z][A-Za-z]*")
     words = (m["word"] for m in _TOKEN.finditer(text))
     return [w for w in words if w and public.fullmatch(w) and w not in declared]
@@ -277,6 +281,6 @@ def header_lines(name: str, version: str, date: str, description: str, stamp: st
     ]
 
 
-def require_lines(requires: Sequence[str]) -> list[str]:
-    """The `\\RequirePackage` lines, each preceded by nothing and the block by a blank line."""
-    return [f"\\RequirePackage{{{p}}}" for p in requires]
+def require_lines(requires: Sequence[tuple[str, Sequence[str]]]) -> list[str]:
+    """The `\\RequirePackage` lines: `\\RequirePackage[table]{xcolor}`."""
+    return [f"\\RequirePackage{f'[{chr(44).join(o)}]' if o else ''}{{{n}}}" for n, o in requires]

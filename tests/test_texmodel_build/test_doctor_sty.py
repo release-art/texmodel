@@ -38,8 +38,8 @@ def test_the_files_a_package_loads_are_read_in_order_once_and_names_from_macros_
         "tikz.sty",
         "geometry.sty",
         "article.cls",
-        "tcblibraryskins.code.tex",
-        "tcblibrarybreakable.code.tex",
+        "tcbskins.code.tex",
+        "tcbbreakable.code.tex",
         "kit-extra.sty",
         "after-percent.sty",
     ]

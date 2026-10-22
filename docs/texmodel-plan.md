@@ -958,6 +958,7 @@ author under ten minutes. If not met, stop at the plumbing plus a smaller model 
 | Environment: fields are keyword arguments, children positional; `children` is the grammar, `.content` the instance's children | decided 2026-10-22 |
 | `Package.document(...)` renders a `.tex`; values are set by `Value` instances in `settings=` | decided 2026-10-22 |
 | `texmodel render module:attr` writes a document to a file | decided 2026-10-22 |
+| A component may name its TeX command with `cs`; a package may have an empty prefix; the kernel is `builtin`; `Package.require` loads a library with options; headers for standard libraries live in `texmodel.std`, one module per package, verified by compiling a call of each | decided 2026-10-22 |
 | `Anywhere` kinds are removed before ordered matching, so a kind is ordered or floating, never both (`TM-M029`) | decided 2026-10-22 |
 | `Comment` subclasses are passed to `from_dict` / `json_schema` as `comments=[...]`, not found by name; a body line starting with `%` is not scanned for `#name` holes | decided 2026-10-22 |
 | Hole syntax `#name`; internals free but must resolve | decided |
@@ -1034,8 +1035,8 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
    the package defines that the model does not declare (present-but-undeclared, M9), and renewals of declared names (M10).
 9. **PDF-string safety.** Built 2026-10-22 (C3) as `PdfString` (octal escapes inside `\detokenize`, UTF-16BE for non-ASCII); a tex test writes 16
    awkward strings into the Info dictionary with `\pdfextension info` and reads them back with pikepdf, with an unescaped
-   control. Not verified: `\pdfmanagement_add:nnn` (the reference image lacks `tagpdf-base.sty`, so `\DocumentMetadata`
-   cannot load), other engines, PDF/A validators. Open: Original: A deck's PDF Info string was cut inside a parenthesis, which silently swallowed the rest of the
+   control, and the same 16 strings through `\pdfmanagement_add:nnn` under `\DocumentMetadata` (the image has `tagpdf` since
+   2026-10-22). Not verified: other engines, PDF/A validators. Original: A deck's PDF Info string was cut inside a parenthesis, which silently swallowed the rest of the
    dictionary. Idea: a `PdfString` type that escapes and balances; `Text` is TeX-escaped, not PDF-escaped.
 10. **Preamble.** Built 2026-10-22 (C2): `PassOption`, `InputPath`, `GraphicsPath`, `RequireMetadata`, slot lint `TM-C008`. Open:
     slots declared by the package (D3). Original: Slots are three tuples of `Raw`. Ideas: typed entries (`PassOption`, `InputPath`, `GraphicsPath`), the
@@ -1048,7 +1049,11 @@ shape with made-up data). Ordered by how much the consumer missed them. Each is 
     is too coarse; the alternative is a per-component marker. Revisit with the second consumer.
 13. **Consumer policies in the library?** Title case, apostrophe normalisation and PDF-subject cutting were consumer code. They
     are probably policy, but a `Text` variant with a declared normaliser would remove the converter's busiest part.
-14. **Reference image.** `releaseart/lualatex-python` lacked `enumitem`, `hyphenat`, `anyfontsize`, `pdfrender` and `tikzfill`
+14. **Reference image.** `tagpdf` (for `\DocumentMetadata`), `enumitem`, `hyphenat`, `anyfontsize`, `pdfrender` and `tikzfill` (which
+    tcolorbox's `skins` needs) were added to `proofpress/docker/texlive-packages.txt` 2026-10-22; until the image is rebuilt
+    there, `docker/test/Dockerfile` (`bin/test-image.sh`, used by CI) adds them on top of the published image. With them all 17 `texmodel.std` header tests run in the image, none skipped. `texmodel-build
+    doctor --sty` finds what a package file loads that the image lacks (it does not follow a package's own dependencies,
+    such as `tikzfill`). Original: `releaseart/lualatex-python` lacked `enumitem`, `hyphenat`, `anyfontsize`, `pdfrender` and `tikzfill`
     (found by compiling a real brand package; `tlmgr install` adds them). Idea: a documented "full" tag, or a doctor check that
     names missing packages for a given `.sty`. The doctor check is built (2026-10-22, D2: `texmodel-build doctor --sty`). PDF/X-4 and PDF/A-2b output was never compiled in the test; an ICC profile
     has to be supplied at test time.
