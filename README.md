@@ -270,6 +270,11 @@ The PDF Info strings need no expl3 in a document: `PdfInfo(Title="...", Author="
 writes each value PDF-escaped through `\csname pdfmanagement_add:nnn\endcsname`, and needs `RequireMetadata` in `before_class`
 (`TM-C009`). A key is letters only (`TM-M035`).
 
+Give it the text as it is; do not trim, balance or escape it first. Unbalanced `(` and `)`, `\`, `#`, `%`, `&`, `$`, braces,
+a trailing or doubled space, newlines and non-ASCII (é, —, CJK, emoji) reach the PDF Info dictionary unchanged (a PDF text string
+is PDFDocEncoding or UTF-16BE: non-ASCII is written as UTF-16BE). A compile test reads a corpus of such values back from the PDF.
+`PdfString` (`texmodel.types.pdf_escape`) is the same escaping for a string you write yourself.
+
 ### Parts filled from a model
 
 A package that starts from TeX you already have is a list of parts: `pkg.library(name, TemplateRef("brand.tex"), fill=model)`.
@@ -349,6 +354,14 @@ makes another. They were measured, not assumed: `tests/test_texmodel/test_interf
 pgfkeys, xkeyval, keyval and l3keys. All four read `,` `=` `]` safely when braced and strip a space at either end of a
 value, which `{{ a }}` keeps in three of them (`l3keys` trims whatever it is given, `KeyRules.edge_spaces`). `KVOPTIONS` is `XKEYVAL` without nesting and was not measured.
 
+### What is public on a component
+
+An attribute without a leading underscore is public and read-only: on a component `cs`, `syntax`, `defined_by`, `meta`
+and (an `Environment`'s) `children`; on a `Value` also `default`, `colour_name` and `needs_packages`. Read them; do not assign
+them after the class is registered. `meta` is the mapping given in the class body (`meta = {"audience": "deck"}`), written to
+the schema as `x-audience`. Anything starting with `_`, including every `__tm_*` attribute, is internal and may change in any
+release; `control_name(value)` and `Value.declared_default()` are the public way to those two.
+
 ### Standard libraries
 
 `texmodel.std` has a header for each TeX library a deck loads: `latex` (the kernel), `graphicx`, `xcolor`, `geometry`,
@@ -407,7 +420,7 @@ texmodel check     # TM-C010: declared, not defined; TM-C011: defined with anoth
 document needs it: `before_class` for `\DocumentMetadata`, `before_package` for `\input@path`, `after_package` for
 `\graphicspath` and per-document `\renewcommand`s. A public name of the package used there (`\cdSafeInset`) that no
 component declares is refused with its path (`TM-M015`, `preamble.after_package[0]`). Typed entries render to one `Raw` and know
-their slot: `PassOption("xcolor", "table")`, `InputPath("res/")` (`before_package`), `GraphicsPath("images/")` (`after_package`,
+their slot: `PassOption("xcolor", "table")`, `InputPath("res/")` (`before_package`), `InputIfExists("deck-variant")` (`\InputIfFileExists{deck-variant}{}{}`, `before_package` or `after_package`), `GraphicsPath("images/")` (`after_package`,
 the current directory first unless `include_cwd=False`) and `RequireMetadata(lang="en-GB")` (`before_class`); one in another
 slot is `TM-C008`. `tests/consumers/card_deck/` is a
 complete example: a hand-written package, the generator it replaces and a 3-card deck.
@@ -425,6 +438,7 @@ pkg.document(card, settings=[DeckName("R&D")])    # \renewcommand{\acDeckName}{R
 
 A generated package defines `\newcommand{\acDeckName}{Untitled}`; for an adopted one `texmodel check` expects the hand-written
 package to define the macro with no arguments. Every setting, of any type, is written right after `\usepackage`, in the order given, before `after_package`.
+`texmodel.package.setting_line(value)` is the line written for one setting.
 
 A `Value[Raw]` is the same for a setting that is TeX (`\newcommand{\acFooter}{\textit{draft}}`, renewed by `settings=[Footer(Raw(...))]`).
 A `PdfString` field holds text for the inside of a PDF literal string you write yourself (`\pdfextension info{/Subject (#text)}`):

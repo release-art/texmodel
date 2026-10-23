@@ -149,6 +149,13 @@ def _compare(who: str, lib: str, defs: _Defs, wanted: Sequence[tuple[str, str, s
     return out
 
 
+def setting_line(value: AnyValue) -> str:
+    """The line that sets `value` for a document: `\\setlength{\\acGap}{3mm}`, `\\renewcommand{\\acName}{R\\&D}`,
+    `\\acDrafttrue`. It is what `Package.plan` writes for each of `settings=`."""
+    cls = type(value)
+    return cls.__tm_kind__.setting(*addressed(cls.__tm_prefix__, cls.__name__, cls.cs), value.value, cls.colour_name)
+
+
 class Package:
     def __init__(
         self,
@@ -563,15 +570,7 @@ class Package:
         def values() -> list[Line]:
             """Every setting goes right after the package, in the order given, so what the package computes in the
             preamble already sees it."""
-            return [
-                Line(
-                    f"settings[{i}]",
-                    type(v).__tm_kind__.setting(
-                        *addressed(type(v).__tm_prefix__, type(v).__name__, type(v).cs), v.value, type(v).colour_name
-                    ),
-                )
-                for i, v in enumerate(settings)
-            ]
+            return [Line(f"settings[{i}]", setting_line(v)) for i, v in enumerate(settings)]
 
         return Plan(
             (

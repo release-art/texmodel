@@ -115,3 +115,11 @@ def test_a_text_value_name_cannot_be_declared_twice():
             default = "x"
 
     assert getattr(info.value, "code", "") == "TM-M007"
+
+
+def test_setting_line_is_the_line_a_document_writes_for_a_setting():
+    from texmodel.package import setting_line
+
+    pkg, title, gap, _ = generated()
+    assert setting_line(gap(Length("3mm"))) == r"\setlength{\txGap}{3mm}"
+    assert setting_line(title("A & B")) == r"\renewcommand{\txTitle}{A \& B}"
