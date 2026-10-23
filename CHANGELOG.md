@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-10-23
+
+No generated output changes; additions from the second migration's questions.
+
 ### Added
 
 - `InputIfExists(name)`: a typed preamble entry, `\InputIfFileExists{name}{}{}`, for `before_package` or `after_package`
@@ -20,10 +24,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Floats are rounded to five decimals where they are written: a `Length` made from a float (`Length(0.1 + 0.2, "mm")` is
-  `0.3mm`), float fields and `calc` numbers, as colour components already were. A string keeps every digit.
 - Docs: the README says which attributes of a component are public (no leading underscore, read-only, `meta` among them)
   and that `__tm_*` are internal, and that `PdfInfo` takes any text unchanged (what the compile test covers).
+
+## [0.3.2] - 2026-10-23
+
+Generated output changes only for a value written from a float (a long tail of digits becomes five decimals).
+
+### Changed
+
+- Floats are rounded to five decimals where they are written: a `Length` made from a float (`Length(0.1 + 0.2, "mm")` is
+  `0.3mm`), float fields and `calc` numbers, as colour components already were. A string keeps every digit.
 
 ## [0.3.1] - 2026-10-22
 
@@ -117,7 +128,9 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/release-art/texmodel/compare/v0.3.2...v0.3.3
+[0.3.2]: https://github.com/release-art/texmodel/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/release-art/texmodel/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/release-art/texmodel/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/release-art/texmodel/releases/tag/v0.2.0
