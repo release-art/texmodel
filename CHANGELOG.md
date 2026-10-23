@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Docs: the README is a short front page; the reference is a guide under `docs/` (getting started, components, arguments,
+  values, documents, checking, adopting TeX, standard libraries, testing, building, tools), built with MkDocs Material
+  (`pdm install -G docs`, `pdm run mkdocs serve`). Every `python` block in the README and the docs runs in `tests/test_docs.py`.
+
 ## [0.3.3] - 2026-10-23
 
 No generated output changes; additions from the second migration's questions.

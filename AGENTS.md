@@ -8,7 +8,8 @@ Guidance for AI coding agents working in this repository.
 `Environment`, `Value[T]`) or as parts of hand-written TeX (`Package.library`), and rendered to a deterministic `.sty`; documents are
 trees of those classes; a JSON Schema, drift checks and typed compile diagnostics come from the same declarations.
 `src/texmodel` is the library (never spawns a process); `src/texmodel_build` is the optional `latexmk` driver and verifiers.
-[README.md](README.md) is the reference, [docs/cookbook.md](docs/cookbook.md) the worked examples (run by the tests),
+[README.md](README.md) is the short front page, the guide in [docs/](docs/index.md) (built with MkDocs, `mkdocs.yml`) the reference,
+[docs/cookbook.md](docs/cookbook.md) the worked examples (both run by the tests),
 [docs/texmodel-plan.md](docs/texmodel-plan.md) the target spec and decisions log (§21), [docs/known-limitations.md](docs/known-limitations.md)
 what it does not do, [docs/briefs/roadmap.md](docs/briefs/roadmap.md) the batches and the rules for an agent's brief.
 
@@ -21,11 +22,11 @@ directly. List every such change under `Changed` or `Removed` in `CHANGELOG.md`;
   methods and enums, nothing found by name or inferred silently.
 - DRY: reuse what exists (`grep` first) before adding anything. Delete what a change makes dead.
 - Keep changes small and focused. No speculative abstractions, options or dependencies.
-- Keep docs (README, cookbook, docstrings, comments, this file) brief. Comments say *why*, not *what*. Docs and comments
+- Keep docs (README, guide, cookbook, docstrings, comments, this file) brief. Comments say *why*, not *what*. Docs and comments
   describe the current state: no "changed", "no longer", "formerly" (the changelog is where change is told).
 - Long strings (TeX, expected output, messages) are multi-line constants, `textwrap.dedent(...).strip()` or triple-quoted raw
   strings, not implicit concatenation.
-- When a change alters behaviour, commands or configuration, update in the same change: the README, the cookbook if an
+- When a change alters behaviour, commands or configuration, update in the same change: the guide page that covers it (the README only if the front page changes), the cookbook if an
   example is affected, `docs/known-limitations.md`, the plan's decisions log (§21; requirement ids like `M8` are what tests and
   commits cite), and `CHANGELOG.md` under `## [Unreleased]`.
 - **Nothing real or private enters this repo.** No customer, brand, deck or person's name, no real package, no real data: examples,
@@ -58,7 +59,8 @@ TEXMODEL_REQUIRE_TEX=1 pdm run pytest -m tex --no-cov   # when output, the scan 
   config. A `# noqa: CODE` or `# pyright: ignore[rule]` is narrow, rare and has its reason in the code (see the existing ones).
 - Every new code path needs a test; new behaviour needs one that fails without it. In your summary say which gates you ran and
   which you did not (and whether the `tex` tests ran).
-- Examples in `README.md` and `docs/cookbook.md`: the cookbook's `python` blocks run in `tests/test_docs.py`; keep them runnable.
+- Examples in `README.md` and `docs/`: every `python` block runs in `tests/test_docs.py`, a page's blocks in order as one module; keep
+  them runnable, and fence an example that only illustrates as `py`. `pdm run mkdocs build --strict` must pass (a new page goes in `nav`).
 
 ## Package layout (pydantic pattern)
 

@@ -1,7 +1,7 @@
 # Cookbook
 
 Worked examples and the habits that keep a package easy to live with. Every `python` block here runs: `tests/test_docs.py`
-executes them, so an example that stops working fails the build. The reference is the [README](../README.md); what is not
+executes them, so an example that stops working fails the build. The reference is the [guide](guide/components.md); what is not
 covered is in [known limitations](known-limitations.md).
 
 ## Start from the TeX you have: parts filled from a model

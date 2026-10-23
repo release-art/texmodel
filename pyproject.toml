@@ -140,3 +140,7 @@ dev = [
     "hypothesis>=6",
     "jsonschema>=4",
 ]
+docs = [
+    "mkdocs-material>=9.7.7",
+    "mkdocs<2",  # Material 9 targets MkDocs 1.x; 2.0 drops plugins and theme overrides
+]
