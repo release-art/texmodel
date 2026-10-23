@@ -968,6 +968,9 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | `\ProvidesPackage` carries a date only when the package has one (LaTeX reads the first word of its bracket as a date); `header` adds comment lines under the generator's line | decided |
 | An optional argument's scalar default is TeX's default in the definition; a call inside a `Raw` argument is a `Ref` or `Seq`; counting rules in TeX are built from `StepCounter`, `IfNumGreater` and friends (cookbook), with no flag in the library | decided |
 | A shared base is `abstract=True` (fields, `body` or `begin`/`end`, `children` for its subclasses; no docstring or control-word name; never registered, `TM-M043`); a value has a control sequence (`control_name`) unless it is a colour (`TM-M042`) and a readable default (`Value.declared_default()`) | decided |
+| `InputIfExists(name)` is a typed preamble entry (`before_package` or `after_package`, `TM-M044`); `setting_line(value)` is the public line of a setting; settings land after `\usepackage` and before `after_package` (tested contract) | decided |
+| `Package.make_command` / `make_value` build and register a class from data; the same data under a name returns the first class, other data is `TM-M007` (no "ignore duplicates" mode: a written class has a body function that cannot be compared) | decided |
+| `describe(cls)` returns a frozen `Description` of a registered class (category, name, `cs`, doc, arguments as name/optional/doc, a value's Python type, default, `colour_name`); fields are added in a minor release and never renamed without a `Changed` note | decided |
 | Python-only authoring; TOML/YAML frontend | parked, not planned |
 | Renames via `renamed_from` → pydantic aliases + release record | decided |
 | lualatex only in v1; capabilities explicit | decided |

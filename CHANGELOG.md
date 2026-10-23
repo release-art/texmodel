@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-10-23
+
+No generated output changes; additions from the second migration's questions.
+
+### Added
+
+- `InputIfExists(name)`: a typed preamble entry, `\InputIfFileExists{name}{}{}`, for `before_package` or `after_package`
+  (`TM-M044` for a name that is not a file name).
+- `Package.make_command` and `Package.make_value`: declare and register a command or value from data. The same data under
+  one name returns the class made first; other data is `TM-M007`.
+- `describe(cls)`, `Description` and `ArgumentInfo` (`texmodel.components`): a registered command, environment or value as
+  frozen data, so a program need not read the `__tm_*` attributes.
+- `texmodel.package.declared(text)`: the control sequences the adoption scanner reads in a text, as a `frozenset`.
+- `texmodel.package.setting_line(value)`: the line a document writes for one setting; `Package.plan` uses it.
+
+### Changed
+
+- Docs: the README says which attributes of a component are public (no leading underscore, read-only, `meta` among them)
+  and that `__tm_*` are internal, and that `PdfInfo` takes any text unchanged (what the compile test covers).
+
+## [0.3.2] - 2026-10-23
+
+Generated output changes only for a value written from a float (a long tail of digits becomes five decimals).
+
 ### Changed
 
 - Floats are rounded to five decimals where they are written: a `Length` made from a float (`Length(0.1 + 0.2, "mm")` is
@@ -104,7 +128,9 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/release-art/texmodel/compare/v0.3.2...v0.3.3
+[0.3.2]: https://github.com/release-art/texmodel/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/release-art/texmodel/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/release-art/texmodel/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/release-art/texmodel/releases/tag/v0.2.0

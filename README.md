@@ -257,7 +257,7 @@ reads each block (`Package.check_parts()`, no TeX needed) and reports a declared
 signature (`TM-C010`, `TM-C011`), a public `<prefix>Name` the block defines that nothing declares (`TM-C012`), and a name
 defined twice (`TM-C013`; generation itself refuses it, `TM-P012`). The reading is regex-level (`\newcommand`, `\providecommand`,
 `\DeclareRobustCommand`, `\newenvironment`, the xparse family, `\newlength`, `\newtoggle`, `\newif`, `\definecolor`) and
-skips an expl3 block. A flag, toggle, length, colour or text setting a block defines is a `Value` with `defined_by` (no default;
+skips an expl3 block. `texmodel.package.declared(text)` is the set of control sequences those forms declare in a text (no `\def`, `\let` or expl3 definers, which count as missing). A flag, toggle, length, colour or text setting a block defines is a `Value` with `defined_by` (no default;
 `cs = "..."` gives the whole control sequence, `colour_name` the colour's name). For the
 rest, whether TeX really defines it, with that many arguments, is checked by compiling: `texmodel_build.testkit.check_library(compiler, pkg)`
 builds `pkg.test_document(...)` with `export_probes(pkg)` (it writes `texmodel:probe:def.<cs>=yes|no` and
@@ -269,6 +269,11 @@ builds `pkg.test_document(...)` with `export_probes(pkg)` (it writes `texmodel:p
 The PDF Info strings need no expl3 in a document: `PdfInfo(Title="...", Author="...")` in `before_package` or `after_package`
 writes each value PDF-escaped through `\csname pdfmanagement_add:nnn\endcsname`, and needs `RequireMetadata` in `before_class`
 (`TM-C009`). A key is letters only (`TM-M035`).
+
+Give it the text as it is; do not trim, balance or escape it first. Unbalanced `(` and `)`, `\`, `#`, `%`, `&`, `$`, braces,
+a trailing or doubled space, newlines and non-ASCII (é, —, CJK, emoji) reach the PDF Info dictionary unchanged (a PDF text string
+is PDFDocEncoding or UTF-16BE: non-ASCII is written as UTF-16BE). A compile test reads a corpus of such values back from the PDF.
+`PdfString` (`texmodel.types.pdf_escape`) is the same escaping for a string you write yourself.
 
 ### Parts filled from a model
 
@@ -349,6 +354,30 @@ makes another. They were measured, not assumed: `tests/test_texmodel/test_interf
 pgfkeys, xkeyval, keyval and l3keys. All four read `,` `=` `]` safely when braced and strip a space at either end of a
 value, which `{{ a }}` keeps in three of them (`l3keys` trims whatever it is given, `KeyRules.edge_spaces`). `KVOPTIONS` is `XKEYVAL` without nesting and was not measured.
 
+### Components from data
+
+A program that decides names at run time declares them with `pkg.make_command` and `pkg.make_value`; each builds the class and
+registers it, as the decorators do:
+
+```python
+name = pkg.make_command("Name", "the subject's name", fields={"name": (Raw, field(doc="the name"))}, body=r"\bb@title{#name}")
+cut = pkg.make_value("TechCut", Colour, "the cut line", default=CMYK(0, 0.4, 1, 0), colour_name="bbTechCut")
+```
+
+`fields` maps a name to `(hint, field(...))` in TeX order, as pydantic's `create_model` does. Declaring the same data again
+returns the class made first, so several series can share a macro; other data under the same name is `TM-M007`. `module`
+(default: the package's name) is the module shown in messages.
+
+### What is public on a component
+
+An attribute without a leading underscore is public and read-only: on a component `cs`, `syntax`, `defined_by`, `meta`
+and (an `Environment`'s) `children`; on a `Value` also `default`, `colour_name` and `needs_packages`. Read them; do not assign
+them after the class is registered. `meta` is the mapping given in the class body (`meta = {"audience": "deck"}`), written to
+the schema as `x-audience`. Anything starting with `_`, including every `__tm_*` attribute, is internal and may change in any
+release. `describe(cls)` (`texmodel.components`) reports a registered command, environment or value as a frozen `Description`
+(`category`, `name`, `cs`, `doc`, `arguments` of `ArgumentInfo(name, optional, doc)`, a value's `python` type, `default` and
+`colour_name`); an unregistered class is `TM-M019`. `control_name(value)` and `Value.declared_default()` are the narrower ways.
+
 ### Standard libraries
 
 `texmodel.std` has a header for each TeX library a deck loads: `latex` (the kernel), `graphicx`, `xcolor`, `geometry`,
@@ -407,7 +436,7 @@ texmodel check     # TM-C010: declared, not defined; TM-C011: defined with anoth
 document needs it: `before_class` for `\DocumentMetadata`, `before_package` for `\input@path`, `after_package` for
 `\graphicspath` and per-document `\renewcommand`s. A public name of the package used there (`\cdSafeInset`) that no
 component declares is refused with its path (`TM-M015`, `preamble.after_package[0]`). Typed entries render to one `Raw` and know
-their slot: `PassOption("xcolor", "table")`, `InputPath("res/")` (`before_package`), `GraphicsPath("images/")` (`after_package`,
+their slot: `PassOption("xcolor", "table")`, `InputPath("res/")` (`before_package`), `InputIfExists("deck-variant")` (`\InputIfFileExists{deck-variant}{}{}`, `before_package` or `after_package`), `GraphicsPath("images/")` (`after_package`,
 the current directory first unless `include_cwd=False`) and `RequireMetadata(lang="en-GB")` (`before_class`); one in another
 slot is `TM-C008`. `tests/consumers/card_deck/` is a
 complete example: a hand-written package, the generator it replaces and a 3-card deck.
@@ -425,6 +454,7 @@ pkg.document(card, settings=[DeckName("R&D")])    # \renewcommand{\acDeckName}{R
 
 A generated package defines `\newcommand{\acDeckName}{Untitled}`; for an adopted one `texmodel check` expects the hand-written
 package to define the macro with no arguments. Every setting, of any type, is written right after `\usepackage`, in the order given, before `after_package`.
+`texmodel.package.setting_line(value)` is the line written for one setting.
 
 A `Value[Raw]` is the same for a setting that is TeX (`\newcommand{\acFooter}{\textit{draft}}`, renewed by `settings=[Footer(Raw(...))]`).
 A `PdfString` field holds text for the inside of a PDF literal string you write yourself (`\pdfextension info{/Subject (#text)}`):

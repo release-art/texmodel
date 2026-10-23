@@ -3,7 +3,7 @@
 ```python
 PreambleSlots(
     before_class=(RequireMetadata(lang="en-GB", pdfstandard="A-2b"),),
-    before_package=(InputPath("res/"), PassOption("xcolor", "table")),
+    before_package=(InputPath("res/"), PassOption("xcolor", "table"), InputIfExists("options")),
     after_package=(GraphicsPath("images/"), PdfInfo(Title="Rex")),
 )
 ```
@@ -43,6 +43,26 @@ class InputPath:
 
     def raw(self) -> Raw:
         return Raw(f"\\makeatletter\\def\\input@path{{{''.join(f'{{{d}}}' for d in self.dirs)}}}\\makeatother")
+
+
+@dataclasses.dataclass(frozen=True)
+class InputIfExists:
+    """`\\InputIfFileExists{name}{}{}`: reads `name.tex` when the file is there and does nothing otherwise. A name is
+    letters, digits and `. _ / -` (`TM-M044`)."""
+
+    name: str
+    slots: ClassVar[tuple[str, ...]] = (BEFORE_PACKAGE, AFTER_PACKAGE)
+
+    def __post_init__(self) -> None:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", self.name):
+            raise DeclarationError(
+                f"InputIfExists name {self.name!r}: letters, digits and . _ / - only",
+                code="TM-M044",
+                path="InputIfExists",
+            )
+
+    def raw(self) -> Raw:
+        return Raw(f"\\InputIfFileExists{{{self.name}}}{{}}{{}}")
 
 
 @dataclasses.dataclass(frozen=True, init=False)
@@ -102,7 +122,7 @@ class PdfInfo:
         )
 
 
-type Entry = PassOption | InputPath | GraphicsPath | RequireMetadata | PdfInfo
+type Entry = PassOption | InputPath | InputIfExists | GraphicsPath | RequireMetadata | PdfInfo
 
 
 def tex_of(item: Raw | Entry) -> Raw:

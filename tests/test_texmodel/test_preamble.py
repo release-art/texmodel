@@ -4,8 +4,9 @@ import pytest
 from test_texmodel_build.test_compile_tex import compiler, fonts, require_files  # noqa: F401
 
 from texmodel.components import Passthrough
+from texmodel.errors import DeclarationError
 from texmodel.package import Package, PreambleSlots
-from texmodel.preamble import GraphicsPath, InputPath, PassOption, RequireMetadata
+from texmodel.preamble import GraphicsPath, InputIfExists, InputPath, PassOption, RequireMetadata
 from texmodel.std import latex
 from texmodel.types import Raw
 
@@ -13,6 +14,7 @@ from texmodel.types import Raw
 def test_entries_render_to_the_tex_a_hand_written_line_would_have():
     assert PassOption("xcolor", "table").raw() == Raw(r"\PassOptionsToPackage{table}{xcolor}")
     assert InputPath("res/", "more/").raw().tex == r"\makeatletter\def\input@path{{res/}{more/}}\makeatother"
+    assert InputIfExists("deck-variant").raw().tex == r"\InputIfFileExists{deck-variant}{}{}"
     assert GraphicsPath("img/").raw().tex == r"\graphicspath{{}{img/}}"
     assert GraphicsPath("img/", include_cwd=False).raw().tex == r"\graphicspath{{img/}}"
     meta = RequireMetadata(lang="en-GB", pdfstandard="A-2b", pdftitle="A, B")
@@ -67,3 +69,34 @@ def test_document_metadata_is_accepted_and_reaches_the_pdf(compiler, tmp_path): 
     assert result.ok, [(d.path, d.message) for d in result.errors]
     with pikepdf.open(result.pdf) as pdf:  # pyright: ignore[reportArgumentType]
         assert pdf.pdf_version == "1.7" and str(pdf.Root.Lang) == "en-GB"
+
+
+@pytest.mark.tex
+@pytest.mark.timeout(300)
+def test_input_if_exists_reads_a_file_that_is_there_and_ignores_one_that_is_not(compiler, tmp_path):  # noqa: F811
+    slots = PreambleSlots(after_package=(InputIfExists("variant"), InputIfExists("absent")))
+    check = Passthrough(
+        Raw(r"\ifdefined\variantloaded\else\errmessage{variant.tex was not read}\fi x")
+    )  # "x": a page, or there is no PDF
+    plan = latex.package.plan(check, preamble=slots)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "variant.tex").write_text(r"\def\variantloaded{1}", encoding="utf-8")
+    (tmp_path / "src" / "d.tex").write_text(plan.text, encoding="utf-8")
+    result = compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out", plan=plan)
+    assert result.ok, [(d.path, d.message) for d in result.errors]
+
+
+def test_input_if_exists_sits_before_or_after_the_package_and_refuses_a_bad_name():
+    pkg = Package("pre", prefix="pr", adopted=True)
+    slots = PreambleSlots(before_package=(InputIfExists("opts"),), after_package=(InputIfExists("variant"),))
+    assert [(x.path, x.tex) for x in pkg.plan(preamble=slots).lines if x.path.startswith("preamble")] == [
+        ("preamble.before_package[0]", r"\InputIfFileExists{opts}{}{}"),
+        ("preamble.after_package[0]", r"\InputIfFileExists{variant}{}{}"),
+    ]
+    with pytest.raises(ExceptionGroup) as group:
+        pkg.plan(preamble=PreambleSlots(before_class=(InputIfExists("x"),)))
+    assert [e.code for e in group.value.exceptions] == ["TM-C008"]  # pyright: ignore[reportAttributeAccessIssue]
+    for bad in ("", "a b", "a}b", "-a", "a\\b"):
+        with pytest.raises(DeclarationError) as failed:
+            InputIfExists(bad)
+        assert failed.value.code == "TM-M044"
