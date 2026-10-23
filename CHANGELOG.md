@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `InputIfExists(name)`: a typed preamble entry, `\InputIfFileExists{name}{}{}`, for `before_package` or `after_package`
   (`TM-M044` for a name that is not a file name).
+- `Package.make_command` and `Package.make_value`: declare and register a command or value from data. The same data under
+  one name returns the class made first; other data is `TM-M007`.
+- `describe(cls)`, `Description` and `ArgumentInfo` (`texmodel.components`): a registered command, environment or value as
+  frozen data, so a program need not read the `__tm_*` attributes.
+- `texmodel.package.declared(text)`: the control sequences the adoption scanner reads in a text, as a `frozenset`.
 - `texmodel.package.setting_line(value)`: the line a document writes for one setting; `Package.plan` uses it.
 
 ### Changed

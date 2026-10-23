@@ -9,9 +9,10 @@ import importlib.metadata
 import inspect
 import re
 import textwrap
+import types
 import typing
-from collections.abc import Iterator, Sequence
-from typing import NamedTuple
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from typing import Any, NamedTuple
 
 from ._internal.render import (
     EnvSpec,
@@ -149,6 +150,19 @@ def _compare(who: str, lib: str, defs: _Defs, wanted: Sequence[tuple[str, str, s
     return out
 
 
+def _field_data(spec: object) -> tuple[object, object]:
+    """What makes two field declarations the same: the default and the `field(doc=, meta=)` data."""
+    if isinstance(spec, dataclasses.Field):
+        return typing.cast("dataclasses.Field[object]", spec).default, dict(spec.metadata)
+    return spec, {}
+
+
+def declared(text: str) -> frozenset[str]:
+    """The control sequences `text` declares (`bbName`, no backslash), by the forms the adoption scanner reads (see
+    `check_interface`), not by `\\def`, `\\let` or an expl3 definer. A colour or a counter is not one."""
+    return frozenset(scan_declarations(text))
+
+
 def setting_line(value: AnyValue) -> str:
     """The line that sets `value` for a document: `\\setlength{\\acGap}{3mm}`, `\\renewcommand{\\acName}{R\\&D}`,
     `\\acDrafttrue`. It is what `Package.plan` writes for each of `settings=`."""
@@ -191,6 +205,7 @@ class Package:
         self._calls: list[type] = []  # components its bodies call, in order (§21a 17)
         self._colours: dict[str, str] = {}  # colour name -> qualname; its own namespace
         self._classes: list[type] = []  # every registered class, in registration order
+        self._made: dict[tuple[str, str], tuple[tuple[object, ...], type]] = {}  # `make_*`: (kind, name) -> data, class
 
     def _add(
         self, spec: Spec | EnvSpec | ValueSpec, *claims: tuple[dict[str, str], str, str], rendered: bool = True
@@ -306,6 +321,80 @@ class Package:
             cls.__tm_cs__ = "".join(addressed(self.prefix, spec.name, spec.cs))
         cls.__tm_prefix__ = self.prefix
         self._classes.append(cls)
+        return cls
+
+    def make_command(
+        self,
+        name: str,
+        doc: str,
+        *,
+        fields: Mapping[str, tuple[object, object]] | None = None,
+        body: str,
+        cs: str | None = None,
+        module: str | None = None,
+    ) -> type[Command]:
+        """Declare and register a command from data, for names a program decides at run time. `fields` maps a field
+        name to `(hint, field(...))` in TeX order, as `create_model` does (`{"name": (Raw, field(doc="the name"))}`);
+        `body` is TeX. Declaring the same data again returns the class made first; other data under the name is
+        `TM-M007`. `module` (default: the package's name) is shown in messages."""
+        given = dict(fields or {})
+        data = (doc, cs, body, tuple((n, h, _field_data(f)) for n, (h, f) in given.items()))
+        return self._make("command", name, data, module, self.command, Command, doc, cs, body, given)
+
+    def make_value(
+        self,
+        name: str,
+        kind: object,
+        doc: str,
+        *,
+        default: object = None,
+        colour_name: str | None = None,
+        cs: str | None = None,
+        module: str | None = None,
+    ) -> type[AnyValue]:
+        """Declare and register a value from data: `kind` is `Length`, `Colour`, `bool`, `Text`, `Raw` or a package's
+        own. Declaring the same data again returns the class made first; other data under the name is `TM-M007`."""
+        data = (kind, doc, default, colour_name, cs)
+        return self._make("value", name, data, module, self.value, Value[kind], doc, cs, None, {}, default, colour_name)
+
+    def _make(
+        self,
+        what: str,
+        name: str,
+        data: tuple[object, ...],
+        module: str | None,
+        register: Callable[[Any], type],
+        base: type,
+        doc: str,
+        cs: str | None,
+        body: str | None,
+        fields: Mapping[str, tuple[object, object]],
+        default: object = None,
+        colour_name: str | None = None,
+    ) -> Any:  # noqa: ANN401  # the caller's `register` fixes the class's type
+        module = module or self.name
+        earlier = self._made.get((what, name))
+        if earlier is not None:
+            if earlier[0] != data:
+                raise DeclarationError(
+                    f"{module}.{name}: declared again with other data than {earlier[1].__module__}.{name}",
+                    code="TM-M007",
+                    path=name,
+                    hint="the same name is declared once, or with identical data",
+                )
+            return earlier[1]
+        namespace: dict[str, object] = {"__doc__": doc, "__module__": module}
+        if cs is not None:
+            namespace["cs"] = cs
+        if what == "command":
+            namespace["body"] = body
+            namespace["__annotations__"] = {n: h for n, (h, _) in fields.items()}
+            namespace |= {n: f for n, (_, f) in fields.items()}
+        else:
+            namespace |= {"colour_name": colour_name} if colour_name is not None else {}
+            namespace |= {"default": default} if default is not None else {}
+        cls = register(types.new_class(name, (base,), exec_body=lambda ns: ns.update(namespace)))
+        self._made[what, name] = data, cls
         return cls
 
     @property
