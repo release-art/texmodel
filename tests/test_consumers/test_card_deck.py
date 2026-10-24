@@ -170,8 +170,8 @@ def test_the_cards_round_trip_through_data_and_the_schema_covers_the_grammar():
         assert from_dict(model.Card, to_dict(card)) == card
     header = model.CardHeader("Red Fox", "1")
     inside = model.Card(header, *convert.nodes()[0].content)
-    assert from_dict(model.Card, to_dict(inside), comments=[model.CardHeader]) == inside
-    schema = json_schema(model.Card, comments=[model.CardHeader])
+    assert from_dict(model.Card, to_dict(inside)) == inside
+    schema = json_schema(model.Card)
     assert set(schema["$defs"]) >= {"CardFront", "CardBack", "LabelledSlot", "TalkAboutMe", "CardHeader", "Comment"}
     assert schema["$defs"]["TalkAboutMe"]["required"] == ["question"]
 
@@ -181,7 +181,7 @@ def test_the_package_schema_accepts_what_to_dict_writes_for_every_card_and_refus
 
     from texmodel.spec import json_schema, to_dict
 
-    schema = json_schema(model.pkg, comments=[model.CardHeader]) | {"$ref": "#/$defs/Card"}
+    schema = json_schema(model.pkg) | {"$ref": "#/$defs/Card"}
     validator = jsonschema.Draft202012Validator(schema)
     jsonschema.Draft202012Validator.check_schema(schema)
     for card in convert.nodes():

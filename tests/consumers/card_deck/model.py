@@ -7,7 +7,19 @@ from texmodel.components import Command, Environment, Value
 from texmodel.package import Package
 from texmodel.types import Choice, Raw, Text
 
-pkg = Package("card-deck", prefix="cd", adopted=True)
+
+class CardHeader(Comment):
+    """The audit block above a card."""
+
+    template = """
+        Card: #name
+          id: #id
+    """
+    name: str
+    id: str
+
+
+pkg = Package("card-deck", prefix="cd", adopted=True, comments=[CardHeader])
 
 
 @enum.unique
@@ -84,14 +96,3 @@ class Card(Environment):
     """One card: its front, then its back."""
 
     children = [CardFront, CardBack]
-
-
-class CardHeader(Comment):
-    """The audit block above a card."""
-
-    template = """
-        Card: #name
-          id: #id
-    """
-    name: str
-    id: str

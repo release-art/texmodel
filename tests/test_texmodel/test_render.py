@@ -1,6 +1,7 @@
 import importlib.metadata
 import pathlib
 
+import pydantic
 import pytest
 
 from texmodel import drift
@@ -45,7 +46,7 @@ def test_optional_fields_are_keyword_only_and_components_are_frozen(acme):
     assert acme.Slot("a", label="b").label == "b" and acme.Slot("a").label is None
     with pytest.raises(TypeError):
         acme.Slot("a", "b")  # pyright: ignore[reportCallIssue]
-    with pytest.raises(AttributeError):
+    with pytest.raises(pydantic.ValidationError, match="frozen"):
         acme.Slot("a").text = "x"  # pyright: ignore[reportAttributeAccessIssue]
     assert acme.Fact("x") == acme.Fact("x") and hash(acme.Fact("x")) == hash(acme.Fact("x"))
 

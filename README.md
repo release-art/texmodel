@@ -132,7 +132,7 @@ tex = pkg.document(
     settings=[FactGap(Length("3mm"))],       # values for the whole document
     options=["a4paper"],
 )
-CardBack(Fact("x")).validate()   # [Violation(TM-C002 ...), Violation(TM-C001 path='CardBack/Fact[0]' ...)]
+CardBack(Fact("x")).violations()   # [Violation(TM-C002 ...), Violation(TM-C001 path='CardBack/Fact[0]' ...)]
 ```
 
 ```toml
@@ -378,6 +378,12 @@ release. `describe(cls)` (`texmodel.components`) reports a registered command, e
 (`category`, `name`, `cs`, `doc`, `arguments` of `ArgumentInfo(name, optional, doc)`, a value's `python` type, `default` and
 `colour_name`); an unregistered class is `TM-M019`. `control_name(value)` and `Value.declared_default()` are the narrower ways.
 
+A command, an environment and a `Passthrough` are frozen pydantic models. Building one in Python checks nothing beyond the
+signature (`node.violations()` does, all at once); `node.model_fields_set` is the set of fields the caller passed,
+positionally or by keyword, a default given included (an environment's `content` is always in it). Equality and hashing
+compare the fields, not that set. A field cannot be named like an attribute every component has (`copy`, `json`, `render`,
+anything starting `model_`): `TM-M045`.
+
 ### Standard libraries
 
 `texmodel.std` has a header for each TeX library a deck loads: `latex` (the kernel), `graphicx`, `xcolor`, `geometry`,
@@ -508,13 +514,14 @@ card = from_dict(Card, {"content": [
     {"type": "CardFront", "content": [{"type": "CardImage", "path": "a.jpg"}]},
     {"type": "CardBack", "content": [{"type": "Name", "text": "Fox"}, {"type": "LeadFact", "text": "..."}]},
 ]})
-card.validate()      # the grammar (counts, order) is checked here, as for any tree
+card.violations()      # the grammar (counts, order) is checked here, as for any tree
 to_dict(card)        # the same shape back
 json_schema(Card)    # JSON Schema of what from_dict accepts
 ```
 
 Everything wrong comes at once as an `ExceptionGroup` of `ValidationError` (`TM-C020`), each with a path such as
-`Card/CardBack[1]/LeadFact[2].text`.
+`Card/CardBack[1]/LeadFact[2].text`. `to_dict` writes the fields a node was given (`model_fields_set`), so data loaded and
+written back keeps its keys, and a default the author left out stays out.
 
 ### A schema for the package's data
 
@@ -560,8 +567,9 @@ pkg.document(CardHeader("Red Fox", "11111111-aaaa"), Card(...))     # % Card: Re
 Every line of a `Comment` is prefixed `% `, so a value cannot leave it; nothing is escaped (`##` is a `#` in a template). It
 is a body piece (`yield Comment("why this is 3mm")`) and a document node: a child of an environment or a top-level node, and
 transparent to the grammar (not counted, never listed, paths keep the real index: `Card[3]/CardHeader[0]`). It needs no
-package registration. `plan.edits(text, ignore_comments=True)` skips lines that are comments on both sides;
-`from_dict(cls, data, comments=[CardHeader])` and `json_schema(cls, comments=[...])` know it as a child (`"type": "CardHeader"`).
+package registration. `plan.edits(text, ignore_comments=True)` skips lines that are comments on both sides. In data a
+child may be a `Comment` (`"type": "Comment"`) or one of the classes its environment's package lists,
+`Package("card-deck", prefix="cd", comments=[CardHeader])`: `from_dict` and `json_schema` know it (`"type": "CardHeader"`).
 
 ### Testing generated code with stubs
 

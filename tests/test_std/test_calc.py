@@ -114,7 +114,7 @@ def test_the_types_are_lengths_and_numbers_to_a_type_checker_and_to_a_field():
     assert AddToCounter(Raw("c"), integer(1)).render() == r"\addtocounter{c}{1}"
     assert AddToLength(Raw(r"\x"), glue(cm(1), cm(1))).render() == r"\addtolength{\x}{1cm plus 1cm}"
     assert SetToTotalHeight(Raw(r"\x"), Raw("Ag")).render() == r"\settototalheight{\x}{Ag}"
-    (problem,) = SetCounter(Raw("c"), Raw("3")).validate()  # pyright: ignore[reportArgumentType]
+    (problem,) = SetCounter(Raw("c"), Raw("3")).violations()  # pyright: ignore[reportArgumentType]
     assert problem.code == "TM-C003" and "IntExpr" in problem.message
 
 

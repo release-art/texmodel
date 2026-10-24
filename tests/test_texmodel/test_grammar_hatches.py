@@ -53,16 +53,18 @@ V = Passthrough(Raw(r"\vspace{1mm}"))
 
 
 def test_a_passthrough_renders_its_tex_and_is_a_node_anywhere_it_is_listed():
-    assert V.render() == r"\vspace{1mm}" and V.validate() == [] and repr(V) == "Passthrough(Raw(tex='\\\\vspace{1mm}'))"
-    assert Page(V, Head("h"), V, Item("a"), V, Item("b"), V).validate() == []
+    assert (
+        V.render() == r"\vspace{1mm}" and V.violations() == [] and repr(V) == "Passthrough(Raw(tex='\\\\vspace{1mm}'))"
+    )
+    assert Page(V, Head("h"), V, Item("a"), V, Item("b"), V).violations() == []
     assert pkg.document(Page(Head("h"), V, Item("a"), Item("b"))).count(r"\vspace{1mm}") == 1
 
 
 def test_a_passthrough_where_no_grammar_lists_it_is_refused():
-    assert Sheet(Item("a"), Item("b"), V).validate() == []  # Sheet lists Passthrough.times.any()
-    (bad,) = Page(Head("h"), Item("a"), Item("b"), Item("c"), Item("d")).validate()
+    assert Sheet(Item("a"), Item("b"), V).violations() == []  # Sheet lists Passthrough.times.any()
+    (bad,) = Page(Head("h"), Item("a"), Item("b"), Item("c"), Item("d")).violations()
     assert bad.code == "TM-C001" and bad.path == "Page/Item[4]"
-    assert [v.code for v in Sheet(Item("a"), Head("h")).validate()] == ["TM-C002"]  # one Item is too few
+    assert [v.code for v in Sheet(Item("a"), Head("h")).violations()] == ["TM-C002"]  # one Item is too few
 
 
 @given(st.lists(st.booleans(), min_size=3, max_size=3), st.integers(2, 3), st.integers(0, 3))
@@ -72,13 +74,13 @@ def test_any_interleaving_of_anywhere_items_keeps_the_ordered_run_valid(heads_be
     for i in range(n):
         mixed += ([Head(f"h{i}")] if heads_before[i % 3] else []) + [Item(str(i))]
     mixed += [Head("end")] * trailing
-    assert Sheet(*mixed).validate() == []
+    assert Sheet(*mixed).violations() == []
 
 
 def test_counts_are_still_enforced_and_paths_keep_the_real_position():
-    (few,) = Sheet(Head("a"), Item("a"), Head("b")).validate()
+    (few,) = Sheet(Head("a"), Item("a"), Head("b")).violations()
     assert few.code == "TM-C002" and "found 1" in few.message
-    many = Sheet(Item("a"), Head("h"), Item("b"), Item("c"), Item("d")).validate()
+    many = Sheet(Item("a"), Head("h"), Item("b"), Item("c"), Item("d")).violations()
     assert [(v.code, v.path) for v in many] == [("TM-C001", "Sheet/Item[4]")]
 
 

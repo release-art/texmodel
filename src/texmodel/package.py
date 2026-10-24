@@ -14,6 +14,8 @@ import typing
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from typing import Any, NamedTuple
 
+from pydantic.fields import FieldInfo
+
 from ._internal.render import (
     EnvSpec,
     Spec,
@@ -33,7 +35,7 @@ from ._internal.render import (
 )
 from ._internal.scan import scan_colours, scan_counters, scan_declarations
 from ._internal.values import fill_text
-from .body import Library, Syntax, TemplateRef, Whitespace, template_text
+from .body import Comment, Library, Syntax, TemplateRef, Whitespace, template_text
 from .components import AnyValue, Command, Environment, Node, Passthrough, Value, env_spec_of, spec_of, value_spec_of
 from .drift import stamp
 from .errors import DeclarationError, Violation
@@ -152,9 +154,9 @@ def _compare(who: str, lib: str, defs: _Defs, wanted: Sequence[tuple[str, str, s
 
 def _field_data(spec: object) -> tuple[object, object]:
     """What makes two field declarations the same: the default and the `field(doc=, meta=)` data."""
-    if isinstance(spec, dataclasses.Field):
-        return typing.cast("dataclasses.Field[object]", spec).default, dict(spec.metadata)
-    return spec, {}
+    if isinstance(spec, FieldInfo):
+        return spec.default, tuple(spec.metadata)
+    return spec, ()
 
 
 def declared(text: str) -> frozenset[str]:
@@ -184,6 +186,7 @@ class Package:
         adopted: bool = False,
         builtin: bool = False,
         whitespace: Whitespace = Whitespace.KEEP,
+        comments: Sequence[type[Comment]] = (),
     ) -> None:
         if not _NAME.fullmatch(name):
             raise DeclarationError(f"package name {name!r} must match [a-z][a-z0-9-]*", code="TM-P001")
@@ -199,6 +202,7 @@ class Package:
         self.whitespace = whitespace  # the policy of a body piece that names none (M8)
         self.adopted = adopted  # the `.sty` is hand-written; components only declare it (M9)
         self.builtin = builtin  # always loaded (the LaTeX kernel): calling it requires no package
+        self.comments = tuple(comments)  # the comment classes data may hold, besides `Comment`, in its environments
         self._requires: list[tuple[Package, tuple[str, ...]]] = []  # `require()`, in order
         self._items: list[Spec | EnvSpec | ValueSpec | Library] = []  # registration order is output order
         self._controls: dict[str, str] = {}  # control sequence -> qualname of its declarer
@@ -603,7 +607,7 @@ class Package:
         Everything wrong is reported at once, as an `ExceptionGroup` of `ValidationError` (E2).
         """
         preamble = preamble or PreambleSlots()
-        problems = [v for node in body for v in node.validate()]
+        problems = [v for node in body for v in node.violations()]
         problems += [
             Violation("TM-M015", path, f"\\{word} is not declared by this package", hint="declare it, or fix the name")
             for i, node in enumerate(body)

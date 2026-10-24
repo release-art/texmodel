@@ -10,91 +10,30 @@ from_dict(Card, {"content": [
 ]})
 ```
 
-Fields are coerced as pydantic does by default (a `Raw` field takes a string). Everything wrong is reported at once,
-as an `ExceptionGroup` of `ValidationError`, each with the path `validate()` would give it; the grammar (counts and
-order, M4) is checked by `validate()` on the result, so a document that loads is not yet a valid one.
+Fields are coerced as pydantic does by default (a `Raw` field takes a string). A child may be a comment: `Comment`, or
+one of the classes the environment's package lists in `Package(comments=)`. Everything wrong is reported at once, as an
+`ExceptionGroup` of `ValidationError`, each with the path `violations()` would give it; the grammar (counts and order,
+M4) is checked by `violations()` on the result, so a document that loads is not yet a valid one.
+
+A node from data knows which fields the data gave (`model_fields_set`), and `to_dict` writes those, so a round trip
+keeps them.
 """
 
 import typing
-from collections.abc import Callable, Iterable, Mapping, Sequence
-from typing import Annotated, Any
+from collections.abc import Iterable, Mapping, Sequence
+from typing import Any
 
 import pydantic
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode
 
 from .body import Comment
-from .components import Command, Environment, Node, Passthrough, Value
+from .components import Command, Environment, Node, Value
 from .errors import ValidationError, Violation
 from .package import Package
 
-_MODELS: dict[tuple[type[Environment], tuple[type[Comment], ...]], type[pydantic.BaseModel]] = {}
-_COMMENT_MODELS: dict[type[Comment], type[pydantic.BaseModel]] = {}
-
-
-def _tag(value: object) -> object:
-    return value.get("type") if isinstance(value, Mapping) else type(value).__name__  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-
-
-def _renamer(cls: type[Command] | type[Environment] | type[Passthrough]) -> Callable[[object], object]:
-    """A before-validator that moves a field's old key (`field(renamed_from=)`) to its name; both given is an error."""
-    old = {a.renamed_from: a.name for a in cls.__tm_args__ if a.renamed_from}
-
-    def rename(data: object) -> object:
-        if not old or not isinstance(data, Mapping):
-            return data
-        out = dict(typing.cast("Mapping[str, object]", data))
-        for was, name in old.items():
-            if was in out:
-                if name in out:
-                    raise ValueError(f"{name!r} and its old name {was!r} are both given")
-                out[name] = out.pop(was)
-        return out
-
-    return rename
-
-
-def _same(data: object) -> object:
-    return data
-
-
-def _comment_model(kind: type[Comment]) -> type[pydantic.BaseModel]:
-    if kind not in _COMMENT_MODELS:
-        fields: dict[str, Any] = dict.fromkeys(kind.__tm_fields__, (str, ...))
-        _COMMENT_MODELS[kind] = pydantic.create_model(kind.__name__, __doc__=kind.__doc__, **fields)
-        _COMMENT_MODELS[kind].__tm_cls__ = kind  # pyright: ignore[reportAttributeAccessIssue]
-    return _COMMENT_MODELS[kind]
-
-
-def _model(cls: type[Environment], comments: tuple[type[Comment], ...]) -> type[pydantic.BaseModel]:
-    """The pydantic model of an environment: `content` limited to its grammar's components and to `Comment` and
-    `comments` (a comment is not in a grammar), and its arguments."""
-    if (cls, comments) not in _MODELS:
-        members: list[tuple[Any, Callable[[object], object]]] = []
-        for t in cls.__tm_grammar__:
-            kind = typing.cast("type[Command] | type[Environment] | type[Passthrough]", t.kind)
-            members.append((_model(kind, comments) if issubclass(kind, Environment) else kind, _renamer(kind)))
-        members += [(_comment_model(c), _same) for c in (Comment, *comments)]
-        tagged = tuple(Annotated[m, pydantic.BeforeValidator(r), pydantic.Tag(m.__name__)] for m, r in members)
-        fields: dict[str, Any] = {"content": (list[Annotated[typing.Union[tagged], pydantic.Discriminator(_tag)]], ...)}  # noqa: UP007
-        for a in cls.__tm_args__:
-            fields[a.name] = (a.hint | None, None) if a.optional else (a.hint, ...)
-        _MODELS[cls, comments] = pydantic.create_model(cls.__name__, **fields)
-        _MODELS[cls, comments].__tm_cls__ = cls  # pyright: ignore[reportAttributeAccessIssue]
-    return _MODELS[cls, comments]
-
-
-def _node(value: Any) -> Node:  # noqa: ANN401  # an instance of a model built at run time, or a Command
-    if isinstance(value, Command | Passthrough):
-        return value
-    cls: type[Environment] | type[Comment] = value.__tm_cls__
-    if issubclass(cls, Comment):
-        return cls(**{f: getattr(value, f) for f in cls.__tm_fields__})
-    args = {a.name: getattr(value, a.name) for a in cls.__tm_args__}
-    return cls(*(_node(c) for c in value.content), **args)
-
 
 def _path(root: str, loc: Sequence[str | int]) -> str:
-    """`('content', 1, 'LeadFact', 'text')` under `Card` is `Card/LeadFact[1].text`, as `validate()` writes it."""
+    """`('content', 1, 'LeadFact', 'text')` under `Card` is `Card/LeadFact[1].text`, as `violations()` writes it."""
     path, index = root, None
     for part in loc:
         if part == "content":
@@ -108,19 +47,10 @@ def _path(root: str, loc: Sequence[str | int]) -> str:
     return path if index is None else f"{path}/content[{index}]"  # a child no component of the grammar fits
 
 
-def from_dict(
-    cls: type[Command] | type[Environment], data: Mapping[str, object], *, comments: Sequence[type[Comment]] = ()
-) -> Node:
-    """The node `data` describes, as an instance of `cls`; raises an `ExceptionGroup` of `ValidationError` (E2).
-    A child may also be a `Comment` (`"type": "Comment"`, `"text"`) or an instance of one of `comments`."""
+def from_dict(cls: type[Command] | type[Environment], data: Mapping[str, object]) -> Node:
+    """The node `data` describes, as an instance of `cls`; raises an `ExceptionGroup` of `ValidationError` (E2)."""
     try:
-        data = typing.cast("Mapping[str, object]", _renamer(cls)(data))
-    except ValueError as exc:  # a renamed key given with its new name too
-        raise ExceptionGroup(f"invalid {cls.__name__}", [Violation("TM-C020", cls.__name__, str(exc)).error()]) from exc
-    try:
-        if issubclass(cls, Command):
-            return pydantic.TypeAdapter(cls).validate_python(data)  # pyright: ignore[reportUnknownVariableType]
-        return _node(_model(cls, tuple(comments)).model_validate(data))
+        return cls.model_validate(data)
     except pydantic.ValidationError as exc:
         raise ExceptionGroup(
             f"invalid {cls.__name__}",
@@ -132,14 +62,11 @@ def from_dict(
 
 
 def to_dict(node: Node) -> dict[str, object]:
-    """The data of `node`, in the shape `from_dict` reads; an optional field that is `None` is left out."""
+    """The data of `node`, in the shape `from_dict` reads: the fields it was given (`model_fields_set`), as given."""
     out: dict[str, object] = {"type": type(node).__name__}
     if isinstance(node, Comment):
         return out | {f: getattr(node, f) for f in node.__tm_fields__}
-    for a in type(node).__tm_args__:
-        value = getattr(node, a.name)
-        if value is not None and value is not False:
-            out[a.name] = pydantic.TypeAdapter(a.hint).dump_python(value, mode="json", exclude_defaults=True)
+    out |= node.model_dump(mode="json", exclude_unset=True, exclude={"content"})
     if isinstance(node, Environment):
         out["content"] = [to_dict(child) for child in node.content]
     return out
@@ -177,36 +104,30 @@ def _x_keys(meta: Mapping[str, object]) -> dict[str, object]:
     return {f"x-{k}": v for k, v in meta.items()}
 
 
-def _annotate(schema: dict[str, Any], classes: Iterable[type], comments: Iterable[type] = ()) -> None:
-    """Name every component by its `"type"` constant, record `x-renamed-from` on each renamed field (§21a 15), and add
-    the `doc` and `meta` of fields and components (`x-` keys)."""
+def _comments(classes: Iterable[type]) -> set[str]:
+    """`Comment` and the comment classes of the packages these classes are registered with."""
+    packages = (getattr(cls, "__tm_package__", None) for cls in classes)
+    return {"Comment", *(c.__name__ for p in packages if isinstance(p, Package) for c in p.comments)}
+
+
+def _annotate(schema: dict[str, Any], classes: Iterable[type]) -> None:
+    """Name every component and comment by its `"type"` constant and add the `meta` of components (`x-` keys); a
+    field's doc, old name and meta are in its schema already (`field()`, `arg()`)."""
     named = _reachable(classes)
-    kinds = {*named, *(c.__name__ for c in (Comment, *comments))}
+    kinds = {*named, *_comments(named.values())}
     for node in (schema, *schema.get("$defs", {}).values()):
         title = str(node.get("title"))
         if title in kinds:
             node.setdefault("properties", {})["type"] = {"const": title}
         node |= _x_keys(getattr(named.get(title), "meta", {}))
-        for a in getattr(named.get(title), "__tm_args__", ()):
-            if a.name in (props := node.get("properties", {})):
-                if a.renamed_from:
-                    props[a.name]["x-renamed-from"] = a.renamed_from
-                if a.doc:
-                    props[a.name]["description"] = a.doc
-                props[a.name] |= _x_keys(a.meta)
     _requires_type(schema)
 
 
-def _package_schema(package: Package, comments: tuple[type[Comment], ...]) -> dict[str, Any]:
+def _package_schema(package: Package) -> dict[str, Any]:
     """One schema for a package: a `$defs` entry per command and environment, and `Value.<Name>` per value."""
     nodes = [c for c in package.registered if issubclass(c, Command | Environment)]
     inputs: list[tuple[str, JsonSchemaMode, Any]] = [
-        (
-            c.__name__,
-            "validation",
-            pydantic.TypeAdapter(c if issubclass(c, Command) else _model(c, comments)).core_schema,
-        )
-        for c in nodes
+        (c.__name__, "validation", pydantic.TypeAdapter(c).core_schema) for c in nodes
     ]
     _, defs = GenerateJsonSchema(ref_template="#/$defs/{model}").generate_definitions(inputs)
     schema: dict[str, Any] = {"$defs": defs}
@@ -219,23 +140,17 @@ def _package_schema(package: Package, comments: tuple[type[Comment], ...]) -> di
                 "type": cls.__tm_kind__.json_type,
                 **_x_keys(cls.meta),
             }
-    _annotate(schema, nodes, comments)
+    _annotate(schema, nodes)
     return schema
 
 
-def json_schema(
-    target: type[Command] | type[Environment] | Package, *, comments: Sequence[type[Comment]] = ()
-) -> dict[str, Any]:
-    """JSON Schema of the data `from_dict(cls, ..., comments=)` accepts; docstrings are descriptions. Given a `Package`,
-    one schema with a `$defs` entry for every registered component and value; a renamed field has `x-renamed-from`."""
+def json_schema(target: type[Command] | type[Environment] | Package) -> dict[str, Any]:
+    """JSON Schema of the data `from_dict(cls, ...)` accepts; docstrings are descriptions. Given a `Package`, one schema
+    with a `$defs` entry for every registered component and value; a renamed field has `x-renamed-from`."""
     if isinstance(target, Package):
-        return _package_schema(target, tuple(comments))
-    schema = (
-        pydantic.TypeAdapter(target).json_schema()
-        if issubclass(target, Command)
-        else _model(target, tuple(comments)).model_json_schema()
-    )
-    _annotate(schema, [target], comments)
+        return _package_schema(target)
+    schema = target.model_json_schema()
+    _annotate(schema, [target])
     return schema
 
 

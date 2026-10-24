@@ -51,9 +51,9 @@ def test_a_raw_member_passes_through_and_a_str_member_is_escaped():
 
 
 def test_validate_names_the_choices_when_the_value_is_not_a_member():
-    (v,) = Mark("\\alpha", "x").validate()  # type: ignore[arg-type]
+    (v,) = Mark("\\alpha", "x").violations()  # type: ignore[arg-type]
     assert v.code == "TM-C003" and "one of ['A', 'B']" in v.message and v.path == "Mark.kind"
-    assert Mark(Kind.A, "x").validate() == []
+    assert Mark(Kind.A, "x").violations() == []
 
 
 def test_repr_is_the_expression_that_builds_it():
