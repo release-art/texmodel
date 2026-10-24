@@ -283,8 +283,8 @@ def test_a_key_list_fills_a_slot_and_an_empty_one_in_an_optional_slot_is_not_wri
     assert parens(Raw("x"), options=Options(center=True)).render() == r"\parens(center){x}"
     assert picture(options=Options(clip=True)).render() == "\\begin{picture}[clip=true]\n\\end{picture}"
     assert optional("f.pdf", options=Options(title="a]b")).render() == r"\includegraphics[title={a]b}]{f.pdf}"
-    assert adjust_box(opts, Raw("x")).validate() == []
-    (problem,) = adjust_box("not options", Raw("x")).validate()  # pyright: ignore[reportArgumentType]
+    assert adjust_box(opts, Raw("x")).violations() == []
+    (problem,) = adjust_box("not options", Raw("x")).violations()  # pyright: ignore[reportArgumentType]
     assert problem.code == "TM-C003" and "Options" in problem.message
 
 

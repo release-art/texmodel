@@ -315,7 +315,7 @@ The generated TeX counts as the document compiles: the maximum fails on the offe
 - **Use `Whitespace.TRIM`** on a package whose bodies are lists of calls: it ends each line with `%`, so no stray space
   reaches the typeset text.
 - **Put the rule's source in the message.** The person who sees the error has a hand-written deck, not your Python.
-- **This checks counts, not order.** Python's `validate()` also checks the order of children. If order matters in the
+- **This checks counts, not order.** Python's `violations()` also checks the order of children. If order matters in the
   deck, say so in the error text.
 - **Do not nest the environment in itself.** The counters are global.
 

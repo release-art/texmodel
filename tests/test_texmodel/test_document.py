@@ -132,9 +132,9 @@ def test_the_optional_argument_comes_first_is_omitted_when_none_and_wraps_a_brac
 def test_a_field_of_the_wrong_kind_is_a_violation_with_its_path():
     s = shop()
     bad = s.Card(s.Name(Raw("x")), s.Fact("a"), s.Fact("b"), s.Tex("plain"))
-    found = {(v.code, v.path) for v in bad.validate()}
+    found = {(v.code, v.path) for v in bad.violations()}
     assert ("TM-C003", "Card/Name[0].text") in found and ("TM-C003", "Card/Tex[3].tex") in found
-    assert s.Slot("x", label=None).validate() == [] and s.Fact(None).validate()[0].code == "TM-C003"  # pyright: ignore[reportArgumentType]
+    assert s.Slot("x", label=None).violations() == [] and s.Fact(None).violations()[0].code == "TM-C003"  # pyright: ignore[reportArgumentType]
 
 
 def test_an_unregistered_component_cannot_render():
@@ -188,7 +188,7 @@ def test_environment_arguments_are_keywords_and_checked():
 def test_the_grammar_reports_every_problem_with_a_path():
     s = shop()
     card = s.Card(s.Fact("a"), s.Name("n"), s.Fact("b"), s.Fact("c"), s.Fact("d"), s.Slot("s"), s.Fact("e"))
-    out = [(v.code, v.path) for v in card.validate()]
+    out = [(v.code, v.path) for v in card.violations()]
     assert out == [
         ("TM-C002", "Card"),  # no Name first
         ("TM-C002", "Card"),  # and so only one Fact where two are needed
@@ -199,9 +199,9 @@ def test_the_grammar_reports_every_problem_with_a_path():
         ("TM-C001", "Card/Slot[5]"),
         ("TM-C001", "Card/Fact[6]"),
     ]
-    assert card.validate()[0].hint.startswith("allowed: 1-1 Name, 2-3 Fact, 0-3 Slot")
-    assert [v.code for v in s.Card(s.Name("n"), s.Fact("a")).validate()] == ["TM-C002"]
-    assert [v.path for v in s.Card(s.Name("n"), s.Fact("a"), s.Fact("b"), "stray").validate()] == ["Card/str[3]"]  # pyright: ignore[reportArgumentType]
+    assert card.violations()[0].hint.startswith("allowed: 1-1 Name, 2-3 Fact, 0-3 Slot")
+    assert [v.code for v in s.Card(s.Name("n"), s.Fact("a")).violations()] == ["TM-C002"]
+    assert [v.path for v in s.Card(s.Name("n"), s.Fact("a"), s.Fact("b"), "stray").violations()] == ["Card/str[3]"]  # pyright: ignore[reportArgumentType]
 
 
 def test_nested_environments_validate_their_own_children():
@@ -231,9 +231,9 @@ def test_nested_environments_validate_their_own_children():
 
         children = [Inner.times(1), Leaf.times.any()]
 
-    assert Outer(Inner(Leaf()), Leaf()).validate() == []
-    assert [v.path for v in Outer(Inner()).validate()] == ["Outer/Inner[0]"]
-    assert Outer().validate() == []
+    assert Outer(Inner(Leaf()), Leaf()).violations() == []
+    assert [v.path for v in Outer(Inner()).violations()] == ["Outer/Inner[0]"]
+    assert Outer().violations() == []
     with pytest.raises(ExceptionGroup) as info:
         Outer(Inner()).render()
     assert codes(info) == ["TM-C002"] and info.value.exceptions[0].path == "Outer/Inner[0]"  # pyright: ignore[reportAttributeAccessIssue]

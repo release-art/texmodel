@@ -66,8 +66,8 @@ def test_a_pdf_string_field_is_escaped_in_detokenize():
     _, meta = pdf_package()
     assert meta("A (b)").render() == r"\pdMeta{\detokenize{A \050b\051}}"
     assert meta("x", note="y]").render() == r"\pdMeta[{\detokenize{y]}}]{\detokenize{x}}"
-    assert [v.code for v in meta(1).validate()] == ["TM-C003"]  # type: ignore[arg-type]
-    assert "PdfString" in meta(1).validate()[0].message  # type: ignore[arg-type]
+    assert [v.code for v in meta(1).violations()] == ["TM-C003"]  # type: ignore[arg-type]
+    assert "PdfString" in meta(1).violations()[0].message  # type: ignore[arg-type]
 
 
 def test_a_pdf_string_round_trips_through_data_and_the_schema():

@@ -28,8 +28,8 @@ class Header(Comment):
     id: str
 
 
-def small():
-    pkg = Package("com", prefix="cm")
+def small(comments: tuple[type[Comment], ...] = ()):
+    pkg = Package("com", prefix="cm", comments=comments)
 
     @pkg.command
     class Item(Command):
@@ -71,7 +71,7 @@ def test_a_comment_is_a_frozen_value():
     assert c != Comment("b") and c != Header("a", "b")
     with pytest.raises(dataclasses.FrozenInstanceError):
         c.text = "b"  # type: ignore[misc]
-    assert c.validate() == []
+    assert c.violations() == []
 
 
 # --- templates -----------------------------------------------------------------------------------------------
@@ -144,10 +144,10 @@ def test_a_comment_child_is_not_counted_and_does_not_break_the_order():
         box(Comment("first"), item("a"), Comment("mid"), item("b"), Comment("last")),
         box(Header("x", "1"), item("a"), item("b")),
     ):
-        assert node.validate() == []
+        assert node.violations() == []
         assert [ln for ln in node.render().splitlines() if not ln.startswith("%")] == plain.render().splitlines()
-    assert box(Comment("c")).validate()[0].code == "TM-C002"  # still one required Item
-    (bad,) = box(item("a"), Comment("c"), item("b"), item("c"), item("d")).validate()
+    assert box(Comment("c")).violations()[0].code == "TM-C002"  # still one required Item
+    (bad,) = box(item("a"), Comment("c"), item("b"), item("c"), item("d")).violations()
     assert bad.path == "Box/Item[4]"  # the real position, comments counted in the index
 
 
@@ -187,14 +187,14 @@ def test_edits_can_ignore_comment_lines():
 
 
 def test_a_comment_child_round_trips_through_data_and_the_schema():
-    _, item, box = small()
+    _, item, box = small((Header,))
     node = box(Header("x", "1"), item("a"), Comment("note"), item("b"))
     data = to_dict(node)
     assert data["content"][0] == {"type": "Header", "name": "x", "id": "1"}  # type: ignore[index]
-    assert from_dict(box, data, comments=[Header]) == node
-    defs = json_schema(box, comments=[Header])["$defs"]
+    assert from_dict(box, data) == node
+    defs = json_schema(box)["$defs"]
     assert set(defs) >= {"Header", "Comment"} and defs["Header"]["required"] == ["name", "id"]
-    assert [c for c in from_dict(box, data, comments=[Header]).content if isinstance(c, Comment)] == [  # type: ignore[union-attr]
+    assert [c for c in from_dict(box, data).content if isinstance(c, Comment)] == [  # type: ignore[union-attr]
         Header("x", "1"),
         Comment("note"),
     ]

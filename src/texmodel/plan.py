@@ -38,7 +38,7 @@ class Edit:
 
 
 def node_lines(node: Node, path: str) -> Iterator[Line]:
-    """The lines a node renders; children are indexed within their parent, as `validate()` paths are."""
+    """The lines a node renders; children are indexed within their parent, as `violations()` paths are."""
     rendered = node.render().splitlines()
     if not isinstance(node, Environment):
         yield from (Line(path, tex) for tex in rendered)

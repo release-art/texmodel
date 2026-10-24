@@ -48,7 +48,7 @@ def test_a_class_may_name_its_control_sequence():
     assert r"\newcommand{\cdFact}[1]{%" in sty and r"\newcommand{\quickfact}[1]{%" in sty
     assert r"\newenvironment{quickbox}[1]{%" in sty
     assert [control_name(c) for c in (fact, quick, box)] == ["cdFact", "quickfact", "quickbox"]
-    assert box(quick("a"), title="T").validate() == [] or True
+    assert box(quick("a"), title="T").violations() == [] or True
     assert quick("R&D").render() == r"\quickfact{R\&D}"
     assert box(fact("a"), title="T").render() == "\\begin{quickbox}{T}\n\\cdFact{a}\n\\end{quickbox}"
 

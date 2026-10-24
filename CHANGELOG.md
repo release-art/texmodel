@@ -7,11 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `node.model_fields_set`: the fields the caller passed, positionally or by keyword (a default given included), or the
+  keys the data gave to `from_dict`.
+- `Package(comments=[...])`: the `Comment` subclasses data may hold in the package's environments.
+- `TM-M045`: a field named like an attribute every component has (`copy`, `json`, `render`, a `model_` name).
+
 ### Changed
 
+- `Command`, `Environment` and `Passthrough` are frozen pydantic models. Building one still validates nothing (the metaclass
+  maps positional arguments and calls `model_construct`); assigning to a field raises `pydantic.ValidationError`, not
+  `AttributeError`; `str(node)` is `repr(node)`.
+- `validate()` is `violations()`, on components and `Comment`.
+- `to_dict` writes the fields a node was given (`model_fields_set`), `None` and `False` included when given, and leaves
+  out a default that was not; it was every field that was not `None` or `False`.
+- `field()` and `arg()` return a pydantic `FieldInfo`; a field's doc, old name and `x-` keys are in its schema from it.
+- An environment's JSON Schema has its docstring as `description`, as a command's has.
 - Docs: the README is a short front page; the reference is a guide under `docs/` (getting started, components, arguments,
   values, documents, checking, adopting TeX, standard libraries, testing, building, tools), built with MkDocs Material
   (`pdm install -G docs`, `pdm run mkdocs serve`). Every `python` block in the README and the docs runs in `tests/test_docs.py`.
+
+### Removed
+
+- The `comments=` argument of `from_dict` and `json_schema`: list the classes on the package.
 
 ## [0.3.3] - 2026-10-23
 

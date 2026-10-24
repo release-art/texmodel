@@ -68,7 +68,7 @@ def test_a_document_loads_from_data_and_renders_like_the_same_tree_built_in_pyth
         Face(Icon(Raw("a_b.jpg")), Fact("50%"), title="T", note=Raw("\\x")),
         Face(Icon(Raw("c.jpg")), Fact("b"), title="U"),
     )
-    assert node == built and node.render() == built.render() and node.validate() == []
+    assert node == built and node.render() == built.render() and node.violations() == []
 
 
 def test_to_dict_round_trips_and_leaves_out_an_optional_none():
@@ -122,7 +122,7 @@ def test_a_missing_field_is_named():
 
 def test_the_grammar_is_checked_by_validate_not_by_loading():
     node = from_dict(Sheet, {"content": []})
-    assert [v.code for v in node.validate()] == ["TM-C002"]
+    assert [v.code for v in node.violations()] == ["TM-C002"]
 
 
 def test_the_schema_has_docstrings_and_only_the_required_fields():

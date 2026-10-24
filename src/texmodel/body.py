@@ -186,7 +186,7 @@ class Comment:
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.text!r})"
 
-    def validate(self) -> list[Violation]:
+    def violations(self) -> list[Violation]:
         """A comment breaks no rule."""
         return []
 

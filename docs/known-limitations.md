@@ -26,13 +26,16 @@ What texmodel does not do or does not check today. Planned work is in [the plan]
 - A colour model (`CMYK`, `RGB`, `Gray`) writes its components, `0,0,0,1`, which suits `\definecolor` and
   `\color[cmyk]{...}`; a macro that wants a name takes `ColourName`.
 - A `KeyVals` that fails its own checks (`exclusive`, `requires`, a wrong type) raises pydantic's `ValidationError` when it
-  is built, not a `Violation` from `validate()`.
+  is built, not a `Violation` from `violations()`.
 - Key libraries differ in ways the presets only partly capture. `KeyRules` was measured against pgfkeys, xkeyval, keyval
   and l3keys with a corpus of awkward values (`tests/test_texmodel/test_interface_tex.py`); `KVOPTIONS` was not. A space at
   the end of a value is kept by `{{ a }}` in three of the four and trimmed by `l3keys`; a library that treats braces
   differently from these needs its own `KeyRules`.
 - A `Raw` value or `Item[Raw]` is written as given: texmodel checks only that its braces balance.
-- The names `content` (an environment's children) and `type` (the component in data) are not usable as field names.
+- The names `content` (an environment's children) and `type` (the component in data) are not usable as field names, nor
+  any attribute every component has (`copy`, `json`, `render`, a `model_` name: `TM-M045`).
+- pyright checks a command's and a `Passthrough`'s arguments, not an environment's keywords: `dataclass_transform` cannot
+  describe positional children.
 
 ## The standard headers
 
