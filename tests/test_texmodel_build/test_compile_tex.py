@@ -12,6 +12,7 @@ import tomllib
 import pikepdf
 import pytest
 
+from texmodel.document import Document
 from texmodel_build import diagnostics as d
 from texmodel_build.compiler import Compiler
 from texmodel_build.errors import ToolchainError
@@ -182,7 +183,7 @@ def test_a_generated_document_with_hostile_text_compiles(compiler, tmp_path, mon
     )
     src = tmp_path / "src" / "card.tex"
     src.parent.mkdir()
-    src.write_text(acme_cards.pkg.document(card, settings=[acme_cards.Compact(True)], options=["a4paper"]))
+    src.write_text(acme_cards.pkg.document(Document(card, settings=[acme_cards.Compact(True)], options=["a4paper"])))
     golden = TEX.parent / "acme_cards" / "generated"
     comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(golden,))
     result = comp.compile(src, tmp_path / "out")

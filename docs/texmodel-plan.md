@@ -11,7 +11,7 @@ nothing about any brand, deck or business domain.
 
 **How to read this document.** It is the target specification plus the decisions log (§21). The guide and the cookbook
 describe what exists; §21 is the record of what was decided and built; §19 and §21a describe what is open; `docs/briefs/roadmap.md` is the order to do it in. Many ids below
-describe work that is *not built*. Checked against the code (v0.4.0), these are not built: scoped overrides `Set` (D4a),
+describe work that is *not built*. Checked against the code (v0.5.0), these are not built: scoped overrides `Set` (D4a),
 rules and `@rule` (D5), placement (M5), the `Namespace` policy (M6), `engine`/`kind`/`base` on `Package` and engine
 capabilities (M11, M13), `Markup`, `Path`, `Font`, `Snippet`, `PgfStyle`, `Cycle` and colour variants (T2, T5-T9), trust
 levels and limits (Z1), `texmodel explain` (E4), a `@covers` check (A2, V7), benchmarks (W2), `libcst` refactors and
@@ -253,11 +253,13 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   Building a node checks nothing but the signature (`violations()` does); `model_fields_set`
   is the fields the caller passed, so a default the author left is told from one they set.
   `texmodel render module:attr` writes a document (a `str`, or a function returning one) to a file.
-- D1a **The document root.** `Package.document(*body, settings=[FactGap(Length("3mm"))],
-  options=["a4paper"])` renders a complete `.tex` (pure, deterministic, no I/O) and
-  raises every violation at once. Values are set with instances of the `Value` class,
+- D1a **The document root.** `Package.document(Document(*body, settings=[FactGap(Length("3mm"))],
+  options=["a4paper"]))` renders a complete `.tex` (pure, deterministic, no I/O) and
+  raises every violation at once. A `Document` carries the body, the class options, the
+  settings and the preamble slots, so all of it is data (`to_dict`, `from_dict(package, …)`,
+  the schema) and has a path in the plan. Values are set with instances of the `Value` class,
   type-checked against the declared type; class options are validated, since they are
-  TeX. `settings=` is the one way to set a `Value` for the whole document; `Set(…)`
+  TeX. A `Document`'s `settings` is the one way to set a `Value` for the whole document; `Set(…)`
   (D4a) is the one way to set it for a subtree; the class `default` is the fallback.
   The root as a component with its own `children` grammar (preamble slots,
   `\begin{document}` body) is the next step; until then the body is a free sequence of
@@ -942,7 +944,7 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | Python signatures are the interface; bodies are explicit TeX (string, method or `TemplateRef`), never found by name | decided |
 | A body method is read once at class definition and cannot use `self` | decided |
 | Environment: fields are keyword arguments, children positional; `children` is the grammar, `.content` the instance's children | decided |
-| `Package.document(...)` renders a `.tex`; values are set by `Value` instances in `settings=`; `texmodel render module:attr` writes a document to a file | decided |
+| `Package.document(...)` renders a `.tex`; values are set by `Value` instances in a `Document`'s `settings`; `texmodel render module:attr` writes a document to a file | decided |
 | A component may name its TeX command with `cs`; a package may have an empty prefix; the kernel is `builtin`; `Package.require` loads a library with options; headers for standard libraries live in `texmodel.std`, one module per package, verified by compiling a call of each | decided |
 | expl3: a syntax mode and verbatim library blocks, verified by compiling; no typed l3 vocabulary, no parser | decided |
 | A library block is verbatim (no `#name` rewriting, no `%`); a component it defines has no body and renders nothing; the arity probe is the `#` count of `\meaning` | decided |
@@ -955,10 +957,11 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | `children = [Fact.times(2, 3)]` multiplicity syntax (`times([from,] to)` with `to=None` for no limit, plus `times.any()` and `times.at_least_one()`; not operator overloading) | decided |
 | An adopted (declared-only) package is a flag on the package, `Package(..., adopted=True)`: no bodies, no `.sty`, `texmodel check` compares the declarations with `[tool.texmodel] sources` | decided |
 | The interface check compares the argument count and whether the first is optional of what the scan reads (§21a 8); a name defined another way is missing (`TM-C010`, `TM-C011`) | decided |
-| Document preamble: `PreambleSlots(before_class, before_package, after_package)`, each a tuple of `Raw` or a typed entry, passed to `Package.document(preamble=)`; public names used there are linted (`TM-M015`) | decided |
+| Document preamble: `PreambleSlots(before_class, before_package, after_package)`, each a tuple of `Raw` or a typed entry, a `Document`'s `preamble`; public names used there are linted (`TM-M015`) | decided |
 | The harness types any package warning (`PackageWarning`, `TM-X019`); `Overset` types a "does not fit" warning through a configured rule or a `fit.` probe | decided |
 | A source map is a `Plan`: output lines with the path that wrote each. Documents are checked against the model's render, with no baseline file (`[tool.texmodel.documents]`, like `terraform plan`); hand edit and config change are not told apart | decided |
-| A text setting is `Value[Text]`: `\newcommand` with an escaped default in a generated `.sty`; `settings=` writes `\renewcommand` after `\usepackage` (before the preamble slot, not in the body; every other setting is written there too, in the order given); an adopted package may declare only a `Value[Text]`, checked as an argument-less command | decided |
+| A text setting is `Value[Text]`: `\newcommand` with an escaped default in a generated `.sty`; a `Document`'s `settings` write `\renewcommand` after `\usepackage` (before the preamble slot, not in the body; every other setting is written there too, in the order given); an adopted package may declare only a `Value[Text]`, checked as an argument-less command | decided |
+| `Document(*content, options=, settings=, preamble=)` is the whole document as one value: `Package.plan` and `Package.document` take one alone (or bare nodes), the keywords `settings=`, `options=` and `preamble=` of those calls are gone; `to_dict(doc)` and `from_dict(package, data)` round-trip it (settings as `{"type": "Gap", "value": "3mm"}`, preamble entries as `{"type": "PdfInfo", "entries": {…}}`), `json_schema(package)` has it as its root, and its plan paths are `settings[i]`, `options[i]` and `preamble.<slot>[i]`; an entry in the wrong slot is `TM-C008` | decided |
 | A closed set is a `Choice` enum whose member values are the TeX (`Raw` passes through, `str` is escaped); data names a member by name | decided |
 | A macro's interface is slots (delimiter, optional or required, token, group) holding typed values or a `KeyVals`; `arg()` states a slot, an optional field without it is TeX's one optional argument, first; a signature `\newcommand` cannot define is defined with xparse (`\NewDocumentCommand`), not xargs. Details in the guide (Arguments) | decided |
 | `KeyVals` is a frozen pydantic model whose field types give the item kind, with a `KeyRules` preset per key library (`texmodel.keys`); the presets are measured by compiling | decided |

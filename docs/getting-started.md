@@ -8,6 +8,7 @@ A `Package` has a name and a prefix. Every public control sequence it defines st
 
 ```python
 from texmodel.components import Command, Environment, Value
+from texmodel.document import Document
 from texmodel.package import Package
 from texmodel.types import CMYK, Colour, Length, Text
 
@@ -94,7 +95,7 @@ A document is Python objects. `Text` fields are escaped; everything wrong is rep
 
 ```python
 card = CardBack(Name("Rex"), Fact("Friendly & loyal."), Fact("50% of $5"))
-tex = pkg.document(card, settings=[FactGap(Length("3mm"))], options=["a4paper"])
+tex = pkg.document(Document(card, settings=[FactGap(Length("3mm"))], options=["a4paper"]))
 assert r"\acFact{50\% of \$5}" in tex
 ```
 

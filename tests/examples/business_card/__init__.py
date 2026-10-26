@@ -2,6 +2,7 @@
 
 from texmodel.body import TemplateRef
 from texmodel.components import Command, Environment, Value
+from texmodel.document import Document
 from texmodel.package import Package
 from texmodel.types import CMYK, RGB, Colour, Length, Text
 
@@ -98,8 +99,10 @@ compact = Card(
 documents = {
     "ada": pkg.document(ada),
     "compact": pkg.document(
-        compact,
-        settings=[Compact(True), Gap(Length("1.5mm")), Accent(RGB(0, 0.4, 0.8))],
-        options=["a4paper", "11pt"],
+        Document(
+            compact,
+            settings=[Compact(True), Gap(Length("1.5mm")), Accent(RGB(0, 0.4, 0.8))],
+            options=["a4paper", "11pt"],
+        )
     ),
 }

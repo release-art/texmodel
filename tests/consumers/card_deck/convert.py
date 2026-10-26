@@ -7,9 +7,9 @@ import pathlib
 import tomllib
 from typing import Any
 
-from texmodel.package import PreambleSlots
+from texmodel.document import Document
 from texmodel.plan import Plan
-from texmodel.preamble import InputPath
+from texmodel.preamble import InputPath, PreambleSlots
 from texmodel.types import Raw
 
 from . import legacy, model
@@ -67,7 +67,7 @@ def body(cards: list[dict[str, Any]]) -> tuple[model.CardHeader | model.Card, ..
 
 def plan(folder: pathlib.Path = HERE) -> Plan:
     project, cards = load(folder)
-    return model.pkg.plan(*body(cards), settings=settings(project), preamble=preamble(project))
+    return model.pkg.plan(Document(*body(cards), settings=settings(project), preamble=preamble(project)))
 
 
 def deck(folder: pathlib.Path = HERE) -> str:

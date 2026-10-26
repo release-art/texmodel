@@ -8,10 +8,12 @@ import pytest
 from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.components import Command
+from texmodel.document import Document
 from texmodel.interface import PAREN, SQUARE, Flag, Star, Switch, arg
 from texmodel.keys import KEYVAL, L3KEYS, PGFKEYS, XKEYVAL
 from texmodel.keyvals import KeyVals, key
-from texmodel.package import Package, PreambleSlots
+from texmodel.package import Package
+from texmodel.preamble import PreambleSlots
 from texmodel.testing import Call, expand
 from texmodel.types import Choice, Length, Raw, Text
 from texmodel_build.testkit import run_probes
@@ -85,7 +87,7 @@ def test_real_xparse_bodies_read_what_the_calls_say(compiler):  # noqa: F811
         heading("T", starred=True, short="S"),
         put(at=(1, 2), text="t"),
     ]
-    tex = pkg.test_document(*nodes, preamble=COUNTER)
+    tex = pkg.test_document(Document(*nodes, preamble=COUNTER))
     got = numbered(run_probes(compiler, tex, {"xp-demo.sty": pkg.render()}))
     assert got == [
         "<||x>",

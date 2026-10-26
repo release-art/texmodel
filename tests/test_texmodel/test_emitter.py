@@ -11,6 +11,7 @@ from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.body import Cs, Group, Hole, Lit, Seq, Whitespace, inline_text
 from texmodel.components import Command
+from texmodel.document import Document
 from texmodel.package import Package
 from texmodel.types import Choice, Raw, Text, balanced
 
@@ -157,7 +158,7 @@ def test_the_branch_of_the_chosen_member_runs_when_tex_expands_it(compiler, tmp_
     pkg, rating = level_package()
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "level-demo.sty").write_text(pkg.render(), encoding="utf-8")
-    tex = pkg.document(rating(Level.HIGH), preamble=None).replace(
+    tex = pkg.document(Document(rating(Level.HIGH), preamble=None)).replace(
         r"\begin{document}", "\\def\\lvLow{L}\\def\\lvHigh{H}\n\\begin{document}.\n"
     )
     (tmp_path / "src" / "d.tex").write_text(tex, encoding="utf-8")

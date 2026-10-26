@@ -8,6 +8,7 @@ import pytest
 from card_deck import convert, model
 from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
 
+from texmodel.document import Document
 from texmodel_build import diagnostics as d
 
 pytestmark = [pytest.mark.tex, pytest.mark.timeout(300)]
@@ -25,9 +26,8 @@ def compile_deck(comp, tmp_path: pathlib.Path, tex: str, plan=None):
 
 
 def deck_of(*nodes) -> str:
-    return model.pkg.document(
-        *nodes, settings=convert.settings(convert.load()[0]), preamble=convert.preamble(convert.load()[0])
-    )
+    project = convert.load()[0]
+    return model.pkg.document(Document(*nodes, settings=convert.settings(project), preamble=convert.preamble(project)))
 
 
 def test_the_deck_compiles_to_one_page_per_card_face(compiler, tmp_path):  # noqa: F811
@@ -41,7 +41,7 @@ def test_over_set_a_card_with_too_much_text_is_named_with_its_heights(compiler, 
     project, source = convert.load()
     long = {**source[1], "one_liners": [{**x, "text": (x["text"] + " ") * 8} for x in source[1]["one_liners"]]}
     nodes = (convert.card(1, source[0]), convert.card(2, long))
-    plan = model.pkg.plan(*nodes, settings=convert.settings(project), preamble=convert.preamble(project))
+    plan = model.pkg.plan(Document(*nodes, settings=convert.settings(project), preamble=convert.preamble(project)))
     result = compile_deck(compiler, tmp_path, plan.text, plan)
     named = [m for x in result.diagnostics if isinstance(x, d.PackageWarning) and (m := OVERSET.search(x.message))]
     assert [m["name"] for m in named] == ["Long-Eared Owl"]

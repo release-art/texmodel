@@ -10,6 +10,7 @@ from hypothesis import (
 )
 
 from texmodel.components import Command, Environment, Repeat, Value
+from texmodel.document import Document
 from texmodel.errors import DeclarationError, ValidationError
 from texmodel.package import Package
 from texmodel.types import Colour, Gray, Length, Raw, Text, balanced, escape
@@ -335,16 +336,20 @@ def test_a_body_that_names_an_undeclared_component_is_refused_in_environments_to
 def test_a_document_is_complete_and_deterministic():
     s = shop()
     tex = s.p.document(
-        s.Card(s.Name("Rex"), s.Fact("50% sure"), s.Fact("b")),
-        s.Fact("after"),
-        settings=[s.Gap(Length("3mm")), s.Ink(Gray(0.5)), s.Tight(True)],
-        options=["a4paper", "11pt"],
+        Document(
+            s.Card(s.Name("Rex"), s.Fact("50% sure"), s.Fact("b")),
+            s.Fact("after"),
+            settings=[s.Gap(Length("3mm")), s.Ink(Gray(0.5)), s.Tight(True)],
+            options=["a4paper", "11pt"],
+        )
     )
     assert tex == s.p.document(
-        s.Card(s.Name("Rex"), s.Fact("50% sure"), s.Fact("b")),
-        s.Fact("after"),
-        settings=[s.Gap(Length("3mm")), s.Ink(Gray(0.5)), s.Tight(True)],
-        options=["a4paper", "11pt"],
+        Document(
+            s.Card(s.Name("Rex"), s.Fact("50% sure"), s.Fact("b")),
+            s.Fact("after"),
+            settings=[s.Gap(Length("3mm")), s.Ink(Gray(0.5)), s.Tight(True)],
+            options=["a4paper", "11pt"],
+        )
     )
     assert tex.splitlines()[1:] == [
         "\\documentclass[a4paper,11pt]{article}",
@@ -368,7 +373,7 @@ def test_a_document_is_complete_and_deterministic():
 def test_a_document_reports_every_problem_at_once():
     s = shop()
     with pytest.raises(ExceptionGroup) as info:
-        s.p.document(s.Card(), s.Fact(Raw("x")), options=["ok", "a]b", ""])  # pyright: ignore[reportArgumentType]
+        s.p.document(Document(s.Card(), s.Fact(Raw("x")), options=["ok", "a]b", ""]))  # pyright: ignore[reportArgumentType]
     assert sorted(codes(info)) == ["TM-C002", "TM-C002", "TM-C003", "TM-C006", "TM-C006"]
 
 

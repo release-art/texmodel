@@ -4,11 +4,13 @@ A document is a tree of component objects. `pkg.document(...)` renders it. The b
 module.
 
 ```python
-from texmodel.components import Command, Environment, field
-from texmodel.package import Package, PreambleSlots
+from texmodel.components import Command, Environment, Value, field
+from texmodel.document import Document
+from texmodel.package import Package
+from texmodel.preamble import PreambleSlots
 from texmodel.preamble import GraphicsPath, InputIfExists, InputPath, PassOption, PdfInfo, RequireMetadata
 from texmodel.spec import from_dict, json_schema, to_dict
-from texmodel.types import Raw, Text
+from texmodel.types import Length, Raw, Text
 
 pkg = Package("deck", prefix="dk")
 
@@ -38,8 +40,15 @@ class Card(Environment):
     end = r"\end{minipage}"
 
 
+@pkg.value
+class Gap(Value[Length]):
+    """The gap between facts."""
+
+    default = Length("2mm")
+
+
 card = Card(Name("Rex"), Fact("Friendly & loyal."))
-tex = pkg.document(card, options=["a4paper"])
+tex = pkg.document(card)
 assert r"\dkFact{Friendly \& loyal.}" in tex
 ```
 
@@ -58,9 +67,28 @@ assert Fact("a").model_fields_set == {"text"}
 assert to_dict(Fact("a")) == {"type": "Fact", "text": "a"}
 ```
 
+## The document
+
+Bare nodes are a document with nothing but content. A `Document` is the whole of one: its nodes and everything else a `.tex`
+carries. `pkg.document(doc)` and `pkg.plan(doc)` take it alone.
+
+```python
+doc = Document(card, options=["a4paper"], settings=[Gap(Length("3mm"))])
+tex = pkg.document(doc)
+assert r"\documentclass[a4paper]{article}" in tex
+assert r"\setlength{\dkGap}{3mm}" in tex
+```
+
+| Field | Is |
+|---|---|
+| `content` (the positional arguments) | the nodes of the body |
+| `options` | class options, `[A-Za-z0-9][A-Za-z0-9=.-]*` (`TM-C006`) |
+| `settings` | `Value` instances, written after the package ([Values](values.md#settings-for-a-document)) |
+| `preamble` | a `PreambleSlots`, below |
+
 ## The preamble
 
-`pkg.document(..., preamble=PreambleSlots(before_class=, before_package=, after_package=))` places TeX where the document
+`Document(..., preamble=PreambleSlots(before_class=, before_package=, after_package=))` places TeX where the document
 needs it:
 
 | Slot | For |
@@ -86,7 +114,7 @@ slots = PreambleSlots(
     before_package=(InputPath("res/"), PassOption("xcolor", "table"), InputIfExists("deck-options")),
     after_package=(GraphicsPath("images/"), PdfInfo(Title="Rex (the fox)", Subject="50% & more")),
 )
-tex = pkg.document(card, preamble=slots)
+tex = pkg.document(Document(card, preamble=slots))
 assert tex.index(r"\DocumentMetadata") < tex.index(r"\documentclass") < tex.index(r"\usepackage{deck}")
 ```
 
@@ -103,7 +131,7 @@ reach the PDF Info dictionary unchanged. A compile test reads a corpus of such v
 ## A document from data
 
 `texmodel.spec` loads a document from plain data (what TOML or JSON gives), using pydantic. A child names its component with
-`"type"`, an environment's children are its `content`, and a `Raw` field takes a string.
+`"type"`, an environment's children are its `content`, and a `Raw` field takes a string. `from_dict(Card, data)` is a node.
 
 ```python
 data = {"content": [{"type": "Name", "text": "Fox"}, {"type": "Fact", "text": "Quick."}]}
@@ -116,6 +144,20 @@ assert "$defs" in json_schema(Card)
 Everything wrong comes at once as an `ExceptionGroup` of `ValidationError` (`TM-C020`), each with a path such as
 `Card/Fact[2].text`.
 
+`from_dict(pkg, data)` is a `Document`: the package says which components and values the names in the data are.
+`content` is a list of nodes, `options` a list of strings, `settings` a list of `{"type": "Gap", "value": "3mm"}` and
+`preamble` a mapping of slot to a list of TeX strings and typed entries (`{"type": "PdfInfo", "entries": {"Title": "Rex"}}`).
+`to_dict(doc)` writes the same shape, leaving out what is empty. An entry in the wrong slot is `TM-C008` when the document
+is rendered.
+
+```python
+saved = to_dict(Document(card, settings=[Gap(Length("3mm"))], preamble=slots))
+assert saved["settings"] == [{"type": "Gap", "value": "3mm"}]
+assert saved["preamble"]["before_class"] == [{"type": "RequireMetadata", "entries": {"lang": "en-GB"}}]
+again = from_dict(pkg, saved)
+assert pkg.document(again) == pkg.document(Document(card, settings=[Gap(Length("3mm"))], preamble=slots))
+```
+
 A renamed field keeps loading under its old key. `text: Text = field(renamed_from="body")` loads `{"body": "..."}`, writes
 `"text"`, and the schema records `x-renamed-from`:
 
@@ -127,18 +169,19 @@ assert from_dict(Name, {"body": "Fox"}).text == "Fox"
 
 ## A schema for the data
 
-`texmodel schema` writes `json_schema(pkg)` to `[tool.texmodel] schema_output`: one JSON Schema with a `$defs` entry for
-every command and environment (a child is told apart by its `"type"` constant) and `Value.<Name>` for every value. Use it
+`texmodel schema` writes `json_schema(pkg)` to `[tool.texmodel] schema_output`: one JSON Schema for a `Document` (its root),
+with a `$defs` entry for every command and environment (a child is told apart by its `"type"` constant), `Value.<Name>` for
+every value and `<Name>Setting` for the data of one setting. Use it
 for editor support and validators of the TOML or JSON that `from_dict` reads. It describes one package's data, so it needs a
 single `package` in the configuration.
 
 ## Where a line came from
 
 `pkg.plan(...)` takes the arguments of `pkg.document(...)` and returns a `Plan`: every output line with the path of what
-wrote it (`Card[1]/Fact[0]`, `preamble.after_package[0]`).
+wrote it (`Card[1]/Fact[0]`, `settings[0]`, `preamble.after_package[0]`).
 
 ```python
-plan = pkg.plan(card, preamble=slots)
+plan = pkg.plan(Document(card, preamble=slots))
 assert plan.text.startswith("% deck document")
 assert plan.lines[0].path == "header"
 ```

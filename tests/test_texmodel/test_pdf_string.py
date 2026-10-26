@@ -11,8 +11,9 @@ from hypothesis import (
 from test_texmodel_build.test_compile_tex import compiler, fonts, require_files  # noqa: F401
 
 from texmodel.components import Command, Value
-from texmodel.package import Package, PreambleSlots
-from texmodel.preamble import RequireMetadata
+from texmodel.document import Document
+from texmodel.package import Package
+from texmodel.preamble import PreambleSlots, RequireMetadata
 from texmodel.spec import from_dict, json_schema, to_dict
 from texmodel.types import PDF, PdfString, Raw, Text, pdf_escape
 
@@ -108,7 +109,7 @@ def raw_package():
 def test_a_raw_value_is_defined_and_renewed_as_tex():
     pkg, footer = raw_package()
     assert r"\newcommand{\rdFooter}{\textit{draft}}" in pkg.render() and "(value: Raw)" in pkg.render()
-    text = pkg.document(settings=[footer(Raw(r"\textbf{final}"))])
+    text = pkg.document(Document(settings=[footer(Raw(r"\textbf{final}"))]))
     assert text.index(r"\renewcommand{\rdFooter}{\textbf{final}}") < text.index(r"\begin{document}")
 
 
@@ -188,7 +189,7 @@ def test_the_info_dictionary_holds_exactly_the_text(compiler, tmp_path: pathlib.
     (tmp_path / "src" / "info-demo.sty").write_text(pkg.render(), encoding="utf-8")
     nodes = [put(f"K{i}", text) for i, text in enumerate(CORPUS)]
     managed = PreambleSlots(before_class=(RequireMetadata(),)) if route == "pdfmanagement" else None
-    (tmp_path / "src" / "d.tex").write_text(pkg.document(*nodes, preamble=managed), encoding="utf-8")
+    (tmp_path / "src" / "d.tex").write_text(pkg.document(Document(*nodes, preamble=managed)), encoding="utf-8")
     result = compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out")
     assert result.ok, [(x.message, x.code) for x in result.diagnostics]
     with pikepdf.open(result.pdf) as pdf:  # pyright: ignore[reportArgumentType]

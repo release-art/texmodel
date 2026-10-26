@@ -49,6 +49,7 @@ from .components import (
     spec_of,
     value_spec_of,
 )
+from .document import OPTION, Document
 from .drift import stamp
 from .errors import DeclarationError, Violation
 from .plan import Line, Plan, Span
@@ -58,7 +59,6 @@ from .types import Raw, balanced
 
 _NAME = re.compile(r"[a-z][a-z0-9-]*")
 _PREFIX = re.compile(r"[a-z]*")  # empty: the package of a standard TeX library, whose names carry none
-_OPTION = re.compile(r"[A-Za-z0-9][A-Za-z0-9=.-]*")  # a class option is TeX, so it is not free text
 _DATE = re.compile(r"\d{4}/\d{2}/\d{2}")  # \ProvidesPackage's date slot: YYYY/MM/DD (G3)
 
 
@@ -85,32 +85,6 @@ def _passthroughs(node: Node, path: str) -> Iterator[tuple[str, Passthrough]]:
     elif isinstance(node, Environment):
         for i, child in enumerate(node.content):
             yield from _passthroughs(child, f"{path}/{type(child).__name__}[{i}]")
-
-
-@dataclasses.dataclass(frozen=True)
-class PreambleSlots:
-    """TeX a document places around its class and package lines (D3), each slot a tuple of `Raw` or a typed entry
-    (`InputPath`, `GraphicsPath`, `PassOption`, `RequireMetadata`, `PdfInfo`; one in a slot it does not belong in is
-    `TM-C008`).
-
-    `before_class` is where `\\DocumentMetadata` must go; `before_package` is for what the package needs when it
-    loads (`\\input@path`, package options); `after_package` is for what needs it loaded (`\\graphicspath`,
-    per-document `\\renewcommand`s). Public names of the package used here must be declared (M8).
-    """
-
-    before_class: tuple[Raw | Entry, ...] = ()
-    before_package: tuple[Raw | Entry, ...] = ()
-    after_package: tuple[Raw | Entry, ...] = ()
-
-    def items(self) -> Iterator[tuple[str, int, Raw | Entry]]:
-        """Every item with its slot name and index, in document order: the path is `preamble.<slot>[<index>]`."""
-        for slot, found in (
-            ("before_class", self.before_class),
-            ("before_package", self.before_package),
-            ("after_package", self.after_package),
-        ):
-            for i, item in enumerate(found):
-                yield slot, i, item
 
 
 GENERATOR_VERSION: str | None = None
@@ -184,9 +158,17 @@ def declared(text: str) -> frozenset[str]:
 
 def setting_line(value: AnyValue) -> str:
     """The line that sets `value` for a document: `\\setlength{\\acGap}{3mm}`, `\\renewcommand{\\acName}{R\\&D}`,
-    `\\acDrafttrue`. It is what `Package.plan` writes for each of `settings=`."""
+    `\\acDrafttrue`. It is what `Package.plan` writes for each of a `Document`'s `settings`."""
     cls = type(value)
     return cls.__tm_kind__.setting(*addressed(cls.__tm_prefix__, cls.__name__, cls.cs), value.value, cls.colour_name)
+
+
+def _document_of(body: Sequence[Node | Document]) -> Document:
+    """The `Document` a call gave: one, alone, or the bare nodes of a plain one."""
+    given = [b for b in body if isinstance(b, Document)]
+    if given and len(body) > 1:
+        raise TypeError("a Document is the whole document: give it alone, or give only nodes")
+    return given[0] if given else Document(*typing.cast("Sequence[Node]", body))
 
 
 def _tex_of(item: Raw | Entry) -> Raw:
@@ -635,23 +617,18 @@ class Package:
                 ]
         return out + [Violation("TM-C013", self.name, message) for message in self._duplicates()]
 
-    def plan(
-        self,
-        *body: Node,
-        settings: Sequence[AnyValue] = (),
-        options: Sequence[str] = (),
-        preamble: PreambleSlots | None = None,
-    ) -> Plan:
-        """A complete `.tex` as lines with provenance (D1a, D2, B2): pure, deterministic, no I/O. `settings` set values
-        for the whole document.
+    def plan(self, *body: Node | Document) -> Plan:
+        """A complete `.tex` as lines with provenance (D1a, D2, B2): pure, deterministic, no I/O. The argument is one
+        `Document`, or the nodes of one that has no options, settings or preamble.
 
         Everything wrong is reported at once, as an `ExceptionGroup` of `ValidationError` (E2).
         """
-        preamble = preamble or PreambleSlots()
-        problems = [v for node in body for v in node.violations()]
+        document = _document_of(body)
+        preamble, settings, options = document.preamble, document.settings, document.options
+        problems = [v for node in document.content for v in node.violations()]
         problems += [
             Violation("TM-M015", path, f"\\{word} is not declared by this package", hint="declare it, or fix the name")
-            for i, node in enumerate(body)
+            for i, node in enumerate(document.content)
             for path, passthrough in _passthroughs(node, f"{type(node).__name__}[{i}]")
             for word in undeclared(self.prefix, passthrough.tex.tex, self._controls)
         ]
@@ -688,7 +665,7 @@ class Package:
         problems += [
             Violation("TM-C006", f"options[{i}]", f"class option {o!r} must match [A-Za-z0-9][A-Za-z0-9=.-]*")
             for i, o in enumerate(options)
-            if not _OPTION.fullmatch(o)
+            if not OPTION.fullmatch(o)
         ]
         if problems:
             raise ExceptionGroup("invalid document", [v.error() for v in problems])
@@ -716,40 +693,34 @@ class Package:
                 *values(),
                 *slot("after_package"),
                 Line("document", "\\begin{document}"),
-                *(line for i, node in enumerate(body) for line in _node_lines(node, f"{type(node).__name__}[{i}]")),
+                *(
+                    line
+                    for i, node in enumerate(document.content)
+                    for line in _node_lines(node, f"{type(node).__name__}[{i}]")
+                ),
                 Line("document", "\\end{document}"),
             )
         )
 
-    def document(
-        self,
-        *body: Node,
-        settings: Sequence[AnyValue] = (),
-        options: Sequence[str] = (),
-        preamble: PreambleSlots | None = None,
-    ) -> str:
+    def document(self, *body: Node | Document) -> str:
         """The `.tex` text of `plan(...)`."""
-        return self.plan(*body, settings=settings, options=options, preamble=preamble).text
+        return self.plan(*body).text
 
-    def test_document(
-        self,
-        *body: Node,
-        stub: Sequence[Component] = (),
-        settings: Sequence[AnyValue] = (),
-        options: Sequence[str] = (),
-        preamble: PreambleSlots | None = None,
-    ) -> str:
+    def test_document(self, *body: Node | Document, stub: Sequence[Component] = ()) -> str:
         """A `.tex` for testing `body` against stubs (§21): the real packages are loaded, then each class in `stub`
         is replaced by a macro that writes `texmodel:probe:callN=...` to the log instead of typesetting. Read the calls
         with `texmodel_build.testkit.run_probes` and `testing.Call.parse`; `testing.expand` gives the same calls
         without TeX."""
-        slots = preamble or PreambleSlots()
+        document = _document_of(body)
+        slots = document.preamble
         stubs = dataclasses.replace(slots, after_package=(*slots.after_package, Raw(stub_tex(stub))))
-        return self.document(*body, settings=settings, options=options, preamble=stubs)
+        return self.document(
+            Document(*document.content, options=document.options, settings=document.settings, preamble=stubs)
+        )
 
     def files(self, *, version: str | None = None) -> dict[str, str]:
         """Every generated file, by path relative to the output directory; an adopted package generates none."""
         return {} if self.adopted else {f"{self.name}.sty": self.render(version=version)}
 
 
-__all__ = ["GENERATOR_VERSION", "Package", "PreambleSlots", "declared", "generator_version", "setting_line"]
+__all__ = ["GENERATOR_VERSION", "Package", "declared", "generator_version", "setting_line"]

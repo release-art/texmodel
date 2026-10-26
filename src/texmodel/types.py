@@ -43,7 +43,7 @@ class ValueKind:
     Give it to `Annotated[T, kind]` and `Value[...]` of that is the kind.
 
     `declare(prefix, name, default, alias)` is the definition lines (`default` may be None), `setting(...)` the one line
-    that sets a value (a document's `settings=`); `alias` is the class's `colour_name`. `claims` are the names it takes
+    that sets a value (a `Document`'s `settings`); `alias` is the class's `colour_name`. `claims` are the names it takes
     in the package; `defines` the names a library that defines it must define, when they are not the same.
     """
 

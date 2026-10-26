@@ -3,6 +3,7 @@
 import pytest
 
 from texmodel.components import Command, Value
+from texmodel.document import Document
 from texmodel.package import Package
 from texmodel.types import Length, Text
 
@@ -41,12 +42,16 @@ def test_a_generated_package_defines_the_macro_with_an_escaped_default():
 
 
 def test_a_document_sets_every_value_right_after_the_package_in_the_order_given():
-    from texmodel.package import PreambleSlots
+    from texmodel.preamble import PreambleSlots
     from texmodel.types import Raw
 
     pkg, title, gap, show = generated()
     plan = pkg.plan(
-        show("x"), settings=[gap(Length("3mm")), title("A & B")], preamble=PreambleSlots(after_package=(Raw(r"\x"),))
+        Document(
+            show("x"),
+            settings=[gap(Length("3mm")), title("A & B")],
+            preamble=PreambleSlots(after_package=(Raw(r"\x"),)),
+        )
     )
     lines = [(x.path, x.tex) for x in plan.lines]
     order = [
@@ -101,7 +106,7 @@ def test_an_adopted_text_value_is_checked_as_an_argument_less_command():
     assert [v.code for v in adopted.check_interface("")] == ["TM-C010"]
     (bad,) = adopted.check_interface(r"\newcommand{\txTitle}[1]{x}")
     assert bad.code == "TM-C011" and "without arguments" in bad.message
-    assert adopted.plan(settings=[Title("Fox & Hen")]).text.count(r"\renewcommand{\txTitle}{Fox \& Hen}") == 1
+    assert adopted.plan(Document(settings=[Title("Fox & Hen")])).text.count(r"\renewcommand{\txTitle}{Fox \& Hen}") == 1
 
 
 def test_a_text_value_name_cannot_be_declared_twice():
