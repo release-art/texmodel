@@ -57,12 +57,20 @@ def test_describe_reports_each_category():
         None,
         None,
         None,
+        r"\textbf{#name}#note",
+        None,
     )
-    assert describe(Box) == Description("environment", "Box", "bbBox", "a box", (), None, None, None)
-    assert describe(Width) == Description("value", "Width", "bbWidth", "a width", (), Length, Length("105mm"), None)
+    assert describe(Box) == Description(
+        "environment", "Box", "bbBox", "a box", (), None, None, None, r"\begingroup", r"\endgroup"
+    )
+    assert describe(Width) == Description(
+        "value", "Width", "bbWidth", "a width", (), Length, Length("105mm"), None, None, None
+    )
     assert describe(Label).cs == "bbLbl"
     assert describe(Label).python is str
-    assert describe(Cut) == Description("value", "Cut", None, "a cut line", (), Colour, CMYK(0, 0.4, 1, 0), "bbCut")
+    assert describe(Cut) == Description(
+        "value", "Cut", None, "a cut line", (), Colour, CMYK(0, 0.4, 1, 0), "bbCut", None, None
+    )
 
 
 def test_describe_refuses_what_is_not_registered():

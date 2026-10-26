@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.1] - 2026-10-26
 
+### Added
+
+- `Description.body` and `Description.end`: the declared TeX of a command or environment, with `#name` holes, so a package's tests can assert a body without reading `__tm_tex__`.
+
 ### Fixed
 
 - The README had unresolved merge conflict markers and a second copy of the guide; it is the short front page again.

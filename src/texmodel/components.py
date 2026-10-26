@@ -1025,6 +1025,12 @@ class Description:
     )
     default: object | None = dataclasses.field(metadata={"doc": "a value's default; None otherwise"})
     colour_name: str | None = dataclasses.field(metadata={"doc": "a colour's name; None otherwise"})
+    body: str | None = dataclasses.field(
+        metadata={
+            "doc": "a command's body or an environment's `begin`, with `#name` holes; None for a value or adopted"
+        }
+    )
+    end: str | None = dataclasses.field(metadata={"doc": "an environment's `end`; None otherwise"})
 
 
 def describe(cls: type) -> Description:
@@ -1045,9 +1051,17 @@ def describe(cls: type) -> Description:
             kind.python,
             typing.cast("object | None", cls.declared_default()),
             cls.colour_name,
+            None,
+            None,
         )
     if not issubclass(cls, Command | Environment):
         raise DeclarationError(f"{cls.__qualname__}: not a command, environment or value", code="TM-M019")
+    body = end = None
+    if cls.defined_by is None and issubclass(cls, Command) and cls.__tm_inline__:
+        body = spec_of(cls).body
+    elif cls.defined_by is None and issubclass(cls, Environment) and cls.__tm_inline__[0]:
+        spec = env_spec_of(cls)
+        body, end = spec.begin, spec.end
     return Description(
         "command" if issubclass(cls, Command) else "environment",
         cls.__name__,
@@ -1057,6 +1071,8 @@ def describe(cls: type) -> Description:
         None,
         None,
         None,
+        body,
+        end,
     )
 
 

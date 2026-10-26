@@ -34,6 +34,7 @@ Anything starting with `_`, including every `__tm_*` attribute, is internal and 
 | `python` | a value's Python type (`bool`, `Length`, `str`, `Raw`, `Colour`) |
 | `default` | a value's default |
 | `colour_name` | a colour's name |
+| `body`, `end` | the declared TeX with `#name` holes: a command's `body`, an environment's `begin` and `end`; `None` for a value or a component another source defines |
 
 ```python
 @pkg.command
@@ -65,6 +66,7 @@ assert (d.category, d.cs, d.doc) == ("command", "bbName", "The subject's name, s
 assert [(a.name, a.optional, a.doc) for a in d.arguments] == [("name", False, "the subject's name"), ("note", True, None)]
 assert (describe(CardWidth).python, describe(CardWidth).default) == (Length, Length("105mm"))
 assert describe(TechCut).cs is None
+assert d.body == r"\textbf{#name}#note"
 ```
 
 An unregistered class is `TM-M019`. `control_name(cls)` and `Value.declared_default()` are the narrower ways to the control

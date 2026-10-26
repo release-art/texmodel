@@ -972,7 +972,7 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | A shared base is `abstract=True` (fields, `body` or `begin`/`end`, `children` for its subclasses; no docstring or control-word name; never registered, `TM-M043`); a value has a control sequence (`control_name`) unless it is a colour (`TM-M042`) and a readable default (`Value.declared_default()`) | decided |
 | `InputIfExists(name)` is a typed preamble entry (`before_package` or `after_package`, `TM-M044`); `setting_line(value)` is the public line of a setting; settings land after `\usepackage` and before `after_package` (tested contract) | decided |
 | `Package.make_command` / `make_value` build and register a class from data; the same data under a name returns the first class, other data is `TM-M007` (no "ignore duplicates" mode: a written class has a body function that cannot be compared) | decided |
-| `describe(cls)` returns a frozen `Description` of a registered class (category, name, `cs`, doc, arguments as name/optional/doc, a value's Python type, default, `colour_name`); fields are added in a minor release and never renamed without a `Changed` note | decided |
+| `describe(cls)` returns a frozen `Description` of a registered class (category, name, `cs`, doc, arguments as name/optional/doc, a value's Python type, default, `colour_name`, and the declared `body` / `end` text); fields are added in a minor release and never renamed without a `Changed` note | decided |
 | Python-only authoring; TOML/YAML frontend | parked, not planned |
 | Renames via `renamed_from` → pydantic aliases + release record | decided |
 | lualatex only in v1; capabilities explicit | decided |
