@@ -53,3 +53,6 @@ def check_drift(
                 )
     present = {p.relative_to(root).as_posix() for glob in owned for p in root.glob(glob) if p.is_file()}
     return Drift(tuple(stale_), tuple(missing_), tuple(sorted(present - expected.keys())), tuple(notes))
+
+
+__all__ = ["Drift", "check_drift", "stamp"]

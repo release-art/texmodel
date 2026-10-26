@@ -41,3 +41,6 @@ def build_targets(
 
     with ThreadPoolExecutor(max_workers=max(1, jobs)) as pool:
         return BuildSummary({t.name: r for t, r in zip(chosen, pool.map(one, chosen), strict=True)})
+
+
+__all__ = ["BuildSummary", "build_targets"]

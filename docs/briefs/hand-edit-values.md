@@ -15,7 +15,7 @@ names each edit by the path of the node that wrote the line (`Card[1]/CardBack[1
 ## Without TeX: `Line.spans`, `Edit.fields`
 
 `render.call_arguments` yields `(arg, start, end)` for each written slot's text (delimiters excluded; a token is its own text),
-`components.call_line(node)` shifts them past the command name or `\begin{name}`, and `node_lines` stores them as `Span`s on the
+`components.call_line(node)` shifts them past the command name or `\begin{name}`, and `Package.plan` stores them as `Span`s on the
 line. A call over several lines has none. `Plan.to_json` writes spans as a third element only for a line that has them;
 `from_json` accepts the two-element form (no spans: node-level edits only).
 

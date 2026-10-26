@@ -223,3 +223,29 @@ def overset(item: str, needs: str, has: str, **where: Any) -> Overset | None:
         return None
     message = f"{item} needs {need:g}pt and has {have:g}pt"
     return Overset(message=message, item=item, needs_pt=need, has_pt=have, over_pt=round(need - have, 3), **where)
+
+
+__all__ = [
+    "Diagnostic",
+    "DocumentRefusal",
+    "KINDS",
+    "Measure",
+    "MeasureKind",
+    "Measurement",
+    "MissingCharacter",
+    "MissingFile",
+    "NotConverged",
+    "OverfullBox",
+    "Overset",
+    "PackageError",
+    "PackageWarning",
+    "RerunNeeded",
+    "Severity",
+    "TexError",
+    "UndefinedControlSequence",
+    "UndefinedReference",
+    "Unexplained",
+    "diagnostic_from_dict",
+    "overset",
+    "points",
+]

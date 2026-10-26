@@ -9,9 +9,7 @@ import dataclasses
 import difflib
 import enum
 import json
-from collections.abc import Iterator
 
-from .components import Command, Environment, Node, call_line
 from .errors import Violation
 
 
@@ -61,22 +59,6 @@ class Edit:
     found: str
     kind: EditKind
     fields: tuple[FieldEdit, ...] = ()
-
-
-def node_lines(node: Node, path: str) -> Iterator[Line]:
-    """The lines a node renders; children are indexed within their parent, as `violations()` paths are."""
-    rendered = node.render().splitlines()
-    spans = ()
-    if isinstance(node, Command | Environment):
-        call, found = call_line(node)
-        spans = tuple(Span(*s) for s in found) if "\n" not in call else ()  # a multi-line call has no one-line spans
-    if not isinstance(node, Environment):
-        yield from (Line(path, tex, spans) for tex in rendered)
-        return
-    yield Line(path, rendered[0], spans)
-    for i, child in enumerate(node.content):
-        yield from node_lines(child, f"{path}/{type(child).__name__}[{i}]")
-    yield Line(path, rendered[-1])
 
 
 def _found_at(equal: list[tuple[int, int, int]], at: int, *, first: bool, default: int) -> int:
@@ -169,3 +151,6 @@ class Plan:
                 for path, tex, *spans in json.loads(text)
             )
         )
+
+
+__all__ = ["Edit", "EditKind", "FieldEdit", "Line", "Plan", "Span"]

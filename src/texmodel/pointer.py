@@ -90,3 +90,6 @@ def load_plan(spec: str, root: pathlib.Path) -> Plan:
             hint="point at Package.plan(...) (or a function returning one): a str has no line-to-component map",
         )
     return found
+
+
+__all__ = ["load_document", "load_packages", "load_plan"]

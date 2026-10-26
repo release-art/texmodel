@@ -74,15 +74,6 @@ class TemplateRef:
         object.__setattr__(self, "syntax", syntax)
 
 
-def template_text(ref: TemplateRef, module_file: str, owner: str) -> str:
-    """The text of a template file; a relative path is relative to the module at `module_file` (`TM-M005`)."""
-    path = ref.path if ref.path.is_absolute() else Path(module_file).parent / ref.path
-    try:
-        return path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise DeclarationError(f"{owner}: cannot read {path}: {exc.strerror}", code="TM-M005", path=owner) from exc
-
-
 @dataclasses.dataclass(frozen=True)
 class Library:
     """A block of TeX the `.sty` carries as it is (§21a 12), made by `Package.library`: `text` is dedented and has no
@@ -254,29 +245,6 @@ type BodyPiece = TexRaw | str | TemplateRef | Ref | Comment | Group | Seq | Cs |
 type BodyT = BodyPiece | Sequence[BodyPiece] | Iterator[BodyPiece] | Generator[BodyPiece]
 
 
-_PIECES = (TexRaw, str, TemplateRef, Ref, Comment, Group, Seq, Cs, Lit, Hole)
-
-
-def refs_in(piece: object) -> Iterator[Ref]:
-    """Every `Ref` in a piece, nested ones included: they are what a body depends on."""
-    if isinstance(piece, Ref):
-        yield piece
-        for value in piece.values:  # a call inside an argument
-            yield from refs_in(value)
-    elif isinstance(piece, Group | Seq):
-        for inner in piece.pieces:
-            yield from refs_in(inner)
-
-
-def syntaxes_in(piece: object) -> Iterator[Syntax]:
-    """The syntax every `TexRaw` and `Cs` in a piece names, nested ones included; other pieces have none."""
-    if isinstance(piece, TexRaw | Cs):
-        yield piece.syntax
-    elif isinstance(piece, Group | Seq):
-        for inner in piece.pieces:
-            yield from syntaxes_in(inner)
-
-
 def text_of(text: str, syntax: Syntax) -> str:
     """`Lit` and argument text as the syntax reads it: expl3 ignores a space, so it is written `~`."""
     return escape(text).replace(" ", "~") if syntax is Syntax.EXPL3 else escape(text)
@@ -316,17 +284,6 @@ def inline_text(piece: Inline, ref_text: Callable[[Ref], str], syntax: Syntax = 
     return f"{{{text}}}" if isinstance(piece, Group) else text
 
 
-def pieces_of(value: object) -> tuple[BodyPiece, ...] | None:
-    """The pieces of what a body gave, or `None` if it is not a body."""
-    if isinstance(value, _PIECES):
-        return (value,)
-    if isinstance(value, Sequence | Iterator):
-        found = tuple(value)  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
-        if all(isinstance(p, _PIECES) for p in found):  # pyright: ignore[reportUnknownVariableType]
-            return found  # pyright: ignore[reportUnknownVariableType]
-    return None
-
-
 def _trim(line: str) -> str:
     line = line.rstrip()
     if not line or line.lstrip().startswith("%") or (line.endswith("%") and not line.endswith("\\%")):
@@ -364,3 +321,25 @@ def join(
         lines = piece.body.splitlines()
         out.extend(map(_trim, lines) if policy is Whitespace.TRIM else lines)
     return "\n".join(out)
+
+
+__all__ = [
+    "BodyPiece",
+    "BodyT",
+    "Comment",
+    "Cs",
+    "Group",
+    "HOLE",
+    "Hole",
+    "Inline",
+    "Library",
+    "Lit",
+    "Ref",
+    "RefKind",
+    "Seq",
+    "Syntax",
+    "TemplateRef",
+    "TexRaw",
+    "Whitespace",
+    "join",
+]

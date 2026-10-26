@@ -32,3 +32,6 @@ def load_config(pyproject: pathlib.Path) -> Config:
             f"unknown [tool.texmodel] keys: {unknown}", code="TM-D002", hint=f"known: {sorted(known)}"
         )
     return Config(**table)
+
+
+__all__ = ["Config", "load_config"]

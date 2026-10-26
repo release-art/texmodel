@@ -67,3 +67,6 @@ def write(
         target.write_text(text, encoding="utf-8")
         written.append(target)
     return tuple(written)
+
+
+__all__ = ["Item", "missing", "stale", "write"]

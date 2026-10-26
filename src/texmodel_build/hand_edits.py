@@ -47,12 +47,12 @@ def _changed(line: Line, old: Call, new: Call, classes: Mapping[str, Component])
     return Edit(line.path, line.tex, new.probe_value(), EditKind.CHANGED, tuple(fields)) if fields else None
 
 
-type Probed = list[tuple[Edit, tuple[RefKind, str]]]  # an edit and the kind and name of the call it is about
+type _Probed = list[tuple[Edit, tuple[RefKind, str]]]  # an edit and the kind and name of the call it is about
 
 
-def _probed(base: list[Call], got: list[Call], lines: list[Line], classes: Mapping[str, Component]) -> Probed:
+def _probed(base: list[Call], got: list[Call], lines: list[Line], classes: Mapping[str, Component]) -> _Probed:
     """What the calls say changed: `lines` are the plan lines of `base`, one each."""
-    probed: Probed = []
+    probed: _Probed = []
     ops = difflib.SequenceMatcher(None, [_key(c) for c in base], [_key(c) for c in got], autojunk=False).get_opcodes()
     for tag, a1, a2, b1, b2 in ops:
         if tag == "equal":
@@ -71,7 +71,7 @@ def _probed(base: list[Call], got: list[Call], lines: list[Line], classes: Mappi
     return probed
 
 
-def _merged(line_edits: list[Edit], probed: Probed, is_call: re.Pattern[str]) -> list[Edit]:
+def _merged(line_edits: list[Edit], probed: _Probed, is_call: re.Pattern[str]) -> list[Edit]:
     """The line edits, each with what the calls add. A `CHANGED` line takes the fields of the probe's edit at its
     path, or is `UNREAD`. An added or removed line stays as it is and uses up one probe edit about the same call (equal
     neighbouring calls cannot be told apart, so the two diffs may name different ones). What is left only TeX saw."""
@@ -124,3 +124,6 @@ def read_edits(
         )
     probed = _probed(base, _calls(compiler, text, stubs, sheets), lines, classes)
     return _merged(plan.edits(text), probed, is_call)
+
+
+__all__ = ["read_edits"]

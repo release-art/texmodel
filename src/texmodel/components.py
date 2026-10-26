@@ -91,6 +91,7 @@ import pydantic
 from pydantic.fields import FieldInfo
 from pydantic_core import CoreSchema, core_schema
 
+from ._internal.pieces import pieces_of, refs_in, syntaxes_in, template_text
 from ._internal.render import (
     BOOL,
     COLOUR,
@@ -125,10 +126,6 @@ from .body import (
     Whitespace,
     inline_text,
     join,
-    pieces_of,
-    refs_in,
-    syntaxes_in,
-    template_text,
 )
 from .errors import DeclarationError, Violation
 from .interface import BRACE, RAW_BODY, SQUARE, ArgOptions, BodyKind, FieldNotes, Gap, arg, body_of, field_info
@@ -1062,3 +1059,23 @@ def describe(cls: type) -> Description:
         None,
         None,
     )
+
+
+__all__ = [
+    "AnyValue",
+    "Anywhere",
+    "ArgValue",
+    "ArgumentInfo",
+    "Command",
+    "Description",
+    "Environment",
+    "Node",
+    "Passthrough",
+    "Repeat",
+    "Resolved",
+    "Source",
+    "Value",
+    "control_name",
+    "describe",
+    "field",
+]

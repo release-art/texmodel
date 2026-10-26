@@ -15,3 +15,6 @@ class CompileError(TexmodelError):
 
 class ToolchainError(TexmodelError):
     """A required external tool or image is missing or unusable."""
+
+
+__all__ = ["CompileError", "ToolchainError"]

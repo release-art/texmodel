@@ -309,3 +309,31 @@ def _union_body(members: list[Any]) -> Body | None:
     if members and set(members) == set(_COLOURS):
         return Body(BodyKind.COLOUR)
     return None
+
+
+__all__ = [
+    "ANGLE",
+    "ArgOptions",
+    "BRACE",
+    "Body",
+    "BodyKind",
+    "COLOUR_NAME",
+    "ColourName",
+    "Delimiter",
+    "FLAG",
+    "Flag",
+    "Gap",
+    "ITEM",
+    "Item",
+    "OptionalValue",
+    "PAREN",
+    "RAW_BODY",
+    "SQUARE",
+    "SWITCH",
+    "SlotGroup",
+    "Star",
+    "Switch",
+    "TEXT_BODY",
+    "Token",
+    "arg",
+]

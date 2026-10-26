@@ -16,6 +16,7 @@ from typing import Any, NamedTuple
 
 from pydantic.fields import FieldInfo
 
+from ._internal.pieces import template_text
 from ._internal.render import (
     EnvSpec,
     Spec,
@@ -35,12 +36,23 @@ from ._internal.render import (
 )
 from ._internal.scan import scan_colours, scan_counters, scan_declarations
 from ._internal.values import fill_text
-from .body import Comment, Library, Syntax, TemplateRef, Whitespace, template_text
-from .components import AnyValue, Command, Environment, Node, Passthrough, Value, env_spec_of, spec_of, value_spec_of
+from .body import Comment, Library, Syntax, TemplateRef, Whitespace
+from .components import (
+    AnyValue,
+    Command,
+    Environment,
+    Node,
+    Passthrough,
+    Value,
+    call_line,
+    env_spec_of,
+    spec_of,
+    value_spec_of,
+)
 from .drift import stamp
 from .errors import DeclarationError, Violation
-from .plan import Line, Plan, node_lines
-from .preamble import Entry, PdfInfo, RequireMetadata, tex_of
+from .plan import Line, Plan, Span
+from .preamble import Entry, PdfInfo, RequireMetadata
 from .testing import Component, stub_tex
 from .types import Raw, balanced
 
@@ -170,6 +182,27 @@ def setting_line(value: AnyValue) -> str:
     `\\acDrafttrue`. It is what `Package.plan` writes for each of `settings=`."""
     cls = type(value)
     return cls.__tm_kind__.setting(*addressed(cls.__tm_prefix__, cls.__name__, cls.cs), value.value, cls.colour_name)
+
+
+def _tex_of(item: Raw | Entry) -> Raw:
+    """The `Raw` a slot item stands for."""
+    return item if isinstance(item, Raw) else item.raw()
+
+
+def _node_lines(node: Node, path: str) -> Iterator[Line]:
+    """The lines a node renders; children are indexed within their parent, as `violations()` paths are."""
+    rendered = node.render().splitlines()
+    spans = ()
+    if isinstance(node, Command | Environment):
+        call, found = call_line(node)
+        spans = tuple(Span(*s) for s in found) if "\n" not in call else ()  # a multi-line call has no one-line spans
+    if not isinstance(node, Environment):
+        yield from (Line(path, tex, spans) for tex in rendered)
+        return
+    yield Line(path, rendered[0], spans)
+    for i, child in enumerate(node.content):
+        yield from _node_lines(child, f"{path}/{type(child).__name__}[{i}]")
+    yield Line(path, rendered[-1])
 
 
 class Package:
@@ -622,7 +655,7 @@ class Package:
                 hint="declare it, or fix the name",
             )
             for slot, i, item in preamble.items()
-            for word in undeclared(self.prefix, tex_of(item).tex, self._controls)
+            for word in undeclared(self.prefix, _tex_of(item).tex, self._controls)
         ]
         problems += [
             Violation(
@@ -657,7 +690,7 @@ class Package:
             return [
                 Line(f"preamble.{name}[{i}]", tex)
                 for i, raw in enumerate(getattr(preamble, name))
-                for tex in tex_of(raw).tex.splitlines()
+                for tex in _tex_of(raw).tex.splitlines()
             ]
 
         def values() -> list[Line]:
@@ -675,7 +708,7 @@ class Package:
                 *values(),
                 *slot("after_package"),
                 Line("document", "\\begin{document}"),
-                *(line for i, node in enumerate(body) for line in node_lines(node, f"{type(node).__name__}[{i}]")),
+                *(line for i, node in enumerate(body) for line in _node_lines(node, f"{type(node).__name__}[{i}]")),
                 Line("document", "\\end{document}"),
             )
         )
@@ -709,3 +742,6 @@ class Package:
     def files(self, *, version: str | None = None) -> dict[str, str]:
         """Every generated file, by path relative to the output directory; an adopted package generates none."""
         return {} if self.adopted else {f"{self.name}.sty": self.render(version=version)}
+
+
+__all__ = ["Package", "PreambleSlots", "declared", "generator_version", "setting_line"]

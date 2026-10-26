@@ -339,3 +339,6 @@ class Compiler:
                 f"probe failed: {_tail(proc.stderr)}", code="TM-T005", hint="run `texmodel-build doctor`"
             )
         return proc
+
+
+__all__ = ["Compiler", "ImageInfo", "Versions"]

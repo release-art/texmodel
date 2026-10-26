@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Every public module has an `__all__` naming its API; a test fails when a module defines a public name outside it.
 - `Plan.to_json` writes a line's spans as a third element when it has any; a baseline without them loads (no spans).
 - `Command`, `Environment` and `Passthrough` are frozen pydantic models. Building one still validates nothing (the metaclass
   maps positional arguments and calls `model_construct`); assigning to a field raises `pydantic.ValidationError`, not
@@ -41,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `comments=` argument of `from_dict` and `json_schema`: list the classes on the package.
 - `pointer.load_package`: `load_packages` takes one pointer too.
 - `texmodel.spec.ValidationError`: import it from `texmodel.errors`.
+- From the public modules, into `_internal` or private: `body.refs_in`, `syntaxes_in`, `pieces_of`, `template_text`,
+  `plan.node_lines`, `preamble.tex_of`; `texmodel_build.hand_edits.Probed`.
 - `texmodel_build.roots` (`resolve`, `shadowing`, `Resolution`, `TM-C100`): nothing used it; `Compiler.roots` mounts the roots.
 
 ## [0.3.3] - 2026-10-23
