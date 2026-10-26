@@ -348,8 +348,8 @@ def test_a_shared_base_carries_fields_and_bodies_for_its_subclasses():
 
     out = p.render()
     assert out.count("\\includegraphics{#1}") == 2 and "\\newcommand{\\acPhoto}[1]{%" in out
-    assert out.count("\\begin{minipage}{\\linewidth}") == 1 and Photo("a.png").render() == "\\acPhoto{a.png}"
-    assert [v.code for v in Card(Fact("a")).violations()] == ["TM-C002"]  # the base's grammar: 2 to 3 facts
+    assert out.count("\\begin{minipage}{\\linewidth}") == 1 and Photo(src="a.png").render() == "\\acPhoto{a.png}"
+    assert [v.code for v in Card(Fact(text="a")).violations()] == ["TM-C002"]  # the base's grammar: 2 to 3 facts
     with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-M043"):
         p.command(_Image)
 

@@ -48,7 +48,7 @@ def test_a_document_sets_every_value_right_after_the_package_in_the_order_given(
     pkg, title, gap, show = generated()
     plan = pkg.plan(
         Document(
-            show("x"),
+            show(text="x"),
             settings=[gap(Length("3mm")), title("A & B")],
             preamble=PreambleSlots(after_package=(Raw(r"\x"),)),
         )

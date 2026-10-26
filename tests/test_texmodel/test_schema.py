@@ -52,13 +52,13 @@ class Card(Environment):
 def test_an_old_key_loads_and_the_new_key_is_written():
     old = {"name": "Fox", "content": [{"type": "Fact", "body": "a", "remark": "n"}, {"type": "Fact", "text": "b"}]}
     card = from_dict(Card, old)
-    assert card == Card(Fact("a", note="n"), Fact("b"), title="Fox")
+    assert card == Card(Fact(text="a", note="n"), Fact(text="b"), title="Fox")
     assert to_dict(card) == {
         "type": "Card",
         "title": "Fox",
         "content": [{"type": "Fact", "text": "a", "note": "n"}, {"type": "Fact", "text": "b"}],
     }
-    assert from_dict(Fact, {"body": "x"}) == Fact("x")
+    assert from_dict(Fact, {"body": "x"}) == Fact(text="x")
     assert from_dict(Card, to_dict(card)) == card
 
 
@@ -93,7 +93,7 @@ def test_a_package_schema_has_every_component_and_value_and_validates_data():
     assert schema["$defs"]["Fact"]["properties"]["text"]["x-renamed-from"] == "body"
     jsonschema.Draft202012Validator.check_schema(schema)
     card = jsonschema.Draft202012Validator(schema | {"$ref": "#/$defs/Card"})
-    good: dict[str, Any] = dict(to_dict(Card(Fact("a"), title="Fox")))
+    good: dict[str, Any] = dict(to_dict(Card(Fact(text="a"), title="Fox")))
     assert list(card.iter_errors(good)) == []
     assert list(card.iter_errors({**good, "title": 3}))
     assert list(card.iter_errors({"content": []}))  # title is required

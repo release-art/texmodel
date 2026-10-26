@@ -28,8 +28,8 @@ class Slot(Command):
     label: Text | None = None      # \adSlot[label]{text}
 
 
-assert Slot("a", label="L").render() == r"\adSlot[L]{a}"
-assert Slot("a").render() == r"\adSlot{a}"
+assert Slot(text="a", label="L").render() == r"\adSlot[L]{a}"
+assert Slot(text="a").render() == r"\adSlot{a}"
 ```
 
 Write an optional field as `arg(default=...)` (`label: Text | None = arg(default=None)`): a type checker then reads it as
@@ -77,9 +77,9 @@ class Put(Command):
     text: Raw
 
 
-assert MakeBox(Raw("x"), width=Length("3cm"), align=BoxAlign.CENTRE).render() == r"\makebox[3cm][c]{x}"
-assert Section("Long", starred=True, short="S").render() == r"\section*[S]{Long}"
-assert Put(Raw("x"), at=(1, 2)).render() == r"\put(1,2){x}"
+assert MakeBox(text=Raw("x"), width=Length("3cm"), align=BoxAlign.CENTRE).render() == r"\makebox[3cm][c]{x}"
+assert Section(title="Long", starred=True, short="S").render() == r"\section*[S]{Long}"
+assert Put(text=Raw("x"), at=(1, 2)).render() == r"\put(1,2){x}"
 ```
 
 - **Delimiters.** `{}` `[]` `()` `<>` or your own `Delimiter`; a `Star` or another token.
@@ -136,7 +136,7 @@ class AdjustBox(Command):
     text: Raw
 
 
-box = AdjustBox(Raw("x"), options=AdjustOptions(max_width=Length.expr(r"\linewidth"), center=True))
+box = AdjustBox(text=Raw("x"), options=AdjustOptions(max_width=Length.expr(r"\linewidth"), center=True))
 assert box.render() == r"\adjustbox[max width=\linewidth,center]{x}"
 ```
 

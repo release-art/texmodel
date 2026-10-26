@@ -65,7 +65,7 @@ def test_a_probe_value_parses_back(name, args):
 
 def test_expand_returns_text_and_the_calls_of_stubs_in_order(composed):
     base, pkg = composed.base, composed.pkg
-    section = composed.Section(composed.Entry("First"), composed.Entry("R&D 50%"), title="Notes")
+    section = composed.Section(composed.Entry(text="First"), composed.Entry(text="R&D 50%"), title="Notes")
     assert calls(expand(section, [composed.Fact])) == [
         Call("bkFact", ("First",)),
         Call("bkFact", (r"R\&D 50\%",)),
@@ -90,7 +90,7 @@ def test_an_unregistered_class_cannot_be_stubbed():
         text: Text
 
     with refused("TM-M019"):
-        expand(Loose("x"), [Loose])
+        expand(Loose(text="x"), [Loose])
 
 
 def test_optional_arguments_comments_passthrough_and_adopted_components():
@@ -112,7 +112,7 @@ def test_optional_arguments_comments_passthrough_and_adopted_components():
         begin = r"\begin{center}"
         end = r"\end{center}"
 
-    node = Box(Slot("a"), Comment("note"), Passthrough(Raw(r"\vspace{1mm}")), Slot("b", label="L"))
+    node = Box(Slot(text="a"), Comment("note"), Passthrough(Raw(r"\vspace{1mm}")), Slot(text="b", label="L"))
     out = expand(node, [Slot])
     assert r"\renewenvironment{sdBox}" in stub_tex([Box])
     assert calls(out) == [Call("sdSlot", ("", "a")), Call("sdSlot", ("L", "b"))]
@@ -127,7 +127,7 @@ def test_optional_arguments_comments_passthrough_and_adopted_components():
 
         text: Text
 
-    assert expand(Name("x")) == [] and calls(expand(Name("x"), [Name])) == [Call("adName", ("x",))]
+    assert expand(Name(text="x")) == [] and calls(expand(Name(text="x"), [Name])) == [Call("adName", ("x",))]
 
 
 # --- the TeX tier agrees -----------------------------------------------------------------------------------------
@@ -142,7 +142,7 @@ def probed(comp, tex, files):  # noqa: ANN001
 @pytest.mark.tex
 @pytest.mark.timeout(300)
 def test_the_tex_tier_gives_the_fast_tiers_calls_across_two_packages(compiler, composed):  # noqa: F811
-    section = composed.Section(composed.Entry("First"), composed.Entry("R&D 50%"), title="Notes")
+    section = composed.Section(composed.Entry(text="First"), composed.Entry(text="R&D 50%"), title="Notes")
     stubs = [composed.Fact, composed.Panel]
     tex = composed.pkg.test_document(section, stub=stubs)
     files = {f"{p.name}.sty": p.render() for p in (composed.base, composed.pkg)}
@@ -165,7 +165,7 @@ def test_a_stubs_arguments_with_every_special_survive(compiler):  # noqa: F811
         note: Text | None = None
 
     text = "Call 999 or go to A&E: 30% of #1 _a_ ~b ^c $5 {d} \\e <f> “g” ‘h’ it’s — i  two   spaces"
-    nodes = [Fact(text), Fact("x", note=text)]
+    nodes = [Fact(text=text), Fact(text="x", note=text)]
     tex = pkg.test_document(*nodes, stub=[Fact])
     expected = [c for n in nodes for c in calls(expand(n, [Fact]))]
     assert probed(compiler, tex, {"special-demo.sty": pkg.render()}) == expected
@@ -240,6 +240,6 @@ def test_constructive_pieces_comments_and_a_stub_inside_a_group_are_walked():
             yield Comment("explains")
             yield Seq(Cs("textbf"), Group(Lit("a & b "), Hole("text"), Raw("!"), Inner.call(Hole("text"))))
 
-    out = expand(Outer("x_y"), [Inner])
+    out = expand(Outer(text="x_y"), [Inner])
     assert out == [r"\textbf{a \& b x\_y!", Call("pcInner", (r"x\_y",)), "}\n"]
-    assert expand(Outer("x_y")) == ["\\textbf{a \\& b x\\_y!x\\_y\n}\n"]  # the callee's body is a line of its own
+    assert expand(Outer(text="x_y")) == ["\\textbf{a \\& b x\\_y!x\\_y\n}\n"]  # the callee's body is a line of its own

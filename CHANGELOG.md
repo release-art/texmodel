@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.0] - 2026-10-26
+## [0.6.0] - 2026-10-26
+
+### Changed
+
+- A command's fields are keyword-only: `Fact(text="a")`, not `Fact("a")` (`TypeError` otherwise, and a type checker flags
+  it). A class opts out with `class X(Command, kw_only=False)`, which a subclass inherits. An environment's positional
+  arguments are still its children; `Passthrough(Raw(...))` stays positional. `repr(node)` writes the keywords.
+
+## [0.5.1] - 2026-10-26
 
 ### Added
 
@@ -194,8 +202,9 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.5.0...HEAD
-[0.5.0]: https://github.com/release-art/texmodel/compare/v0.4.1...v0.5.0
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/release-art/texmodel/compare/v0.5.1...v0.6.0
+[0.5.1]: https://github.com/release-art/texmodel/compare/v0.4.1...v0.5.1
 [0.4.1]: https://github.com/release-art/texmodel/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/release-art/texmodel/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/release-art/texmodel/compare/v0.3.2...v0.3.3

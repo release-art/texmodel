@@ -78,13 +78,13 @@ def test_xparse_definitions_receive_the_arguments_texmodel_writes():
 def test_real_xparse_bodies_read_what_the_calls_say(compiler):  # noqa: F811
     pkg, two, heading, put = demo()
     nodes = [
-        two("x"),
-        two("x", b="y"),
-        two("x", a="w", b="y"),
-        heading("T"),
-        heading("T", starred=True),
-        heading("T", short="S"),
-        heading("T", starred=True, short="S"),
+        two(c="x"),
+        two(c="x", b="y"),
+        two(c="x", a="w", b="y"),
+        heading(title="T"),
+        heading(title="T", starred=True),
+        heading(title="T", short="S"),
+        heading(title="T", starred=True, short="S"),
         put(at=(1, 2), text="t"),
     ]
     tex = pkg.test_document(Document(*nodes, preamble=COUNTER))
@@ -103,7 +103,12 @@ def test_real_xparse_bodies_read_what_the_calls_say(compiler):  # noqa: F811
 
 def test_stubs_log_xparse_calls_as_the_fast_tier_says(compiler):  # noqa: F811
     pkg, two, heading, put = demo()
-    nodes = [two("x", b="y"), heading("T", starred=True, short="S"), heading("U"), put(at=(1, 2), text="t")]
+    nodes = [
+        two(c="x", b="y"),
+        heading(title="T", starred=True, short="S"),
+        heading(title="U"),
+        put(at=(1, 2), text="t"),
+    ]
     stubs = [two, heading, put]
     tex = pkg.test_document(*nodes, stub=stubs)
     found = run_probes(compiler, tex, {"xp-demo.sty": pkg.render()})

@@ -176,10 +176,10 @@ def test_a_generated_document_with_hostile_text_compiles(compiler, tmp_path, mon
 
     hostile = "50% of $5 & #1 _x_ {y} ~ ^ \\ \\input{nothing} ] }"
     card = acme_cards.CardBack(
-        acme_cards.Name("Golden Retriever"),
-        acme_cards.Fact(hostile),
-        acme_cards.Fact("Friendly and loyal."),
-        acme_cards.Slot(hostile, label="a]b"),
+        acme_cards.Name(text="Golden Retriever"),
+        acme_cards.Fact(text=hostile),
+        acme_cards.Fact(text="Friendly and loyal."),
+        acme_cards.Slot(text=hostile, label="a]b"),
     )
     src = tmp_path / "src" / "card.tex"
     src.parent.mkdir()

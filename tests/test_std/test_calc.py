@@ -107,14 +107,14 @@ def test_the_types_are_lengths_and_numbers_to_a_type_checker_and_to_a_field():
     assert isinstance(dimen(cm(1)), Length) and isinstance(glue(cm(1)), Length) and isinstance(integer(1), Raw)
     assert dimen(dimen(cm(1))) == dimen(cm(1)) and dimen(Raw(r"\parskip")).tex == r"\parskip"
     assert (
-        SetLength(Raw(r"\parskip"), widthof("x") * real(0.5)).render()
+        SetLength(length=Raw(r"\parskip"), value=widthof("x") * real(0.5)).render()
         == r"\setlength{\parskip}{\widthof{x}*\real{0.5}}"
     )
-    assert SetCounter(Raw("c"), integer(7) / 2).render() == r"\setcounter{c}{7/2}"
-    assert AddToCounter(Raw("c"), integer(1)).render() == r"\addtocounter{c}{1}"
-    assert AddToLength(Raw(r"\x"), glue(cm(1), cm(1))).render() == r"\addtolength{\x}{1cm plus 1cm}"
-    assert SetToTotalHeight(Raw(r"\x"), Raw("Ag")).render() == r"\settototalheight{\x}{Ag}"
-    (problem,) = SetCounter(Raw("c"), Raw("3")).violations()  # pyright: ignore[reportArgumentType]
+    assert SetCounter(counter=Raw("c"), value=integer(7) / 2).render() == r"\setcounter{c}{7/2}"
+    assert AddToCounter(counter=Raw("c"), value=integer(1)).render() == r"\addtocounter{c}{1}"
+    assert AddToLength(length=Raw(r"\x"), value=glue(cm(1), cm(1))).render() == r"\addtolength{\x}{1cm plus 1cm}"
+    assert SetToTotalHeight(length=Raw(r"\x"), text=Raw("Ag")).render() == r"\settototalheight{\x}{Ag}"
+    (problem,) = SetCounter(counter=Raw("c"), value=Raw("3")).violations()  # pyright: ignore[reportArgumentType]
     assert problem.code == "TM-C003" and "IntExpr" in problem.message
 
 
@@ -152,11 +152,11 @@ def test_expressions_compare_by_text_and_not_by_how_tightly_they_bind():
 
 
 def test_commands_round_trip_through_data():
-    node = SetLength(Raw(r"\x"), widthof("a") + cm(1))
+    node = SetLength(length=Raw(r"\x"), value=widthof("a") + cm(1))
     data = to_dict(node)
     assert data == {"type": "SetLength", "length": r"\x", "value": {"expr": r"\widthof{a}+1cm"}}
     assert from_dict(SetLength, data).render() == node.render()
-    counter = SetCounter(Raw("c"), integer(2) * 3)
+    counter = SetCounter(counter=Raw("c"), value=integer(2) * 3)
     assert to_dict(counter)["value"] == "2*3"
     loaded = from_dict(SetCounter, to_dict(counter))
     assert isinstance(loaded.value, IntExpr) and loaded.render() == counter.render()  # pyright: ignore[reportAttributeAccessIssue]
@@ -227,35 +227,37 @@ def probe_document():
     for i, (expression, _) in enumerate(COUNT):
         body.append(
             r"\setcounter{c}{5}"
-            + SetCounter(Raw("c"), expression).render()
+            + SetCounter(counter=Raw("c"), value=expression).render()
             + rf"\typeout{{texmodel:probe:i{i}=<\arabic{{c}}>}}"
         )
     for i, (expression, _) in enumerate(DIMEN):
         body.append(
             r"\setcounter{c}{5}"
-            + SetLength(Raw(r"\tmd"), expression).render()
+            + SetLength(length=Raw(r"\tmd"), value=expression).render()
             + rf"\typeout{{texmodel:probe:d{i}=<\the\tmd>}}"
         )
     for i, (expression, _) in enumerate(GLUE):
-        body.append(SetLength(Raw(r"\tmg"), expression).render() + rf"\typeout{{texmodel:probe:g{i}=<\the\tmg>}}")
+        body.append(
+            SetLength(length=Raw(r"\tmg"), value=expression).render() + rf"\typeout{{texmodel:probe:g{i}=<\the\tmg>}}"
+        )
     sizes = {"widthof": r"\settowidth", "heightof": r"\settoheight", "depthof": r"\settodepth"}
     for name, setter in sizes.items():
         function = {"widthof": widthof, "heightof": heightof, "depthof": depthof}[name]
         body.append(
             rf"{setter}{{\tmo}}{{Agjy}}"
-            + SetLength(Raw(r"\tmd"), function("Agjy")).render()
+            + SetLength(length=Raw(r"\tmd"), value=function("Agjy")).render()
             + rf"\typeout{{texmodel:probe:{name}=<\the\tmd|\the\tmo>}}"
         )
     body.append(
-        SetToTotalHeight(Raw(r"\tmp"), Raw("Agjy")).render()
+        SetToTotalHeight(length=Raw(r"\tmp"), text=Raw("Agjy")).render()
         + r"\settoheight{\tmo}{Agjy}\settodepth{\tmd}{Agjy}\addtolength{\tmo}{\tmd}"
-        + SetLength(Raw(r"\tmd"), totalheightof("Agjy")).render()
+        + SetLength(length=Raw(r"\tmd"), value=totalheightof("Agjy")).render()
         + r"\typeout{texmodel:probe:totalheightof=<\the\tmd|\the\tmo|\the\tmp>}"
     )
     body.append(
-        SetLength(Raw(r"\tmd"), dimen(cm(1))).render()
-        + AddToLength(Raw(r"\tmd"), dimen(cm(1)) * 2).render()
-        + AddToCounter(Raw("c"), integer(3) * 2).render()
+        SetLength(length=Raw(r"\tmd"), value=dimen(cm(1))).render()
+        + AddToLength(length=Raw(r"\tmd"), value=dimen(cm(1)) * 2).render()
+        + AddToCounter(counter=Raw("c"), value=integer(3) * 2).render()
         + r"\typeout{texmodel:probe:adds=<\the\tmd|\arabic{c}>}"
     )
     return (

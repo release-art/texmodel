@@ -39,7 +39,7 @@ class Fact(Command):
 
 
 print(pkg.render())                       # the .sty
-print(pkg.document(Fact("50% of $5")))    # \acFact{50\% of \$5}, escaped
+print(pkg.document(Fact(text="50% of $5")))    # \acFact{50\% of \$5}, escaped
 ```
 
 ```zsh

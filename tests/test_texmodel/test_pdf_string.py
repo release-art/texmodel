@@ -65,15 +65,15 @@ def pdf_package():
 
 def test_a_pdf_string_field_is_escaped_in_detokenize():
     _, meta = pdf_package()
-    assert meta("A (b)").render() == r"\pdMeta{\detokenize{A \050b\051}}"
-    assert meta("x", note="y]").render() == r"\pdMeta[{\detokenize{y]}}]{\detokenize{x}}"
-    assert [v.code for v in meta(1).violations()] == ["TM-C003"]  # type: ignore[arg-type]
-    assert "PdfString" in meta(1).violations()[0].message  # type: ignore[arg-type]
+    assert meta(text="A (b)").render() == r"\pdMeta{\detokenize{A \050b\051}}"
+    assert meta(text="x", note="y]").render() == r"\pdMeta[{\detokenize{y]}}]{\detokenize{x}}"
+    assert [v.code for v in meta(text=1).violations()] == ["TM-C003"]  # type: ignore[arg-type]
+    assert "PdfString" in meta(text=1).violations()[0].message  # type: ignore[arg-type]
 
 
 def test_a_pdf_string_round_trips_through_data_and_the_schema():
     _, meta = pdf_package()
-    node = meta("A (b)")
+    node = meta(text="A (b)")
     assert from_dict(meta, to_dict(node)) == node
     assert json_schema(meta)["properties"]["text"]["type"] == "string"
 
@@ -85,7 +85,7 @@ def test_a_pdf_string_reaches_the_log_exactly_as_escaped(compiler, tmp_path: pat
     text = "Fox (Vulpes) 50% {x} #1 _a_ ~b ^c $5 a\\b  two   spaces — ünï"
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "pdf-demo.sty").write_text(pkg.render(), encoding="utf-8")
-    (tmp_path / "src" / "d.tex").write_text(pkg.document(meta(text)), encoding="utf-8")
+    (tmp_path / "src" / "d.tex").write_text(pkg.document(meta(text=text)), encoding="utf-8")
     result = compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out")
     assert result.ok, [(x.message, x.code) for x in result.diagnostics]
     assert result.probe("s") == pdf_escape(text)
@@ -187,7 +187,7 @@ def test_the_info_dictionary_holds_exactly_the_text(compiler, tmp_path: pathlib.
     pkg, put = info_package(TITLE_ROUTES[route])
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "info-demo.sty").write_text(pkg.render(), encoding="utf-8")
-    nodes = [put(f"K{i}", text) for i, text in enumerate(CORPUS)]
+    nodes = [put(key=f"K{i}", text=text) for i, text in enumerate(CORPUS)]
     managed = PreambleSlots(before_class=(RequireMetadata(),)) if route == "pdfmanagement" else None
     (tmp_path / "src" / "d.tex").write_text(pkg.document(Document(*nodes, preamble=managed)), encoding="utf-8")
     result = compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out")
@@ -215,7 +215,7 @@ def test_the_same_text_unescaped_breaks_the_dictionary(compiler, tmp_path: pathl
 
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "naive-demo.sty").write_text(pkg.render(), encoding="utf-8")
-    (tmp_path / "src" / "d.tex").write_text(pkg.document(Put("K0", Raw("a) /K1 (b"))), encoding="utf-8")
+    (tmp_path / "src" / "d.tex").write_text(pkg.document(Put(key="K0", text=Raw("a) /K1 (b"))), encoding="utf-8")
     result = compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out")
     with pikepdf.open(result.pdf) as pdf:  # pyright: ignore[reportArgumentType]
         assert "/K1" in pdf.docinfo  # the text became a key of its own

@@ -84,16 +84,16 @@ class Card(Environment):
 
 
 ada = Card(
-    Name("Ada Lovelace"),
-    Title("Analyst"),
-    Contact("ada@example.org", label="Mail"),
-    Contact("+44 20 7946 0000"),
+    Name(text="Ada Lovelace"),
+    Title(text="Analyst"),
+    Contact(text="ada@example.org", label="Mail"),
+    Contact(text="+44 20 7946 0000"),
 )
 
 # Settings change values for the whole document; hostile text is escaped; an optional `]` is wrapped.
 compact = Card(
-    Name("R&D: 50% of $5"),
-    Contact(r"path_to\file {x}", label="a]b"),
+    Name(text="R&D: 50% of $5"),
+    Contact(text=r"path_to\file {x}", label="a]b"),
 )
 
 documents = {

@@ -47,7 +47,7 @@ class Gap(Value[Length]):
     default = Length("2mm")
 
 
-card = Card(Name("Rex"), Fact("Friendly & loyal."))
+card = Card(Name(text="Rex"), Fact(text="Friendly & loyal."))
 tex = pkg.document(card)
 assert r"\dkFact{Friendly \& loyal.}" in tex
 ```
@@ -63,8 +63,8 @@ the caller passed, a default given explicitly included; `to_dict` writes exactly
 attribute every component has (`copy`, `json`, `render`, a `model_` name: `TM-M045`).
 
 ```python
-assert Fact("a").model_fields_set == {"text"}
-assert to_dict(Fact("a")) == {"type": "Fact", "text": "a"}
+assert Fact(text="a").model_fields_set == {"text"}
+assert to_dict(Fact(text="a")) == {"type": "Fact", "text": "a"}
 ```
 
 ## The document

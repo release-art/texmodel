@@ -48,9 +48,9 @@ def test_a_class_may_name_its_control_sequence():
     assert r"\newcommand{\cdFact}[1]{%" in sty and r"\newcommand{\quickfact}[1]{%" in sty
     assert r"\newenvironment{quickbox}[1]{%" in sty
     assert [control_name(c) for c in (fact, quick, box)] == ["cdFact", "quickfact", "quickbox"]
-    assert box(quick("a"), title="T").violations() == [] or True
-    assert quick("R&D").render() == r"\quickfact{R\&D}"
-    assert box(fact("a"), title="T").render() == "\\begin{quickbox}{T}\n\\cdFact{a}\n\\end{quickbox}"
+    assert box(quick(text="a"), title="T").violations() == [] or True
+    assert quick(text="R&D").render() == r"\quickfact{R\&D}"
+    assert box(fact(text="a"), title="T").render() == "\\begin{quickbox}{T}\n\\cdFact{a}\n\\end{quickbox}"
 
 
 def test_a_reference_and_a_stub_use_the_explicit_name():
@@ -69,9 +69,9 @@ def test_a_reference_and_a_stub_use_the_explicit_name():
             yield box.close()
 
     assert r"\quickfact{#1}" in user.render() and r"\begin{quickbox}{#1}" in user.render()
-    assert [c for c in expand(Uses("x"), [quick]) if isinstance(c, Call)] == [Call("quickfact", ("x",))]
-    assert [c for c in expand(Uses("x"), [quick, box]) if isinstance(c, Call)][1].name == "quickbox"
-    assert "\\providecommand{\\quickfact}{}" in pkg.test_document(quick("x"), stub=[quick])
+    assert [c for c in expand(Uses(text="x"), [quick]) if isinstance(c, Call)] == [Call("quickfact", ("x",))]
+    assert [c for c in expand(Uses(text="x"), [quick, box]) if isinstance(c, Call)][1].name == "quickbox"
+    assert "\\providecommand{\\quickfact}{}" in pkg.test_document(quick(text="x"), stub=[quick])
 
 
 def test_names_collide_by_their_control_sequence_and_must_be_control_words():

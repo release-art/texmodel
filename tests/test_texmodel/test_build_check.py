@@ -87,8 +87,8 @@ def docs(project):
 def test_render_writes_a_document_from_a_str_or_a_function(docs):
     _module(
         docs,
-        "card = pkg.document(CardBack(Name('Rex'), Fact('50% of $5'), Fact('b')))\n"
-        "def other():\n    return pkg.document(Fact('x'))\n",
+        "card = pkg.document(CardBack(Name(text='Rex'), Fact(text='50% of $5'), Fact(text='b')))\n"
+        "def other():\n    return pkg.document(Fact(text='x'))\n",
     )
     first = runner.invoke(cli.app, ["render", "mydocs:card"])
     assert first.exit_code == 0 and first.stdout.strip() == "wrote card.tex"
@@ -98,7 +98,7 @@ def test_render_writes_a_document_from_a_str_or_a_function(docs):
 
 
 def test_render_reports_every_violation_and_writes_nothing(docs):
-    _module(docs, "def bad():\n    return pkg.document(Document(CardBack(), Name(1), options=['a]b']))\n")
+    _module(docs, "def bad():\n    return pkg.document(Document(CardBack(), Name(text=1), options=['a]b']))\n")
     result = runner.invoke(cli.app, ["render", "mydocs:bad"])
     assert result.exit_code == 2 and not (docs / "bad.tex").exists()
     err = result.stderr

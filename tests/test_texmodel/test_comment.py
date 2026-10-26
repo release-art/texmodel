@@ -139,21 +139,21 @@ def test_a_comment_in_a_body_is_written_at_its_position():
 
 def test_a_comment_child_is_not_counted_and_does_not_break_the_order():
     pkg, item, box = small()
-    plain = box(item("a"), item("b"))
+    plain = box(item(text="a"), item(text="b"))
     for node in (
-        box(Comment("first"), item("a"), Comment("mid"), item("b"), Comment("last")),
-        box(Header("x", "1"), item("a"), item("b")),
+        box(Comment("first"), item(text="a"), Comment("mid"), item(text="b"), Comment("last")),
+        box(Header("x", "1"), item(text="a"), item(text="b")),
     ):
         assert node.violations() == []
         assert [ln for ln in node.render().splitlines() if not ln.startswith("%")] == plain.render().splitlines()
     assert box(Comment("c")).violations()[0].code == "TM-C002"  # still one required Item
-    (bad,) = box(item("a"), Comment("c"), item("b"), item("c"), item("d")).violations()
+    (bad,) = box(item(text="a"), Comment("c"), item(text="b"), item(text="c"), item(text="d")).violations()
     assert bad.path == "Box/Item[4]"  # the real position, comments counted in the index
 
 
 def test_a_comment_has_a_plan_path_on_each_of_its_lines():
     pkg, item, box = small()
-    plan = pkg.plan(Header("x", "1"), box(item("a"), Comment("p\nq"), item("b")))
+    plan = pkg.plan(Header("x", "1"), box(item(text="a"), Comment("p\nq"), item(text="b")))
     paths = [(x.path, x.tex) for x in plan.lines if x.tex.startswith("%") and not x.tex.startswith("% com")]
     assert paths == [
         ("Header[0]", "% Card: x"),
@@ -173,7 +173,7 @@ def test_the_interface_check_does_not_see_comments():
 
 def test_edits_can_ignore_comment_lines():
     pkg, item, box = small()
-    plan = pkg.plan(Header("x", "1"), box(item("a"), item("b")))
+    plan = pkg.plan(Header("x", "1"), box(item(text="a"), item(text="b")))
     assert plan.edits(plan.text) == []
     changed = plan.text.replace("Card: x", "Card: someone else")
     assert [e.path for e in plan.edits(changed)] == ["Header[0]"]
@@ -188,7 +188,7 @@ def test_edits_can_ignore_comment_lines():
 
 def test_a_comment_child_round_trips_through_data_and_the_schema():
     _, item, box = small((Header,))
-    node = box(Header("x", "1"), item("a"), Comment("note"), item("b"))
+    node = box(Header("x", "1"), item(text="a"), Comment("note"), item(text="b"))
     data = to_dict(node)
     assert data["content"][0] == {"type": "Header", "name": "x", "id": "1"}  # type: ignore[index]
     assert from_dict(box, data) == node
@@ -202,6 +202,6 @@ def test_a_comment_child_round_trips_through_data_and_the_schema():
 
 def test_a_comment_type_nobody_listed_is_reported_by_path():
     _, item, box = small()
-    data = {"content": [{"type": "Header", "name": "x", "id": "1"}, to_dict(item("a")), to_dict(item("b"))]}
+    data = {"content": [{"type": "Header", "name": "x", "id": "1"}, to_dict(item(text="a")), to_dict(item(text="b"))]}
     with pytest.raises(ExceptionGroup):
         from_dict(box, data)

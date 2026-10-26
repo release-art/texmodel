@@ -158,7 +158,7 @@ def test_escaping_where_texmodel_and_the_generator_differ():
 
 
 def test_a_picture_path_is_raw_because_escaping_it_would_break_the_file_name():
-    assert model.CardImage(Raw("images/a_b.jpg")).render() == r"\cdCardImage{images/a_b.jpg}"
+    assert model.CardImage(path=Raw("images/a_b.jpg")).render() == r"\cdCardImage{images/a_b.jpg}"
     assert escape("images/a_b.jpg") == r"images/a\_b.jpg"
 
 

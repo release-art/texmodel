@@ -82,15 +82,15 @@ class Letter(Environment):
 
 
 invitation = Letter(
-    Paragraph("You are invited to a talk on 100% reproducible builds."),
-    Quote(Paragraph("A build that cannot be repeated is a rumour.")),
-    Aside(Raw(r"\emph{P.S.} Bring a \textsc{laptop}.")),
-    Signoff("Grace"),
+    Paragraph(text="You are invited to a talk on 100% reproducible builds."),
+    Quote(Paragraph(text="A build that cannot be repeated is a rumour.")),
+    Aside(tex=Raw(r"\emph{P.S.} Bring a \textsc{laptop}.")),
+    Signoff(name="Grace"),
     recipient="Dr. Hopper",
     subject="Talk: builds",
 )
 
-terse = Letter(Paragraph("Thanks!"), Signoff("G."), recipient="All")
+terse = Letter(Paragraph(text="Thanks!"), Signoff(name="G."), recipient="All")
 
 documents = {
     "invitation": pkg.document(Document(invitation, settings=[Draft(True), Indent(Length("0pt"))])),

@@ -17,4 +17,4 @@ class Greet(Command):
 
 
 # Text is escaped, so awkward names are safe.
-documents = {"hello": pkg.document(Greet("World"), Greet("R&D #1 (50% off)"))}
+documents = {"hello": pkg.document(Greet(name="World"), Greet(name="R&D #1 (50% off)"))}

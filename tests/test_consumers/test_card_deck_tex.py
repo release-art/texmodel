@@ -53,12 +53,12 @@ def test_over_set_a_card_with_too_much_text_is_named_with_its_heights(compiler, 
 def test_escaping_text_with_every_special_compiles_and_the_same_text_unescaped_does_not(compiler, tmp_path):  # noqa: F811
     text = "Call 999 or go to A&E: 30% of #1 _a_ ~b ^c $5 {d} \\e <f> “g” ‘h’ it’s — i"
     card = model.Card(
-        model.CardFront(model.CardImage(model.Raw("images/special.jpg"))),
+        model.CardFront(model.CardImage(path=model.Raw("images/special.jpg"))),
         model.CardBack(
-            model.Name("R&D"),
-            model.LeadFact(text),
-            model.LeadFact("Two."),
-            model.LabelledSlot(model.SlotLabel.SPOT, text),
+            model.Name(text="R&D"),
+            model.LeadFact(text=text),
+            model.LeadFact(text="Two."),
+            model.LabelledSlot(label=model.SlotLabel.SPOT, text=text),
         ),
     )
     tex = deck_of(card)

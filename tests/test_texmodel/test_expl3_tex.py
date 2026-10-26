@@ -112,7 +112,7 @@ def test_a_defined_component_called_from_a_generated_body_expands_in_tex(compile
 
     sty = {"fit-demo.sty": pkg.render()}
     cases = {("100", "100"): "12", ("100", "80"): "9.6", ("100", "50"): "8", ("100", "200"): "14"}
-    nodes = [Report(Raw(w), Raw(a)) for w, a in cases]
+    nodes = [Report(width=Raw(w), avail=Raw(a)) for w, a in cases]
     tex = pkg.test_document(*nodes)
     found = [
         m.value for m in run_probes(compiler, tex, sty, plans={"fit-demo.sty": pkg.render_plan()}) if m.name == "size"

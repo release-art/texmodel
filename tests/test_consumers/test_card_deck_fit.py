@@ -36,7 +36,7 @@ def test_the_block_defines_what_the_components_declare(compiler):  # noqa: F811
 @pytest.mark.tex
 @pytest.mark.timeout(300)
 def test_the_title_size_is_the_fitted_size_between_the_limits(compiler):  # noqa: F811
-    nodes = [fit.ShowTitleSize(Raw(n), Raw(a)) for n, a in SIZES]
+    nodes = [fit.ShowTitleSize(natural=Raw(n), available=Raw(a)) for n, a in SIZES]
     tex = fit.pkg.test_document(*nodes)
     found = run_probes(compiler, tex, {"card-deck-fit.sty": fit.pkg.render()})
     assert [m.value for m in found if m.name == "title-size"] == list(SIZES.values())
