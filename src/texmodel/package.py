@@ -244,7 +244,7 @@ class Package:
         self._requires: list[tuple[Package, tuple[str, ...]]] = []  # `require()`, in order
         self._items: list[Spec | EnvSpec | ValueSpec | Library] = []  # registration order is output order
         self._controls: dict[str, str] = {}  # control sequence -> qualname of its declarer
-        self._calls: list[type] = []  # components its bodies call, in order (§21a 17)
+        self._calls: list[type] = []  # components its bodies call, in order
         self._colours: dict[str, str] = {}  # colour name -> qualname; its own namespace
         self._classes: list[type] = []  # every registered class, in registration order
         self._made: dict[tuple[str, str], tuple[tuple[object, ...], type]] = {}  # `make_*`: (kind, name) -> data, class
@@ -292,7 +292,7 @@ class Package:
     def library(
         self, name: str, source: str | TemplateRef, *, syntax: Syntax = Syntax.LATEX2E, fill: object | None = None
     ) -> Library:
-        """TeX carried into the `.sty` as it is (§21a 12), among the items in registration order: dedented, blank edges
+        """TeX carried into the `.sty` as it is (§21), among the items in registration order: dedented, blank edges
         removed, `%` and `#name` untouched. `Syntax.EXPL3` wraps it in `\\ExplSyntaxOn` / `\\ExplSyntaxOff`. A relative
         `TemplateRef` is relative to the calling module. Name a component's `defined_by` to declare what it defines.
 
@@ -464,7 +464,7 @@ class Package:
 
     @property
     def depends_on(self) -> tuple["Package", ...]:
-        """The other packages this one requires or whose components its bodies call (§21a 17), in first-use order."""
+        """The other packages this one requires or whose components its bodies call, in first-use order."""
         called = (typing.cast("Package", t.__tm_package__) for t in self._calls)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
         needed = (p for s in self._items if isinstance(s, ValueSpec) for p in s.needs if not isinstance(p, str))
         found = (*(p for p, _ in self._requires), *called, *needed)
@@ -496,7 +496,7 @@ class Package:
         return self.render_plan(version=version).text
 
     def render_plan(self, *, version: str | None = None) -> Plan:
-        """The `.sty` as lines with provenance (§21a 11): `header`, `requires`, then one path per component or value
+        """The `.sty` as lines with provenance (§21): `header`, `requires`, then one path per component or value
         (`Fact`, `FactGap`); the blank line before an item is the item's. `version` is the generator's, recorded in the
         header; default the installed texmodel's.
 
@@ -598,7 +598,7 @@ class Package:
         return out
 
     def check_parts(self) -> list[Violation]:
-        """What each library defines against what this package declares (§21a 12): a component or value with
+        """What each library defines against what this package declares (§21): a component or value with
         `defined_by` is defined by that library, with its signature (`TM-C010`, `TM-C011`), a public name
         (`<prefix>Name`) a library defines is declared (`TM-C012`), and no name is defined twice (`TM-C013`). Read by
         `texmodel check`."""
@@ -739,7 +739,7 @@ class Package:
         options: Sequence[str] = (),
         preamble: PreambleSlots | None = None,
     ) -> str:
-        """A `.tex` for testing `body` against stubs (§21a 20): the real packages are loaded, then each class in `stub`
+        """A `.tex` for testing `body` against stubs (§21): the real packages are loaded, then each class in `stub`
         is replaced by a macro that writes `texmodel:probe:callN=...` to the log instead of typesetting. Read the calls
         with `texmodel_build.testkit.run_probes` and `testing.Call.parse`; `testing.expand` gives the same calls
         without TeX."""

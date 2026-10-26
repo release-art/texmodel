@@ -1,4 +1,4 @@
-"""`PdfString` (§21a 9) and `Value[Raw]` (§21a 1): small types."""
+"""`PdfString` and `Value[Raw]` (§21): small types."""
 
 import pathlib
 import re

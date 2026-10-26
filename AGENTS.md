@@ -11,7 +11,7 @@ trees of those classes; a JSON Schema, drift checks and typed compile diagnostic
 [README.md](README.md) is the short front page, the guide in [docs/](docs/index.md) (built with MkDocs, `mkdocs.yml`) the reference,
 [docs/cookbook.md](docs/cookbook.md) the worked examples (both run by the tests),
 [docs/texmodel-plan.md](docs/texmodel-plan.md) the target spec and decisions log (§21), [docs/known-limitations.md](docs/known-limitations.md)
-what it does not do, [docs/briefs/roadmap.md](docs/briefs/roadmap.md) the batches and the rules for an agent's brief.
+what it does not do, [docs/briefs/roadmap.md](docs/briefs/roadmap.md) the ordered backlog and the rules for an agent's brief.
 
 **Pre-1.0:** no backward compatibility for the Python API, the CLI, the configuration or the generated output: rename or remove
 directly. List every such change under `Changed` or `Removed` in `CHANGELOG.md`; a patch release never changes generated output (G7).
@@ -77,10 +77,10 @@ TEXMODEL_REQUIRE_TEX=1 pdm run pytest -m tex --no-cov   # when output, the scan 
 - Errors: `DeclarationError(message, code="TM-Mxxx", path=, hint=)` (or `Violation` for a document problem) with a **new, stable
   code**: `grep -rhoE "TM-[A-Z][0-9]+" src | sort -u` for the next free one; a code is never reused. Say what is wrong, where
   (class and field), and the fix.
-- Components and values are frozen dataclasses; output is a pure function of the declaration: no clocks, hashes, set or dict
+- Components are frozen pydantic models and values frozen dataclasses; output is a pure function of the declaration: no clocks, hashes, set or dict
   order in what is rendered. A `Value` is a `ValueKind` (data), not a branch in the renderer.
 - Optional fields are written `arg(default=...)` so a type checker reads them as keyword-only.
-- Pydantic is used at the data boundary (`spec`, `KeyVals`, `library(fill=)` models); component classes stay stdlib dataclasses.
+- Pydantic is used at the data boundary (`spec`, `KeyVals`, `library(fill=)` models) and is the base of `Command`, `Environment` and `Passthrough`, which are built without validating.
   Lax coercion is fine: pyright catches mismatches at the source.
 - Scanning TeX is regex-level and honest about it (a name defined another way counts as missing); it never silently accepts.
   Reading hand-written TeX beyond that is parked (plan N1); raise it only if the work needs it.
@@ -90,7 +90,7 @@ TEXMODEL_REQUIRE_TEX=1 pdm run pytest -m tex --no-cov   # when output, the scan 
 
 ## Working with the maintainer
 
-- What to build next is [docs/briefs/roadmap.md](docs/briefs/roadmap.md) and the plan's §19 and §21a; ask before working outside
+- What to build next is the order in [docs/briefs/roadmap.md](docs/briefs/roadmap.md) (the plan's §19 and §21a hold the specification); ask before working outside
   the task, and for a design choice the task leaves open, propose it rather than picking silently.
 - Git is the maintainer's: only read-only commands (`status`, `diff`, `log`, `show`). No `add`, `commit`, `restore`,
   `checkout`, `stash`, `reset`, `tag` or `push` unless explicitly asked. Releasing (the changelog section, the tag, the push) is theirs.

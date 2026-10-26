@@ -99,7 +99,7 @@ _PDF_SAFE = re.compile(r"[\\(){}%#&$_^~\x00-\x1f\x7f]")
 
 
 def pdf_escape(text: str) -> str:
-    """`PdfString` on render (§21a 9): the body of a PDF literal string that cannot end early and that a reader decodes
+    """`PdfString` on render (§21): the body of a PDF literal string that cannot end early and that a reader decodes
     to `text`.
 
     A character that opens or ends a string (`\\ ( )`), that TeX reads as markup (`% # & $ _ ^ ~ { }`) or that is a

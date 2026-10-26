@@ -46,6 +46,18 @@ assert r"\dkFact{Friendly \& loyal.}" in tex
 `Text` fields are escaped; a `Raw` field passes TeX through. `card.violations()` lists every broken rule at once, each with a
 code and a path such as `Card/Fact[2].text`; `pkg.document` raises the same list as an `ExceptionGroup` of `ValidationError`.
 
+## What a node is
+
+`Command`, `Environment` and `Passthrough` are frozen pydantic models. Building one does not validate it (`violations()` does);
+assigning to a field raises `pydantic.ValidationError`, and `str(node)` is `repr(node)`. `node.model_fields_set` is the fields
+the caller passed, a default given explicitly included; `to_dict` writes exactly those. A field cannot be named like an
+attribute every component has (`copy`, `json`, `render`, a `model_` name: `TM-M045`).
+
+```python
+assert Fact("a").model_fields_set == {"text"}
+assert to_dict(Fact("a")) == {"type": "Fact", "text": "a"}
+```
+
 ## The preamble
 
 `pkg.document(..., preamble=PreambleSlots(before_class=, before_package=, after_package=))` places TeX where the document

@@ -8,7 +8,7 @@ from typer.testing import CliRunner
 
 from texmodel import cli
 from texmodel._internal.scan import scan_declarations
-from texmodel.components import Command, Environment, Value
+from texmodel.components import Command, Environment, Value, describe
 from texmodel.config import load_config
 from texmodel.package import Package, PreambleSlots
 from texmodel.types import Length, Raw, Text
@@ -199,3 +199,8 @@ def test_check_without_sources_says_what_to_set(project: pathlib.Path):
 
 def test_the_config_reads_sources(project: pathlib.Path):
     assert load_config(project / "pyproject.toml").sources == ["res/*.sty"]
+
+
+def test_describe_gives_an_adopted_component_no_body():
+    pkg, name, *_ = hand()
+    assert describe(name).body is None

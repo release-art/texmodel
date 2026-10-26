@@ -27,5 +27,5 @@ bin/test.sh                           # pytest, 100% coverage gate
   `test_public_api.py` and document it).
 - Only `cli.py` formats output; the library uses `logging` and `warnings` (plan E5).
 - New behaviour comes with a test; add a line under `## [Unreleased]` in `CHANGELOG.md` for anything user-visible.
-- Docs are `README.md` (front page) and `docs/` (MkDocs: `pdm install -G docs`, then `pdm run mkdocs serve`). Their `python` blocks run in the test suite.
+- Docs are `README.md` (front page) and `docs/` (MkDocs: `pdm install -G docs`, then `pdm run mkdocs serve`). Their `python` blocks run in the test suite; fence an example that only illustrates as `py`.
 - Design lives in `docs/texmodel-plan.md`; requirement ids (e.g. `E1`) are what tests and commits cite.

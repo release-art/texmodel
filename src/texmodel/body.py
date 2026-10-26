@@ -37,7 +37,7 @@ class Whitespace(enum.Enum):
 
 @enum.unique
 class Syntax(enum.Enum):
-    """The category codes TeX reads a body with (§21a 12). A body has one syntax; the `.sty` switches on `EXPL3` around
+    """The category codes TeX reads a body with (§21). A body has one syntax; the `.sty` switches on `EXPL3` around
     the definition (`\\ExplSyntaxOn` / `\\ExplSyntaxOff`), where a space is ignored and `~` is the space."""
 
     LATEX2E = "latex2e"
@@ -76,7 +76,7 @@ class TemplateRef:
 
 @dataclasses.dataclass(frozen=True)
 class Library:
-    """A block of TeX the `.sty` carries as it is (§21a 12), made by `Package.library`: `text` is dedented and has no
+    """A block of TeX the `.sty` carries as it is (§21), made by `Package.library`: `text` is dedented and has no
     blank edges, and nothing is added or rewritten (`#1` stays `#1`). `owner` is the package that made it."""
 
     name: str
@@ -105,7 +105,7 @@ class Ref:
     """A body piece that calls a declared component: `Fact.call(Hole("text"))`. `values` has one entry per argument of
     `target`, in declared order (`None` for an optional one left out). Built by `call`, `open` and `close` on the
     component class, which check the arguments; it is written with the target's prefix, and a target of another package
-    makes that package a requirement of this one (§21a 17)."""
+    makes that package a requirement of this one."""
 
     target: type
     kind: RefKind
@@ -121,7 +121,7 @@ HOLE = re.compile(r"##|#(?P<name>[A-Za-z_]\w*)")  # `##` is a literal `#`
 
 @dataclass_transform(frozen_default=True)
 class Comment:
-    """A comment (§21a 21): every line it renders starts with `% `, so no value can leave it, and nothing is escaped.
+    """A comment (§21): every line it renders starts with `% `, so no value can leave it, and nothing is escaped.
     `Comment("note")` is a text; a subclass declares fields and a `template` with `#name` holes (`##` is a `#`):
 
     ```python

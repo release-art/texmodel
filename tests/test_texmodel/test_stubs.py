@@ -1,4 +1,4 @@
-"""Stubbed unit tests (§21a 20): the fast tier, and the TeX tier agreeing with it."""
+"""Stubbed unit tests (§21): the fast tier, and the TeX tier agreeing with it."""
 
 import importlib
 import pathlib

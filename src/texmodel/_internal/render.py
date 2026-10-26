@@ -41,7 +41,7 @@ class Arg:
     sep: str = ","  # between the elements of a tuple or list
     group: SlotGroup | None = None  # written together with the other slots of the group, or not at all
     booleans: tuple[str, str] = ("true", "false")
-    renamed_from: str | None = None  # the field's old name in data (§21a 15)
+    renamed_from: str | None = None  # the field's old name in data (§21)
     hint: Any = None  # the field's annotation, which the data layer validates against
     default: Any = None  # the field's default; a `Text` / `Raw` one is what TeX uses for the unset optional argument
     doc: str | None = None  # the field's documentation (`field(doc=)`), the schema's description
@@ -63,9 +63,9 @@ class Spec:
     origin: str  # "fact.tex" or "inline", for the provenance comment
     qualname: str  # module.Class, for the provenance comment
     unused: tuple[str, ...] = ()
-    refs: tuple[type, ...] = ()  # components its body calls (§21a 17)
+    refs: tuple[type, ...] = ()  # components its body calls
     cs: str | None = None  # the control sequence when the class names it, else prefix + name
-    syntax: Syntax = Syntax.LATEX2E  # the body's (§21a 12)
+    syntax: Syntax = Syntax.LATEX2E  # the body's (§21)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -359,7 +359,7 @@ _COMMENT = re.compile(r"(?<!\\)%.*")
 
 
 def lint_library(lib: Library) -> None:
-    """The static checks a library block gets, all of them (§21a 12): balanced braces, and no syntax switch inside an
+    """The static checks a library block gets, all of them (§21): balanced braces, and no syntax switch inside an
     expl3 block, which texmodel writes itself. Everything else is the compile's to find."""
     if not balanced(lib.text):
         raise DeclarationError(f"library {lib.name}: unbalanced braces", code="TM-M011", path=lib.name)

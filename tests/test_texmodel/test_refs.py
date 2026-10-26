@@ -1,4 +1,4 @@
-"""Typed references in bodies (§21a 17): `call`, `open`, `close`, holes, packages that follow."""
+"""Typed references in bodies: `call`, `open`, `close`, holes, packages that follow."""
 
 from texmodel.body import Hole, RefKind, TexRaw, Whitespace
 from texmodel.components import Command, Environment

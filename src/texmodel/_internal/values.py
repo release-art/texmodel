@@ -154,7 +154,7 @@ def hole_text(value: object, syntax: Syntax) -> str:
 
 
 def fill_text(text: str, model: object, syntax: Syntax, owner: str) -> str:
-    """`text` with every `<<name>>` (or `<<a.b>>` into a nested model) replaced by the model's value (§21a 12). `model`
+    """`text` with every `<<name>>` (or `<<a.b>>` into a nested model) replaced by the model's value (§21). `model`
     is a mapping, a dataclass or a pydantic model; a hole it has no field for is an error (`TM-M041`). A model may hold
     more than one part uses."""
 

@@ -1,4 +1,4 @@
-"""expl3 as a syntax mode and verbatim library blocks (§21a 12): rendering, refusals and the static side of the exports.
+"""expl3 as a syntax mode and verbatim library blocks (§21): rendering, refusals and the static side of the exports.
 
 The compile side (a block that TeX accepts or refuses, exports found in the log) is `test_expl3_tex.py`.
 """
