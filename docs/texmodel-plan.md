@@ -9,7 +9,7 @@ A acceptance.
 *texmodel* is the project name. The project is **application-agnostic**: it knows
 nothing about any brand, deck or business domain.
 
-**How to read this document.** It is the target specification plus the decisions log (§21). The README and the cookbook
+**How to read this document.** It is the target specification plus the decisions log (§21). The guide and the cookbook
 describe what exists; §21 is the record of what was decided and built; §19 and §21a list what is open. Many ids below
 describe work that is *not built*. Checked against the code (v0.3.0), these are not built: scoped overrides `Set` (D4a),
 rules and `@rule` (D5), placement (M5), the `Namespace` policy (M6), `engine`/`kind`/`base` on `Package` and engine
@@ -17,7 +17,7 @@ capabilities (M11, M13), `Markup`, `Path`, `Font`, `Snippet`, `PgfStyle`, `Cycle
 levels and limits (Z1), `texmodel explain` (E4), a `@covers` check (A2, V7), benchmarks (W2), `libcst` refactors and
 `texmodel init|show|try|make|change|release|adopt` (U1: the commands are `texmodel build|check|render|schema` and
 `texmodel-build doctor|compile|clean`), and migrations and releases (§13). Print (§14) and the sandbox (§12, Z2-Z3) are
-planned. Read an unmarked id as a requirement unless §21 or the README shows it built.
+planned. Read an unmarked id as a requirement unless §21 or the guide shows it built.
 
 ---
 
@@ -95,7 +95,7 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   is called `Slot("A soft woof.", label="Sound")` and renders `\acSlot[Sound]{A soft woof.}`.
   TeX argument order is derived from the declaration, never written twice. The full
   slot model (delimiters, several optionals, tokens, groups, key lists) is in
-  the README ("Arguments: slots, value types and key lists").
+  the guide (Arguments).
 - M3 Invalid layouts are refused at class definition: an optional argument followed by
   another without saying what is written when it is left out (`TM-M037`), a group member
   that is not optional, a token without a default, duplicate or reserved names — with a
@@ -120,7 +120,7 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   `X.times.at_least_one()` one or more. This is the
   order, the counts and the placement of children. A static type
   checker verifies each child *is* an allowed component, not the counts or order
-  (Python's types cannot express them); those are checked by `validate()` at
+  (Python's types cannot express them); those are checked by `violations()` at
   construction time of the Doc, with the path of the offending child.
 - M5 **Placement**: `Preamble`, `Document`, or `in(Env)` (inferred from `children`
   when possible). Misplacement is a violation naming the rule and reason.
@@ -242,14 +242,16 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   ```
   Constructor signatures are the interface, so pyright flags wrong *argument* types and
   unknown keywords before anything runs; child counts and order are checked by
-  `validate()` (M4). Composition is plain Python; there is no second builder language.
-  Nodes are frozen dataclasses: **structural equality and hashing** come for free, so
+  `violations()` (M4). Composition is plain Python; there is no second builder language.
+  Nodes are frozen pydantic models: **structural equality and hashing** come for free, so
   a Doc can be compared, deduplicated, cached, and asked which components it uses
   (`doc.components()`), and snapshots compare trees, not just text. `repr(doc)` is the
   constructor expression that rebuilds it (`CardBack(Name('Golden Retriever'), …)`),
   used in error messages, goldens and debugging. An environment's arguments are keywords
   and its children are positional: `CardBack(Name("Rex"), Fact("a"), Fact("b"), title="T")`;
   the class-level `children` is the grammar, the instance's `.content` the children.
+  Building a node checks nothing but the signature (`violations()` does); `model_fields_set`
+  is the fields the caller passed, so a default the author left is told from one they set.
   `texmodel render module:attr` writes a document (a `str`, or a function returning one) to a file.
 - D1a **The document root.** `Package.document(*body, settings=[FactGap(Length("3mm"))],
   options=["a4paper"])` renders a complete `.tex` (pure, deterministic, no I/O) and
@@ -260,7 +262,7 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   The root as a component with its own `children` grammar (preamble slots,
   `\begin{document}` body) is the next step; until then the body is a free sequence of
   nodes and only environments carry a grammar.
-- D2 `doc.validate()`, `doc.render()` (str, pure, deterministic, no I/O),
+- D2 `doc.violations()`, `doc.render()` (str, pure, deterministic, no I/O),
   `doc.to_dict()`, `Doc.from_dict()` (migrates then validates), `doc.plan()` (every
   output line with provenance: model | body:line | user value).
 - D3 Preamble and slot order are declared by the package; entries are placed by slot.
@@ -499,7 +501,7 @@ nested, readability counts.
 - E1 **One error hierarchy.** `TexmodelError` is the base; subclasses are
   `DeclarationError`, `ValidationError`, `CompileError`, `VerifyError`,
   `MigrationError`, `ToolchainError`. Each carries `.code`, `.path` and `.hint`.
-- E2 **All problems at once.** `validate()` returns the list of violations; raising
+- E2 **All problems at once.** `violations()` returns the list of violations; raising
   APIs raise an `ExceptionGroup` of them, so the first problem never hides the rest.
   The CLI prints them all.
 - E3 **A failed compile is a result, not an exception.** `CompileResult.ok`,
@@ -653,7 +655,7 @@ acme-cards/
 
 ### 15.2 A whole package
 
-Illustrative: `engine=` and the top-level import are planned (M11, I1). The README's first example is the working one.
+Illustrative: `engine=` and the top-level import are planned (M11, I1). The first example in Getting started is the working one.
 
 ```python
 from texmodel import Package, Command, Environment, Value, TemplateRef, Text, Length, Colour, CMYK, LuaLaTeX
@@ -794,7 +796,7 @@ texmodel check --tex         # compile suite + verifiers in the reference contai
 
 ## 17. Dependencies and borrowed patterns
 
-Libraries: `pydantic` v2 (validation boundary, aliases; hidden behind `types`),
+Libraries: `pydantic` v2 (components are its models; data boundary, aliases),
 `typer`, `hypothesis`, `packaging` (versions), `graphlib` (stdlib; layering, migration
 order), `libcst` (rename/promote refactors), a snapshot library (`inline-snapshot` or
 `syrupy`; evaluate before building `bless`), `ruff`, `pyright` strict, `pytest`,
@@ -897,7 +899,7 @@ whose history records an escaping bug and an over-set card. If not met, stop at 
 | C5 | docs (Diataxis), performance budgets, 1.0 | W2, W4, W5, A1-A10 |
 
 **First release.** A brand package family generated by `texmodel` (the deck's `.sty` files hold about 130 definitions in 3000
-lines; port by family layer: core, canvas, card, series), then the deck as a model, then `v0.1.0`: a quickstart in the README,
+lines; port by family layer: core, canvas, card, series), then the deck as a model, then `v0.1.0`: a quickstart,
 `pdm build` and an install from the wheel in a clean environment, a privacy grep on tracked files. Released as v0.2.0 and v0.3.0 (0.1.0 was never published). The brand port is the first consumer; its remaining
 frictions come back as notes and are fixed in the next minor. Not covered yet: option processing (`\ProcessOptions`) beyond
 the `\DeclareOption` header, TikZ path commands, `\newfontfamily\name[...]{...}` as a typed call (the scan reads its
@@ -947,7 +949,7 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | `PdfInfo` writes Info strings through `pdfmanagement_add:nnn` and needs `RequireMetadata` (`TM-C009`); a document never contains expl3 syntax | decided |
 | A field cannot be called `type` (data's component name); an unprefixed package needs `cs` everywhere; `Passthrough` TeX is checked for undeclared names | decided |
 | `Anywhere` kinds are removed before ordered matching, so a kind is ordered or floating, never both (`TM-M029`) | decided |
-| `Comment` subclasses are passed to `from_dict` / `json_schema` as `comments=[...]`, not found by name; a body line starting with `%` is not scanned for `#name` holes | decided |
+| The `Comment` subclasses data may hold are listed on the package, `Package(comments=[...])`, not found by name; they may stand in any of its environments' content; a body line starting with `%` is not scanned for `#name` holes | decided |
 | Hole syntax `#name`; internals free but must resolve | decided |
 | Documents are constructor trees (not `with` builders) | decided |
 | `children = [Fact.times(2, 3)]` multiplicity syntax (`times([from,] to)` with `to=None` for no limit, plus `times.any()` and `times.at_least_one()`; not operator overloading) | decided |
@@ -958,9 +960,9 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | A source map is a `Plan`: output lines with the path that wrote each. Documents are checked against the model's render, with no baseline file (`[tool.texmodel.documents]`, like `terraform plan`); hand edit and config change are not told apart | decided |
 | A text setting is `Value[Text]`: `\newcommand` with an escaped default in a generated `.sty`; `settings=` writes `\renewcommand` after `\usepackage` (before the preamble slot, not in the body; every other setting is written there too, in the order given); an adopted package may declare only a `Value[Text]`, checked as an argument-less command | decided |
 | A closed set is a `Choice` enum whose member values are the TeX (`Raw` passes through, `str` is escaped); data names a member by name | decided |
-| A macro's interface is slots (delimiter, optional or required, token, group) holding typed values or a `KeyVals`; `arg()` states a slot, an optional field without it is TeX's one optional argument, first; a signature `\newcommand` cannot define is defined with xparse (`\NewDocumentCommand`), not xargs. Details in the README | decided |
+| A macro's interface is slots (delimiter, optional or required, token, group) holding typed values or a `KeyVals`; `arg()` states a slot, an optional field without it is TeX's one optional argument, first; a signature `\newcommand` cannot define is defined with xparse (`\NewDocumentCommand`), not xargs. Details in the guide (Arguments) | decided |
 | `KeyVals` is a frozen pydantic model whose field types give the item kind, with a `KeyRules` preset per key library (`texmodel.keys`); the presets are measured by compiling | decided |
-| Pydantic v2 is a dependency, used at the data boundary only (`texmodel.spec`: `from_dict`, `to_dict`, `json_schema`); component classes stay stdlib frozen dataclasses; default (lax) coercion; its errors are mapped to `Violation` / `ValidationError` with `TM-C020` and `validate()`-style paths | decided |
+| Components (`Command`, `Environment`, `Passthrough`) are frozen pydantic models: the metaclass maps positional arguments and builds the node without validating (`violations()` checks a tree, E2); `model_fields_set` is what the caller passed; data is validated by pydantic (`texmodel.spec`: `from_dict`, `json_schema`), default (lax) coercion, its errors mapped to `ValidationError` with `TM-C020` and `violations()`-style paths; `to_dict` writes the fields set. `Value` and `Comment` are not models. A field cannot shadow an attribute of every component (`TM-M045`); `validate()` is `violations()` | decided |
 | What a `Value[T]` is lives in a `ValueKind` (the type it holds, the names it claims, the TeX that declares and sets it, the packages it needs); the built-in kinds are length, colour, flag, text and raw, and a package adds its own (`texmodel.std.etoolbox.Toggle`, written through etoolbox's own bindings) | decided |
 | A package may be a list of parts: `Package.library(..., fill=model)` fills `<<name>>` holes by type (`str` escaped, `Raw` through, lengths and colours as written; no template language, loops stay in Python); `texmodel check` reads each part against the components and values that name it with `defined_by` and refuses a name defined twice. The scan is regex-level and skips expl3 | decided |
 | A flag, toggle, length, colour or text setting a library defines is a `Value` with `defined_by` (no default, renders nothing); `cs` names its whole control sequence, `colour_name` a colour | decided |
@@ -992,8 +994,10 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | Image font/ICC content, and the MIT-vs-AGPL-image reading (C8) | open |
 | Snapshot library vs own `bless` | open: evaluate with V2a |
 | Exact list of built-in rule codes | open |
+| A copy of texmodel with no metadata sets `package.GENERATOR_VERSION`; a `TemplateRef` is read through `importlib.resources` (a zip works); `texmodel_build.fonts` reads the fonts a compile embedded from its log (A7, A8) | decided |
 
 ---
+| A hand edit names the argument it changed (`Line.spans`, `Edit.fields`, `FieldEdit`; found by comparing the line with the plan's text, empty unless the change is inside one argument) and, read by TeX, the typed value (`texmodel_build.hand_edits.read_edits`: every component stubbed, the plan's text and the edited text compiled, calls aligned by the whole call and merged with the line diff by path; `EditKind.UNREAD` where the line differs and the calls do not). A value is read by its `BodyKind` (`texmodel.testing.read_call`; `TM-C021` for text that is not of the field's type); the probe route is not in `texmodel check`, which never compiles | decided |
 
 ## 21a. Open ideas and gaps
 
@@ -1005,7 +1009,7 @@ Each is a candidate, not a decision. The ones that can run unattended are batche
    wraps log lines, so the file stack is not recoverable).
 4. **Grammar.** Interleaving of two runs.
 5. **Hand edit vs config change.** Telling them apart needs the old render (a saved plan or git).
-6. **Hand-edit semantics.** The old regex tool matched cards by id, ignored a triage tool's marker comment, and produced the
+6. **Hand-edit semantics.** (The field and typed value of an edit are built, §21.) The old regex tool matched cards by id, ignored a triage tool's marker comment, and produced the
    config edit that imports a hand edit. Ideas: keyed children (path by id, not position), a declared comment marker to ignore
    in the plan comparison, an `import` hook that maps a path to a source field.
 7. **Rules layer (D5) and placement (M5).** The package enforces counts itself with its own errors (a package can build them
@@ -1030,7 +1034,7 @@ Each is a candidate, not a decision. The ones that can run unattended are batche
     configuration. Reopens the parked TOML frontend (§21).
 16. **Constructive bodies.** A per-piece whitespace policy for a constructive piece (it takes the package's); expl3 bodies.
 17. **Stubbed tests.** Stubs for values and settings, assertions on `Value` state, expl3.
-18. **`Comment`.** A registry of comment classes for data (the caller lists them today); keyed matching of comments (item 6).
+18. **`Comment`.** Keyed matching of comments (item 6).
 19. **expl3.** Whether a library block may become its own `.sty`; a parser option (a small function behind the static lints
     would let a parser replace them).
 
@@ -1060,6 +1064,6 @@ Each is a candidate, not a decision. The ones that can run unattended are batche
   additions need a user-facing case and the same tests and docs.
 - **Sandbox gaps.** Mitigation: Z2 is a verification task with a test, not an assumption;
   until proven, untrusted specs never include `Raw` (Z1).
-- **Pydantic coupling.** Mitigation: it is used at the data boundary (`spec`) and for `KeyVals` and `library(fill=)`
-  models; component classes stay stdlib dataclasses. `KeyVals` is a pydantic model in public signatures, a decided
-  exception (§21).
+- **Pydantic coupling.** Components, `KeyVals` and `library(fill=)` models are pydantic models (§21). Mitigation: only
+  `components`, `interface` and `spec` use its API beyond `BaseModel`; construction bypasses validation through the public
+  `model_construct`.

@@ -1,0 +1,42 @@
+site_name: texmodel
+site_description: Typed models of LaTeX document families, rendered to plain .sty source.
+repo_url: https://github.com/release-art/texmodel
+edit_uri: edit/main/docs/
+strict: true
+exclude_docs: |
+  briefs/
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Guide:
+      - Components: guide/components.md
+      - Arguments: guide/arguments.md
+      - Values and settings: guide/values.md
+      - Documents: guide/documents.md
+      - Check committed files: guide/check.md
+      - TeX you already have: guide/adopting.md
+      - Standard libraries: guide/std.md
+      - Testing: guide/testing.md
+      - Building and compiling: guide/build.md
+      - Programs that read components: guide/tools.md
+  - Cookbook: cookbook.md
+  - Project:
+      - Known limitations: known-limitations.md
+      - Plan and decisions: texmodel-plan.md

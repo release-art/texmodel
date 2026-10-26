@@ -29,6 +29,9 @@ import typing
 from collections.abc import Mapping
 from typing import Annotated, Any, Final, Literal
 
+import pydantic
+from pydantic.fields import FieldInfo
+
 from .errors import DeclarationError
 from .types import CMYK, PDF, RGB, TEXT, Choice, Gray, Length, Raw
 
@@ -146,14 +149,29 @@ def arg(
     (`Gap.REFUSE` refuses that). `sep` separates the elements of a tuple or list (default `,`); `group` makes the field
     part of a `SlotGroup`; `booleans` is the literal pair of a `bool`. A field with a default is keyword-only in
     Python, wherever it stands among the others; a required field is positional."""
-    metadata: dict[str, object] = {"tm": ArgOptions(delimiter, fill, sep, group, booleans)}
-    if renamed_from is not None:
-        metadata["renamed_from"] = renamed_from
-    if doc is not None:
-        metadata["doc"] = doc
-    if meta is not None:
-        metadata["meta"] = dict(meta)
-    return dataclasses.field(default=default, kw_only=kw_only, metadata=metadata)
+    notes = FieldNotes(renamed_from, doc, dict(meta or {}))
+    return field_info(default, notes, ArgOptions(delimiter, fill, sep, group, booleans), kw_only=kw_only)
+
+
+@dataclasses.dataclass(frozen=True)
+class FieldNotes:
+    """What `field()` and `arg()` say about a field besides its slot: its old name in data, its doc, its `x-` keys."""
+
+    renamed_from: str | None = None
+    doc: str | None = None
+    meta: Mapping[str, object] = dataclasses.field(default_factory=dict[str, object])
+
+
+def field_info(default: object, notes: FieldNotes, *more: object, kw_only: bool | None) -> FieldInfo:
+    """A pydantic field carrying `notes` (and `more`, an `ArgOptions`) in its metadata; the schema shows the doc, the
+    old name as `x-renamed-from` and the meta as `x-` keys. `dataclasses.MISSING` makes it required."""
+    extra: dict[str, Any] = {f"x-{k}": v for k, v in notes.meta.items()}
+    if notes.renamed_from is not None:
+        extra = {"x-renamed-from": notes.renamed_from, **extra}
+    given: dict[str, Any] = {} if default is dataclasses.MISSING else {"default": default}
+    info: FieldInfo = pydantic.Field(**given, kw_only=kw_only, description=notes.doc, json_schema_extra=extra or None)
+    info.metadata += [notes, *more]
+    return info
 
 
 @enum.unique
@@ -291,3 +309,31 @@ def _union_body(members: list[Any]) -> Body | None:
     if members and set(members) == set(_COLOURS):
         return Body(BodyKind.COLOUR)
     return None
+
+
+__all__ = [
+    "ANGLE",
+    "ArgOptions",
+    "BRACE",
+    "Body",
+    "BodyKind",
+    "COLOUR_NAME",
+    "ColourName",
+    "Delimiter",
+    "FLAG",
+    "Flag",
+    "Gap",
+    "ITEM",
+    "Item",
+    "OptionalValue",
+    "PAREN",
+    "RAW_BODY",
+    "SQUARE",
+    "SWITCH",
+    "SlotGroup",
+    "Star",
+    "Switch",
+    "TEXT_BODY",
+    "Token",
+    "arg",
+]

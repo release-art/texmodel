@@ -63,3 +63,6 @@ class CompileResult:
         data["log"] = pathlib.Path(data["log"]) if data["log"] else None
         data["diagnostics"] = tuple(diagnostic_from_dict(d) for d in data["diagnostics"])
         return cls(**data)
+
+
+__all__ = ["CompileResult"]

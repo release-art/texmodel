@@ -229,3 +229,6 @@ def _parts(item: KeyItem, value: Any, rules: KeyRules) -> list[str]:  # noqa: AN
             case _:
                 out.append(k + _protected(text, rules, item.body))
     return out
+
+
+__all__ = ["ItemKind", "KeyItem", "KeyVals", "key"]

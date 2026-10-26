@@ -125,6 +125,4 @@ class PdfInfo:
 type Entry = PassOption | InputPath | InputIfExists | GraphicsPath | RequireMetadata | PdfInfo
 
 
-def tex_of(item: Raw | Entry) -> Raw:
-    """The `Raw` a slot item stands for."""
-    return item if isinstance(item, Raw) else item.raw()
+__all__ = ["Entry", "GraphicsPath", "InputIfExists", "InputPath", "PassOption", "PdfInfo", "RequireMetadata"]

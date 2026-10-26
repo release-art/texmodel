@@ -9,15 +9,24 @@ import dataclasses
 import difflib
 import enum
 import json
-from collections.abc import Iterator
 
-from .components import Environment, Node
+from .errors import Violation
+
+
+@dataclasses.dataclass(frozen=True)
+class Span:
+    """Where the text of one argument stands in a line: `line.tex[start:end]`, its delimiters excluded."""
+
+    arg: str  # the field's name
+    start: int
+    end: int
 
 
 @dataclasses.dataclass(frozen=True)
 class Line:
     path: str  # "Card[1]/CardBack[1]/Name[0]", "preamble.after_package[2]", "header", "document"
     tex: str
+    spans: tuple[Span, ...] = ()  # a command's call or an environment's begin line; empty for any other line
 
 
 @enum.unique
@@ -25,28 +34,69 @@ class EditKind(enum.Enum):
     ADDED = "added"  # in the file, not in the plan
     REMOVED = "removed"  # in the plan, not in the file
     CHANGED = "changed"
+    UNREAD = "unread"  # the line differs, but TeX reads the same calls from it (`texmodel_build.hand_edits`)
+
+
+@dataclasses.dataclass(frozen=True)
+class FieldEdit:
+    """One argument of an edited call. `found` is its text in the file; `value` the typed value it reads back to (None
+    when it is not read or left out) and `violation` why it does not read, when it does not."""
+
+    arg: str
+    found: str
+    value: object = None
+    violation: Violation | None = None
 
 
 @dataclasses.dataclass(frozen=True)
 class Edit:
-    """One difference. `kind` says which side lacks the line: a blank line has no text to tell by."""
+    """One difference. `kind` says which side lacks the line: a blank line has no text to tell by. `fields` are the
+    arguments a `CHANGED` line changes, when every change lies inside one argument's text; else empty (the command
+    name, a delimiter or a line without spans changed: the line text says what)."""
 
     path: str
     expected: str
     found: str
     kind: EditKind
+    fields: tuple[FieldEdit, ...] = ()
 
 
-def node_lines(node: Node, path: str) -> Iterator[Line]:
-    """The lines a node renders; children are indexed within their parent, as `validate()` paths are."""
-    rendered = node.render().splitlines()
-    if not isinstance(node, Environment):
-        yield from (Line(path, tex) for tex in rendered)
-        return
-    yield Line(path, rendered[0])
-    for i, child in enumerate(node.content):
-        yield from node_lines(child, f"{path}/{type(child).__name__}[{i}]")
-    yield Line(path, rendered[-1])
+def _found_at(equal: list[tuple[int, int, int]], at: int, *, first: bool, default: int) -> int:
+    """The position in the found text of position `at` in the expected one, through the first (or last) unchanged run
+    that reaches it, so text inserted right at an argument's edge falls inside the argument."""
+    runs = [(i1, j1) for i1, i2, j1 in equal if i1 <= at <= i2]
+    if not runs:
+        return default
+    i1, j1 = runs[0] if first else runs[-1]
+    return j1 + at - i1
+
+
+def _fields(line: Line, found: str) -> tuple[FieldEdit, ...]:
+    """The arguments `found` changes, character by character against the line; empty unless every change lies inside the
+    text of one argument."""
+    if not line.spans:
+        return ()
+    ops = difflib.SequenceMatcher(None, line.tex, found, autojunk=False).get_opcodes()
+    equal = [(i1, i2, j1) for tag, i1, i2, j1, _ in ops if tag == "equal"]
+    hit: dict[Span, None] = {}  # in line order
+    for tag, i1, i2, _, _ in ops:
+        if tag == "equal":
+            continue
+        span = next((s for s in line.spans if s.start <= i1 and i2 <= s.end), None)
+        if span is None:
+            return ()
+        hit[span] = None
+    return tuple(
+        FieldEdit(
+            s.arg,
+            found[
+                _found_at(equal, s.start, first=True, default=0) : _found_at(
+                    equal, s.end, first=False, default=len(found)
+                )
+            ],
+        )
+        for s in sorted(hit, key=lambda s: s.start)
+    )
 
 
 def _compared(line: str, ignore_comments: bool) -> str:
@@ -81,12 +131,26 @@ class Plan:
                 was = self.lines[i1 + k] if i1 + k < i2 else None
                 path = was.path if was else self.lines[i2 - 1].path  # an added line belongs to the line before it
                 kind = EditKind.CHANGED if was and j1 + k < j2 else EditKind.REMOVED if was else EditKind.ADDED
-                out.append(Edit(path, was.tex if was else "", found[j1 + k] if j1 + k < j2 else "", kind))
+                now = found[j1 + k] if j1 + k < j2 else ""
+                fields = _fields(was, now) if was and kind is EditKind.CHANGED else ()
+                out.append(Edit(path, was.tex if was else "", now, kind, fields))
         return out
 
     def to_json(self) -> str:
-        return json.dumps([[x.path, x.tex] for x in self.lines], ensure_ascii=False, indent=0) + "\n"
+        rows = [
+            [x.path, x.tex, [[s.arg, s.start, s.end] for s in x.spans]] if x.spans else [x.path, x.tex]
+            for x in self.lines
+        ]
+        return json.dumps(rows, ensure_ascii=False, indent=0) + "\n"
 
     @classmethod
     def from_json(cls, text: str) -> "Plan":
-        return cls(tuple(Line(path, tex) for path, tex in json.loads(text)))
+        return cls(
+            tuple(
+                Line(path, tex, tuple(Span(*s) for s in (spans[0] if spans else ())))
+                for path, tex, *spans in json.loads(text)
+            )
+        )
+
+
+__all__ = ["Edit", "EditKind", "FieldEdit", "Line", "Plan", "Span"]

@@ -14,6 +14,9 @@ import typing
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from typing import Any, NamedTuple
 
+from pydantic.fields import FieldInfo
+
+from ._internal.pieces import template_text
 from ._internal.render import (
     EnvSpec,
     Spec,
@@ -33,12 +36,23 @@ from ._internal.render import (
 )
 from ._internal.scan import scan_colours, scan_counters, scan_declarations
 from ._internal.values import fill_text
-from .body import Library, Syntax, TemplateRef, Whitespace, template_text
-from .components import AnyValue, Command, Environment, Node, Passthrough, Value, env_spec_of, spec_of, value_spec_of
+from .body import Comment, Library, Syntax, TemplateRef, Whitespace
+from .components import (
+    AnyValue,
+    Command,
+    Environment,
+    Node,
+    Passthrough,
+    Value,
+    call_line,
+    env_spec_of,
+    spec_of,
+    value_spec_of,
+)
 from .drift import stamp
 from .errors import DeclarationError, Violation
-from .plan import Line, Plan, node_lines
-from .preamble import Entry, PdfInfo, RequireMetadata, tex_of
+from .plan import Line, Plan, Span
+from .preamble import Entry, PdfInfo, RequireMetadata
 from .testing import Component, stub_tex
 from .types import Raw, balanced
 
@@ -99,9 +113,14 @@ class PreambleSlots:
                 yield slot, i, item
 
 
+GENERATOR_VERSION: str | None = None
+"""Set in a copy of texmodel with no installed metadata (embedded in a wheel) to the version it was built from."""
+
+
 def generator_version() -> str:
-    """`X.Y.Z` of the installed texmodel, without dev or local parts, so output does not churn per commit (G7)."""
-    m = re.match(r"\d+\.\d+\.\d+", importlib.metadata.version("texmodel"))
+    """`X.Y.Z` of texmodel (`GENERATOR_VERSION`, else the installed metadata), without dev or local parts, so output
+    does not churn per commit (G7)."""
+    m = re.match(r"\d+\.\d+\.\d+", GENERATOR_VERSION or importlib.metadata.version("texmodel"))
     return m[0] if m else "0.0.0"
 
 
@@ -152,9 +171,9 @@ def _compare(who: str, lib: str, defs: _Defs, wanted: Sequence[tuple[str, str, s
 
 def _field_data(spec: object) -> tuple[object, object]:
     """What makes two field declarations the same: the default and the `field(doc=, meta=)` data."""
-    if isinstance(spec, dataclasses.Field):
-        return typing.cast("dataclasses.Field[object]", spec).default, dict(spec.metadata)
-    return spec, {}
+    if isinstance(spec, FieldInfo):
+        return spec.default, tuple(spec.metadata)
+    return spec, ()
 
 
 def declared(text: str) -> frozenset[str]:
@@ -168,6 +187,27 @@ def setting_line(value: AnyValue) -> str:
     `\\acDrafttrue`. It is what `Package.plan` writes for each of `settings=`."""
     cls = type(value)
     return cls.__tm_kind__.setting(*addressed(cls.__tm_prefix__, cls.__name__, cls.cs), value.value, cls.colour_name)
+
+
+def _tex_of(item: Raw | Entry) -> Raw:
+    """The `Raw` a slot item stands for."""
+    return item if isinstance(item, Raw) else item.raw()
+
+
+def _node_lines(node: Node, path: str) -> Iterator[Line]:
+    """The lines a node renders; children are indexed within their parent, as `violations()` paths are."""
+    rendered = node.render().splitlines()
+    spans = ()
+    if isinstance(node, Command | Environment):
+        call, found = call_line(node)
+        spans = tuple(Span(*s) for s in found) if "\n" not in call else ()  # a multi-line call has no one-line spans
+    if not isinstance(node, Environment):
+        yield from (Line(path, tex, spans) for tex in rendered)
+        return
+    yield Line(path, rendered[0], spans)
+    for i, child in enumerate(node.content):
+        yield from _node_lines(child, f"{path}/{type(child).__name__}[{i}]")
+    yield Line(path, rendered[-1])
 
 
 class Package:
@@ -184,6 +224,7 @@ class Package:
         adopted: bool = False,
         builtin: bool = False,
         whitespace: Whitespace = Whitespace.KEEP,
+        comments: Sequence[type[Comment]] = (),
     ) -> None:
         if not _NAME.fullmatch(name):
             raise DeclarationError(f"package name {name!r} must match [a-z][a-z0-9-]*", code="TM-P001")
@@ -199,6 +240,7 @@ class Package:
         self.whitespace = whitespace  # the policy of a body piece that names none (M8)
         self.adopted = adopted  # the `.sty` is hand-written; components only declare it (M9)
         self.builtin = builtin  # always loaded (the LaTeX kernel): calling it requires no package
+        self.comments = tuple(comments)  # the comment classes data may hold, besides `Comment`, in its environments
         self._requires: list[tuple[Package, tuple[str, ...]]] = []  # `require()`, in order
         self._items: list[Spec | EnvSpec | ValueSpec | Library] = []  # registration order is output order
         self._controls: dict[str, str] = {}  # control sequence -> qualname of its declarer
@@ -265,7 +307,10 @@ class Package:
             raise DeclarationError(f"library {name!r} is already declared", code="TM-M007", path=name)
         origin = "inline"
         if isinstance(source, TemplateRef):
-            source, origin = template_text(source, inspect.stack(0)[1].filename, name), source.path.name
+            source, origin = (
+                template_text(source, inspect.stack(0)[1].frame.f_globals["__name__"], name),
+                source.path.name,
+            )
         text = textwrap.dedent(source).strip("\n")
         lib = Library(
             name, text if fill is None else fill_text(text, fill, syntax, f"library {name}"), syntax, origin, self
@@ -603,7 +648,7 @@ class Package:
         Everything wrong is reported at once, as an `ExceptionGroup` of `ValidationError` (E2).
         """
         preamble = preamble or PreambleSlots()
-        problems = [v for node in body for v in node.validate()]
+        problems = [v for node in body for v in node.violations()]
         problems += [
             Violation("TM-M015", path, f"\\{word} is not declared by this package", hint="declare it, or fix the name")
             for i, node in enumerate(body)
@@ -618,7 +663,7 @@ class Package:
                 hint="declare it, or fix the name",
             )
             for slot, i, item in preamble.items()
-            for word in undeclared(self.prefix, tex_of(item).tex, self._controls)
+            for word in undeclared(self.prefix, _tex_of(item).tex, self._controls)
         ]
         problems += [
             Violation(
@@ -653,7 +698,7 @@ class Package:
             return [
                 Line(f"preamble.{name}[{i}]", tex)
                 for i, raw in enumerate(getattr(preamble, name))
-                for tex in tex_of(raw).tex.splitlines()
+                for tex in _tex_of(raw).tex.splitlines()
             ]
 
         def values() -> list[Line]:
@@ -671,7 +716,7 @@ class Package:
                 *values(),
                 *slot("after_package"),
                 Line("document", "\\begin{document}"),
-                *(line for i, node in enumerate(body) for line in node_lines(node, f"{type(node).__name__}[{i}]")),
+                *(line for i, node in enumerate(body) for line in _node_lines(node, f"{type(node).__name__}[{i}]")),
                 Line("document", "\\end{document}"),
             )
         )
@@ -705,3 +750,6 @@ class Package:
     def files(self, *, version: str | None = None) -> dict[str, str]:
         """Every generated file, by path relative to the output directory; an adopted package generates none."""
         return {} if self.adopted else {f"{self.name}.sty": self.render(version=version)}
+
+
+__all__ = ["GENERATOR_VERSION", "Package", "PreambleSlots", "declared", "generator_version", "setting_line"]

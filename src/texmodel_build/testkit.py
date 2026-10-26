@@ -57,3 +57,6 @@ def check_verifier_contract(verifier: Verifier, tmp_path: pathlib.Path) -> None:
         present = tmp_path / "present"
         present.write_bytes(b"x")
         assert not verify_file(present, profile, available).ok, "an unavailable verifier must fail the file"
+
+
+__all__ = ["check_library", "check_verifier_contract", "run_probes"]

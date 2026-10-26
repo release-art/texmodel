@@ -156,3 +156,17 @@ def expand_targets(
         else:
             out.append(path)
     return out
+
+
+__all__ = [
+    "FileReport",
+    "Finding",
+    "GROUP",
+    "Profile",
+    "Verifier",
+    "exemption",
+    "expand_targets",
+    "registered",
+    "verify_file",
+    "verify_files",
+]

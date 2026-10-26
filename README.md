@@ -3,11 +3,11 @@
 [![CI](https://github.com/release-art/texmodel/actions/workflows/ci.yml/badge.svg)](https://github.com/release-art/texmodel/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Declare a LaTeX document family once in Python types; get plain, readable, git-trackable `.sty` source out of it. The output
-is ordinary TeX: commit it, diff it, compile it with whatever LaTeX setup you already have.
+Declare a LaTeX document family once, in Python types. texmodel renders it to plain, readable, git-trackable `.sty` source:
+commit it, diff it, compile it with whatever LaTeX setup you already have. The same declarations give you documents as
+Python objects, a JSON Schema for their data, checks that committed files are current, and typed compile diagnostics.
 
-> **Status: alpha.** The public API may change before 1.0. Release migrations, `texmodel-print` and the trust
-> and sandbox layers are planned, not built (see [the plan](docs/texmodel-plan.md)). What is missing today:
+> **Status: alpha.** The public API may change before 1.0. What is missing today:
 > [known limitations](docs/known-limitations.md).
 
 ```zsh
@@ -15,62 +15,35 @@ pip install texmodel                 # the library and the texmodel-build comman
 pip install 'texmodel[proof-pdf]'    # plus the proof-pdf verifier
 ```
 
-One distribution, two packages:
-
-| Package | What it is |
-|---|---|
-| **`texmodel`** (`src/`) | The library: declare components, render deterministic TeX, check that committed output is current. No TeX needed, no processes spawned. |
-| **`texmodel_build`** (command `texmodel-build`) | Optional: a thin `latexmk` driver with typed log diagnostics, and verifier plugins for built PDFs. Use it if you want compile results as data; your own `latexmk` or image works just as well. |
-
-## texmodel
-
-Worked examples and practices: [the cookbook](docs/cookbook.md).
-
 ```python
-# acme_cards/__init__.py
-from texmodel.body import TemplateRef
-from texmodel.components import Command, Environment, Value
+from texmodel.components import Command, Value
 from texmodel.package import Package
-from texmodel.types import CMYK, Colour, Length, Text
+from texmodel.types import Length, Text
 
 pkg = Package("acme-cards", prefix="ac", version="1.4.0", date="2026/10/21")
-# `date=None` leaves the date out of \ProvidesPackage; `header="..."` adds comment lines under the generator's line
+
 
 @pkg.value
 class FactGap(Value[Length]):
     """Space under each fact."""
+
     default = Length("2mm")
 
-@pkg.value
-class Ink(Value[Colour]):
-    """The text colour."""
-    default = CMYK(0, 0, 0, 0.95)
-
-@pkg.value
-class Compact(Value[bool]):
-    """Tighten the layout."""
-    default = False
 
 @pkg.command
 class Fact(Command):
     """One short sentence under the title."""
-    text: Text
-    body = TemplateRef("fact.tex")   # explicit: a file next to this module; nothing is found by name
 
-@pkg.command
-class Slot(Command):
-    """A labelled paragraph; the label prints as its heading."""
     text: Text
-    label: Text | None = None      # optional: keyword-only, TeX's one optional argument
+    body = r"\par\noindent #text\par\vspace{\acFactGap}"
 
-@pkg.environment
-class CardBack(Environment):
-    """The back face of a card."""
-    children = [Name, Fact.times(2, 3), Slot.times(3)]   # in order: Name once, Fact 2 to 3, Slot 0 to 3; also X.times.any(), X.times.at_least_one()
-    begin = r"\begin{minipage}{\linewidth}"
-    end = r"\end{minipage}"
+
+print(pkg.render())                       # the .sty
+print(pkg.document(Fact("50% of $5")))    # \acFact{50\% of \$5}, escaped
 ```
 
+<<<<<<< HEAD
+=======
 A body is TeX you point at: a `TemplateRef("fact.tex")` (relative to the defining module), a string, or a `body`
 method returning either (dedented, so a raw triple-quoted string reads as it renders). `#text` is the argument named `text`:
 
@@ -102,7 +75,7 @@ def body(self):
 A body can call another component by Python binding. The call is checked against the target's arguments, written with the
 target's prefix, and a target in another package makes that package a `\RequirePackage` of the generated `.sty`:
 
-```python
+```py
 from texmodel.body import Hole
 
 class Entry(Command):
@@ -126,13 +99,13 @@ an environment's arguments are all keywords. A target must be registered before 
 An environment has `begin` and `end` in the same way. A document is plain
 Python; `Text` fields are escaped, a `Raw` field passes TeX through, and everything wrong is reported at once:
 
-```python
+```py
 tex = pkg.document(
     CardBack(Name("Rex"), Fact("Friendly & loyal."), Fact("50% of $5")),
     settings=[FactGap(Length("3mm"))],       # values for the whole document
     options=["a4paper"],
 )
-CardBack(Fact("x")).validate()   # [Violation(TM-C002 ...), Violation(TM-C001 path='CardBack/Fact[0]' ...)]
+CardBack(Fact("x")).violations()   # [Violation(TM-C002 ...), Violation(TM-C001 path='CardBack/Fact[0]' ...)]
 ```
 
 ```toml
@@ -158,13 +131,31 @@ package = ["acme_cards.core:pkg", "acme_cards.birds:pkg"]      # or "acme_cards.
 
 `texmodel schema` describes one package's data, so it needs a single `package`.
 
+>>>>>>> claude/amazing-elbakyan-00aea5
 ```zsh
 texmodel build     # writes generated/acme-cards.sty
-texmodel render docs:card   # writes card.tex from `card = pkg.document(...)` (or a function returning one); -o to choose
-texmodel check     # exit 1 if a committed generated file is stale, missing or orphaned; a stale line names its component
-                   # (`changed generated/acme-cards.sty Fact: ...`)
+texmodel check     # exit 1 if a committed generated file is stale, missing or orphaned
 ```
 
+<<<<<<< HEAD
+- **Deterministic.** No timestamps or hashes; the header records the generator version.
+- **Checked early.** A bad declaration is refused when the class is defined, with a stable code (`TM-M0xx`) and the class
+  named. A bad document reports everything wrong at once, each with a path.
+- **Typed.** `Text` is escaped, `Raw` passes through; `Length`, colours, flags, choices and key lists are values, not strings.
+- **No TeX needed to run.** The library never starts a process. `texmodel-build` is the optional `latexmk` driver.
+
+## Documentation
+
+| | |
+|---|---|
+| [Getting started](docs/getting-started.md) | declare, render, check: a worked first package |
+| [Guide](docs/guide/components.md) | components, arguments, values, documents, adopting existing TeX, testing |
+| [Cookbook](docs/cookbook.md) | worked examples |
+| [Known limitations](docs/known-limitations.md) | what it does not do |
+| [Plan and decisions](docs/texmodel-plan.md) | the target specification and the decisions log |
+
+`pdm run mkdocs serve` builds the same pages as a site.
+=======
 ```latex
 % generated/acme-cards.sty (excerpt)
 \RequirePackage{xcolor}
@@ -192,7 +183,7 @@ Components that repeat a body or a grammar share a base declared `abstract=True`
 `end`) and `children`; it needs no docstring and may have any Python name (`_Image`); it is never registered
 (`TM-M043`), and its subclasses inherit all of it:
 
-```python
+```py
 class _Image(Command, abstract=True):
     src: Text
     def body(self): return r"\includegraphics{#src}"
@@ -209,7 +200,7 @@ a bad control word. `Group(...)` is `{...}`, `Seq(...)` the same without braces,
 only, else `TM-M027`; `_` and `:` too in `Syntax.EXPL3`), `Lit("50% & co")` text escaped as a `Text` field is, and `Hole`, `Ref` and `Raw` go inside. A space
 follows a control word when the next text could continue its name. Loops and conditions are plain Python:
 
-```python
+```py
 class Rating(Command):
     '''Says which level it has.'''
     level: Level                                   # a Choice whose members are macros: \lvLow, \lvHigh
@@ -238,7 +229,7 @@ added, `#1` and `##1` as written, in registration order among the package's item
 checks are balanced braces (`TM-M011`) and no `\ExplSyntaxOn` / `\ExplSyntaxOff` inside an `EXPL3` block (`TM-M034`). Every
 line of the block has its name as its plan path, and a name is used once (`TM-M007`). `source` is a string or a `TemplateRef`.
 
-```python
+```py
 sizing = pkg.library("sizing", r"""
     \fp_new:N \l__cd_size_fp
     \newcommand{\cdFitSize}[2]{ \fp_set:Nn \l__cd_size_fp { min ( 14 , max ( 8 , 12 * #2 / #1 ) ) } }
@@ -290,7 +281,7 @@ A field is an argument; its type says what it holds and `arg(...)` says how it i
 Without `arg()`, a required field is `{...}` and an optional one (a default) is TeX's one optional argument, `[...]`,
 written first. With `arg()` the slot keeps its declaration order, so any signature can be stated:
 
-```python
+```py
 from texmodel.interface import PAREN, SQUARE, Gap, SlotGroup, Star, arg
 
 class MakeBox(Command):                       # \makebox[3cm][c]{x}
@@ -329,7 +320,7 @@ class Put(Command):                           # \put(1,2){x}
 A key list (`\adjustbox{max width=\linewidth, center}{...}`) is a `KeyVals`, a frozen pydantic model: its field types say
 how each item is written, and its `KeyRules` say how the library reads it.
 
-```python
+```py
 from texmodel.interface import Flag, Item, OptionalValue, Switch
 from texmodel.keys import PGFKEYS
 from texmodel.keyvals import KeyVals, key
@@ -359,7 +350,7 @@ value, which `{{ a }}` keeps in three of them (`l3keys` trims whatever it is giv
 A program that decides names at run time declares them with `pkg.make_command` and `pkg.make_value`; each builds the class and
 registers it, as the decorators do:
 
-```python
+```py
 name = pkg.make_command("Name", "the subject's name", fields={"name": (Raw, field(doc="the name"))}, body=r"\bb@title{#name}")
 cut = pkg.make_value("TechCut", Colour, "the cut line", default=CMYK(0, 0.4, 1, 0), colour_name="bbTechCut")
 ```
@@ -378,13 +369,19 @@ release. `describe(cls)` (`texmodel.components`) reports a registered command, e
 (`category`, `name`, `cs`, `doc`, `arguments` of `ArgumentInfo(name, optional, doc)`, a value's `python` type, `default` and
 `colour_name`); an unregistered class is `TM-M019`. `control_name(value)` and `Value.declared_default()` are the narrower ways.
 
+A command, an environment and a `Passthrough` are frozen pydantic models. Building one in Python checks nothing beyond the
+signature (`node.violations()` does, all at once); `node.model_fields_set` is the set of fields the caller passed,
+positionally or by keyword, a default given included (an environment's `content` is always in it). Equality and hashing
+compare the fields, not that set. A field cannot be named like an attribute every component has (`copy`, `json`, `render`,
+anything starting `model_`): `TM-M045`.
+
 ### Standard libraries
 
 `texmodel.std` has a header for each TeX library a deck loads: `latex` (the kernel), `graphicx`, `xcolor`, `geometry`,
 `etoolbox`, `eso_pic`, `microtype`, `hyphenat`, `anyfontsize`, `calc`, `pdfrender`, `enumitem`, `adjustbox`, `tikz`,
 `tcolorbox`, `fontspec`. A header is an adopted package with no prefix whose components name their TeX command with `cs`:
 
-```python
+```py
 class IncludeGraphics(Command):
     r"""Place a picture: `\includegraphics[width=3cm]{a.png}`."""
     cs = "includegraphics"            # the TeX name, stated outright; without `cs` it is prefix + class name
@@ -408,7 +405,7 @@ have no body, `build` writes no file, documents are still checked and escaped, a
 declaration with the TeX it names (`\newcommand`, `\providecommand` and `\newenvironment` are read; a name defined any
 other way counts as missing):
 
-```python
+```py
 pkg = Package("card-deck", prefix="cd", adopted=True)     # the package name is the hand-written one
 
 @pkg.command
@@ -443,7 +440,7 @@ complete example: a hand-written package, the generator it replaces and a 3-card
 
 ### A text setting
 
-```python
+```py
 @pkg.value
 class DeckName(Value[Text]):
     """The deck name printed on every card."""
@@ -464,7 +461,7 @@ text back. It is not for `\hypersetup{pdftitle=...}`: hyperref escapes its own i
 
 ### Layout that is not a component
 
-```python
+```py
 class Page(Environment):
     '''A page.'''
     children = [Name, Anywhere(Heading), Fact.times(2, 3), Passthrough.times.any()]
@@ -481,7 +478,7 @@ accepted only where a grammar lists it.
 A `Choice` is an enum whose members carry their TeX: a `Raw` passes through, a `str` is escaped. Use it as a field type
 (optionally `| None`); data names a member by its name.
 
-```python
+```py
 @enum.unique
 class SlotLabel(Choice):
     SOUND = Raw(r"\deckParamSound")
@@ -501,20 +498,21 @@ LabelledSlot(SlotLabel.SOUND, "A soft woof.")      # \cdLabelledSlot{\deckParamS
 `texmodel.spec` loads a document from plain data (what TOML or JSON gives), using pydantic: a child names its component with
 `"type"`, an environment's children are its `content`, a `Raw` field takes a string.
 
-```python
+```py
 from texmodel.spec import from_dict, json_schema, to_dict
 
 card = from_dict(Card, {"content": [
     {"type": "CardFront", "content": [{"type": "CardImage", "path": "a.jpg"}]},
     {"type": "CardBack", "content": [{"type": "Name", "text": "Fox"}, {"type": "LeadFact", "text": "..."}]},
 ]})
-card.validate()      # the grammar (counts, order) is checked here, as for any tree
+card.violations()      # the grammar (counts, order) is checked here, as for any tree
 to_dict(card)        # the same shape back
 json_schema(Card)    # JSON Schema of what from_dict accepts
 ```
 
 Everything wrong comes at once as an `ExceptionGroup` of `ValidationError` (`TM-C020`), each with a path such as
-`Card/CardBack[1]/LeadFact[2].text`.
+`Card/CardBack[1]/LeadFact[2].text`. `to_dict` writes the fields a node was given (`model_fields_set`), so data loaded and
+written back keeps its keys, and a default the author left out stays out.
 
 ### A schema for the package's data
 
@@ -522,7 +520,7 @@ Everything wrong comes at once as an `ExceptionGroup` of `ValidationError` (`TM-
 command and environment (a child is told apart by its `"type"` constant) and `Value.<Name>` for every value, for editors and
 validators of the TOML or JSON that `from_dict` reads. A renamed field keeps loading under its old key:
 
-```python
+```py
 class Fact(Command):
     '''One fact.'''
     text: Text = field(renamed_from="body")       # {"body": "..."} loads; to_dict writes "text"; the schema has x-renamed-from
@@ -542,7 +540,7 @@ pointer rewrites every configured document.
 
 ### Comments
 
-```python
+```py
 from texmodel.body import Comment
 
 class CardHeader(Comment):
@@ -560,15 +558,16 @@ pkg.document(CardHeader("Red Fox", "11111111-aaaa"), Card(...))     # % Card: Re
 Every line of a `Comment` is prefixed `% `, so a value cannot leave it; nothing is escaped (`##` is a `#` in a template). It
 is a body piece (`yield Comment("why this is 3mm")`) and a document node: a child of an environment or a top-level node, and
 transparent to the grammar (not counted, never listed, paths keep the real index: `Card[3]/CardHeader[0]`). It needs no
-package registration. `plan.edits(text, ignore_comments=True)` skips lines that are comments on both sides;
-`from_dict(cls, data, comments=[CardHeader])` and `json_schema(cls, comments=[...])` know it as a child (`"type": "CardHeader"`).
+package registration. `plan.edits(text, ignore_comments=True)` skips lines that are comments on both sides. In data a
+child may be a `Comment` (`"type": "Comment"`) or one of the classes its environment's package lists,
+`Package("card-deck", prefix="cd", comments=[CardHeader])`: `from_dict` and `json_schema` know it (`"type": "CardHeader"`).
 
 ### Testing generated code with stubs
 
 A component's body decides what it passes on to other components. `expand(node, stubs=[Fact])` (`texmodel.testing`) walks the
 bodies with the node's values and returns the body text and a `Call` for every stubbed component, in order, with no TeX:
 
-```python
+```py
 from texmodel.testing import Call, expand
 
 section = Section(Entry("First"), Entry("R&D 50%"), title="Notes")
@@ -633,17 +632,12 @@ image = "releaseart/lualatex-python:latest"   # runs `docker run` over it; omit 
 ## Where it is going
 
 Open work is in [the plan](docs/texmodel-plan.md) (§19, §21a) and [the roadmap](docs/briefs/roadmap.md).
+>>>>>>> claude/amazing-elbakyan-00aea5
 
 ## Development
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). `bin/autoformat.sh` runs ruff, strict pyright and import-linter over both packages;
-`bin/test.sh` runs pytest with a 100% coverage gate. The container compile suite is `pytest -m tex`; it skips without an
-image that has `latexmk`, and `TEXMODEL_REQUIRE_TEX=1` turns that skip into a failure (`TEXMODEL_TEST_IMAGE` sets the image).
-`bin/test-image.sh` builds `texmodel-test` from `docker/test/Dockerfile`: the published reference image plus the few TeX
-packages the suite needs that it does not carry yet (`TEXMODEL_TEST_IMAGE=texmodel-test pdm run pytest -m tex`); CI uses it.
-
-Public API is the top-level modules of each package; everything under `_internal` may change. Report vulnerabilities as
-described in [SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Public API is the top-level modules of each package; everything under `_internal` may
+change. Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
 ## Licence
 

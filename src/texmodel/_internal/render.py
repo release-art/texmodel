@@ -316,20 +316,35 @@ def written(arg: Arg, value: object) -> bool:
 def arguments(args: tuple[Arg, ...], values: Mapping[str, object], syntax: Syntax = Syntax.LATEX2E) -> str:
     """`[Sound]{A soft woof.}`: every written slot in TeX order. An optional slot left out while a later optional one is
     written gets its `fill`; a slot left out otherwise is just not there (xparse needs nothing in its place)."""
+    return call_arguments(args, values, syntax)[0]
+
+
+def call_arguments(
+    args: tuple[Arg, ...], values: Mapping[str, object], syntax: Syntax = Syntax.LATEX2E
+) -> tuple[str, tuple[tuple[str, int, int], ...]]:
+    """`arguments`, and for each written slot `(name, start, end)`: where its text stands in the result, delimiters
+    excluded (a token is its own text). A `fill` is written without a value, so it has none."""
     ordered = tex_arguments(args)
     shown = [written(a, values[a.name]) for a in ordered]
     out: list[str] = []
+    spans: list[tuple[str, int, int]] = []
+    at = 0
     for i, a in enumerate(ordered):
+        piece = ""
         if shown[i]:
-            out.append(argument(a, values[a.name], syntax))
+            piece = argument(a, values[a.name], syntax)
+            edge = 0 if a.token else 1
+            spans.append((a.name, at + edge, at + len(piece) - edge))
         elif (
             a.optional
             and not a.token
             and isinstance(a.fill, str)
             and any(shown[j] and ordered[j].optional and not ordered[j].token for j in range(i + 1, len(ordered)))
         ):
-            out.append(wrap(a.delimiter, a.fill))
-    return "".join(out)
+            piece = wrap(a.delimiter, a.fill)
+        out.append(piece)
+        at += len(piece)
+    return "".join(out), tuple(spans)
 
 
 def argument_violations(a: Arg, value: object) -> str | None:

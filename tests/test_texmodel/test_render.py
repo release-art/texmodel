@@ -1,9 +1,11 @@
 import importlib.metadata
 import pathlib
+import zipfile
 
+import pydantic
 import pytest
 
-from texmodel import drift
+from texmodel import drift, package
 from texmodel._internal.render import snake
 from texmodel.body import TemplateRef
 from texmodel.components import Command, Environment
@@ -45,7 +47,7 @@ def test_optional_fields_are_keyword_only_and_components_are_frozen(acme):
     assert acme.Slot("a", label="b").label == "b" and acme.Slot("a").label is None
     with pytest.raises(TypeError):
         acme.Slot("a", "b")  # pyright: ignore[reportCallIssue]
-    with pytest.raises(AttributeError):
+    with pytest.raises(pydantic.ValidationError, match="frozen"):
         acme.Slot("a").text = "x"  # pyright: ignore[reportAttributeAccessIssue]
     assert acme.Fact("x") == acme.Fact("x") and hash(acme.Fact("x")) == hash(acme.Fact("x"))
 
@@ -150,6 +152,23 @@ def test_a_template_ref_reads_a_file_relative_to_the_defining_module_or_absolute
         body = TemplateRef(absolute)
 
     assert p.command(Abs) is Abs and "\\par rel" in p.render(version="0.1.0")
+
+
+def test_a_template_ref_is_read_from_a_zip_on_the_path(tmp_path, monkeypatch):
+    archive = tmp_path / "decl.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr(
+            "zipped_mod.py",
+            "from texmodel.body import TemplateRef\nfrom texmodel.components import Command\n"
+            'class Rel(Command):\n    """Relative."""\n    body = TemplateRef("zipped.tex")\n',
+        )
+        z.writestr("zipped.tex", "\\par zipped")
+    monkeypatch.syspath_prepend(str(archive))
+    import zipped_mod  # pyright: ignore[reportMissingImports]
+
+    p = pkg()
+    p.command(zipped_mod.Rel)
+    assert "\\par zipped" in p.render(version="0.1.0")
 
 
 def test_a_template_ref_to_a_missing_file_is_refused_when_the_class_is_defined():
@@ -281,6 +300,15 @@ def test_snake_and_generator_version(monkeypatch):
     assert generator_version().count(".") == 2
     monkeypatch.setattr(importlib.metadata, "version", lambda name: "unversioned")
     assert generator_version() == "0.0.0"
+
+
+def test_a_generator_version_constant_is_read_before_the_installed_metadata(monkeypatch):
+    def no_metadata(name: str) -> str:
+        raise importlib.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(importlib.metadata, "version", no_metadata)
+    monkeypatch.setattr(package, "GENERATOR_VERSION", "2.3.4.dev5+local")
+    assert generator_version() == "2.3.4"
 
 
 def test_a_body_attribute_is_dedented_and_trimmed_so_a_triple_quoted_string_reads_as_it_renders():

@@ -14,7 +14,7 @@ Needs an owner decision first:  X1 data-driven render   X2 hand-edit semantics  
 
 ## Rules for every batch (the brief an agent starts from)
 
-- Work in `/Users/ilo/Devel/Release.art/texmodel`. Read `README.md`, `CONTRIBUTING.md`, the plan sections named in the batch,
+- Work in `/Users/ilo/Devel/Release.art/texmodel`. Read `README.md`, the guide in `docs/`, `CONTRIBUTING.md`, the plan sections named in the batch,
   and the modules named under "Touches". Do not commit, push or change GitHub settings.
 - Conventions (they override defaults): explicit over implicit (named methods and enums, no name-based lookup, no magic
   strings); every `Enum` is decorated with `@enum.unique`; docs and comments describe the current state only (no "changed", "no longer", "formerly");
@@ -28,7 +28,7 @@ Needs an owner decision first:  X1 data-driven render   X2 hand-edit semantics  
 - Done = all of these pass with no new warnings: `pdm run ruff format --check src tests`,
   `pdm run ruff check src tests`, `pdm run pyright`, `pdm run lint-imports`, `pdm run pytest` (100%),
   `pdm run pip-audit`, `TEXMODEL_REQUIRE_TEX=1 pdm run pytest -m tex --no-cov` (needs Docker).
-- Update the README, `CHANGELOG.md` and the plan (remove the item from §21a; add decision rows to §21). Report at the end: what
+- Update the guide, `CHANGELOG.md` and the plan (remove the item from §21a; add decision rows to §21). Report at the end: what
   changed, what was verified, what was not, failures included. If a decision turns out to be large or irreversible, stop,
   write the question and a recommended answer at the top of the report, and finish the parts that do not depend on it.
 
@@ -39,8 +39,9 @@ Needs an owner decision first:  X1 data-driven render   X2 hand-edit semantics  
 - **X1 Data-driven rendering (plan 15).** Open: the shape of the declared field mapping (joins, slot order, policies),
   where it lives, and reopening the parked TOML frontend. Proposed: a `Mapping` object next to the components, `texmodel render
   --data file.toml <pointer>`. Needs a design review.
-- **X2 Hand-edit semantics (plan 6).** Open: keyed children (path by id), the ignore-marker rule, the import hook. Needs the
-  consumer's real workflow.
+- **X2 Hand-edit semantics (plan 6).** Open: keyed children (path by id), the ignore-marker rule, the import hook, a
+  `texmodel-build` command over `read_edits`, `Doc.apply(edits)`, settings read by TeX (`\the\lbGap`, `\extractcolorspec`), a
+  tree-aware diff, a scan for a redefined stubbed macro. Needs the consumer's real workflow.
 - **X3 Rules layer and placement (plan 7, D5, M5).** Open: the `@rule` API and severities. Needs a design review.
 - **X4 `List[T]` fields (plan 1).** Open: how a list renders (separator, per-item wrapper, empty list). Needs a decision.
 - **X5 Gate B closing.** A first-time author timing a new component, and a second consumer whose history has an escaping bug

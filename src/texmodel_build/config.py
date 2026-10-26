@@ -56,3 +56,6 @@ def load_build_config(pyproject: pathlib.Path) -> BuildConfig:
 
 def _profile(name: str, body: dict[str, Any]) -> Profile:
     return Profile(name=name, checks=tuple(body.get("checks", ())), options=body.get("options", {}))
+
+
+__all__ = ["BuildConfig", "Target", "load_build_config"]

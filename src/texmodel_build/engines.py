@@ -33,3 +33,6 @@ def get_engine(name: str) -> Engine:
         return ENGINES[name]
     except KeyError:
         raise DeclarationError(f"unknown engine {name!r}", code="TM-D010", hint=f"known: {sorted(ENGINES)}") from None
+
+
+__all__ = ["ENGINES", "Engine", "LUALATEX", "get_engine"]

@@ -27,7 +27,7 @@ class MigrationError(TexmodelError):
 
 @dataclasses.dataclass(frozen=True)
 class Violation:
-    """One broken rule in a Doc (D5, E2): `validate()` returns them all; raising APIs raise an `ExceptionGroup`."""
+    """One broken rule in a Doc (D5, E2): `violations()` returns them all; raising APIs raise an `ExceptionGroup`."""
 
     code: str
     path: str
@@ -36,3 +36,6 @@ class Violation:
 
     def error(self) -> ValidationError:
         return ValidationError(self.message, code=self.code, path=self.path, hint=self.hint)
+
+
+__all__ = ["DeclarationError", "MigrationError", "TexmodelError", "ValidationError", "Violation"]

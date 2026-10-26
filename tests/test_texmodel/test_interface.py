@@ -22,6 +22,7 @@ from texmodel.interface import (
     SQUARE,
     ColourName,
     Delimiter,
+    FieldNotes,
     Gap,
     SlotGroup,
     Star,
@@ -186,11 +187,11 @@ def test_a_gap_that_is_refused_and_a_group_that_is_all_or_none():
         c: Text
 
     assert Strict("c", a="1").render() == r"\strict[1]{c}"
-    assert [v.code for v in Strict("c", b="2").validate()] == ["TM-C005"]
+    assert [v.code for v in Strict("c", b="2").violations()] == ["TM-C005"]
     with pytest.raises(ExceptionGroup):
         Strict("c", b="2").render()
     assert Grouped("c").render() == r"\grouped{c}" and Grouped("c", a="1", b="2").render() == r"\grouped(1)[2]{c}"
-    (v,) = Grouped("c", a="1").validate()
+    (v,) = Grouped("c", a="1").violations()
     assert v.code == "TM-C004" and "['b']" in v.message
 
 
@@ -303,9 +304,9 @@ def test_each_value_type_is_written_and_checked():
         r"\everything{2mm}{3}{true}{0,0,0,1}{blue!50}{r}{1cm,\linewidth}{2,3}{a \& b,2}{1,2}{1pt,x\_y}"
         r"{\detokenize{A \050b\051}}{0.5}"
     )
-    assert node.validate() == []
+    assert node.violations() == []
     bad = Everything("2mm", 3.5, 1, RGB(0, 0, 0), "9", "right", (1, 2), Size(1, "x"), (1, 2), [1, "x"], (1,), 3, True)  # pyright: ignore[reportArgumentType]
-    assert {v.path.rsplit(".", 1)[1] for v in bad.validate()} == {
+    assert {v.path.rsplit(".", 1)[1] for v in bad.violations()} == {
         "length", "n", "flag", "name", "align", "place", "size", "pair", "many", "fixed", "hole", "ratio",
     }  # fmt: skip
     assert Everything.__tm_args__[0].body.describe() == "Length"
@@ -351,7 +352,7 @@ def test_the_rest_of_the_value_helpers():
         a: set[int]
 
     assert body_of(Odd) is None
-    assert arg(renamed_from="old").metadata["renamed_from"] == "old"
+    assert FieldNotes("old") in arg(renamed_from="old").metadata
     assert scan_declarations(r"\NewDocumentCommand{\cdOpen}{m", "cd") == {"cdOpen": "?"}
 
 

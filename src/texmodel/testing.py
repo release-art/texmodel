@@ -16,14 +16,18 @@ runs of spaces are one, so both tiers agree byte for byte.
 """
 
 import dataclasses
-import re
 import typing
 from collections.abc import Mapping, Sequence
 
+from ._internal.read import (
+    detokenized as detokenized,
+    read_value,
+)
 from ._internal.render import Arg, argument_text, newcommand_fits, signature, tex_arguments, xparse_spec
 from .body import HOLE, Comment, Cs, Group, Hole, Library, Lit, Ref, RefKind, Seq, TexRaw
 from .components import Command, Environment, Node, Passthrough, Resolved, control_name
 from .errors import DeclarationError, Violation
+from .plan import FieldEdit
 from .types import Raw, escape
 
 type Component = type[Command] | type[Environment]
@@ -31,7 +35,6 @@ type Component = type[Command] | type[Environment]
 if typing.TYPE_CHECKING:
     from .package import Package
 
-_CONTROL_WORD = re.compile(r"\\[A-Za-z]+")
 _COUNTER = r"\tmstubcalls"
 _HEADS = {RefKind.CALL: "", RefKind.OPEN: "begin:", RefKind.CLOSE: "end:"}
 
@@ -77,26 +80,26 @@ class Call:
         return cls(name, tuple(_groups(brace + rest)), kind)
 
 
-def detokenized(tex: str) -> str:
-    """`tex` as `\\detokenize` shows a macro argument: leading spaces gone, a run of spaces one, and a space after
-    each control word (which also swallows the spaces that followed it)."""
-    out: list[str] = []
-    i, text = 0, tex.lstrip()
-    while i < len(text):
-        word = _CONTROL_WORD.match(text, i)
-        if word:
-            out.append(word[0] + " ")
-            i = word.end()
-        elif text[i] == "\\":
-            out.append(text[i : i + 2])
-            i += 2
-        else:
-            out.append(" " if text[i].isspace() else text[i])
-            i += 1
-        if out[-1].endswith(" "):  # after a control word or a space: further spaces are skipped
-            while i < len(text) and text[i].isspace():
-                i += 1
-    return "".join(out)
+def read_call(cls: Component, call: Call) -> tuple[FieldEdit, ...]:
+    """Each argument of `call` as a `FieldEdit`: its field, its text and the typed value that text reads back to. An
+    optional argument left out or empty has no value. A text that is not a value of the field's type has a
+    `Violation` (`TM-C021`) whose path is the field; what the text cannot say (a colour's model, a key list) has
+    neither value nor violation. A closing call has no arguments."""
+    if call.kind is RefKind.CLOSE:
+        return ()
+    out: list[FieldEdit] = []
+    for a, text in zip(tex_arguments(_args(cls)), call.args, strict=True):
+        if a.optional and not a.token and not text:
+            out.append(FieldEdit(a.name, text))
+            continue
+        try:
+            out.append(FieldEdit(a.name, text, read_value(a.body, text, booleans=a.booleans, sep=a.sep)))
+        except NotImplementedError:
+            out.append(FieldEdit(a.name, text))
+        except ValueError as exc:
+            hint = f"expected {a.body.describe()}"
+            out.append(FieldEdit(a.name, text, violation=Violation("TM-C021", a.name, f"{a.name}: {exc}", hint=hint)))
+    return tuple(out)
 
 
 def _text(a: Arg, value: object) -> str:
@@ -306,4 +309,4 @@ def check_exports(package: "Package", probes: Mapping[str, str]) -> list[Violati
     return out
 
 
-__all__ = ["Call", "check_exports", "detokenized", "expand", "export_probes", "stub_tex"]
+__all__ = ["Call", "Component", "check_exports", "detokenized", "expand", "export_probes", "read_call", "stub_tex"]

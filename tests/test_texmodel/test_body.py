@@ -1,6 +1,7 @@
 """Body pieces (M8): `TexRaw`, `Whitespace`, sequences and generators, and the package default."""
 
-from texmodel.body import TemplateRef, TexRaw, Whitespace, join, pieces_of
+from texmodel._internal.pieces import pieces_of
+from texmodel.body import TemplateRef, TexRaw, Whitespace, join
 from texmodel.components import Command, Environment
 from texmodel.package import Package
 from texmodel.types import Text

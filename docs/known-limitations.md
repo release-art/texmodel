@@ -9,6 +9,10 @@ What texmodel does not do or does not check today. Planned work is in [the plan]
   `\newlength`, `\newsavebox`, `\newfontfamily`, `\newtoggle`, `\newif`, `\definecolor`/`\colorlet` and `\newcounter`; a name
   defined another way counts as missing, and a library written in expl3 is not read, and an xparse type it does not model (`v`, `u`, `g`, `e`) is reported as
   `?` and matches nothing.
+- A copy of texmodel embedded where its installed metadata cannot be read must set `texmodel.package.GENERATOR_VERSION`,
+  or the stamp of generated files is the version of whichever texmodel is installed (or `0.0.0`).
+- `texmodel_build.fonts` reads the font listing LuaTeX ends its log with; a compile that stopped early has none, and a font
+  inside an included PDF is never listed.
 - Python 3.15 and LuaLaTeX only. Compiling needs the reference image (or a local TeX Live with `latexmk`).
 - Not built: release migrations, `Doc` trees from data with migrations, trust levels and the injection corpus, the
   sandbox verification, `texmodel-print`, a rules layer, `List[T]` settings (`Value[...]` takes `Length`, `Colour`, `bool`,
@@ -26,13 +30,29 @@ What texmodel does not do or does not check today. Planned work is in [the plan]
 - A colour model (`CMYK`, `RGB`, `Gray`) writes its components, `0,0,0,1`, which suits `\definecolor` and
   `\color[cmyk]{...}`; a macro that wants a name takes `ColourName`.
 - A `KeyVals` that fails its own checks (`exclusive`, `requires`, a wrong type) raises pydantic's `ValidationError` when it
-  is built, not a `Violation` from `validate()`.
+  is built, not a `Violation` from `violations()`.
 - Key libraries differ in ways the presets only partly capture. `KeyRules` was measured against pgfkeys, xkeyval, keyval
   and l3keys with a corpus of awkward values (`tests/test_texmodel/test_interface_tex.py`); `KVOPTIONS` was not. A space at
   the end of a value is kept by `{{ a }}` in three of the four and trimmed by `l3keys`; a library that treats braces
   differently from these needs its own `KeyRules`.
 - A `Raw` value or `Item[Raw]` is written as given: texmodel checks only that its braces balance.
-- The names `content` (an environment's children) and `type` (the component in data) are not usable as field names.
+- The names `content` (an environment's children) and `type` (the component in data) are not usable as field names, nor
+  any attribute every component has (`copy`, `json`, `render`, a `model_` name: `TM-M045`).
+- pyright checks a command's and a `Passthrough`'s arguments, not an environment's keywords: `dataclass_transform` cannot
+  describe positional children.
+
+## Hand edits
+
+- `Edit.fields` is empty when a change is over a delimiter, the command name or several arguments, and for a call over
+  several lines. A baseline saved before `Line.spans` gives node-level edits only.
+- `read_edits` reads what TeX runs through stubs, so it does not see: an extra argument (`\x{a}{b}`: the group is typeset),
+  an unstubbed line, a body error a value causes (the stubs never run bodies, so a compile that passes is not the document
+  compiling), or a stubbed macro the text redefines (its calls vanish). A missing argument swallows the next call, so one
+  edit reads as two. Those lines come back as `UNREAD` or `ADDED`/`REMOVED` from the line diff, never as clean.
+- An omitted optional argument and an empty one (`[]`) are the same call. Spaces in text read back as one. Equal neighbouring
+  calls have no identity: a deleted one is named by position. A move across environments reads as the close moved.
+- A key list, a PDF string, a `Raw` subclass and a colour in a `Value` are not read (no value, no violation); a record
+  reads as a plain tuple; a length written `3 cm` is read, and `3mm` against `0.3 cm` are two values.
 
 ## The standard headers
 

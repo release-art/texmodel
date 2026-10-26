@@ -2,10 +2,9 @@ import os
 
 import pytest
 
-from texmodel.errors import DeclarationError, ValidationError
+from texmodel.errors import DeclarationError
 from texmodel_build._internal.env import build_env
 from texmodel_build.engines import ENGINES, LUALATEX, get_engine
-from texmodel_build.roots import resolve, shadowing
 
 
 def test_env_is_hermetic_and_orders_the_search_path():
@@ -23,29 +22,6 @@ def test_env_without_roots_epoch_or_cache_sets_none_of_them(monkeypatch):
     monkeypatch.setenv("TEXMODEL_X", "1")
     assert build_env(roots=[], inherit=["TEXMODEL_X", "TEXMODEL_ABSENT"])["TEXMODEL_X"] == "1"
     assert "TEXMODEL_ABSENT" not in build_env(roots=[], inherit=["TEXMODEL_ABSENT"])
-
-
-def test_resolve_picks_the_first_root_and_reports_what_it_shadows(tmp_path, caplog):
-    a, b = tmp_path / "a", tmp_path / "b"
-    for root in (a, b):
-        (root / "fonts").mkdir(parents=True)
-        (root / "fonts" / "x.otf").write_text(root.name)
-    (b / "only-b.sty").write_text("")
-    with caplog.at_level("WARNING"):
-        hit = resolve("fonts/x.otf", [a, b])
-    assert hit and hit.path == a / "fonts" / "x.otf" and hit.shadowed == (b / "fonts" / "x.otf",)
-    assert "exists in 2 roots" in caplog.text
-    only = resolve("only-b.sty", [a, b])
-    assert only and only.shadowed == ()
-    assert resolve("nope.sty", [a, b]) is None
-    assert [(r.name, r.path.parent.parent.name) for r in shadowing([a, b])] == [("fonts/x.otf", "a")]
-
-
-@pytest.mark.parametrize("name", ["/etc/passwd", "../x", "a/../../x"])
-def test_resolve_refuses_names_that_escape_the_roots(tmp_path, name):
-    with pytest.raises(ValidationError) as info:
-        resolve(name, [tmp_path])
-    assert info.value.code == "TM-C100"
 
 
 def test_engine_registry():

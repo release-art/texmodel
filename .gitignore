@@ -258,3 +258,6 @@ mutants/
 
 # Gate B report: describes a private consumer
 docs/briefs/gate-b-report.md
+
+# mkdocs build output
+site/
