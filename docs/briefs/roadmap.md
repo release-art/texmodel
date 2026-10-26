@@ -20,7 +20,7 @@ Needs an owner decision first:  X1 data-driven render   X2 hand-edit semantics  
   strings); every `Enum` is decorated with `@enum.unique`; docs and comments describe the current state only (no "changed", "no longer", "formerly");
   `CHANGELOG.md` (`## [Unreleased]`) lists what differs from the last release under Added, Changed, Removed and Fixed; errors are
   `DeclarationError(msg, code=, path=, hint=)` with a new stable `TM-xxxx` code (grep for the next free one); frozen
-  dataclasses; no `Any` in public signatures; only `cli.py` prints; line length 120; docstrings cite plan ids; lean diffs,
+  pydantic models (components) and dataclasses; no `Any` in public signatures; only `cli.py` prints; line length 120; docstrings cite plan ids; lean diffs,
   reuse what exists, no scaffolding for later.
 - Tests: pytest, hypothesis where there is a law, `monkeypatch` (no manual `sys.path` edits), 100% coverage across both
   packages. Consumer-shaped tests use `tests/consumers/card_deck/` (synthetic, made-up data). **Never** add anything from a

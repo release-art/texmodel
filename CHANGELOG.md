@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The README had unresolved merge conflict markers and a second copy of the guide; it is the short front page again.
 - The guide called `validate()`, which is `violations()`.
+- The guide describes what a node is (`model_fields_set`, frozen) and `GENERATOR_VERSION`; the pull request template asks for
+  a changelog line, not a fragment.
 
 ## [0.4.0] - 2026-10-26
 

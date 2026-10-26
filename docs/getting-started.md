@@ -67,7 +67,7 @@ assert r"\newcommand{\acFact}[1]{%" in sty
 ```
 
 ```latex
-% acme-cards.sty -- generated with texmodel 0.3.3. Do not edit; run `texmodel build`.
+% acme-cards.sty -- generated with texmodel 0.4.0. Do not edit; run `texmodel build`.
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{acme-cards}[2026/10/21 v1.4.0 acme-cards]
 

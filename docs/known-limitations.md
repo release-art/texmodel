@@ -9,10 +9,6 @@ What texmodel does not do or does not check today. Planned work is in [the plan]
   `\newlength`, `\newsavebox`, `\newfontfamily`, `\newtoggle`, `\newif`, `\definecolor`/`\colorlet` and `\newcounter`; a name
   defined another way counts as missing, and a library written in expl3 is not read, and an xparse type it does not model (`v`, `u`, `g`, `e`) is reported as
   `?` and matches nothing.
-- A copy of texmodel embedded where its installed metadata cannot be read must set `texmodel.package.GENERATOR_VERSION`,
-  or the stamp of generated files is the version of whichever texmodel is installed (or `0.0.0`).
-- `texmodel_build.fonts` reads the font listing LuaTeX ends its log with; a compile that stopped early has none, and a font
-  inside an included PDF is never listed.
 - Python 3.15 and LuaLaTeX only. Compiling needs the reference image (or a local TeX Live with `latexmk`).
 - Not built: release migrations, `Doc` trees from data with migrations, trust levels and the injection corpus, the
   sandbox verification, `texmodel-print`, a rules layer, `List[T]` settings (`Value[...]` takes `Length`, `Colour`, `bool`,
@@ -40,6 +36,13 @@ What texmodel does not do or does not check today. Planned work is in [the plan]
   any attribute every component has (`copy`, `json`, `render`, a `model_` name: `TM-M045`).
 - pyright checks a command's and a `Passthrough`'s arguments, not an environment's keywords: `dataclass_transform` cannot
   describe positional children.
+
+## Building
+
+- `texmodel_build.fonts` reads the font listing LuaTeX ends its log with; a compile that stopped early has none, and a font
+  inside an included PDF is never listed.
+- A copy of texmodel embedded where its installed metadata cannot be read must set `texmodel.package.GENERATOR_VERSION`,
+  or the stamp of generated files is the version of whichever texmodel is installed (or `0.0.0`).
 
 ## Hand edits
 

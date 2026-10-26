@@ -77,10 +77,10 @@ TEXMODEL_REQUIRE_TEX=1 pdm run pytest -m tex --no-cov   # when output, the scan 
 - Errors: `DeclarationError(message, code="TM-Mxxx", path=, hint=)` (or `Violation` for a document problem) with a **new, stable
   code**: `grep -rhoE "TM-[A-Z][0-9]+" src | sort -u` for the next free one; a code is never reused. Say what is wrong, where
   (class and field), and the fix.
-- Components and values are frozen dataclasses; output is a pure function of the declaration: no clocks, hashes, set or dict
+- Components are frozen pydantic models and values frozen dataclasses; output is a pure function of the declaration: no clocks, hashes, set or dict
   order in what is rendered. A `Value` is a `ValueKind` (data), not a branch in the renderer.
 - Optional fields are written `arg(default=...)` so a type checker reads them as keyword-only.
-- Pydantic is used at the data boundary (`spec`, `KeyVals`, `library(fill=)` models); component classes stay stdlib dataclasses.
+- Pydantic is used at the data boundary (`spec`, `KeyVals`, `library(fill=)` models) and is the base of `Command`, `Environment` and `Passthrough`, which are built without validating.
   Lax coercion is fine: pyright catches mismatches at the source.
 - Scanning TeX is regex-level and honest about it (a name defined another way counts as missing); it never silently accepts.
   Reading hand-written TeX beyond that is parked (plan N1); raise it only if the work needs it.
