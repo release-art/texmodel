@@ -103,6 +103,7 @@ from ._internal.render import (
     ValueSpec,
     argument_violations,
     arguments,
+    call_arguments,
     check_name,
     tex_arguments,
     written,
@@ -788,17 +789,25 @@ def _render(node: Command | Environment | Passthrough) -> str:
     return _emit(node)
 
 
+def call_line(node: Command | Environment) -> tuple[str, tuple[tuple[str, int, int], ...]]:
+    """The call of a command, or the `\\begin` line of an environment, and where each argument's text stands in it as
+    `(field, start, end)` (delimiters excluded)."""
+    cls = type(node)
+    name = control_name(cls)
+    args, spans = call_arguments(cls.__tm_args__, {a.name: getattr(node, a.name) for a in cls.__tm_args__})
+    head = f"\\{name}" if isinstance(node, Command) else f"\\begin{{{name}}}"
+    return head + args, tuple((arg, start + len(head), end + len(head)) for arg, start, end in spans)
+
+
 def _emit(node: Node) -> str:
     if isinstance(node, Comment):
         return node.render()
     if isinstance(node, Passthrough):
         return node.tex.tex
-    cls = type(node)
-    name = control_name(cls)
-    args = arguments(cls.__tm_args__, {a.name: getattr(node, a.name) for a in cls.__tm_args__})
+    first = call_line(node)[0]
     if isinstance(node, Command):
-        return f"\\{name}{args}"
-    return "\n".join([f"\\begin{{{name}}}{args}", *map(_emit, node.content), f"\\end{{{name}}}"])
+        return first
+    return "\n".join([first, *map(_emit, node.content), f"\\end{{{control_name(type(node))}}}"])
 
 
 def _syntax(cls: type, *sources: Source | None) -> Syntax:

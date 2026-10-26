@@ -5,7 +5,8 @@ import pkgutil
 import texmodel_build
 
 PUBLIC = {
-    "cli", "compiler", "config", "diagnostics", "engines", "errors", "result", "roots", "targets", "testkit", "verify",
+    "cli", "compiler", "config", "diagnostics", "engines", "errors", "hand_edits", "result", "targets",
+    "testkit", "verify",
 }  # fmt: skip
 
 

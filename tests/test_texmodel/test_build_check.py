@@ -250,9 +250,9 @@ def test_a_family_is_refused_when_it_cannot_be_told_apart_or_is_not_packages(fam
 
 
 def test_a_pointer_names_one_package_or_a_family_of_distinct_names(family):
-    from texmodel.pointer import load_package, load_packages
+    from texmodel.pointer import load_packages
 
-    core = load_package("fam:core", family)
+    (core,) = load_packages("fam:core", family)
     assert (
         load_packages("fam:core", family) == (core,) and len(load_packages(["fam:family()", "fam:core"], family)) == 2
     )
@@ -260,7 +260,7 @@ def test_a_pointer_names_one_package_or_a_family_of_distinct_names(family):
     with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-D026"):
         load_packages(["fam:core", "other:core"], family)
     with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-D022"):
-        load_package("fam:Fact", family)
+        load_packages("fam:Fact", family)
 
 
 def test_the_header_may_have_no_date_and_carry_a_text_of_its_own():

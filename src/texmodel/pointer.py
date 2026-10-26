@@ -38,14 +38,6 @@ def _load(spec: str, root: pathlib.Path, what: str) -> Any:  # noqa: ANN401  # w
         raise DeclarationError(f"cannot load {spec!r}: {exc}", code="TM-D021", hint=f"check {what}") from exc
 
 
-def load_package(spec: str, root: pathlib.Path) -> Package:
-    """Require the loaded object to be a `Package`."""
-    package = _load(spec, root, "[tool.texmodel] package")
-    if not isinstance(package, Package):
-        raise DeclarationError(f"{spec!r} is a {type(package).__name__}, not a Package", code="TM-D022")
-    return package
-
-
 def load_packages(spec: str | Sequence[str], root: pathlib.Path) -> tuple[Package, ...]:
     """A project's packages: one pointer or a list of them, each naming a `Package` or an iterable of `Package`s (a
     family: a core, its bases, one per series). In first-mention order; naming one twice counts once, and two different

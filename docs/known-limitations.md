@@ -37,6 +37,19 @@ What texmodel does not do or does not check today. Planned work is in [the plan]
 - pyright checks a command's and a `Passthrough`'s arguments, not an environment's keywords: `dataclass_transform` cannot
   describe positional children.
 
+## Hand edits
+
+- `Edit.fields` is empty when a change is over a delimiter, the command name or several arguments, and for a call over
+  several lines. A baseline saved before `Line.spans` gives node-level edits only.
+- `read_edits` reads what TeX runs through stubs, so it does not see: an extra argument (`\x{a}{b}`: the group is typeset),
+  an unstubbed line, a body error a value causes (the stubs never run bodies, so a compile that passes is not the document
+  compiling), or a stubbed macro the text redefines (its calls vanish). A missing argument swallows the next call, so one
+  edit reads as two. Those lines come back as `UNREAD` or `ADDED`/`REMOVED` from the line diff, never as clean.
+- An omitted optional argument and an empty one (`[]`) are the same call. Spaces in text read back as one. Equal neighbouring
+  calls have no identity: a deleted one is named by position. A move across environments reads as the close moved.
+- A key list, a PDF string, a `Raw` subclass and a colour in a `Value` are not read (no value, no violation); a record
+  reads as a plain tuple; a length written `3 cm` is read, and `3mm` against `0.3 cm` are two values.
+
 ## The standard headers
 
 - `texmodel.std` covers the commands a deck uses, not each package. `adjustbox`, `graphicx`, `geometry`, `tcolorbox` and `tikz`

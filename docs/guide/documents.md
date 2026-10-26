@@ -134,6 +134,10 @@ assert plan.lines[0].path == "header"
 - `plan.text` is the document. Store `plan.to_json()` beside the committed file.
 - `Plan.from_json(saved).edits(text)` names each hand edit by the path it had when it was written, even if the model has
   changed since. `plan.edits(text, ignore_comments=True)` skips lines that are comments on both sides.
+- A changed line says which argument: `edit.fields` is `(FieldEdit("text", "Friendly"),)` when the change is inside one
+  argument's text, empty when it is over the command name, a delimiter or several arguments. A baseline saved without
+  `Line.spans` gives no fields. `texmodel_build.hand_edits.read_edits` reads the same edits with TeX, with typed values:
+  [Testing](testing.md#hand-edits-read-by-tex).
 - `plan.path_of(39)` names the component behind a log's `input line 39`.
 - `Compiler.compile(src, out, plan=plan)` does that for every diagnostic in the source: `diagnostic.path` is the component
   behind its line. `plans={"deck.sty": pkg.render_plan()}` does the same for diagnostics in other files, by file name.

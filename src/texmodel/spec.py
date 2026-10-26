@@ -28,7 +28,7 @@ from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode
 
 from .body import Comment
 from .components import Command, Environment, Node, Value
-from .errors import ValidationError, Violation
+from .errors import Violation
 from .package import Package
 
 
@@ -154,4 +154,4 @@ def json_schema(target: type[Command] | type[Environment] | Package) -> dict[str
     return schema
 
 
-__all__ = ["ValidationError", "from_dict", "json_schema", "to_dict"]
+__all__ = ["from_dict", "json_schema", "to_dict"]

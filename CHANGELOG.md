@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `Plan.edits` names the argument a hand edit changed: `Line.spans` (where each argument's text stands in a call or
+  begin line), `Edit.fields` and `FieldEdit(arg, found, value, violation)`; empty unless the change is inside one argument.
+- `texmodel_build.hand_edits.read_edits(compiler, plan, text, *packages)`: the same edits read by TeX through the stubs, with
+  the typed value of each changed argument or the `Violation` (`TM-C021`) saying it holds none, and `EditKind.UNREAD` for a
+  line that differs while TeX reads the same calls. `TM-X032` (the plan's calls and lines disagree), `TM-X033` (no
+  component to stub).
+- `texmodel.testing.read_call(cls, call)`: a stub's call as typed `FieldEdit`s. `components.call_line(node)`.
 - `node.model_fields_set`: the fields the caller passed, positionally or by keyword (a default given included), or the
   keys the data gave to `from_dict`.
 - `Package(comments=[...])`: the `Comment` subclasses data may hold in the package's environments.
@@ -16,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `Plan.to_json` writes a line's spans as a third element when it has any; a baseline without them loads (no spans).
 - `Command`, `Environment` and `Passthrough` are frozen pydantic models. Building one still validates nothing (the metaclass
   maps positional arguments and calls `model_construct`); assigning to a field raises `pydantic.ValidationError`, not
   `AttributeError`; `str(node)` is `repr(node)`.
@@ -31,6 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - The `comments=` argument of `from_dict` and `json_schema`: list the classes on the package.
+- `pointer.load_package`: `load_packages` takes one pointer too.
+- `texmodel.spec.ValidationError`: import it from `texmodel.errors`.
+- `texmodel_build.roots` (`resolve`, `shadowing`, `Resolution`, `TM-C100`): nothing used it; `Compiler.roots` mounts the roots.
 
 ## [0.3.3] - 2026-10-23
 
