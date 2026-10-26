@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-26
+
+### Fixed
+
+- The README had unresolved merge conflict markers and a second copy of the guide; it is the short front page again.
+- The guide called `validate()`, which is `violations()`.
+
 ## [0.4.0] - 2026-10-26
 
 Components are frozen pydantic models. A hand edit is named by argument and read by TeX.
@@ -159,7 +166,8 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/release-art/texmodel/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/release-art/texmodel/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/release-art/texmodel/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/release-art/texmodel/compare/v0.3.1...v0.3.2
