@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-26
+
 ### Changed
 
 - A command's fields are keyword-only: `Fact(text="a")`, not `Fact("a")` (`TypeError` otherwise, and a type checker flags
@@ -200,7 +202,8 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/release-art/texmodel/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/release-art/texmodel/compare/v0.4.1...v0.5.1
 [0.4.1]: https://github.com/release-art/texmodel/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/release-art/texmodel/compare/v0.3.3...v0.4.0
