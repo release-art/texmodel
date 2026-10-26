@@ -43,7 +43,7 @@ tex = pkg.document(card, options=["a4paper"])
 assert r"\dkFact{Friendly \& loyal.}" in tex
 ```
 
-`Text` fields are escaped; a `Raw` field passes TeX through. `card.validate()` lists every broken rule at once, each with a
+`Text` fields are escaped; a `Raw` field passes TeX through. `card.violations()` lists every broken rule at once, each with a
 code and a path such as `Card/Fact[2].text`; `pkg.document` raises the same list as an `ExceptionGroup` of `ValidationError`.
 
 ## The preamble
@@ -96,7 +96,7 @@ reach the PDF Info dictionary unchanged. A compile test reads a corpus of such v
 ```python
 data = {"content": [{"type": "Name", "text": "Fox"}, {"type": "Fact", "text": "Quick."}]}
 loaded = from_dict(Card, data)
-assert loaded.validate() == []                 # the grammar (counts, order) is checked here, as for any tree
+assert loaded.violations() == []                 # the grammar (counts, order) is checked here, as for any tree
 assert to_dict(loaded) == {"type": "Card", "content": [{"type": "Name", "text": "Fox"}, {"type": "Fact", "text": "Quick."}]}
 assert "$defs" in json_schema(Card)
 ```

@@ -114,7 +114,7 @@ assert r"\acFact{50\% of \$5}" in tex
 A tree that breaks the grammar is reported with a code and a path:
 
 ```python
-problems = CardBack(Fact("x")).validate()
+problems = CardBack(Fact("x")).violations()
 assert [p.code for p in problems] == ["TM-C002", "TM-C002"]   # no Name; one Fact where 2 to 3 are allowed
 ```
 

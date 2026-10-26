@@ -75,7 +75,7 @@ def body(self):
 A body can call another component by Python binding. The call is checked against the target's arguments, written with the
 target's prefix, and a target in another package makes that package a `\RequirePackage` of the generated `.sty`:
 
-```python
+```py
 from texmodel.body import Hole
 
 class Entry(Command):
@@ -99,7 +99,7 @@ an environment's arguments are all keywords. A target must be registered before 
 An environment has `begin` and `end` in the same way. A document is plain
 Python; `Text` fields are escaped, a `Raw` field passes TeX through, and everything wrong is reported at once:
 
-```python
+```py
 tex = pkg.document(
     CardBack(Name("Rex"), Fact("Friendly & loyal."), Fact("50% of $5")),
     settings=[FactGap(Length("3mm"))],       # values for the whole document
@@ -183,7 +183,7 @@ Components that repeat a body or a grammar share a base declared `abstract=True`
 `end`) and `children`; it needs no docstring and may have any Python name (`_Image`); it is never registered
 (`TM-M043`), and its subclasses inherit all of it:
 
-```python
+```py
 class _Image(Command, abstract=True):
     src: Text
     def body(self): return r"\includegraphics{#src}"
@@ -200,7 +200,7 @@ a bad control word. `Group(...)` is `{...}`, `Seq(...)` the same without braces,
 only, else `TM-M027`; `_` and `:` too in `Syntax.EXPL3`), `Lit("50% & co")` text escaped as a `Text` field is, and `Hole`, `Ref` and `Raw` go inside. A space
 follows a control word when the next text could continue its name. Loops and conditions are plain Python:
 
-```python
+```py
 class Rating(Command):
     '''Says which level it has.'''
     level: Level                                   # a Choice whose members are macros: \lvLow, \lvHigh
@@ -229,7 +229,7 @@ added, `#1` and `##1` as written, in registration order among the package's item
 checks are balanced braces (`TM-M011`) and no `\ExplSyntaxOn` / `\ExplSyntaxOff` inside an `EXPL3` block (`TM-M034`). Every
 line of the block has its name as its plan path, and a name is used once (`TM-M007`). `source` is a string or a `TemplateRef`.
 
-```python
+```py
 sizing = pkg.library("sizing", r"""
     \fp_new:N \l__cd_size_fp
     \newcommand{\cdFitSize}[2]{ \fp_set:Nn \l__cd_size_fp { min ( 14 , max ( 8 , 12 * #2 / #1 ) ) } }
@@ -281,7 +281,7 @@ A field is an argument; its type says what it holds and `arg(...)` says how it i
 Without `arg()`, a required field is `{...}` and an optional one (a default) is TeX's one optional argument, `[...]`,
 written first. With `arg()` the slot keeps its declaration order, so any signature can be stated:
 
-```python
+```py
 from texmodel.interface import PAREN, SQUARE, Gap, SlotGroup, Star, arg
 
 class MakeBox(Command):                       # \makebox[3cm][c]{x}
@@ -320,7 +320,7 @@ class Put(Command):                           # \put(1,2){x}
 A key list (`\adjustbox{max width=\linewidth, center}{...}`) is a `KeyVals`, a frozen pydantic model: its field types say
 how each item is written, and its `KeyRules` say how the library reads it.
 
-```python
+```py
 from texmodel.interface import Flag, Item, OptionalValue, Switch
 from texmodel.keys import PGFKEYS
 from texmodel.keyvals import KeyVals, key
@@ -350,7 +350,7 @@ value, which `{{ a }}` keeps in three of them (`l3keys` trims whatever it is giv
 A program that decides names at run time declares them with `pkg.make_command` and `pkg.make_value`; each builds the class and
 registers it, as the decorators do:
 
-```python
+```py
 name = pkg.make_command("Name", "the subject's name", fields={"name": (Raw, field(doc="the name"))}, body=r"\bb@title{#name}")
 cut = pkg.make_value("TechCut", Colour, "the cut line", default=CMYK(0, 0.4, 1, 0), colour_name="bbTechCut")
 ```
@@ -381,7 +381,7 @@ anything starting `model_`): `TM-M045`.
 `etoolbox`, `eso_pic`, `microtype`, `hyphenat`, `anyfontsize`, `calc`, `pdfrender`, `enumitem`, `adjustbox`, `tikz`,
 `tcolorbox`, `fontspec`. A header is an adopted package with no prefix whose components name their TeX command with `cs`:
 
-```python
+```py
 class IncludeGraphics(Command):
     r"""Place a picture: `\includegraphics[width=3cm]{a.png}`."""
     cs = "includegraphics"            # the TeX name, stated outright; without `cs` it is prefix + class name
@@ -405,7 +405,7 @@ have no body, `build` writes no file, documents are still checked and escaped, a
 declaration with the TeX it names (`\newcommand`, `\providecommand` and `\newenvironment` are read; a name defined any
 other way counts as missing):
 
-```python
+```py
 pkg = Package("card-deck", prefix="cd", adopted=True)     # the package name is the hand-written one
 
 @pkg.command
@@ -440,7 +440,7 @@ complete example: a hand-written package, the generator it replaces and a 3-card
 
 ### A text setting
 
-```python
+```py
 @pkg.value
 class DeckName(Value[Text]):
     """The deck name printed on every card."""
@@ -461,7 +461,7 @@ text back. It is not for `\hypersetup{pdftitle=...}`: hyperref escapes its own i
 
 ### Layout that is not a component
 
-```python
+```py
 class Page(Environment):
     '''A page.'''
     children = [Name, Anywhere(Heading), Fact.times(2, 3), Passthrough.times.any()]
@@ -478,7 +478,7 @@ accepted only where a grammar lists it.
 A `Choice` is an enum whose members carry their TeX: a `Raw` passes through, a `str` is escaped. Use it as a field type
 (optionally `| None`); data names a member by its name.
 
-```python
+```py
 @enum.unique
 class SlotLabel(Choice):
     SOUND = Raw(r"\deckParamSound")
@@ -498,7 +498,7 @@ LabelledSlot(SlotLabel.SOUND, "A soft woof.")      # \cdLabelledSlot{\deckParamS
 `texmodel.spec` loads a document from plain data (what TOML or JSON gives), using pydantic: a child names its component with
 `"type"`, an environment's children are its `content`, a `Raw` field takes a string.
 
-```python
+```py
 from texmodel.spec import from_dict, json_schema, to_dict
 
 card = from_dict(Card, {"content": [
@@ -520,7 +520,7 @@ written back keeps its keys, and a default the author left out stays out.
 command and environment (a child is told apart by its `"type"` constant) and `Value.<Name>` for every value, for editors and
 validators of the TOML or JSON that `from_dict` reads. A renamed field keeps loading under its old key:
 
-```python
+```py
 class Fact(Command):
     '''One fact.'''
     text: Text = field(renamed_from="body")       # {"body": "..."} loads; to_dict writes "text"; the schema has x-renamed-from
@@ -540,7 +540,7 @@ pointer rewrites every configured document.
 
 ### Comments
 
-```python
+```py
 from texmodel.body import Comment
 
 class CardHeader(Comment):
@@ -567,7 +567,7 @@ child may be a `Comment` (`"type": "Comment"`) or one of the classes its environ
 A component's body decides what it passes on to other components. `expand(node, stubs=[Fact])` (`texmodel.testing`) walks the
 bodies with the node's values and returns the body text and a `Call` for every stubbed component, in order, with no TeX:
 
-```python
+```py
 from texmodel.testing import Call, expand
 
 section = Section(Entry("First"), Entry("R&D 50%"), title="Notes")

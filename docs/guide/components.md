@@ -99,7 +99,7 @@ class Page(Environment):
 
 
 page = Page(Heading("Facts"), Fact("a"), Fact("b"), Passthrough(Raw(r"\vspace{1mm}")))
-assert page.validate() == []
+assert page.violations() == []
 ```
 
 ## Calling another component

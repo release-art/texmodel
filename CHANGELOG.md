@@ -35,7 +35,7 @@ Components are frozen pydantic models. A hand edit is named by argument and read
 
 - `Command`, `Environment` and `Passthrough` are frozen pydantic models. Building one validates nothing; assigning to a
   field raises `pydantic.ValidationError`; `str(node)` is `repr(node)`.
-- `validate()` is `violations()`, on components and `Comment`.
+- `validate()` is renamed `violations()`, on components and `Comment`.
 - `to_dict` writes the fields a node was given (`model_fields_set`), `None` and `False` included when given, and leaves out
   a default that was not.
 - `field()` and `arg()` return a pydantic `FieldInfo`; a field's doc, old name and `x-` keys are in its schema from it.
