@@ -15,6 +15,7 @@ from texmodel.testing import Call, expand
 from texmodel.types import Length, Text
 from texmodel_build import hand_edits
 from texmodel_build.compiler import Compiler
+from texmodel_build.diagnostics import Measurement
 from texmodel_build.hand_edits import read_edits
 
 pkg = Package("hands", prefix="hd")
@@ -152,6 +153,21 @@ def test_a_plan_whose_lines_and_calls_disagree_cannot_be_the_baseline(monkeypatc
     with pytest.raises(TexmodelError) as raised:
         read_edits(NO_COMPILER, PLAN, PLAN.text, pkg)
     assert raised.value.code == "TM-X032"
+
+
+def test_calls_are_the_numbered_probes_in_order_with_the_stubs_before_the_document(monkeypatch):
+    seen: list[str] = []
+
+    def fake_probes(_unused, tex, files):
+        seen.append(tex)
+        probes = [("call10", "hdPara{b}"), ("other", "x"), ("call2", "begin:hdInner{T}"), ("call1", "hdPara{a}")]
+        return [Measurement(message="", name=n, value=v) for n, v in probes]
+
+    monkeypatch.setattr(hand_edits, "run_probes", fake_probes)
+    calls = hand_edits._calls(NO_COMPILER, "\\begin{document}\nx", [Para, Inner], {})
+    assert [c.name for c in calls] == ["hdPara", "hdInner", "hdPara"]
+    assert calls[1].kind is RefKind.OPEN
+    assert seen[0].index("hdPara") < seen[0].index("\\begin{document}")
 
 
 def test_no_package_means_nothing_to_stub():
