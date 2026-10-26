@@ -14,6 +14,7 @@ from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.body import Comment, Cs, Group, Hole, Lit, RefKind, Seq
 from texmodel.components import Command, Environment, Passthrough
+from texmodel.document import Document
 from texmodel.package import Package
 from texmodel.testing import Call, detokenized, expand, stub_tex
 from texmodel.types import Raw, Text
@@ -191,11 +192,13 @@ def test_the_tex_tier_agrees_on_the_card_deck_consumer(compiler):  # noqa: F811
         model.LabelledSlot,
     ]
     tex = model.pkg.test_document(
-        model.CardHeader("Red Fox", "1"),
-        card,
+        Document(
+            model.CardHeader("Red Fox", "1"),
+            card,
+            settings=convert.settings(project),
+            preamble=convert.preamble(project),
+        ),
         stub=stubs,
-        settings=convert.settings(project),
-        preamble=convert.preamble(project),
     )
     files = {"res/card-deck.sty": (convert.HERE / "res" / "card-deck.sty").read_text(encoding="utf-8")}
     got = probed(compiler, tex, files)

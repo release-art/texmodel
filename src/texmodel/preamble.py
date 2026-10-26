@@ -11,6 +11,7 @@ PreambleSlots(
 
 import dataclasses
 import re
+from collections.abc import Iterator
 from typing import ClassVar
 
 from .errors import DeclarationError
@@ -125,4 +126,39 @@ class PdfInfo:
 type Entry = PassOption | InputPath | InputIfExists | GraphicsPath | RequireMetadata | PdfInfo
 
 
-__all__ = ["Entry", "GraphicsPath", "InputIfExists", "InputPath", "PassOption", "PdfInfo", "RequireMetadata"]
+@dataclasses.dataclass(frozen=True)
+class PreambleSlots:
+    """TeX a document places around its class and package lines (D3), each slot a tuple of `Raw` or a typed entry
+    (`InputPath`, `GraphicsPath`, `PassOption`, `RequireMetadata`, `PdfInfo`; one in a slot it does not belong in is
+    `TM-C008`).
+
+    `before_class` is where `\\DocumentMetadata` must go; `before_package` is for what the package needs when it
+    loads (`\\input@path`, package options); `after_package` is for what needs it loaded (`\\graphicspath`,
+    per-document `\\renewcommand`s). Public names of the package used here must be declared (M8).
+    """
+
+    before_class: tuple[Raw | Entry, ...] = ()
+    before_package: tuple[Raw | Entry, ...] = ()
+    after_package: tuple[Raw | Entry, ...] = ()
+
+    def items(self) -> Iterator[tuple[str, int, Raw | Entry]]:
+        """Every item with its slot name and index, in document order: the path is `preamble.<slot>[<index>]`."""
+        for slot, found in (
+            ("before_class", self.before_class),
+            ("before_package", self.before_package),
+            ("after_package", self.after_package),
+        ):
+            for i, item in enumerate(found):
+                yield slot, i, item
+
+
+__all__ = [
+    "Entry",
+    "GraphicsPath",
+    "InputIfExists",
+    "InputPath",
+    "PassOption",
+    "PdfInfo",
+    "PreambleSlots",
+    "RequireMetadata",
+]

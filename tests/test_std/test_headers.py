@@ -20,7 +20,9 @@ from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.body import Hole
 from texmodel.components import Command, Passthrough
-from texmodel.package import Package, PreambleSlots
+from texmodel.document import Document
+from texmodel.package import Package
+from texmodel.preamble import PreambleSlots
 from texmodel.std import MODULES, TEXLIVE
 from texmodel.types import Length, Raw, Text
 from texmodel_build.compiler import Compiler
@@ -424,7 +426,7 @@ def test_real_tex_accepts_a_call_of_every_declared_name(name, compiler, tmp_path
     package = header(name).package
     pre, nodes = SAMPLES[name]()
     slots = PreambleSlots(after_package=tuple(n if isinstance(n, Raw) else Raw(n.render()) for n in pre))
-    plan = package.plan(*nodes, latex.Null(), preamble=slots)
+    plan = package.plan(Document(*nodes, latex.Null(), preamble=slots))
     result, errors, gaps = compile_sample(compiler, plan, tmp_path)
     if gaps and len(gaps) == len(errors):
         host = host_compiler() if os.environ.get("TEXMODEL_STD_ON_HOST") else None

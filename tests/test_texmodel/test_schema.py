@@ -80,13 +80,14 @@ def test_the_schema_records_the_old_name_of_a_renamed_field():
 
 def test_a_package_schema_has_every_component_and_value_and_validates_data():
     schema = json_schema(pkg)
-    assert schema["title"] == "schema-demo" and set(schema["$defs"]) == {
+    assert schema["title"] == "schema-demo" and {
         "Fact",
         "Card",
         "Comment",
+        "Document",
         "Value.Gap",
         "Value.Shown",
-    }  # Card accepts a bare Comment
+    } <= set(schema["$defs"])  # Card accepts a bare Comment; the root is the Document
     assert schema["$defs"]["Value.Gap"] == {"title": "Gap", "description": "Space under a fact.", "type": "string"}
     assert schema["$defs"]["Value.Shown"]["type"] == "boolean"
     assert schema["$defs"]["Fact"]["properties"]["text"]["x-renamed-from"] == "body"

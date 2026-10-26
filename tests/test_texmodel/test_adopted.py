@@ -10,7 +10,9 @@ from texmodel import cli
 from texmodel._internal.scan import scan_declarations
 from texmodel.components import Command, Environment, Value, describe
 from texmodel.config import load_config
-from texmodel.package import Package, PreambleSlots
+from texmodel.document import Document
+from texmodel.package import Package
+from texmodel.preamble import PreambleSlots
 from texmodel.types import Length, Raw, Text
 
 from .test_document import codes, refused
@@ -141,10 +143,12 @@ def test_a_declaration_with_no_arguments_is_compared_too():
 def test_the_preamble_goes_around_the_class_and_package_lines():
     pkg, *_ = hand()
     tex = pkg.document(
-        preamble=PreambleSlots(
-            before_class=(Raw(r"\DocumentMetadata{lang=en}"),),
-            before_package=(Raw(r"\def\input@path{{res/}}"),),
-            after_package=(Raw(r"\graphicspath{{}{res/}}"),),
+        Document(
+            preamble=PreambleSlots(
+                before_class=(Raw(r"\DocumentMetadata{lang=en}"),),
+                before_package=(Raw(r"\def\input@path{{res/}}"),),
+                after_package=(Raw(r"\graphicspath{{}{res/}}"),),
+            )
         )
     )
     assert tex.splitlines()[1:] == [
@@ -161,7 +165,9 @@ def test_the_preamble_goes_around_the_class_and_package_lines():
 def test_a_preamble_that_calls_an_undeclared_name_is_refused_with_its_path():
     pkg, *_ = hand()
     with pytest.raises(ExceptionGroup) as group:
-        pkg.document(preamble=PreambleSlots(after_package=(Raw(r"\setlength{\hdSafeInset}{1mm}"), Raw(r"\hdName{x}"))))
+        pkg.document(
+            Document(preamble=PreambleSlots(after_package=(Raw(r"\setlength{\hdSafeInset}{1mm}"), Raw(r"\hdName{x}"))))
+        )
     assert codes(group) == ["TM-M015"]
     (error,) = group.value.exceptions
     assert getattr(error, "path") == "preamble.after_package[0]"  # noqa: B009

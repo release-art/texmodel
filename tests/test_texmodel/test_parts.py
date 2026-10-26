@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from texmodel import cli
 from texmodel.body import Syntax
 from texmodel.components import Command
+from texmodel.document import Document
 from texmodel.errors import DeclarationError
 from texmodel.package import Package
 from texmodel.types import Text
@@ -281,7 +282,7 @@ def test_a_flag_with_a_cs_is_declared_and_set_under_that_name():
         default = True
 
     assert "\\newif\\ifacshowcrop\n\\acshowcroptrue" in p.render()
-    assert "\\acshowcropfalse" in p.document(settings=[Crop(False)])
+    assert "\\acshowcropfalse" in p.document(Document(settings=[Crop(False)]))
 
 
 def test_a_definer_written_out_with_string_defines_nothing():

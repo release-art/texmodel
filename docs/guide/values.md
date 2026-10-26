@@ -5,6 +5,7 @@ needs no body. The blocks on this page run in order, as one module.
 
 ```python
 from texmodel.components import Value
+from texmodel.document import Document
 from texmodel.package import Package, setting_line
 from texmodel.types import CMYK, Colour, Length, Raw, Text
 
@@ -62,7 +63,7 @@ A package's own kinds exist too: `texmodel.std.etoolbox.Toggle` is `\newtoggle`.
 
 ```python
 settings = [Gap(Length("3mm")), DeckName("R&D"), Compact(True)]
-tex = pkg.document(settings=settings)
+tex = pkg.document(Document(settings=settings))
 assert r"\setlength{\vlGap}{3mm}" in tex
 assert r"\renewcommand{\vlDeckName}{R\&D}" in tex
 ```

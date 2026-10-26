@@ -47,7 +47,7 @@ class CardBack(Environment):
     begin = r'\begin{minipage}{\linewidth}'
     end = r'\end{minipage}'
 
-pkg.document(CardBack(Name("Rex"), Fact("Friendly & loyal."), Fact("50% of $5")), options=["a4paper"])
+pkg.document(CardBack(Name("Rex"), Fact("Friendly & loyal."), Fact("50% of $5")))
 ```
 
 `Text` fields are escaped on render (T3); a `Raw` field passes TeX through.
@@ -435,7 +435,7 @@ class Environment(_Node):
         cls.__tm_grammar__ = _grammar(cls)
         _build(cls, unused, abstract=abstract)
         # Data's children are this grammar's components and the package's comments: the schema is built on first use.
-        cls.__pydantic_fields__["content"] = FieldInfo.from_annotation(tuple[Annotated[Node, _Children(cls)], ...])
+        cls.__pydantic_fields__["content"] = FieldInfo.from_annotation(tuple[Annotated[Node, Children(cls)], ...])
 
     @classmethod
     def open(cls, **args: ArgValue) -> Ref:
@@ -482,17 +482,21 @@ def _comment_fields(comment: Comment) -> dict[str, str]:
 
 
 @dataclasses.dataclass(frozen=True)
-class _Children:
-    """The schema of an environment's children in data: a union, told apart by `"type"`, of the components its grammar
-    names, `Comment`, and the comment classes of its package (`Package(comments=)`)."""
+class Children:
+    """The schema of a list of nodes in data: a union, told apart by `"type"`, of the components an environment's
+    grammar names, or (given a package) of every command and environment it registers and `Passthrough`; and `Comment`
+    and the package's comment classes. Plumbing for `spec`."""
 
-    owner: "type[Environment]"
+    owner: "type[Environment] | Package"
 
     def __get_pydantic_core_schema__(self, source: object, handler: pydantic.GetCoreSchemaHandler) -> CoreSchema:
-        package = typing.cast("Package | None", getattr(self.owner, "__tm_package__", None))
-        choices: dict[Any, CoreSchema] = {
-            t.kind.__name__: handler.generate_schema(t.kind) for t in self.owner.__tm_grammar__
-        }
+        if isinstance(self.owner, type):
+            package = typing.cast("Package | None", getattr(self.owner, "__tm_package__", None))
+            kinds = [t.kind for t in self.owner.__tm_grammar__]
+        else:
+            package = self.owner
+            kinds = [c for c in package.registered if issubclass(c, Command | Environment)] + [Passthrough]
+        choices: dict[Any, CoreSchema] = {kind.__name__: handler.generate_schema(kind) for kind in kinds}
         for kind in (Comment, *(package.comments if package else ())):
             choices[kind.__name__] = core_schema.no_info_after_validator_function(
                 lambda model, kind=kind: kind(**dict(model)),
@@ -1081,6 +1085,7 @@ __all__ = [
     "Anywhere",
     "ArgValue",
     "ArgumentInfo",
+    "Children",
     "Command",
     "Description",
     "Environment",

@@ -4,9 +4,11 @@ import pathlib
 import tempfile
 from collections.abc import Mapping
 
+from texmodel.document import Document
 from texmodel.errors import Violation
-from texmodel.package import Package, PreambleSlots
+from texmodel.package import Package
 from texmodel.plan import Plan
+from texmodel.preamble import PreambleSlots
 from texmodel.testing import check_exports, export_probes
 from texmodel.types import Raw
 
@@ -38,7 +40,7 @@ def check_library(compiler: Compiler, package: Package, files: Mapping[str, str]
     (§21): `Package.test_document` with `export_probes`, run with `run_probes`, read by `check_exports`. A block
     TeX refuses raises `CompileError` whose diagnostics name the block as their `path`. `files` are other files the
     package loads."""
-    tex = package.test_document(preamble=PreambleSlots(after_package=(Raw(export_probes(package)),)))
+    tex = package.test_document(Document(preamble=PreambleSlots(after_package=(Raw(export_probes(package)),))))
     sty = f"{package.name}.sty"
     found = run_probes(compiler, tex, {sty: package.render(), **(files or {})}, plans={sty: package.render_plan()})
     return check_exports(package, {m.name: m.value for m in found})

@@ -3,9 +3,11 @@
 import pytest
 
 from texmodel.components import Command, Environment, Value
+from texmodel.document import Document
 from texmodel.interface import Star, arg
-from texmodel.package import Package, PreambleSlots
+from texmodel.package import Package
 from texmodel.plan import Edit, EditKind, FieldEdit, Line, Plan, Span
+from texmodel.preamble import PreambleSlots
 from texmodel.types import Length, Raw, Text
 
 
@@ -32,7 +34,7 @@ def small():
 
 def test_every_line_has_the_path_of_what_wrote_it():
     pkg, item, box = small()
-    plan = pkg.plan(box(item("a"), item("b")), preamble=PreambleSlots(after_package=(Raw("\\x\n\\y"),)))
+    plan = pkg.plan(Document(box(item("a"), item("b")), preamble=PreambleSlots(after_package=(Raw("\\x\n\\y"),))))
     assert [(x.path, x.tex) for x in plan.lines] == [
         ("header", plan.lines[0].tex),
         ("document", r"\documentclass{article}"),
@@ -47,7 +49,7 @@ def test_every_line_has_the_path_of_what_wrote_it():
         ("document", r"\end{document}"),
     ]
     assert plan.text == pkg.document(
-        box(item("a"), item("b")), preamble=PreambleSlots(after_package=(Raw("\\x\n\\y"),))
+        Document(box(item("a"), item("b")), preamble=PreambleSlots(after_package=(Raw("\\x\n\\y"),)))
     )
     assert plan.path_of(8) == "Box[0]/Item[0]"
 
@@ -61,7 +63,7 @@ def test_settings_have_a_path_too():
 
         default = Length("2mm")
 
-    plan = pkg.plan(settings=[Gap(Length("3mm"))])
+    plan = pkg.plan(Document(settings=[Gap(Length("3mm"))]))
     assert [x.path for x in plan.lines if x.path.startswith("settings")] == ["settings[0]"]
 
 

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-26
+
+### Added
+
+- `texmodel.document.Document(*content, options=, settings=, preamble=)`: a document as one value. Its settings, class
+  options and preamble entries are in the tree, so they round-trip through `to_dict` and `from_dict(package, data)`, are in
+  `json_schema(package)` (its root) and have paths in the plan (`settings[0]`, `preamble.after_package[1]`), where a hand
+  edit to them is found. An entry in the wrong slot is still `TM-C008`.
+- `from_dict(package, data)` returns the `Document` of a package; `to_dict` takes one.
+
+### Changed
+
+- `Package.plan`, `document` and `test_document` take one `Document`, or bare nodes. `PreambleSlots` is in
+  `texmodel.preamble`.
+- `json_schema(package)` has a root (`$ref` to its `Document`) and `$defs` entries for it, the preamble entries and
+  `<Name>Setting` per value.
+
+### Removed
+
+- The `settings=`, `options=` and `preamble=` keywords of `Package.plan`, `document` and `test_document`: put them in a
+  `Document`. `texmodel.package.PreambleSlots` (now `texmodel.preamble.PreambleSlots`).
+
 ## [0.4.1] - 2026-10-26
 
 ### Added
@@ -172,7 +194,8 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/release-art/texmodel/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/release-art/texmodel/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/release-art/texmodel/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/release-art/texmodel/compare/v0.3.2...v0.3.3

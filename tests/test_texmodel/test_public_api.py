@@ -13,6 +13,7 @@ PUBLIC = {
     "cli",
     "components",
     "config",
+    "document",
     "drift",
     "errors",
     "interface",
@@ -38,7 +39,7 @@ def test_only_the_public_modules_sit_at_the_top_level():
 
 # public by name but not API: used across modules where a move would be a cycle
 NOT_API = {"inline_text", "text_of", "call_line", "spec_of", "env_spec_of", "value_spec_of"} | {
-    "field_info", "record_fields", "FieldNotes", "body_of"
+    "field_info", "record_fields", "FieldNotes", "body_of", "Children"
 }  # fmt: skip
 
 

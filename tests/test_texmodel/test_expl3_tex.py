@@ -8,8 +8,9 @@ from test_texmodel_build.test_compile_tex import compiler, fonts, require_files 
 
 from texmodel.body import Cs, Group, Hole, Lit, Seq, Syntax, TexRaw
 from texmodel.components import Command
-from texmodel.package import Package, PreambleSlots
-from texmodel.preamble import PdfInfo, RequireMetadata
+from texmodel.document import Document
+from texmodel.package import Package
+from texmodel.preamble import PdfInfo, PreambleSlots, RequireMetadata
 from texmodel.testing import export_probes
 from texmodel.types import Raw
 from texmodel_build.errors import CompileError
@@ -48,7 +49,7 @@ def fit_package(block: str = FIT):
 
 
 def probes_of(comp, pkg, *nodes):  # noqa: ANN001, ANN201
-    tex = pkg.test_document(*nodes, preamble=PreambleSlots(after_package=(Raw(export_probes(pkg)),)))
+    tex = pkg.test_document(Document(*nodes, preamble=PreambleSlots(after_package=(Raw(export_probes(pkg)),))))
     sty = f"{pkg.name}.sty"
     return {m.name: m.value for m in run_probes(comp, tex, {sty: pkg.render()}, plans={sty: pkg.render_plan()})}
 
@@ -144,7 +145,7 @@ def test_pdf_info_entries_read_back_from_the_pdf(compiler, tmp_path: pathlib.Pat
     slots = PreambleSlots(before_class=(RequireMetadata(),), after_package=(PdfInfo(**entries),))
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "info-kit.sty").write_text(pkg.render(), encoding="utf-8")
-    (tmp_path / "src" / "d.tex").write_text(pkg.test_document(preamble=slots), encoding="utf-8")
+    (tmp_path / "src" / "d.tex").write_text(pkg.test_document(Document(preamble=slots)), encoding="utf-8")
     result = compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out")
     assert result.ok, [(x.message, x.code) for x in result.diagnostics]
     with pikepdf.open(result.pdf) as pdf:  # pyright: ignore[reportArgumentType]

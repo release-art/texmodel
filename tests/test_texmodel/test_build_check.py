@@ -73,7 +73,7 @@ def test_bad_package_declarations_exit_2_with_a_code(project, package, code):
 
 
 def _module(project, text):
-    (project / "mydocs.py").write_text("from acme_cards import *\n" + text)
+    (project / "mydocs.py").write_text("from acme_cards import *\nfrom texmodel.document import Document\n" + text)
 
 
 @pytest.fixture
@@ -98,7 +98,7 @@ def test_render_writes_a_document_from_a_str_or_a_function(docs):
 
 
 def test_render_reports_every_violation_and_writes_nothing(docs):
-    _module(docs, "def bad():\n    return pkg.document(CardBack(), Name(1), options=['a]b'])\n")
+    _module(docs, "def bad():\n    return pkg.document(Document(CardBack(), Name(1), options=['a]b']))\n")
     result = runner.invoke(cli.app, ["render", "mydocs:bad"])
     assert result.exit_code == 2 and not (docs / "bad.tex").exists()
     err = result.stderr

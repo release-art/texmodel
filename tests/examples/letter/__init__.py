@@ -2,6 +2,7 @@
 
 from texmodel.body import TemplateRef
 from texmodel.components import Command, Environment, Value
+from texmodel.document import Document
 from texmodel.package import Package
 from texmodel.types import Colour, Gray, Length, Raw, Text
 
@@ -92,6 +93,6 @@ invitation = Letter(
 terse = Letter(Paragraph("Thanks!"), Signoff("G."), recipient="All")
 
 documents = {
-    "invitation": pkg.document(invitation, settings=[Draft(True), Indent(Length("0pt"))]),
+    "invitation": pkg.document(Document(invitation, settings=[Draft(True), Indent(Length("0pt"))])),
     "terse": pkg.document(terse),
 }

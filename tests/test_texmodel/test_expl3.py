@@ -13,9 +13,10 @@ from hypothesis import (
 
 from texmodel.body import Cs, Group, Hole, Library, Lit, Seq, Syntax, TemplateRef, TexRaw, Whitespace
 from texmodel.components import Command, Environment
-from texmodel.package import Package, PreambleSlots
+from texmodel.document import Document
+from texmodel.package import Package
 from texmodel.plan import Plan
-from texmodel.preamble import PdfInfo, RequireMetadata
+from texmodel.preamble import PdfInfo, PreambleSlots, RequireMetadata
 from texmodel.testing import check_exports, export_probes
 from texmodel.types import PdfString, Raw, Text, pdf_escape
 from texmodel_build.diagnostics import Measurement
@@ -432,24 +433,26 @@ def test_a_pdf_info_value_is_the_pdf_escaped_text(value):
 def test_a_document_with_pdf_info_needs_metadata_before_the_class():
     pkg = Package("info-doc", prefix="id")
     managed = PreambleSlots(before_class=(RequireMetadata(),), after_package=(PdfInfo(Title="Rex"),))
-    text = pkg.document(preamble=managed)
+    text = pkg.document(Document(preamble=managed))
     assert text.index("\\DocumentMetadata") < text.index("pdfmanagement_add:nnn") < text.index("\\begin{document}")
     assert "\\detokenize{Rex}" in pkg.document(
-        preamble=PreambleSlots(before_class=(RequireMetadata(),), before_package=(PdfInfo(Title="Rex"),))
+        Document(preamble=PreambleSlots(before_class=(RequireMetadata(),), before_package=(PdfInfo(Title="Rex"),)))
     )
     bare = PreambleSlots(before_package=(PdfInfo(Title="a"),), after_package=(PdfInfo(Title="b"),))
     with pytest.raises(ExceptionGroup) as group:
-        pkg.document(preamble=bare)
+        pkg.document(Document(preamble=bare))
     assert codes(group) == ["TM-C009", "TM-C009"]
     assert [getattr(e, "path") for e in group.value.exceptions]  # noqa: B009 == ["preamble.before_package[0]", "preamble.after_package[0]"]
     with pytest.raises(ExceptionGroup) as group:
-        pkg.document(preamble=PreambleSlots(before_class=(RequireMetadata(), PdfInfo(Title="a"))))
+        pkg.document(Document(preamble=PreambleSlots(before_class=(RequireMetadata(), PdfInfo(Title="a")))))
     assert codes(group) == ["TM-C008"]  # the slot is wrong as well; before_class holds the metadata
 
 
 def test_a_plan_of_a_document_with_pdf_info_names_the_entry():
     plan: Plan = Package("info-plan", prefix="ip").plan(
-        preamble=PreambleSlots(before_class=(RequireMetadata(),), after_package=(PdfInfo(Title="a", Author="b"),))
+        Document(
+            preamble=PreambleSlots(before_class=(RequireMetadata(),), after_package=(PdfInfo(Title="a", Author="b"),))
+        )
     )
     assert [x.path for x in plan.lines if "pdfmanagement" in x.tex] == ["preamble.after_package[0]"] * 2
 

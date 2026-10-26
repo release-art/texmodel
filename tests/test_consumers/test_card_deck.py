@@ -10,8 +10,9 @@ from typing import Any
 import pytest
 from card_deck import convert, legacy, model
 
-from texmodel.package import PreambleSlots
+from texmodel.document import Document
 from texmodel.plan import Plan
+from texmodel.preamble import PreambleSlots
 from texmodel.types import Raw, escape
 
 STY = (convert.HERE / "res" / "card-deck.sty").read_text(encoding="utf-8")
@@ -87,9 +88,7 @@ def test_the_baseline_names_a_hand_edit_after_the_cards_have_moved_on(tmp_path):
     project, source = convert.load()
     source[0]["one_liners"][0]["text"] = "Changed in the config."
     today = model.pkg.plan(
-        *convert.body(source),
-        settings=convert.settings(project),
-        preamble=convert.preamble(project),
+        Document(*convert.body(source), settings=convert.settings(project), preamble=convert.preamble(project))
     )
     on_disk = convert.deck().replace("scream-like bark.", "scream-like bark (edited).", 1)
     saved = Plan.from_json(baseline.read_text(encoding="utf-8"))
@@ -138,7 +137,7 @@ def test_interface_drift_a_deck_calls_a_name_the_package_removed():
     """The old package had `\\cdSafeInset`; a deck that kept using it stops with an undefined control sequence, found
     only at compile time. The model refuses the line first."""
     with pytest.raises(ExceptionGroup) as group:
-        model.pkg.document(preamble=PreambleSlots(after_package=(Raw(r"\setlength{\cdSafeInset}{3mm}"),)))
+        model.pkg.document(Document(preamble=PreambleSlots(after_package=(Raw(r"\setlength{\cdSafeInset}{3mm}"),))))
     (error,) = group.value.exceptions
     assert (error.code, error.path) == ("TM-M015", "preamble.after_package[0]")  # pyright: ignore[reportAttributeAccessIssue]
 
