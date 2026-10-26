@@ -89,43 +89,46 @@ def latex_samples():
     from texmodel.std import latex as k
 
     length, counter, box = Raw(r"\tmlen"), Raw("tmc"), Raw(r"\tmbox")
-    value = Raw(k.CounterValue(counter).render())
-    pre = [k.DeclareOption(Raw("tmopt"), Raw("")), k.PassOptionsToPackage(Raw("final"), Raw("microtype"))]
+    value = Raw(k.CounterValue(name=counter).render())
+    pre = [
+        k.DeclareOption(option=Raw("tmopt"), code=Raw("")),
+        k.PassOptionsToPackage(options=Raw("final"), package=Raw("microtype")),
+    ]
     nodes = [
-        k.NewLength(length),
-        k.SetLength(length, Length("3mm")),
-        k.AddToLength(length, Length("1mm")),
-        k.SetToWidth(length, Raw("abc")),
-        k.SetToHeight(length, Raw("abc")),
-        k.SetToDepth(length, Raw("abc")),
-        k.NewCounter(counter),
-        k.SetCounter(counter, Raw("3")),
-        k.StepCounter(counter),
-        k.SetCounter(counter, value),
-        k.Arabic(counter),
+        k.NewLength(length=length),
+        k.SetLength(length=length, value=Length("3mm")),
+        k.AddToLength(length=length, value=Length("1mm")),
+        k.SetToWidth(length=length, text=Raw("abc")),
+        k.SetToHeight(length=length, text=Raw("abc")),
+        k.SetToDepth(length=length, text=Raw("abc")),
+        k.NewCounter(name=counter),
+        k.SetCounter(name=counter, value=Raw("3")),
+        k.StepCounter(name=counter),
+        k.SetCounter(name=counter, value=value),
+        k.Arabic(name=counter),
         k.VSpace(length=Length("1mm")),
         k.HSpace(length=Length("1mm")),
         k.VSpace(starred=True, length=Length("1mm")),
         k.HSpace(starred=True, length=Length("1mm")),
-        k.MakeBox(Raw("x")),
-        k.MakeBox(Raw("x"), width=Length("3cm")),
-        k.MakeBox(Raw("x"), width=Length("3cm"), align=k.BoxAlign.CENTRE),
-        k.RaiseBox(Length("1pt"), Raw("x")),
-        k.RaiseBox(Length("1pt"), Raw("x"), height=Length("2pt"), depth=Length("1pt")),
-        k.Section("S"),
-        k.Section("S", starred=True),
-        k.Section("S", short="s"),
-        k.Subsection("S", starred=True, short="s"),
-        k.Subsubsection("S"),
+        k.MakeBox(text=Raw("x")),
+        k.MakeBox(text=Raw("x"), width=Length("3cm")),
+        k.MakeBox(text=Raw("x"), width=Length("3cm"), align=k.BoxAlign.CENTRE),
+        k.RaiseBox(lift=Length("1pt"), text=Raw("x")),
+        k.RaiseBox(lift=Length("1pt"), text=Raw("x"), height=Length("2pt"), depth=Length("1pt")),
+        k.Section(title="S"),
+        k.Section(title="S", starred=True),
+        k.Section(title="S", short="s"),
+        k.Subsection(title="S", starred=True, short="s"),
+        k.Subsubsection(title="S"),
         k.NoIndent(),
         k.Par(),
         k.NewPage(),
-        k.ThisPageStyle(Raw("empty")),
-        k.PageStyle(Raw("plain")),
+        k.ThisPageStyle(style=Raw("empty")),
+        k.PageStyle(style=Raw("plain")),
         k.Null(),
         k.IgnoreSpaces(),
         k.FrenchSpacing(),
-        k.FontSize(Raw("10pt"), Raw("12pt")),
+        k.FontSize(size=Raw("10pt"), skip=Raw("12pt")),
         k.SelectFont(),
         k.Bfseries(),
         k.Centering(),
@@ -139,27 +142,27 @@ def latex_samples():
         k.LargeAllCaps(),
         k.Huge(),
         k.HugeCap(),
-        k.TextBold("x"),
-        k.TextItalic("x"),
-        k.Emph("x"),
-        k.MakeUppercase("x"),
-        k.FpEval(Raw("round(3*2.5, 1)")),
-        k.Phantom(X),
-        k.VPhantom(X),
+        k.TextBold(text="x"),
+        k.TextItalic(text="x"),
+        k.Emph(text="x"),
+        k.MakeUppercase(text="x"),
+        k.FpEval(expr=Raw("round(3*2.5, 1)")),
+        k.Phantom(text=X),
+        k.VPhantom(text=X),
         k.TextBullet(),
         k.TextQuoteLeft(),
         k.TextQuoteRight(),
         k.TextQuoteDblLeft(),
         k.TextQuoteDblRight(),
-        k.NewSaveBox(box),
-        k.UseBox(box),
-        k.AtBeginDocument(Raw("")),
-        k.AtEndDocument(Raw("")),
-        k.PackageWarning(Raw("tmpkg"), Raw("a warning")),
-        k.PackageWarningNoLine(Raw("tmpkg"), Raw("a warning")),
-        k.PackageInfo(Raw("tmpkg"), Raw("a note")),
-        k.IfFileExists(Raw("tm-nonexistent.tex"), Raw(""), Raw("")),
-        k.InputIfFileExists(Raw("tm-nonexistent.tex"), Raw(""), Raw("")),
+        k.NewSaveBox(box=box),
+        k.UseBox(box=box),
+        k.AtBeginDocument(code=Raw("")),
+        k.AtEndDocument(code=Raw("")),
+        k.PackageWarning(package=Raw("tmpkg"), message=Raw("a warning")),
+        k.PackageWarningNoLine(package=Raw("tmpkg"), message=Raw("a warning")),
+        k.PackageInfo(package=Raw("tmpkg"), message=Raw("a note")),
+        k.IfFileExists(file=Raw("tm-nonexistent.tex"), yes=Raw(""), no=Raw("")),
+        k.InputIfFileExists(file=Raw("tm-nonexistent.tex"), yes=Raw(""), no=Raw("")),
         k.Center(body_of("x")),
         k.FlushLeft(body_of("x")),
         k.FlushRight(body_of("x")),
@@ -173,9 +176,9 @@ def graphicx_samples():
     from texmodel.std import graphicx as g
 
     return [], [
-        g.GraphicsPath(Raw("{}{img/}")),
+        g.GraphicsPath(directories=Raw("{}{img/}")),
         g.IncludeGraphics(
-            Raw("tm-pic.png"),
+            path=Raw("tm-pic.png"),
             options=g.IncludeGraphicsOptions(
                 width=Length("1cm"),
                 height=Length("1cm"),
@@ -186,7 +189,7 @@ def graphicx_samples():
                 extra=Raw("trim=0 0 0 0"),
             ),
         ),
-        g.IncludeGraphics(Raw("tm-pic.png")),
+        g.IncludeGraphics(path=Raw("tm-pic.png")),
     ]
 
 
@@ -194,12 +197,12 @@ def xcolor_samples():
     from texmodel.std import xcolor as c
 
     return [], [
-        c.DefineColor(Raw("tmink"), Raw("HTML"), Raw("223344")),
-        c.ColorLet(Raw("tmb"), Raw("tmink!50")),
-        c.Color(Raw("tmink")),
-        c.Color(Raw("1,0,0"), model=Raw("rgb")),
-        c.TextColor(Raw("tmink"), "x"),
-        c.TextColor(Raw("1,0,0"), "x", model=Raw("rgb")),
+        c.DefineColor(name=Raw("tmink"), model=Raw("HTML"), spec=Raw("223344")),
+        c.ColorLet(name=Raw("tmb"), spec=Raw("tmink!50")),
+        c.Color(name=Raw("tmink")),
+        c.Color(name=Raw("1,0,0"), model=Raw("rgb")),
+        c.TextColor(name=Raw("tmink"), text="x"),
+        c.TextColor(name=Raw("1,0,0"), text="x", model=Raw("rgb")),
     ]
 
 
@@ -207,7 +210,9 @@ def geometry_samples():
     from texmodel.std import geometry as g
 
     return [
-        g.Geometry(g.GeometryOptions(a4paper=True, margin=Length("10mm"), includehead=True, extra=Raw("heightrounded")))
+        g.Geometry(
+            options=g.GeometryOptions(a4paper=True, margin=Length("10mm"), includehead=True, extra=Raw("heightrounded"))
+        )
     ], []
 
 
@@ -217,24 +222,24 @@ def etoolbox_samples():
     macro = Raw(r"\tmm")
     pre = [
         Raw(r"\newcommand{\tmm}{}"),
-        e.NewToggle(Raw("tmt")),
-        e.AtBeginEnvironment(Raw("center"), Raw("")),
-        e.AtEndEnvironment(Raw("center"), Raw("")),
+        e.NewToggle(name=Raw("tmt")),
+        e.AtBeginEnvironment(environment=Raw("center"), code=Raw("")),
+        e.AtEndEnvironment(environment=Raw("center"), code=Raw("")),
     ]
     nodes = [
-        e.Appto(macro, X),
-        e.GAppto(macro, X),
-        e.Preto(macro, X),
-        e.GPreto(macro, X),
-        e.IfBlank(Raw(""), Raw("a"), Raw("b")),
-        e.IfStrEqual(Raw("a"), Raw("a"), Raw("y"), Raw("n")),
-        e.ToggleTrue(Raw("tmt")),
-        e.ToggleFalse(Raw("tmt")),
-        e.SetToggle(Raw("tmt"), Raw("true")),
-        e.IfToggle(Raw("tmt"), Raw("y"), Raw("n")),
-        e.IfNumGreater(Raw("2"), Raw("1"), Raw("y"), Raw("n")),
-        e.IfNumLess(Raw("1"), Raw("2"), Raw("y"), Raw("n")),
-        e.IfNumEqual(Raw("1"), Raw("1"), Raw("y"), Raw("n")),
+        e.Appto(macro=macro, code=X),
+        e.GAppto(macro=macro, code=X),
+        e.Preto(macro=macro, code=X),
+        e.GPreto(macro=macro, code=X),
+        e.IfBlank(argument=Raw(""), yes=Raw("a"), no=Raw("b")),
+        e.IfStrEqual(first=Raw("a"), second=Raw("a"), yes=Raw("y"), no=Raw("n")),
+        e.ToggleTrue(name=Raw("tmt")),
+        e.ToggleFalse(name=Raw("tmt")),
+        e.SetToggle(name=Raw("tmt"), value=Raw("true")),
+        e.IfToggle(name=Raw("tmt"), yes=Raw("y"), no=Raw("n")),
+        e.IfNumGreater(left=Raw("2"), right=Raw("1"), yes=Raw("y"), no=Raw("n")),
+        e.IfNumLess(left=Raw("1"), right=Raw("2"), yes=Raw("y"), no=Raw("n")),
+        e.IfNumEqual(left=Raw("1"), right=Raw("1"), yes=Raw("y"), no=Raw("n")),
     ]
     return pre, nodes
 
@@ -242,28 +247,28 @@ def etoolbox_samples():
 def eso_pic_samples():
     from texmodel.std import eso_pic as p
 
-    at = "".join(c(Raw("")).render() for c in (p.AtPageLowerLeft, p.AtPageUpperLeft, p.AtPageCenter))
-    return [], [p.AddToShipoutPictureBG(Raw(at)), p.AddToShipoutPictureFG(Raw(""))]
+    at = "".join(c(code=Raw("")).render() for c in (p.AtPageLowerLeft, p.AtPageUpperLeft, p.AtPageCenter))
+    return [], [p.AddToShipoutPictureBG(code=Raw(at)), p.AddToShipoutPictureFG(code=Raw(""))]
 
 
 def microtype_samples():
     from texmodel.std import microtype as m
 
-    return [m.SetProtrusion(Raw("encoding=*"), Raw("A={50,50}"), options=Raw("name=tmset"))], [
-        m.MicrotypeSetup(Raw("protrusion=true"))
+    return [m.SetProtrusion(set=Raw("encoding=*"), list=Raw("A={50,50}"), options=Raw("name=tmset"))], [
+        m.MicrotypeSetup(options=Raw("protrusion=true"))
     ]
 
 
 def pdfrender_samples():
     from texmodel.std import pdfrender as p
 
-    return [], [p.PdfRender(Raw("TextRenderingMode=2,LineWidth=0.4pt"))]
+    return [], [p.PdfRender(options=Raw("TextRenderingMode=2,LineWidth=0.4pt"))]
 
 
 def enumitem_samples():
     from texmodel.std import enumitem as e
 
-    return [], [e.SetList(Raw("noitemsep"), lists=Raw("itemize")), e.SetList(Raw("noitemsep"))]
+    return [], [e.SetList(options=Raw("noitemsep"), lists=Raw("itemize")), e.SetList(options=Raw("noitemsep"))]
 
 
 def adjustbox_samples():
@@ -271,7 +276,7 @@ def adjustbox_samples():
 
     return [], [
         a.AdjustBox(
-            a.AdjustBoxOptions(
+            options=a.AdjustBoxOptions(
                 max_width=Length.expr(r"\linewidth"),
                 center=True,
                 valign=a.VAlign.TOP,
@@ -279,7 +284,7 @@ def adjustbox_samples():
                 margin=Length("1mm"),
                 scale=0.5,
             ),
-            Raw("x"),
+            content=Raw("x"),
         )
     ]
 
@@ -287,7 +292,10 @@ def adjustbox_samples():
 def tikz_samples():
     from texmodel.std import tikz as t
 
-    return [t.UseTikzLibrary(Raw("calc,positioning")), t.TikzSet(t.TikzOptions(extra=Raw("tmstyle/.style={draw}")))], [
+    return [
+        t.UseTikzLibrary(libraries=Raw("calc,positioning")),
+        t.TikzSet(options=t.TikzOptions(extra=Raw("tmstyle/.style={draw}"))),
+    ], [
         t.Tikzpicture(
             body_of(r"\draw (0,0) -- (1,1);"),
             options=t.TikzOptions(
@@ -301,7 +309,7 @@ def tikz_samples():
 def tcolorbox_samples():
     from texmodel.std import tcolorbox as t
 
-    return [t.TcbUseLibrary(Raw("skins,fitting")), t.TcbSet(t.TcolorboxOptions(colback="white"))], [
+    return [t.TcbUseLibrary(libraries=Raw("skins,fitting")), t.TcbSet(options=t.TcolorboxOptions(colback="white"))], [
         t.Tcolorbox(
             body_of("x"),
             options=t.TcolorboxOptions(
@@ -309,8 +317,8 @@ def tcolorbox_samples():
             ),
         ),
         t.Tcolorbox(body_of("x")),
-        t.Tcbox(Raw("x"), options=t.TcolorboxOptions(colback="white", opacityback=0.5)),
-        t.Tcbox(Raw("x")),
+        t.Tcbox(text=Raw("x"), options=t.TcolorboxOptions(colback="white", opacityback=0.5)),
+        t.Tcbox(text=Raw("x")),
     ]
 
 
@@ -318,9 +326,9 @@ def fontspec_samples():
     from texmodel.std import fontspec as f
 
     return [
-        f.SetMainFont(Raw("Latin Modern Roman"), options=Raw("Ligatures=TeX")),
-        f.SetSansFont(Raw("Latin Modern Sans")),
-        f.SetMonoFont(Raw("Latin Modern Mono")),
+        f.SetMainFont(font=Raw("Latin Modern Roman"), options=Raw("Ligatures=TeX")),
+        f.SetSansFont(font=Raw("Latin Modern Sans")),
+        f.SetMonoFont(font=Raw("Latin Modern Mono")),
     ], []
 
 
@@ -331,13 +339,13 @@ def calc_samples():
     )
 
     counter, length, box = Raw("tmc"), Raw(r"\tmlen"), Raw(r"\tmtotal")
-    pre = [k.NewCounter(counter), k.NewLength(length), k.NewLength(box)]
+    pre = [k.NewCounter(name=counter), k.NewLength(length=length), k.NewLength(length=box)]
     return pre, [
-        c.SetCounter(counter, c.integer(7) / 2),
-        c.AddToCounter(counter, c.integer(2) * c.real(1.6)),
-        c.SetLength(length, c.widthof("abc") * c.real(0.5) + Length("1pt")),
-        c.AddToLength(length, c.glue(Length("1pt"), Length("1pt"))),
-        c.SetToTotalHeight(box, Raw("Ag")),
+        c.SetCounter(counter=counter, value=c.integer(7) / 2),
+        c.AddToCounter(counter=counter, value=c.integer(2) * c.real(1.6)),
+        c.SetLength(length=length, value=c.widthof("abc") * c.real(0.5) + Length("1pt")),
+        c.AddToLength(length=length, value=c.glue(Length("1pt"), Length("1pt"))),
+        c.SetToTotalHeight(length=box, text=Raw("Ag")),
     ]
 
 
@@ -441,7 +449,7 @@ def test_real_tex_accepts_a_call_of_every_declared_name(name, compiler, tmp_path
 def test_package_error_is_the_error_it_says(compiler, tmp_path):  # noqa: F811
     from texmodel.std import latex
 
-    node = latex.PackageError(Raw("tmpkg"), Raw("it broke"), Raw("press return"))
+    node = latex.PackageError(package=Raw("tmpkg"), message=Raw("it broke"), help=Raw("press return"))
     plan = latex.package.plan(node)
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "d.tex").write_text(plan.text, encoding="utf-8")

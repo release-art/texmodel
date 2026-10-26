@@ -45,13 +45,15 @@ def card(number: int, source: dict[str, Any]) -> model.Card:
     for line in source["one_liners"]:
         by_label.setdefault(line["label"], []).append(text(line["text"]))
     slots = (
-        model.LabelledSlot(model.SlotLabel[label.upper()], " ".join(by_label[label]))
+        model.LabelledSlot(label=model.SlotLabel[label.upper()], text=" ".join(by_label[label]))
         for label in ("sound", "spot", "where")
     )
     return model.Card(
-        model.CardFront(model.CardImage(Raw(legacy.image(number, source)))),
+        model.CardFront(model.CardImage(path=Raw(legacy.image(number, source)))),
         model.CardBack(
-            model.Name(legacy.card_title(text(source["name"]))), *map(model.LeadFact, by_label["fact"]), *slots
+            model.Name(text=legacy.card_title(text(source["name"]))),
+            *(model.LeadFact(text=x) for x in by_label["fact"]),
+            *slots,
         ),
     )
 

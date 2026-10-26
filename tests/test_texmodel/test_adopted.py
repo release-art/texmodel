@@ -81,11 +81,11 @@ def test_an_adopted_package_renders_no_sty():
 
 def test_a_document_of_declared_components_escapes_and_checks_the_grammar():
     pkg, name, slot, card = hand()
-    body = card(name("R&D"), slot("50% of #1", label="Where"))
+    body = card(name(text="R&D"), slot(text="50% of #1", label="Where"))
     assert body.render() == "\\begin{hdCard}\n\\hdName{R\\&D}\n\\hdSlot[Where]{50\\% of \\#1}\n\\end{hdCard}"
     assert "\\usepackage{hand}" in pkg.document(body)
     with pytest.raises(ExceptionGroup) as group:
-        pkg.document(card(slot("x")))
+        pkg.document(card(slot(text="x")))
     assert codes(group) == ["TM-C002"]
 
 

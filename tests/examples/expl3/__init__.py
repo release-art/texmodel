@@ -46,4 +46,4 @@ class Total(Command):
         yield Seq(Cs("par", Syntax.EXPL3), Lit("Total: "), Scaled.call(Hole("factor"), Hole("base")))
 
 
-documents = {"expl3": pkg.document(Total(Raw("2.5"), Raw("3.333")))}
+documents = {"expl3": pkg.document(Total(factor=Raw("2.5"), base=Raw("3.333")))}

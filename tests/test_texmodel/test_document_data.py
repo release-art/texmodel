@@ -87,7 +87,7 @@ SLOTS = PreambleSlots(
 def full() -> Document:
     return Document(
         Comment("start"),
-        Card(Fact("a"), Passthrough(Raw(r"\vspace{1mm}"))),
+        Card(Fact(text="a"), Passthrough(Raw(r"\vspace{1mm}"))),
         options=["a4paper", "11pt"],
         settings=[Gap(Length("3mm")), Ink(CMYK(0, 0.5, 1, 0)), Draft(True), Title("A & B"), Footer(Raw(r"\textbf{f}"))],
         preamble=SLOTS,

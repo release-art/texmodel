@@ -79,7 +79,7 @@ assert pkg.check_parts() == []  # \acFact takes one argument, as declared; nothi
   once, renders nothing, and is set from a document as any `Value` is. It has no `default`: the part has it. `cs = "..."`
   names the whole control sequence when it is not prefix + class name (`cs = "acshowcrop"` for `\ifacshowcrop`).
   Counters, saveboxes and font families are read for duplicates (`\newcounter`, `\newsavebox`, `\newfontfamily`).
-- **Decks use the components.** A deck built from `Fact("...")` gets typed constructors, arity at the call site, escaping,
+- **Decks use the components.** A deck built from `Fact(text="...")` gets typed constructors, arity at the call site, escaping,
   `from_dict` and the schema, from declarations that cost a few lines per macro.
 
 ## Components that share a body
@@ -243,7 +243,7 @@ from texmodel.std.latex import CounterValue, NewCounter, PackageError, SetCounte
 from texmodel.types import Raw, Text
 
 pkg = Package("acme-cards", prefix="ac", whitespace=Whitespace.TRIM)
-pkg.library("counters", NewCounter(Raw("acFacts")).render())  # \newcounter{acFacts}
+pkg.library("counters", NewCounter(name=Raw("acFacts")).render())  # \newcounter{acFacts}
 
 
 def failure(word: str) -> Ref:

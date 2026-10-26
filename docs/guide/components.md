@@ -27,6 +27,27 @@ class Fact(Command):
     body = r"\par\noindent #text\par"
 ```
 
+## Arguments are keywords
+
+A command's fields are passed by keyword: `Fact(text="a")`. `Fact("a")` is a `TypeError`, and a type checker flags it too.
+An environment's positional arguments are its children (`Card(Name(text="Rex"), title="T")`). A class that reads better with
+positional fields says so, as a dataclass does, and a subclass inherits the choice:
+
+```python
+@pkg.command
+class Slot(Command, kw_only=False):
+    """A labelled slot."""
+
+    text: Text
+    label: Text | None = None
+    body = r"\par #text#label"
+
+
+assert Slot("a", label="L") == Slot(text="a", label="L")
+```
+
+Prefer keywords, and use `kw_only=False` for a short, obvious first argument only. `Passthrough(Raw(...))` is positional.
+
 ## Where a body comes from
 
 A body is TeX you point at, never found by name:
@@ -98,7 +119,7 @@ class Page(Environment):
     end = r"\end{minipage}"
 
 
-page = Page(Heading("Facts"), Fact("a"), Fact("b"), Passthrough(Raw(r"\vspace{1mm}")))
+page = Page(Heading(text="Facts"), Fact(text="a"), Fact(text="b"), Passthrough(Raw(r"\vspace{1mm}")))
 assert page.violations() == []
 ```
 
@@ -215,7 +236,7 @@ class CardHeader(Comment):
     id: str
 
 
-text = pkg.document(CardHeader("Red Fox", "11111111-aaaa"), Fact("x"))
+text = pkg.document(CardHeader("Red Fox", "11111111-aaaa"), Fact(text="x"))
 assert "% Card: Red Fox" in text and "%   id: 11111111-aaaa" in text
 ```
 

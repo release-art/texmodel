@@ -47,7 +47,7 @@ class CardBack(Environment):
     begin = r'\begin{minipage}{\linewidth}'
     end = r'\end{minipage}'
 
-pkg.document(CardBack(Name("Rex"), Fact("Friendly & loyal."), Fact("50% of $5")))
+pkg.document(CardBack(Name(text="Rex"), Fact(text="Friendly & loyal."), Fact(text="50% of $5")))
 ```
 
 `Text` fields are escaped on render (T3); a `Raw` field passes TeX through.
@@ -194,8 +194,9 @@ class _Times:
 
 
 class _Meta(type(pydantic.BaseModel)):
-    """Gives every component class `.times`, so a grammar term reads `Fact.times(2, 3)`, and builds a node from
-    positional arguments: a command's go to its required fields in order, an environment's are its children (D1)."""
+    """Gives every component class `.times`, so a grammar term reads `Fact.times(2, 3)`, and builds a node: an
+    environment's positional arguments are its children; its fields and a command's are keywords, unless a command's
+    class says `kw_only=False` (then its required fields may be positional, in order) (D1)."""
 
     def __new__(mcs, name: str, bases: tuple[type, ...], namespace: dict[str, Any], **kwargs: Any) -> type:  # noqa: N804
         """A class's `body`, `begin` and `end` are TeX, not fields: `_source` reads them from `__tm_tex__`, which
@@ -224,10 +225,22 @@ class _Meta(type(pydantic.BaseModel)):
         if environment:
             given = {**given, "content": positional}
         else:
-            # A required field is positional, as a dataclass's; one with a default, or written `arg()`, is keyword-only.
-            names = [n for n, f in fields.items() if f.kw_only is False or (f.kw_only is None and f.is_required())]
+            # Fields are keyword-only unless the class says `kw_only=False`; then a required field is positional, as a
+            # dataclass's, and one with a default, or written `arg()`, stays keyword-only.
+            names = (
+                []
+                if node.__tm_kw_only__
+                else [n for n, f in fields.items() if f.kw_only is False or (f.kw_only is None and f.is_required())]
+            )
             if len(positional) > len(names):
-                raise TypeError(f"{cls.__name__}() takes {len(names)} positional argument(s), got {len(positional)}")
+                raise TypeError(
+                    f"{cls.__name__}() takes {len(names)} positional argument(s), got {len(positional)}"
+                    + (
+                        " (pass fields by keyword, or declare the class with kw_only=False)"
+                        if node.__tm_kw_only__
+                        else ""
+                    )
+                )
             if twice := sorted(set(names[: len(positional)]) & set(given)):
                 raise TypeError(f"{cls.__name__}() got multiple values for {twice}")
             given = dict(zip(names, positional, strict=False)) | given
@@ -315,6 +328,9 @@ class _Node(pydantic.BaseModel, metaclass=_Meta):
         bool
     ]  # a shared base (`abstract=True`): fields and a body for subclasses, never registered
     __tm_unused__: ClassVar[tuple[str, ...]]
+    __tm_kw_only__: ClassVar[bool] = (
+        True  # fields are passed by keyword; `kw_only=False` on a class lets them be positional
+    )
     __tm_args__: ClassVar[tuple[Arg, ...]]
     __tm_doc__: ClassVar[str]
     __tm_prefix__: ClassVar[str]  # set when a package registers the class
@@ -327,8 +343,10 @@ class _Node(pydantic.BaseModel, metaclass=_Meta):
         Mapping[str, object]
     ] = {}  # the schema's `x-` keys on this component (`meta = {"audience": "deck"}`)
 
-    def __init_subclass__(cls, *, unused: Sequence[str] = (), abstract: bool = False, **kwargs: Any) -> None:
-        """`unused` and `abstract` are read by `__pydantic_init_subclass__`, once pydantic has the fields."""
+    def __init_subclass__(
+        cls, *, unused: Sequence[str] = (), abstract: bool = False, kw_only: bool | None = None, **kwargs: Any
+    ) -> None:
+        """`unused`, `abstract` and `kw_only` are read by `__pydantic_init_subclass__`, once pydantic has the fields."""
         super().__init_subclass__(**kwargs)
         fields = [n for n, t in inspect.get_annotations(cls).items() if typing.get_origin(t) is not ClassVar]
         if clash := sorted(n for n in fields if n.startswith("model_") or hasattr(_Node, n)):
@@ -371,10 +389,11 @@ class _Node(pydantic.BaseModel, metaclass=_Meta):
         return _render(self)  # pyright: ignore[reportArgumentType]
 
 
-def _build(cls: type[_Node], unused: Sequence[str], *, abstract: bool) -> None:
+def _build(cls: type[_Node], unused: Sequence[str], *, abstract: bool, kw_only: bool | None) -> None:
     """Read a declared class once pydantic has its fields. An abstract base needs no name a control word could have
     and no docstring: it is never registered."""
     cls.__tm_abstract__ = abstract
+    cls.__tm_kw_only__ = cls.__tm_kw_only__ if kw_only is None else kw_only
     cls.__tm_doc__ = doc = "" if abstract else _document(cls)
     cls.__tm_unused__ = tuple(unused)
     if "cs" in cls.__dict__:
@@ -396,17 +415,19 @@ def field(
     return field_info(default, FieldNotes(renamed_from, doc, dict(meta or {})), kw_only=None)
 
 
-@dataclass_transform(frozen_default=True, field_specifiers=(field, arg))
+@dataclass_transform(frozen_default=True, kw_only_default=True, field_specifiers=(field, arg))
 class Command(_Node):
     """A TeX command (`\\newcommand`) whose arguments are the class's fields."""
 
     __tm_inline__: ClassVar[Source | None]
 
     @classmethod
-    def __pydantic_init_subclass__(cls, *, unused: Sequence[str] = (), abstract: bool = False, **kwargs: Any) -> None:
+    def __pydantic_init_subclass__(
+        cls, *, unused: Sequence[str] = (), abstract: bool = False, kw_only: bool | None = None, **kwargs: Any
+    ) -> None:
         super().__pydantic_init_subclass__(**kwargs)
         cls.__tm_inline__ = _source(cls, "body")
-        _build(cls, unused, abstract=abstract)
+        _build(cls, unused, abstract=abstract, kw_only=kw_only)
 
     @classmethod
     def call(cls, *required: ArgValue, **optional: ArgValue) -> Ref:
@@ -429,11 +450,13 @@ class Environment(_Node):
         def __init__(self, *content: Node, **args: object) -> None: ...
 
     @classmethod
-    def __pydantic_init_subclass__(cls, *, unused: Sequence[str] = (), abstract: bool = False, **kwargs: Any) -> None:
+    def __pydantic_init_subclass__(
+        cls, *, unused: Sequence[str] = (), abstract: bool = False, kw_only: bool | None = None, **kwargs: Any
+    ) -> None:
         super().__pydantic_init_subclass__(**kwargs)
         cls.__tm_inline__ = (_source(cls, "begin"), _source(cls, "end"))
         cls.__tm_grammar__ = _grammar(cls)
-        _build(cls, unused, abstract=abstract)
+        _build(cls, unused, abstract=abstract, kw_only=kw_only)
         # Data's children are this grammar's components and the package's comments: the schema is built on first use.
         cls.__pydantic_fields__["content"] = FieldInfo.from_annotation(tuple[Annotated[Node, Children(cls)], ...])
 
@@ -448,13 +471,14 @@ class Environment(_Node):
         return _ref(cls, RefKind.CLOSE, (), {})
 
 
-class Passthrough(_Node):
+class Passthrough(_Node, kw_only=False):
     """TeX written as it is (B3): a layout `\\vspace` between components. It claims no control sequence; a grammar must
     list it (`Passthrough.times.any()`, or `Anywhere(Passthrough)`) before an environment accepts one."""
 
     tex: Raw
     __tm_args__: ClassVar[tuple[Arg, ...]] = (Arg("tex", RAW_BODY, hint=Raw),)
     __tm_doc__: ClassVar[str] = "TeX written as it is."
+    __tm_kw_only__: ClassVar[bool] = False
 
     if TYPE_CHECKING:  # at run time the metaclass builds the node (`_Meta.__call__`)
 
@@ -564,17 +588,18 @@ def _ref_text(ref: Ref, owner: str, syntax: Syntax) -> str:
 
 
 def _repr(node: Command | Environment | Passthrough) -> str:
-    """The constructor expression that rebuilds the node (D1): required fields positional, optional ones by keyword."""
+    """The constructor expression that rebuilds the node (D1): required fields positional only where the class allows
+    it, optional ones by keyword."""
     shown = [repr(c) for c in node.content] if isinstance(node, Environment) else []
-    keywords: list[str] = []
+    required: list[str] = []
+    optional: list[str] = []
     for a in type(node).__tm_args__:
         v = getattr(node, a.name)
         if a.optional and v is not None and v is not False:
-            keywords.append(f"{a.name}={v!r}")
+            optional.append(f"{a.name}={v!r}")
         elif not a.optional and not isinstance(node, Environment):
-            shown.append(repr(v))
-    shown += keywords
-    return f"{type(node).__name__}({', '.join(shown)})"
+            required.append(repr(v) if not type(node).__tm_kw_only__ else f"{a.name}={v!r}")
+    return f"{type(node).__name__}({', '.join([*shown, *required, *optional])})"
 
 
 def _grammar(cls: type[Environment]) -> tuple[Repeat | Anywhere, ...]:

@@ -64,4 +64,4 @@ class Section(Environment):
 
 
 dependencies = [base]
-documents = {"composed": pkg.document(Section(Entry("First"), Entry("R&D 50%"), title="Notes"))}
+documents = {"composed": pkg.document(Section(Entry(text="First"), Entry(text="R&D 50%"), title="Notes"))}

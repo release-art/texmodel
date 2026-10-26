@@ -27,10 +27,10 @@ class Box(Environment):
     children = [Item.times.any()]
 
 def plan():
-    return pkg.plan(Box(Item("a"), Item("b")))
+    return pkg.plan(Box(Item(text="a"), Item(text="b")))
 
 def text():
-    return pkg.document(Item("a"))
+    return pkg.document(Item(text="a"))
 """
 
 

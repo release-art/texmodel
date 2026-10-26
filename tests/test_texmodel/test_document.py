@@ -118,24 +118,24 @@ def test_raw_must_balance_and_is_not_a_str():
 
 def test_text_is_escaped_and_raw_is_not():
     s = shop()
-    assert s.Fact("50% of $5").render() == "\\shFact{50\\% of \\$5}"
-    assert s.Tex(Raw("\\emph{x}")).render() == "\\shTex{\\emph{x}}"
+    assert s.Fact(text="50% of $5").render() == "\\shFact{50\\% of \\$5}"
+    assert s.Tex(tex=Raw("\\emph{x}")).render() == "\\shTex{\\emph{x}}"
 
 
 def test_the_optional_argument_comes_first_is_omitted_when_none_and_wraps_a_bracket():
     s = shop()
-    assert s.Slot("t", label="Sound").render() == "\\shSlot[Sound]{t}"
-    assert s.Slot("t").render() == "\\shSlot{t}"
-    assert s.Slot("t", label="a]b").render() == "\\shSlot[{a]b}]{t}"
-    assert s.Tex(Raw("x"), note=Raw("a]b")).render() == "\\shTex[{a]b}]{x}"
+    assert s.Slot(text="t", label="Sound").render() == "\\shSlot[Sound]{t}"
+    assert s.Slot(text="t").render() == "\\shSlot{t}"
+    assert s.Slot(text="t", label="a]b").render() == "\\shSlot[{a]b}]{t}"
+    assert s.Tex(tex=Raw("x"), note=Raw("a]b")).render() == "\\shTex[{a]b}]{x}"
 
 
 def test_a_field_of_the_wrong_kind_is_a_violation_with_its_path():
     s = shop()
-    bad = s.Card(s.Name(Raw("x")), s.Fact("a"), s.Fact("b"), s.Tex("plain"))
+    bad = s.Card(s.Name(text=Raw("x")), s.Fact(text="a"), s.Fact(text="b"), s.Tex(tex="plain"))
     found = {(v.code, v.path) for v in bad.violations()}
     assert ("TM-C003", "Card/Name[0].text") in found and ("TM-C003", "Card/Tex[3].tex") in found
-    assert s.Slot("x", label=None).violations() == [] and s.Fact(None).violations()[0].code == "TM-C003"  # pyright: ignore[reportArgumentType]
+    assert s.Slot(text="x", label=None).violations() == [] and s.Fact(text=None).violations()[0].code == "TM-C003"  # pyright: ignore[reportArgumentType]
 
 
 def test_an_unregistered_component_cannot_render():
@@ -150,13 +150,13 @@ def test_an_unregistered_component_cannot_render():
 
 def test_an_environment_renders_its_children_between_begin_and_end():
     s = shop()
-    card = s.Card(s.Name("Rex"), s.Fact("a"), s.Fact("b"), title="T")
+    card = s.Card(s.Name(text="Rex"), s.Fact(text="a"), s.Fact(text="b"), title="T")
     assert card.render() == "\\begin{shCard}[T]\n\\shName{Rex}\n\\shFact{a}\n\\shFact{b}\n\\end{shCard}"
-    assert repr(card) == "Card(Name('Rex'), Fact('a'), Fact('b'), title='T')"
-    assert card == s.Card(s.Name("Rex"), s.Fact("a"), s.Fact("b"), title="T") and hash(card) == hash(
-        s.Card(s.Name("Rex"), s.Fact("a"), s.Fact("b"), title="T")
+    assert repr(card) == "Card(Name(text='Rex'), Fact(text='a'), Fact(text='b'), title='T')"
+    assert card == s.Card(s.Name(text="Rex"), s.Fact(text="a"), s.Fact(text="b"), title="T") and hash(card) == hash(
+        s.Card(s.Name(text="Rex"), s.Fact(text="a"), s.Fact(text="b"), title="T")
     )
-    assert card != s.Card(s.Name("Rex"), s.Fact("a"), s.Fact("b"))
+    assert card != s.Card(s.Name(text="Rex"), s.Fact(text="a"), s.Fact(text="b"))
     assert "\\newenvironment{shCard}[1][]{%" in s.p.render() and "% from " in s.p.render()
 
 
@@ -188,7 +188,15 @@ def test_environment_arguments_are_keywords_and_checked():
 
 def test_the_grammar_reports_every_problem_with_a_path():
     s = shop()
-    card = s.Card(s.Fact("a"), s.Name("n"), s.Fact("b"), s.Fact("c"), s.Fact("d"), s.Slot("s"), s.Fact("e"))
+    card = s.Card(
+        s.Fact(text="a"),
+        s.Name(text="n"),
+        s.Fact(text="b"),
+        s.Fact(text="c"),
+        s.Fact(text="d"),
+        s.Slot(text="s"),
+        s.Fact(text="e"),
+    )
     out = [(v.code, v.path) for v in card.violations()]
     assert out == [
         ("TM-C002", "Card"),  # no Name first
@@ -201,8 +209,10 @@ def test_the_grammar_reports_every_problem_with_a_path():
         ("TM-C001", "Card/Fact[6]"),
     ]
     assert card.violations()[0].hint.startswith("allowed: 1-1 Name, 2-3 Fact, 0-3 Slot")
-    assert [v.code for v in s.Card(s.Name("n"), s.Fact("a")).violations()] == ["TM-C002"]
-    assert [v.path for v in s.Card(s.Name("n"), s.Fact("a"), s.Fact("b"), "stray").violations()] == ["Card/str[3]"]  # pyright: ignore[reportArgumentType]
+    assert [v.code for v in s.Card(s.Name(text="n"), s.Fact(text="a")).violations()] == ["TM-C002"]
+    assert [v.path for v in s.Card(s.Name(text="n"), s.Fact(text="a"), s.Fact(text="b"), "stray").violations()] == [
+        "Card/str[3]"
+    ]  # pyright: ignore[reportArgumentType]
 
 
 def test_nested_environments_validate_their_own_children():
@@ -337,16 +347,16 @@ def test_a_document_is_complete_and_deterministic():
     s = shop()
     tex = s.p.document(
         Document(
-            s.Card(s.Name("Rex"), s.Fact("50% sure"), s.Fact("b")),
-            s.Fact("after"),
+            s.Card(s.Name(text="Rex"), s.Fact(text="50% sure"), s.Fact(text="b")),
+            s.Fact(text="after"),
             settings=[s.Gap(Length("3mm")), s.Ink(Gray(0.5)), s.Tight(True)],
             options=["a4paper", "11pt"],
         )
     )
     assert tex == s.p.document(
         Document(
-            s.Card(s.Name("Rex"), s.Fact("50% sure"), s.Fact("b")),
-            s.Fact("after"),
+            s.Card(s.Name(text="Rex"), s.Fact(text="50% sure"), s.Fact(text="b")),
+            s.Fact(text="after"),
             settings=[s.Gap(Length("3mm")), s.Ink(Gray(0.5)), s.Tight(True)],
             options=["a4paper", "11pt"],
         )
@@ -373,7 +383,7 @@ def test_a_document_is_complete_and_deterministic():
 def test_a_document_reports_every_problem_at_once():
     s = shop()
     with pytest.raises(ExceptionGroup) as info:
-        s.p.document(Document(s.Card(), s.Fact(Raw("x")), options=["ok", "a]b", ""]))  # pyright: ignore[reportArgumentType]
+        s.p.document(Document(s.Card(), s.Fact(text=Raw("x")), options=["ok", "a]b", ""]))  # pyright: ignore[reportArgumentType]
     assert sorted(codes(info)) == ["TM-C002", "TM-C002", "TM-C003", "TM-C006", "TM-C006"]
 
 

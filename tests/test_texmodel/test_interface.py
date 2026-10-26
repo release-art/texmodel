@@ -87,11 +87,11 @@ def make_box():
 
 def test_optional_slots_are_written_in_order_and_a_skipped_one_is_filled():
     box = make_box()
-    assert box("x").render() == r"\makebox{x}"
-    assert box("x", width=Length("3cm")).render() == r"\makebox[3cm]{x}"
-    assert box("x", pos="c").render() == r"\makebox[][c]{x}"  # the width is unset: `fill=""`
-    assert box("x", width=Length("3cm"), pos="c").render() == r"\makebox[3cm][c]{x}"
-    assert repr(box("x", pos="c")) == "MakeBox('x', pos='c')"
+    assert box(text="x").render() == r"\makebox{x}"
+    assert box(text="x", width=Length("3cm")).render() == r"\makebox[3cm]{x}"
+    assert box(text="x", pos="c").render() == r"\makebox[][c]{x}"  # the width is unset: `fill=""`
+    assert box(text="x", width=Length("3cm"), pos="c").render() == r"\makebox[3cm][c]{x}"
+    assert repr(box(text="x", pos="c")) == "MakeBox(text='x', pos='c')"
 
 
 def test_two_optional_slots_are_defined_with_xparse_and_one_is_not():
@@ -120,7 +120,7 @@ def test_two_optional_slots_are_defined_with_xparse_and_one_is_not():
     assert r"\NewDocumentCommand{\igTwo}{O{}O{}m}{%" in sty
     assert r"\textbf{#1}\textit{#2}#3" in sty
     assert r"\newcommand{\igOne}[2][]{%" in sty and "#1#2" in sty  # unchanged: `\newcommand` can define it
-    assert Two("x", b="y").render() == r"\igTwo[][y]{x}"
+    assert Two(c="x", b="y").render() == r"\igTwo[][y]{x}"
     assert signature(Two.__tm_args__) == "oom"
     assert newcommand_fits(One.__tm_args__) and not newcommand_fits(Two.__tm_args__)
 
@@ -153,12 +153,12 @@ def test_a_star_a_paren_slot_and_other_delimiters():
         overlay: Text | None = arg(ANGLE, default=None)
         text: Raw
 
-    assert Section("T").render() == r"\section{T}"
-    assert Section("T", starred=True).render() == r"\section*{T}"
-    assert Section("T", starred=True, short="S").render() == r"\section*[S]{T}"
+    assert Section(title="T").render() == r"\section{T}"
+    assert Section(title="T", starred=True).render() == r"\section*{T}"
+    assert Section(title="T", starred=True, short="S").render() == r"\section*[S]{T}"
     assert Put(at=(1, 2), text=Raw("x")).render() == r"\put(1,2){x}"
-    assert Angle(Raw("x"), overlay="2").render() == r"\only<2>{x}"
-    assert repr(Section("T", starred=True)) == "Section('T', starred=True)"
+    assert Angle(text=Raw("x"), overlay="2").render() == r"\only<2>{x}"
+    assert repr(Section(title="T", starred=True)) == "Section(title='T', starred=True)"
     assert xparse_spec(Section.__tm_args__) == "sO{}m" and signature(Section.__tm_args__) == "som"
     assert xparse_spec(Put.__tm_args__) == "r()m" and xparse_spec(Angle.__tm_args__) == "D<>{}m"
     assert [a.name for a in Section.__tm_args__] == ["starred", "short", "title"]
@@ -186,12 +186,12 @@ def test_a_gap_that_is_refused_and_a_group_that_is_all_or_none():
         b: Text | None = arg(SQUARE, group=pair, default=None)
         c: Text
 
-    assert Strict("c", a="1").render() == r"\strict[1]{c}"
-    assert [v.code for v in Strict("c", b="2").violations()] == ["TM-C005"]
+    assert Strict(c="c", a="1").render() == r"\strict[1]{c}"
+    assert [v.code for v in Strict(c="c", b="2").violations()] == ["TM-C005"]
     with pytest.raises(ExceptionGroup):
-        Strict("c", b="2").render()
-    assert Grouped("c").render() == r"\grouped{c}" and Grouped("c", a="1", b="2").render() == r"\grouped(1)[2]{c}"
-    (v,) = Grouped("c", a="1").violations()
+        Strict(c="c", b="2").render()
+    assert Grouped(c="c").render() == r"\grouped{c}" and Grouped(c="c", a="1", b="2").render() == r"\grouped(1)[2]{c}"
+    (v,) = Grouped(c="c", a="1").violations()
     assert v.code == "TM-C004" and "['b']" in v.message
 
 
@@ -286,26 +286,40 @@ def test_each_value_type_is_written_and_checked():
         ratio: float
 
     node = Everything(
-        Length("2mm"),
-        3,
-        True,
-        CMYK(0, 0, 0, 1),
-        "blue!50",
-        Align.RIGHT,
-        Place(Length("1cm"), LengthExpr(r"\linewidth")),
-        Size(2, 3),
-        Pair(a="a & b", b=2),
-        [1, 2],
-        (Length("1pt"), "x_y"),
-        "A (b)",
-        0.50,
+        length=Length("2mm"),
+        n=3,
+        flag=True,
+        colour=CMYK(0, 0, 0, 1),
+        name="blue!50",
+        align=Align.RIGHT,
+        place=Place(Length("1cm"), LengthExpr(r"\linewidth")),
+        size=Size(2, 3),
+        pair=Pair(a="a & b", b=2),
+        many=[1, 2],
+        fixed=(Length("1pt"), "x_y"),
+        hole="A (b)",
+        ratio=0.50,
     )
     assert node.render() == (
         r"\everything{2mm}{3}{true}{0,0,0,1}{blue!50}{r}{1cm,\linewidth}{2,3}{a \& b,2}{1,2}{1pt,x\_y}"
         r"{\detokenize{A \050b\051}}{0.5}"
     )
     assert node.violations() == []
-    bad = Everything("2mm", 3.5, 1, RGB(0, 0, 0), "9", "right", (1, 2), Size(1, "x"), (1, 2), [1, "x"], (1,), 3, True)  # pyright: ignore[reportArgumentType]
+    bad = typing.cast("typing.Any", Everything)(  # deliberately wrong types
+        length="2mm",
+        n=3.5,
+        flag=1,
+        colour=RGB(0, 0, 0),
+        name="9",
+        align="right",
+        place=(1, 2),
+        size=Size(1, "x"),  # pyright: ignore[reportArgumentType]
+        pair=(1, 2),
+        many=[1, "x"],
+        fixed=(1,),
+        hole=3,
+        ratio=True,
+    )
     assert {v.path.rsplit(".", 1)[1] for v in bad.violations()} == {
         "length", "n", "flag", "name", "align", "place", "size", "pair", "many", "fixed", "hole", "ratio",
     }  # fmt: skip
@@ -376,7 +390,9 @@ def test_data_round_trips_through_the_new_types():
         many: list[int]
         colour: Colour | None = None
 
-    node = Box(Length("2mm"), Place(Length("1cm"), Length.expr(r"\linewidth")), [1, 2], colour=CMYK(0, 0, 0, 1))
+    node = Box(
+        width=Length("2mm"), at=Place(Length("1cm"), Length.expr(r"\linewidth")), many=[1, 2], colour=CMYK(0, 0, 0, 1)
+    )
     data = to_dict(node)
     assert data == {
         "type": "Box",
@@ -463,8 +479,8 @@ def test_stubs_log_the_slots_and_a_star_reads_as_the_xparse_boolean():
         def body(self):
             yield Heading.call(Hole("title"), starred=True)
 
-    assert only_calls(expand(Page("T"), [Heading])) == [Call("isHeading", (r"\BooleanTrue ", "", "T"))]
-    assert only_calls(expand(Heading("T"), [Heading])) == [Call("isHeading", (r"\BooleanFalse ", "", "T"))]
+    assert only_calls(expand(Page(title="T"), [Heading])) == [Call("isHeading", (r"\BooleanTrue ", "", "T"))]
+    assert only_calls(expand(Heading(title="T"), [Heading])) == [Call("isHeading", (r"\BooleanFalse ", "", "T"))]
     tex = stub_tex([Heading])
     assert r"\RenewDocumentCommand{\isHeading}{sO{}m}" in tex and r"\detokenize{{#1}{#2}{#3}}" in tex
 

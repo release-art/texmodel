@@ -65,8 +65,8 @@ DATA = {
 def test_a_document_loads_from_data_and_renders_like_the_same_tree_built_in_python():
     node = from_dict(Sheet, DATA)
     built = Sheet(
-        Face(Icon(Raw("a_b.jpg")), Fact("50%"), title="T", note=Raw("\\x")),
-        Face(Icon(Raw("c.jpg")), Fact("b"), title="U"),
+        Face(Icon(path=Raw("a_b.jpg")), Fact(text="50%"), title="T", note=Raw("\\x")),
+        Face(Icon(path=Raw("c.jpg")), Fact(text="b"), title="U"),
     )
     assert node == built and node.render() == built.render() and node.violations() == []
 
@@ -79,7 +79,7 @@ def test_to_dict_round_trips_and_leaves_out_an_optional_none():
 
 
 def test_a_command_loads_on_its_own():
-    assert from_dict(Fact, {"text": "x"}) == Fact("x")
+    assert from_dict(Fact, {"text": "x"}) == Fact(text="x")
 
 
 def test_every_error_comes_at_once_with_the_path_validate_would_give():
@@ -108,7 +108,7 @@ def test_unbalanced_raw_is_a_data_error_not_a_crash():
 
 
 def test_raw_takes_a_string_or_a_raw_and_nothing_else():
-    assert from_dict(Icon, {"path": Raw("a.jpg")}) == Icon(Raw("a.jpg"))
+    assert from_dict(Icon, {"path": Raw("a.jpg")}) == Icon(path=Raw("a.jpg"))
     with pytest.raises(ExceptionGroup) as group:
         from_dict(Icon, {"path": 3})
     assert "expected TeX as a string" in str(group.value.exceptions[0])

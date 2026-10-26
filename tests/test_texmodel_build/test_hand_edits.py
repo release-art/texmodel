@@ -59,7 +59,11 @@ class Inner(Environment):
 
 
 STUBS = [Para, Note, Meter, Inner]
-NODES = (Inner(Para("a"), Para("a"), Note("n", label="L"), title="T"), Meter(Length("3cm"), 3, 0.5), Para("z"))
+NODES = (
+    Inner(Para(text="a"), Para(text="a"), Note(text="n", label="L"), title="T"),
+    Meter(width=Length("3cm"), count=3, ratio=0.5),
+    Para(text="z"),
+)
 PLAN = pkg.plan(*NODES)
 BASE = [c for n in NODES for c in expand(n, STUBS) if isinstance(c, Call)]
 NO_COMPILER = typing.cast("Compiler", None)

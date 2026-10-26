@@ -43,13 +43,13 @@ def test_arguments_follow_tex_order_with_the_optional_one_first(acme):
     assert "\\newcommand{\\acName}[1]{%" in text
 
 
-def test_optional_fields_are_keyword_only_and_components_are_frozen(acme):
-    assert acme.Slot("a", label="b").label == "b" and acme.Slot("a").label is None
+def test_fields_are_keyword_only_and_components_are_frozen(acme):
+    assert acme.Slot(text="a", label="b").label == "b" and acme.Slot(text="a").label is None
     with pytest.raises(TypeError):
-        acme.Slot("a", "b")  # pyright: ignore[reportCallIssue]
+        acme.Slot("a")  # pyright: ignore[reportCallIssue]
     with pytest.raises(pydantic.ValidationError, match="frozen"):
-        acme.Slot("a").text = "x"  # pyright: ignore[reportAttributeAccessIssue]
-    assert acme.Fact("x") == acme.Fact("x") and hash(acme.Fact("x")) == hash(acme.Fact("x"))
+        acme.Slot(text="a").text = "x"  # pyright: ignore[reportAttributeAccessIssue]
+    assert acme.Fact(text="x") == acme.Fact(text="x") and hash(acme.Fact(text="x")) == hash(acme.Fact(text="x"))
 
 
 def test_package_arguments_are_validated():

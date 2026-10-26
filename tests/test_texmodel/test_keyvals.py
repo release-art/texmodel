@@ -275,22 +275,26 @@ def adjust():
 def test_a_key_list_fills_a_slot_and_an_empty_one_in_an_optional_slot_is_not_written():
     adjust_box, optional, parens, picture = adjust()
     opts = Options(max_width=Length.expr(r"\linewidth"), center=True)
-    assert adjust_box(opts, Raw("x")).render() == r"\adjustbox{max width=\linewidth,center}{x}"
-    assert adjust_box(Options(), Raw("x")).render() == r"\adjustbox{}{x}"  # a required slot is always written
-    assert optional("f.pdf", options=opts).render() == r"\includegraphics[max width=\linewidth,center]{f.pdf}"
-    assert optional("f.pdf", options=Options()).render() == r"\includegraphics{f.pdf}"
-    assert optional("f.pdf").render() == r"\includegraphics{f.pdf}"
-    assert parens(Raw("x"), options=Options(center=True)).render() == r"\parens(center){x}"
+    assert adjust_box(options=opts, text=Raw("x")).render() == r"\adjustbox{max width=\linewidth,center}{x}"
+    assert (
+        adjust_box(options=Options(), text=Raw("x")).render() == r"\adjustbox{}{x}"
+    )  # a required slot is always written
+    assert optional(path="f.pdf", options=opts).render() == r"\includegraphics[max width=\linewidth,center]{f.pdf}"
+    assert optional(path="f.pdf", options=Options()).render() == r"\includegraphics{f.pdf}"
+    assert optional(path="f.pdf").render() == r"\includegraphics{f.pdf}"
+    assert parens(text=Raw("x"), options=Options(center=True)).render() == r"\parens(center){x}"
     assert picture(options=Options(clip=True)).render() == "\\begin{picture}[clip=true]\n\\end{picture}"
-    assert optional("f.pdf", options=Options(title="a]b")).render() == r"\includegraphics[title={a]b}]{f.pdf}"
-    assert adjust_box(opts, Raw("x")).violations() == []
-    (problem,) = adjust_box("not options", Raw("x")).violations()  # pyright: ignore[reportArgumentType]
+    assert optional(path="f.pdf", options=Options(title="a]b")).render() == r"\includegraphics[title={a]b}]{f.pdf}"
+    assert adjust_box(options=opts, text=Raw("x")).violations() == []
+    (problem,) = adjust_box(options="not options", text=Raw("x")).violations()  # pyright: ignore[reportArgumentType]
     assert problem.code == "TM-C003" and "Options" in problem.message
 
 
 def test_a_key_list_is_data_and_has_a_schema():
     adjust_box, *_ = adjust()
-    node = adjust_box(Options(max_width=Length("3cm"), center=True, valign=VAlign.TOP, tags=["a"]), Raw("x"))
+    node = adjust_box(
+        options=Options(max_width=Length("3cm"), center=True, valign=VAlign.TOP, tags=["a"]), text=Raw("x")
+    )
     data = to_dict(node)
     assert data == {
         "type": "AdjustBox",

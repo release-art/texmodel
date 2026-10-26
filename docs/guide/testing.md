@@ -47,7 +47,7 @@ class Section(Environment):
     end = r"\end{center}"
 
 
-section = Section(Entry("First"), Entry("R&D 50%"), title="Notes")
+section = Section(Entry(text="First"), Entry(text="R&D 50%"), title="Notes")
 calls = [c for c in expand(section, stubs=[Fact]) if isinstance(c, Call)]
 assert calls == [Call("bkFact", ("First",)), Call("bkFact", (r"R\&D 50\%",))]
 ```

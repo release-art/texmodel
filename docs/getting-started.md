@@ -94,7 +94,7 @@ version wrote a file.
 A document is Python objects. `Text` fields are escaped; everything wrong is reported at once.
 
 ```python
-card = CardBack(Name("Rex"), Fact("Friendly & loyal."), Fact("50% of $5"))
+card = CardBack(Name(text="Rex"), Fact(text="Friendly & loyal."), Fact(text="50% of $5"))
 tex = pkg.document(Document(card, settings=[FactGap(Length("3mm"))], options=["a4paper"]))
 assert r"\acFact{50\% of \$5}" in tex
 ```
@@ -115,7 +115,7 @@ assert r"\acFact{50\% of \$5}" in tex
 A tree that breaks the grammar is reported with a code and a path:
 
 ```python
-problems = CardBack(Fact("x")).violations()
+problems = CardBack(Fact(text="x")).violations()
 assert [p.code for p in problems] == ["TM-C002", "TM-C002"]   # no Name; one Fact where 2 to 3 are allowed
 ```
 

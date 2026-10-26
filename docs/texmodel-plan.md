@@ -11,7 +11,7 @@ nothing about any brand, deck or business domain.
 
 **How to read this document.** It is the target specification plus the decisions log (§21). The guide and the cookbook
 describe what exists; §21 is the record of what was decided and built; §19 and §21a describe what is open; `docs/briefs/roadmap.md` is the order to do it in. Many ids below
-describe work that is *not built*. Checked against the code (v0.5.0), these are not built: scoped overrides `Set` (D4a),
+describe work that is *not built*. Checked against the code (v0.5.1), these are not built: scoped overrides `Set` (D4a),
 rules and `@rule` (D5), placement (M5), the `Namespace` policy (M6), `engine`/`kind`/`base` on `Package` and engine
 capabilities (M11, M13), `Markup`, `Path`, `Font`, `Snippet`, `PgfStyle`, `Cycle` and colour variants (T2, T5-T9), trust
 levels and limits (Z1), `texmodel explain` (E4), a `@covers` check (A2, V7), benchmarks (W2), `libcst` refactors and
@@ -962,6 +962,7 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | A source map is a `Plan`: output lines with the path that wrote each. Documents are checked against the model's render, with no baseline file (`[tool.texmodel.documents]`, like `terraform plan`); hand edit and config change are not told apart | decided |
 | A text setting is `Value[Text]`: `\newcommand` with an escaped default in a generated `.sty`; a `Document`'s `settings` write `\renewcommand` after `\usepackage` (before the preamble slot, not in the body; every other setting is written there too, in the order given); an adopted package may declare only a `Value[Text]`, checked as an argument-less command | decided |
 | `Document(*content, options=, settings=, preamble=)` is the whole document as one value: `Package.plan` and `Package.document` take one alone (or bare nodes), the keywords `settings=`, `options=` and `preamble=` of those calls are gone; `to_dict(doc)` and `from_dict(package, data)` round-trip it (settings as `{"type": "Gap", "value": "3mm"}`, preamble entries as `{"type": "PdfInfo", "entries": {…}}`), `json_schema(package)` has it as its root, and its plan paths are `settings[i]`, `options[i]` and `preamble.<slot>[i]`; an entry in the wrong slot is `TM-C008` | decided |
+| A command's fields are keyword-only (`Fact(text="a")`); an environment's positional arguments are its children; `class X(Command, kw_only=False)` lets a class take its required fields positionally, and is inherited. The word is the dataclass one, so type checkers (`dataclass_transform(kw_only_default=True)`) agree with the runtime. `Passthrough` is positional | decided |
 | A closed set is a `Choice` enum whose member values are the TeX (`Raw` passes through, `str` is escaped); data names a member by name | decided |
 | A macro's interface is slots (delimiter, optional or required, token, group) holding typed values or a `KeyVals`; `arg()` states a slot, an optional field without it is TeX's one optional argument, first; a signature `\newcommand` cannot define is defined with xparse (`\NewDocumentCommand`), not xargs. Details in the guide (Arguments) | decided |
 | `KeyVals` is a frozen pydantic model whose field types give the item kind, with a `KeyRules` preset per key library (`texmodel.keys`); the presets are measured by compiling | decided |

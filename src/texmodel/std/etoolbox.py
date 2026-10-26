@@ -163,7 +163,7 @@ class AtEndEnvironment(Command):
 
 
 def _toggle_setting(prefix: str, name: str, value: bool, _alias: str | None) -> str:  # noqa: FBT001
-    return (ToggleTrue if value else ToggleFalse)(Raw(f"{prefix}{name}")).render()
+    return (ToggleTrue if value else ToggleFalse)(name=Raw(f"{prefix}{name}")).render()
 
 
 TOGGLE = ValueKind(
@@ -172,7 +172,7 @@ TOGGLE = ValueKind(
     "boolean",
     lambda prefix, name, _alias: (("control", f"{prefix}{name}", f"\\{prefix}{name}"),),
     lambda prefix, name, default, alias: [
-        NewToggle(Raw(f"{prefix}{name}")).render(),
+        NewToggle(name=Raw(f"{prefix}{name}")).render(),
         *([] if default is None else [_toggle_setting(prefix, name, default, alias)]),
     ],
     _toggle_setting,
