@@ -1,4 +1,4 @@
-"""The constructive emitter (§21a 19): `Group`, `Seq`, `Cs`, `Lit`, with holes and references inside."""
+"""The constructive emitter (§21): `Group`, `Seq`, `Cs`, `Lit`, with holes and references inside."""
 
 import enum
 

@@ -1,4 +1,4 @@
-"""Typed preamble entries (§21a 10, G3): each renders to one `Raw` and knows which `PreambleSlots` slots it may sit in.
+"""Typed preamble entries (§21, G3): each renders to one `Raw` and knows which `PreambleSlots` slots it may sit in.
 
 ```python
 PreambleSlots(
@@ -102,7 +102,7 @@ class RequireMetadata:
 @dataclasses.dataclass(frozen=True, init=False)
 class PdfInfo:
     """`PdfInfo(Title="Rex")`: entries of the PDF Info dictionary. Each value is PDF-escaped and written through
-    `pdfmanagement_add:nnn`, so any text reaches the PDF as it is (§21a 9); the route needs `\\DocumentMetadata`, so a
+    `pdfmanagement_add:nnn`, so any text reaches the PDF as it is (§21); the route needs `\\DocumentMetadata`, so a
     document with one has a `RequireMetadata` in `before_class` (`TM-C009`). A key is letters only (`TM-M035`)."""
 
     entries: tuple[tuple[str, str], ...]

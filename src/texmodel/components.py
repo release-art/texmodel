@@ -391,7 +391,7 @@ def field(
     default: Any = dataclasses.MISSING,  # noqa: ANN401  # as dataclasses.field
 ) -> Any:  # noqa: ANN401
     """A field that data (`from_dict`) may still name `renamed_from`: `to_dict` and the schema use the field's name, the
-    old key loads, and the schema records it as `x-renamed-from` (§21a 15). `doc` is its description in the schema and
+    old key loads, and the schema records it as `x-renamed-from` (§21). `doc` is its description in the schema and
     `meta` its `x-` keys (`meta={"audience": "deck"}` is `x-audience`). `default` makes it optional, keyword-only."""
     return field_info(default, FieldNotes(renamed_from, doc, dict(meta or {})), kw_only=None)
 
@@ -410,7 +410,7 @@ class Command(_Node):
 
     @classmethod
     def call(cls, *required: ArgValue, **optional: ArgValue) -> Ref:
-        """A body piece that calls this command (§21a 17): the required arguments positionally, the optional one by
+        """A body piece that calls this command: the required arguments positionally, the optional one by
         keyword, each a `Hole` (an argument of the component being defined), a `Raw`, a `str` (escaped) or a `Choice`.
         """
         return _ref(cls, RefKind.CALL, required, optional)
@@ -439,12 +439,12 @@ class Environment(_Node):
 
     @classmethod
     def open(cls, **args: ArgValue) -> Ref:
-        """A body piece that starts this environment, `\\begin{acBox}`, with its arguments by keyword (§21a 17)."""
+        """A body piece that starts this environment, `\\begin{acBox}`, with its arguments by keyword."""
         return _ref(cls, RefKind.OPEN, (), args)
 
     @classmethod
     def close(cls) -> Ref:
-        """A body piece that ends this environment, `\\end{acBox}` (§21a 17)."""
+        """A body piece that ends this environment, `\\end{acBox}`."""
         return _ref(cls, RefKind.CLOSE, (), {})
 
 
@@ -837,7 +837,7 @@ def _required(
 
 
 def _declared_only(cls: "type[Command] | type[Environment]", *sources: Source | None) -> None:
-    """A component of an adopted package (M9) or one a library block defines (§21a 12) is only declared: another source
+    """A component of an adopted package (M9) or one a library block defines (§21) is only declared: another source
     has its TeX, so a body would never render and is refused."""
     if any(sources):
         who = "a library block" if cls.defined_by is not None else "the hand-written package (it is adopted)"

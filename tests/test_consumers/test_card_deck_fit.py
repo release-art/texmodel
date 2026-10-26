@@ -1,4 +1,4 @@
-"""The synthetic deck's expl3 algorithm (§21a 12): carried verbatim, defined as declared, and giving the right sizes."""
+"""The synthetic deck's expl3 algorithm (§21): carried verbatim, defined as declared, and giving the right sizes."""
 
 import pytest
 from card_deck import fit

@@ -1,4 +1,4 @@
-"""A library is a part that declares what it defines (§21a 12): the declarations are checked against its TeX."""
+"""A library is a part that declares what it defines (§21): the declarations are checked against its TeX."""
 
 import types
 

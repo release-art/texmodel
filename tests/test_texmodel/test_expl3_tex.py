@@ -1,4 +1,4 @@
-"""expl3 blocks through TeX (§21a 12): a block that compiles and exports what it declares, one that does not, and the
+"""expl3 blocks through TeX (§21): a block that compiles and exports what it declares, one that does not, and the
 PDF Info route. Verification is by compiling; nothing here parses TeX."""
 
 import pathlib

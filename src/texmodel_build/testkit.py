@@ -18,7 +18,7 @@ from .verify import Profile, Verifier, verify_file
 def run_probes(
     compiler: Compiler, tex: str, files: Mapping[str, str] | None = None, *, plans: Mapping[str, Plan] | None = None
 ) -> list[Measurement]:
-    """Compile `tex` and return its `texmodel:probe:` lines in log order (§21a 20, C5a). `files` are written beside it
+    """Compile `tex` and return its `texmodel:probe:` lines in log order (§21, C5a). `files` are written beside it
     first (path -> text: the `.sty` the document loads); the build directory is removed afterwards. A document that
     does not compile raises `CompileError`, so a test never reads probes from a broken run; its diagnostics carry the
     `path` from `plans` (file name -> the plan that wrote it)."""
@@ -35,7 +35,7 @@ def run_probes(
 
 def check_library(compiler: Compiler, package: Package, files: Mapping[str, str] | None = None) -> list[Violation]:
     """Compile `package` and check that every component a library block defines exists with the declared arguments
-    (§21a 12): `Package.test_document` with `export_probes`, run with `run_probes`, read by `check_exports`. A block
+    (§21): `Package.test_document` with `export_probes`, run with `run_probes`, read by `check_exports`. A block
     TeX refuses raises `CompileError` whose diagnostics name the block as their `path`. `files` are other files the
     package loads."""
     tex = package.test_document(preamble=PreambleSlots(after_package=(Raw(export_probes(package)),)))

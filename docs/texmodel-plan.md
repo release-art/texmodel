@@ -10,7 +10,7 @@ A acceptance.
 nothing about any brand, deck or business domain.
 
 **How to read this document.** It is the target specification plus the decisions log (§21). The guide and the cookbook
-describe what exists; §21 is the record of what was decided and built; §19 and §21a list what is open. Many ids below
+describe what exists; §21 is the record of what was decided and built; §19 and §21a describe what is open; `docs/briefs/roadmap.md` is the order to do it in. Many ids below
 describe work that is *not built*. Checked against the code (v0.4.0), these are not built: scoped overrides `Set` (D4a),
 rules and `@rule` (D5), placement (M5), the `Namespace` policy (M6), `engine`/`kind`/`base` on `Package` and engine
 capabilities (M11, M13), `Markup`, `Path`, `Font`, `Snippet`, `PgfStyle`, `Cycle` and colour variants (T2, T5-T9), trust
@@ -1001,7 +1001,7 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 
 ## 21a. Open ideas and gaps
 
-Each is a candidate, not a decision. The ones that can run unattended are batched in `docs/briefs/roadmap.md`.
+Each is a candidate, not a decision. `docs/briefs/roadmap.md` orders them.
 
 1. **`List[T]` fields.** Open: how a list renders (separator, per-item wrapper, empty list).
 2. **`Measure` beyond `fit`.** Other kinds than `fit`; a declared bound per item.

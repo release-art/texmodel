@@ -1,4 +1,4 @@
-"""Unit tests of generated code with stubbed dependencies (§21a 20).
+"""Unit tests of generated code with stubbed dependencies (§21).
 
 Two tiers. The fast tier needs no TeX: `expand(node, stubs=[Fact])` walks the bodies the generator wrote, with the
 node's field values, and returns the text and the `Call` of every stubbed component, in order. The TeX tier is
@@ -287,7 +287,7 @@ _EXPORT = (
 def export_probes(package: "Package") -> str:
     """TeX for `PreambleSlots.after_package` that writes, per component a library block defines,
     `texmodel:probe:def.<cs>` (`yes` or `no`) and `texmodel:probe:arity.<cs>` (the `#` parameters of its
-    `\\meaning`, `?` when that is not a macro's), for `check_exports` (§21a 12). Needs LuaTeX."""
+    `\\meaning`, `?` when that is not a macro's), for `check_exports` (§21). Needs LuaTeX."""
     calls = [rf"\tmexport{{{control_name(c)}}}" for c, _ in _defined(package)]
     return "\n".join([_EXPORT, *calls]) if calls else ""
 

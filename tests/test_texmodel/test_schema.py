@@ -1,4 +1,4 @@
-"""Package-level schema and renamed fields (§21a 15)."""
+"""Package-level schema and renamed fields (§21)."""
 
 import json
 from typing import Any

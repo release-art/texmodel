@@ -1,4 +1,4 @@
-"""`Comment` (§21a 21): prefixed lines, templates, a body piece, a transparent document node, and data."""
+"""`Comment` (§21): prefixed lines, templates, a body piece, a transparent document node, and data."""
 
 import dataclasses
 

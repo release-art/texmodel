@@ -1,4 +1,4 @@
-"""Typed preamble entries (§21a 10): rendered text, slot rules and plan paths."""
+"""Typed preamble entries (§21): rendered text, slot rules and plan paths."""
 
 import pytest
 from test_texmodel_build.test_compile_tex import compiler, fonts, require_files  # noqa: F401

@@ -1,6 +1,6 @@
 # Known limitations
 
-What texmodel does not do or does not check today. Planned work is in [the plan](texmodel-plan.md) (§19, §21a).
+What texmodel does not do or does not check today. Planned work is ordered in the roadmap (`docs/briefs/roadmap.md`) and specified in [the plan](texmodel-plan.md) (§19, §21a).
 
 ## Scope
 
