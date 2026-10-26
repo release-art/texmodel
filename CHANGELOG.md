@@ -7,53 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-26
+
+Components are frozen pydantic models. A hand edit is named by argument and read by TeX.
+
 ### Added
 
-- `texmodel.package.GENERATOR_VERSION`: when set, `generator_version()` uses it instead of the installed metadata, for a copy
-  of texmodel embedded in a wheel.
-- `texmodel_build.fonts` (`embedded`, `outside`): the font files a compile embedded, from its LuaTeX log, and those outside
-  the allowed directories.
-- `Plan.edits` names the argument a hand edit changed: `Line.spans` (where each argument's text stands in a call or
-  begin line), `Edit.fields` and `FieldEdit(arg, found, value, violation)`; empty unless the change is inside one argument.
-- `texmodel_build.hand_edits.read_edits(compiler, plan, text, *packages)`: the same edits read by TeX through the stubs, with
-  the typed value of each changed argument or the `Violation` (`TM-C021`) saying it holds none, and `EditKind.UNREAD` for a
-  line that differs while TeX reads the same calls. `TM-X032` (the plan's calls and lines disagree), `TM-X033` (no
-  component to stub).
+- `Plan.edits` names the argument a hand edit changed: `Line.spans`, `Edit.fields` and `FieldEdit(arg, found, value,
+  violation)`; empty unless the change is inside one argument. `EditKind.UNREAD` is a line that differs while TeX reads
+  the same calls.
+- `texmodel_build.hand_edits.read_edits(compiler, plan, text, *packages)`: the edits read by TeX through stubs, each
+  changed argument with its typed value or the `Violation` (`TM-C021`) saying it holds none. `TM-X032` (the plan's calls
+  and lines disagree), `TM-X033` (no component to stub).
 - `texmodel.testing.read_call(cls, call)`: a stub's call as typed `FieldEdit`s. `components.call_line(node)`.
-- `node.model_fields_set`: the fields the caller passed, positionally or by keyword (a default given included), or the
-  keys the data gave to `from_dict`.
+- `texmodel_build.fonts` (`embedded`, `outside`): the font files a compile embedded, from its LuaTeX log, and those
+  outside the allowed directories.
+- `texmodel.package.GENERATOR_VERSION`: when set, `generator_version()` uses it instead of the installed metadata, for a
+  copy of texmodel embedded in a wheel.
+- `node.model_fields_set`: the fields the caller passed, positionally or by keyword, or the keys the data gave to
+  `from_dict`.
 - `Package(comments=[...])`: the `Comment` subclasses data may hold in the package's environments.
 - `TM-M045`: a field named like an attribute every component has (`copy`, `json`, `render`, a `model_` name).
+- The guide under `docs/` (built with MkDocs Material: `pdm install -G docs`, `pdm run mkdocs serve`); every `python`
+  block in the README and the docs is run by `tests/test_docs.py`.
 
 ### Changed
 
-- A `TemplateRef` is read through `importlib.resources`, so a declaration imported from a zip finds its templates.
-- Every public module has an `__all__` naming its API; a test fails when a module defines a public name outside it.
-- `Plan.to_json` writes a line's spans as a third element when it has any; a baseline without them loads (no spans).
-- `Command`, `Environment` and `Passthrough` are frozen pydantic models. Building one still validates nothing (the metaclass
-  maps positional arguments and calls `model_construct`); assigning to a field raises `pydantic.ValidationError`, not
-  `AttributeError`; `str(node)` is `repr(node)`.
+- `Command`, `Environment` and `Passthrough` are frozen pydantic models. Building one validates nothing; assigning to a
+  field raises `pydantic.ValidationError`; `str(node)` is `repr(node)`.
 - `validate()` is `violations()`, on components and `Comment`.
-- `to_dict` writes the fields a node was given (`model_fields_set`), `None` and `False` included when given, and leaves
-  out a default that was not; it was every field that was not `None` or `False`.
+- `to_dict` writes the fields a node was given (`model_fields_set`), `None` and `False` included when given, and leaves out
+  a default that was not.
 - `field()` and `arg()` return a pydantic `FieldInfo`; a field's doc, old name and `x-` keys are in its schema from it.
 - An environment's JSON Schema has its docstring as `description`, as a command's has.
-- Docs: the README is a short front page; the reference is a guide under `docs/` (getting started, components, arguments,
-  values, documents, checking, adopting TeX, standard libraries, testing, building, tools), built with MkDocs Material
-  (`pdm install -G docs`, `pdm run mkdocs serve`). Every `python` block in the README and the docs runs in `tests/test_docs.py`.
+- `Plan.to_json` writes a line's spans as a third element when it has any; a baseline without them loads.
+- A `TemplateRef` is read through `importlib.resources`, so a declaration imported from a zip finds its templates.
+- Every public module has an `__all__` naming its API.
 
 ### Removed
 
 - The `comments=` argument of `from_dict` and `json_schema`: list the classes on the package.
-- `pointer.load_package`: `load_packages` takes one pointer too.
+- `pointer.load_package`: `load_packages` takes one pointer.
 - `texmodel.spec.ValidationError`: import it from `texmodel.errors`.
-- From the public modules, into `_internal` or private: `body.refs_in`, `syntaxes_in`, `pieces_of`, `template_text`,
-  `plan.node_lines`, `preamble.tex_of`; `texmodel_build.hand_edits.Probed`.
-- `texmodel_build.roots` (`resolve`, `shadowing`, `Resolution`, `TM-C100`): nothing used it; `Compiler.roots` mounts the roots.
+- `body.refs_in`, `syntaxes_in`, `pieces_of`, `template_text`, `plan.node_lines`, `preamble.tex_of` (internal now).
+- `texmodel_build.roots` (`resolve`, `shadowing`, `Resolution`, `TM-C100`).
 
 ## [0.3.3] - 2026-10-23
-
-No generated output changes; additions from the second migration's questions.
 
 ### Added
 
@@ -66,11 +65,6 @@ No generated output changes; additions from the second migration's questions.
 - `texmodel.package.declared(text)`: the control sequences the adoption scanner reads in a text, as a `frozenset`.
 - `texmodel.package.setting_line(value)`: the line a document writes for one setting; `Package.plan` uses it.
 
-### Changed
-
-- Docs: the README says which attributes of a component are public (no leading underscore, read-only, `meta` among them)
-  and that `__tm_*` are internal, and that `PdfInfo` takes any text unchanged (what the compile test covers).
-
 ## [0.3.2] - 2026-10-23
 
 Generated output changes only for a value written from a float (a long tail of digits becomes five decimals).
@@ -82,19 +76,12 @@ Generated output changes only for a value written from a float (a long tail of d
 
 ## [0.3.1] - 2026-10-22
 
-No generated output changes; additions from the first migration's friction notes.
-
 ### Added
 
 - `abstract=True` on a `Command` or `Environment`: a shared base that carries fields, `body` (or `begin` and `end`) and
   `children` for its subclasses, needs no docstring or control-word name, and is never registered (`TM-M043`).
 - `Value.declared_default()`, and `control_name(value)`: a value's control sequence (`__tm_cs__`); a colour has none
   (`TM-M042`).
-
-### Changed
-
-- Docs: the README and the cookbook describe shared bases and keyword-only optional fields (`arg(default=...)`); the
-  plan and the roadmap state what is built and what is not.
 
 ## [0.3.0] - 2026-10-22
 
@@ -147,8 +134,8 @@ them. Value kinds are data, so a package adds its own.
 - `TM-M003` (more than one optional argument) is removed; an optional argument followed by another that says nothing
   about being skipped is `TM-M037`.
 - `document(settings=)` writes every setting right after `\usepackage`, in the order given, before the `after_package`
-  slot. Lengths, colours and flags used to follow `\begin{document}`.
-- `\ProvidesPackage` has no date unless the package gives one (the default was `1970/01/01`); with none, its version and
+  slot.
+- `\ProvidesPackage` has no date unless the package gives one; with none, its version and
   description are a comment line, because LaTeX reads the first word of the bracket as a date.
 - An optional argument with a scalar default is defined with it: an optional `bool = False` is `[false]`, not `[]`.
   Regenerate committed `.sty` files.
@@ -172,7 +159,8 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/release-art/texmodel/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/release-art/texmodel/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/release-art/texmodel/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/release-art/texmodel/compare/v0.3.0...v0.3.1

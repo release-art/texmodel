@@ -1,4 +1,4 @@
-"""Hand edits read by TeX (hand-edit-probe-spec): each component of the packages is stubbed to log its call, the edited
+"""Hand edits read by TeX: each component of the packages is stubbed to log its call, the edited
 file and the plan's own text are compiled, and the calls are compared. Where `Plan.edits` sees text, this sees what TeX
 reads: the argument that changed and the typed value it now holds."""
 

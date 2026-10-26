@@ -1,4 +1,4 @@
-"""Hand edits read by TeX (hand-edit-probe-spec): the merge of calls and lines without TeX, and one compile."""
+"""Hand edits read by TeX: the merge of calls and lines without TeX, and one compile."""
 
 import re
 import typing

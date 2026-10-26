@@ -1,4 +1,4 @@
-"""Reading a stub's call back (hand-edit-probe-spec): the typed value each argument text stands for."""
+"""Reading a stub's call back: the typed value each argument text stands for."""
 
 import enum
 import re

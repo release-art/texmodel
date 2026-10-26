@@ -39,8 +39,9 @@ Needs an owner decision first:  X1 data-driven render   X2 hand-edit semantics  
 - **X1 Data-driven rendering (plan 15).** Open: the shape of the declared field mapping (joins, slot order, policies),
   where it lives, and reopening the parked TOML frontend. Proposed: a `Mapping` object next to the components, `texmodel render
   --data file.toml <pointer>`. Needs a design review.
-- **X2 Hand-edit semantics (plan 6).** Open: keyed children (path by id), the ignore-marker rule, the import hook. Needs the
-  consumer's real workflow.
+- **X2 Hand-edit semantics (plan 6).** Open: keyed children (path by id), the ignore-marker rule, the import hook, a
+  `texmodel-build` command over `read_edits`, `Doc.apply(edits)`, settings read by TeX (`\the\lbGap`, `\extractcolorspec`), a
+  tree-aware diff, a scan for a redefined stubbed macro. Needs the consumer's real workflow.
 - **X3 Rules layer and placement (plan 7, D5, M5).** Open: the `@rule` API and severities. Needs a design review.
 - **X4 `List[T]` fields (plan 1).** Open: how a list renders (separator, per-item wrapper, empty list). Needs a decision.
 - **X5 Gate B closing.** A first-time author timing a new component, and a second consumer whose history has an escaping bug

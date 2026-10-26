@@ -1009,7 +1009,7 @@ Each is a candidate, not a decision. The ones that can run unattended are batche
    wraps log lines, so the file stack is not recoverable).
 4. **Grammar.** Interleaving of two runs.
 5. **Hand edit vs config change.** Telling them apart needs the old render (a saved plan or git).
-6. **Hand-edit semantics.** (The field and typed value of an edit are built, §21; see `docs/briefs/hand-edit-probe-spec.md`.) The old regex tool matched cards by id, ignored a triage tool's marker comment, and produced the
+6. **Hand-edit semantics.** (The field and typed value of an edit are built, §21.) The old regex tool matched cards by id, ignored a triage tool's marker comment, and produced the
    config edit that imports a hand edit. Ideas: keyed children (path by id, not position), a declared comment marker to ignore
    in the plan comparison, an `import` hook that maps a path to a source field.
 7. **Rules layer (D5) and placement (M5).** The package enforces counts itself with its own errors (a package can build them
