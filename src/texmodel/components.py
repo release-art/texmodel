@@ -81,7 +81,6 @@ the class is defined.
 import annotationlib
 import dataclasses
 import inspect
-import sys
 import types
 import typing
 from collections.abc import Mapping, Sequence
@@ -280,7 +279,7 @@ def _source(cls: type, name: str) -> Source | None:
     out: list[Resolved] = []
     for piece in given:
         if isinstance(piece, TemplateRef):
-            text = template_text(piece, sys.modules[owner.__module__].__file__ or ".", f"{cls.__qualname__}.{name}")
+            text = template_text(piece, owner.__module__, f"{cls.__qualname__}.{name}")
             out.append(TexRaw(text, piece.whitespace, piece.syntax))
             origins.append(piece.path.name)
         else:

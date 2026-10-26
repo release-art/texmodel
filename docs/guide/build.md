@@ -56,6 +56,13 @@ pattern = "Card '(?P<item>[^']+)' does not fit. Its body needs (?P<needs>\\S+) a
 adds [proof-pdf](https://github.com/release-art/proofpress). A verifier that cannot run, a file that cannot be opened and a
 profile that selects nothing are failures; the only excuse is a declared `exempt` glob.
 
+## Embedded fonts
+
+luaotfload replaces a font it cannot find with a system one, without an error. `texmodel_build.fonts.embedded(log, cwd)`
+lists the font files the LuaTeX log says were embedded (relative ones against the source's directory), and
+`outside(log, allowed, cwd)` the ones not under the `allowed` directories: empty means the document is self-contained.
+A font inside an included PDF is not in the log.
+
 ## Reproducibility
 
 Reproducibility is the image's job. `--epoch` pins `SOURCE_DATE_EPOCH`. There is no sandbox or cache here.

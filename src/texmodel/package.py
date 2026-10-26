@@ -113,9 +113,14 @@ class PreambleSlots:
                 yield slot, i, item
 
 
+GENERATOR_VERSION: str | None = None
+"""Set in a copy of texmodel with no installed metadata (embedded in a wheel) to the version it was built from."""
+
+
 def generator_version() -> str:
-    """`X.Y.Z` of the installed texmodel, without dev or local parts, so output does not churn per commit (G7)."""
-    m = re.match(r"\d+\.\d+\.\d+", importlib.metadata.version("texmodel"))
+    """`X.Y.Z` of texmodel (`GENERATOR_VERSION`, else the installed metadata), without dev or local parts, so output
+    does not churn per commit (G7)."""
+    m = re.match(r"\d+\.\d+\.\d+", GENERATOR_VERSION or importlib.metadata.version("texmodel"))
     return m[0] if m else "0.0.0"
 
 
@@ -302,7 +307,10 @@ class Package:
             raise DeclarationError(f"library {name!r} is already declared", code="TM-M007", path=name)
         origin = "inline"
         if isinstance(source, TemplateRef):
-            source, origin = template_text(source, inspect.stack(0)[1].filename, name), source.path.name
+            source, origin = (
+                template_text(source, inspect.stack(0)[1].frame.f_globals["__name__"], name),
+                source.path.name,
+            )
         text = textwrap.dedent(source).strip("\n")
         lib = Library(
             name, text if fill is None else fill_text(text, fill, syntax, f"library {name}"), syntax, origin, self
@@ -744,4 +752,4 @@ class Package:
         return {} if self.adopted else {f"{self.name}.sty": self.render(version=version)}
 
 
-__all__ = ["Package", "PreambleSlots", "declared", "generator_version", "setting_line"]
+__all__ = ["GENERATOR_VERSION", "Package", "PreambleSlots", "declared", "generator_version", "setting_line"]

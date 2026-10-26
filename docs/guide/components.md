@@ -32,7 +32,7 @@ class Fact(Command):
 A body is TeX you point at, never found by name:
 
 - a string (dedented, so a triple-quoted string reads as it renders);
-- a `TemplateRef("fact.tex")`, a file next to the defining module (the file is read when the class is defined);
+- a `TemplateRef("fact.tex")`, a file next to the defining module (the file is read when the class is defined, through `importlib.resources`, so a module imported from a zip works);
 - a `body` method returning either, or a sequence or generator of pieces.
 
 ```py

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `texmodel.package.GENERATOR_VERSION`: when set, `generator_version()` uses it instead of the installed metadata, for a copy
+  of texmodel embedded in a wheel.
+- `texmodel_build.fonts` (`embedded`, `outside`): the font files a compile embedded, from its LuaTeX log, and those outside
+  the allowed directories.
 - `Plan.edits` names the argument a hand edit changed: `Line.spans` (where each argument's text stands in a call or
   begin line), `Edit.fields` and `FieldEdit(arg, found, value, violation)`; empty unless the change is inside one argument.
 - `texmodel_build.hand_edits.read_edits(compiler, plan, text, *packages)`: the same edits read by TeX through the stubs, with
@@ -23,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A `TemplateRef` is read through `importlib.resources`, so a declaration imported from a zip finds its templates.
 - Every public module has an `__all__` naming its API; a test fails when a module defines a public name outside it.
 - `Plan.to_json` writes a line's spans as a third element when it has any; a baseline without them loads (no spans).
 - `Command`, `Environment` and `Passthrough` are frozen pydantic models. Building one still validates nothing (the metaclass

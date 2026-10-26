@@ -1,8 +1,8 @@
 """Reading what a component's body gave (`texmodel.body`): its pieces, what they refer to, the syntax they name, and the
 file a template is in."""
 
+import importlib.resources
 from collections.abc import Iterator, Sequence
-from pathlib import Path
 
 from ..body import BodyPiece, Comment, Cs, Group, Hole, Lit, Ref, Seq, Syntax, TemplateRef, TexRaw
 from ..errors import DeclarationError
@@ -10,13 +10,15 @@ from ..errors import DeclarationError
 _PIECES = (TexRaw, str, TemplateRef, Ref, Comment, Group, Seq, Cs, Lit, Hole)
 
 
-def template_text(ref: TemplateRef, module_file: str, owner: str) -> str:
-    """The text of a template file; a relative path is relative to the module at `module_file` (`TM-M005`)."""
-    path = ref.path if ref.path.is_absolute() else Path(module_file).parent / ref.path
+def template_text(ref: TemplateRef, module: str, owner: str) -> str:
+    """The text of a template file; a relative path is relative to the module named `module`, read through
+    `importlib.resources`, so it works from a zip as from a directory (`TM-M005`)."""
     try:
-        return path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise DeclarationError(f"{owner}: cannot read {path}: {exc.strerror}", code="TM-M005", path=owner) from exc
+        if ref.path.is_absolute():
+            return ref.path.read_text(encoding="utf-8")
+        return importlib.resources.files(module).joinpath(ref.path.as_posix()).read_text(encoding="utf-8")
+    except (OSError, ImportError, ValueError) as exc:  # no such file, no such module, or a module with no spec
+        raise DeclarationError(f"{owner}: cannot read {ref.path}: {exc}", code="TM-M005", path=owner) from exc
 
 
 def refs_in(piece: object) -> Iterator[Ref]:

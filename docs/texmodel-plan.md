@@ -994,6 +994,7 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | Image font/ICC content, and the MIT-vs-AGPL-image reading (C8) | open |
 | Snapshot library vs own `bless` | open: evaluate with V2a |
 | Exact list of built-in rule codes | open |
+| A copy of texmodel with no metadata sets `package.GENERATOR_VERSION`; a `TemplateRef` is read through `importlib.resources` (a zip works); `texmodel_build.fonts` reads the fonts a compile embedded from its log (A7, A8) | decided |
 
 ---
 | A hand edit names the argument it changed (`Line.spans`, `Edit.fields`, `FieldEdit`; found by comparing the line with the plan's text, empty unless the change is inside one argument) and, read by TeX, the typed value (`texmodel_build.hand_edits.read_edits`: every component stubbed, the plan's text and the edited text compiled, calls aligned by the whole call and merged with the line diff by path; `EditKind.UNREAD` where the line differs and the calls do not). A value is read by its `BodyKind` (`texmodel.testing.read_call`; `TM-C021` for text that is not of the field's type); the probe route is not in `texmodel check`, which never compiles | decided |
