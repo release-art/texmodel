@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-27
+
+### Added
+
+- `Package(..., base=other)`: a package that specializes another. `.base` is the link; the `.sty` starts with
+  `\RequirePackage{other}`; `visible` and `value_named(name)` look through the base chain, and a name the package declares
+  itself replaces the base's. `from_dict(package, ...)`, `json_schema(package)` and a document's slots use `visible` and
+  the base's control sequences, so a document of the derived package holds the base's nodes and settings.
+
 ## [0.6.0] - 2026-10-26
 
 ### Changed
@@ -202,7 +211,8 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/release-art/texmodel/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/release-art/texmodel/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/release-art/texmodel/compare/v0.4.1...v0.5.1
 [0.4.1]: https://github.com/release-art/texmodel/compare/v0.4.0...v0.4.1

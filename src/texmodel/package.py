@@ -207,6 +207,7 @@ class Package:
         builtin: bool = False,
         whitespace: Whitespace = Whitespace.KEEP,
         comments: Sequence[type[Comment]] = (),
+        base: "Package | None" = None,
     ) -> None:
         if not _NAME.fullmatch(name):
             raise DeclarationError(f"package name {name!r} must match [a-z][a-z0-9-]*", code="TM-P001")
@@ -223,6 +224,7 @@ class Package:
         self.adopted = adopted  # the `.sty` is hand-written; components only declare it (M9)
         self.builtin = builtin  # always loaded (the LaTeX kernel): calling it requires no package
         self.comments = tuple(comments)  # the comment classes data may hold, besides `Comment`, in its environments
+        self.base = base  # the package this one specializes: loaded first, its names are looked up through it
         self._requires: list[tuple[Package, tuple[str, ...]]] = []  # `require()`, in order
         self._items: list[Spec | EnvSpec | ValueSpec | Library] = []  # registration order is output order
         self._controls: dict[str, str] = {}  # control sequence -> qualname of its declarer
@@ -230,6 +232,8 @@ class Package:
         self._colours: dict[str, str] = {}  # colour name -> qualname; its own namespace
         self._classes: list[type] = []  # every registered class, in registration order
         self._made: dict[tuple[str, str], tuple[tuple[object, ...], type]] = {}  # `make_*`: (kind, name) -> data, class
+        if base is not None:
+            self.require(base)
 
     def _add(
         self, spec: Spec | EnvSpec | ValueSpec, *claims: tuple[dict[str, str], str, str], rendered: bool = True
@@ -428,6 +432,27 @@ class Package:
     def registered(self) -> tuple[type, ...]:
         """Every registered command, environment and value class, in registration order."""
         return tuple(self._classes)
+
+    @property
+    def visible(self) -> tuple[type, ...]:
+        """Every command, environment and value class a document of this package may name: the base's, then this
+        package's own, which replace a base class of the same name."""
+        found = {c.__name__: c for p in self._lineage() for c in p.registered}
+        return tuple(found.values())
+
+    def value_named(self, name: str) -> type[AnyValue] | None:
+        """The value class called `name` that `visible` holds, or `None`."""
+        found = next((c for c in self.visible if c.__name__ == name), None)
+        return typing.cast("type[AnyValue]", found) if found and issubclass(found, Value) else None
+
+    def _lineage(self) -> list["Package"]:
+        """The base chain, farthest base first, this package last."""
+        return [*(self.base._lineage() if self.base else ()), self]  # noqa: SLF001
+
+    @property
+    def known_controls(self) -> dict[str, str]:
+        """Control sequence -> declarer, over the base chain; this package's own replace a base's."""
+        return {k: v for p in self._lineage() for k, v in p._controls.items()}  # noqa: SLF001
 
     def require(self, package: "Package", *, options: Sequence[str] = ()) -> None:
         """Load `package` with `\\RequirePackage[options]{name}` in this package's `.sty`, before the packages its
@@ -630,7 +655,7 @@ class Package:
             Violation("TM-M015", path, f"\\{word} is not declared by this package", hint="declare it, or fix the name")
             for i, node in enumerate(document.content)
             for path, passthrough in _passthroughs(node, f"{type(node).__name__}[{i}]")
-            for word in undeclared(self.prefix, passthrough.tex.tex, self._controls)
+            for word in undeclared(self.prefix, passthrough.tex.tex, self.known_controls)
         ]
         problems += [
             Violation(
@@ -640,7 +665,7 @@ class Package:
                 hint="declare it, or fix the name",
             )
             for slot, i, item in preamble.items()
-            for word in undeclared(self.prefix, _tex_of(item).tex, self._controls)
+            for word in undeclared(self.prefix, _tex_of(item).tex, self.known_controls)
         ]
         problems += [
             Violation(

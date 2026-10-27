@@ -11,7 +11,7 @@ nothing about any brand, deck or business domain.
 
 **How to read this document.** It is the target specification plus the decisions log (§21). The guide and the cookbook
 describe what exists; §21 is the record of what was decided and built; §19 and §21a describe what is open; `docs/briefs/roadmap.md` is the order to do it in. Many ids below
-describe work that is *not built*. Checked against the code (v0.6.0), these are not built: scoped overrides `Set` (D4a),
+describe work that is *not built*. Checked against the code (v0.7.0), these are not built: scoped overrides `Set` (D4a),
 rules and `@rule` (D5), placement (M5), the `Namespace` policy (M6), `engine`/`kind`/`base` on `Package` and engine
 capabilities (M11, M13), `Markup`, `Path`, `Font`, `Snippet`, `PgfStyle`, `Cycle` and colour variants (T2, T5-T9), trust
 levels and limits (Z1), `texmodel explain` (E4), a `@covers` check (A2, V7), benchmarks (W2), `libcst` refactors and
@@ -264,6 +264,10 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   The root as a component with its own `children` grammar (preamble slots,
   `\begin{document}` body) is the next step; until then the body is a free sequence of
   nodes and only environments carry a grammar.
+- D1b **A package on a base.** `Package(..., base=other)` loads `other` first in its `.sty` and resolves names through it:
+  `visible` (every class a document may name) and `value_named(name)` look in the base chain, and a name the package
+  declares itself replaces the base's (no clash error: data names are looked up by class name, and control sequences of
+  two prefixes cannot meet). Data, the schema and the slots' name check (`TM-M015`) use the same lookup.
 - D2 `doc.violations()`, `doc.render()` (str, pure, deterministic, no I/O),
   `doc.to_dict()`, `Doc.from_dict()` (migrates then validates), `doc.plan()` (every
   output line with provenance: model | body:line | user value).

@@ -519,7 +519,7 @@ class Children:
             kinds = [t.kind for t in self.owner.__tm_grammar__]
         else:
             package = self.owner
-            kinds = [c for c in package.registered if issubclass(c, Command | Environment)] + [Passthrough]
+            kinds = [c for c in package.visible if issubclass(c, Command | Environment)] + [Passthrough]
         choices: dict[Any, CoreSchema] = {kind.__name__: handler.generate_schema(kind) for kind in kinds}
         for kind in (Comment, *(package.comments if package else ())):
             choices[kind.__name__] = core_schema.no_info_after_validator_function(

@@ -55,6 +55,30 @@ assert r"\dkFact{Friendly \& loyal.}" in tex
 `Text` fields are escaped; a `Raw` field passes TeX through. `card.violations()` lists every broken rule at once, each with a
 code and a path such as `Card/Fact[2].text`; `pkg.document` raises the same list as an `ExceptionGroup` of `ValidationError`.
 
+## A package built on another
+
+`Package("acme-series", prefix="as", base=brand)` specializes `brand`: its `.sty` loads the base first, and a document of
+the series may hold the base's nodes and settings. `series.visible` is every class the series can name and
+`series.value_named("Gap")` finds a value (or `None`); a name the series declares itself replaces the base's, in data, the
+schema and the lookup. `from_dict(series, data)` reads the base's names too.
+
+```python
+brand = Package("acme-brand", prefix="ac")
+
+
+@brand.value
+class Pad(Value[Length]):
+    """The padding."""
+
+    default = Length("1mm")
+
+
+series = Package("acme-series", prefix="as", base=brand)
+assert series.value_named("Pad") is Pad
+assert r"\RequirePackage{acme-brand}" in series.render()
+assert from_dict(series, {"settings": [{"type": "Pad", "value": "2mm"}]}).settings[0].value == Length("2mm")
+```
+
 ## What a node is
 
 `Command`, `Environment` and `Passthrough` are frozen pydantic models. Building one does not validate it (`violations()` does);

@@ -70,7 +70,7 @@ def _document_path(loc: Sequence[str | int]) -> str:
 
 
 def _values(package: Package) -> dict[str, type[AnyValue]]:
-    return {c.__name__: typing.cast("type[AnyValue]", c) for c in package.registered if issubclass(c, Value)}
+    return {c.__name__: typing.cast("type[AnyValue]", c) for c in package.visible if issubclass(c, Value)}
 
 
 def _document_model(package: Package) -> type[pydantic.BaseModel]:
@@ -216,7 +216,7 @@ def _annotate(schema: dict[str, Any], classes: Iterable[type]) -> None:
 
 def _package_schema(package: Package) -> dict[str, Any]:
     """One schema for a package: a `$defs` entry per command and environment, and `Value.<Name>` per value."""
-    nodes = [c for c in package.registered if issubclass(c, Command | Environment)]
+    nodes = [c for c in package.visible if issubclass(c, Command | Environment)]
     inputs: list[tuple[str, JsonSchemaMode, Any]] = [
         (c.__name__, "validation", pydantic.TypeAdapter(c).core_schema) for c in nodes
     ]
@@ -228,7 +228,7 @@ def _package_schema(package: Package) -> dict[str, Any]:
         "title": package.name,
         "$ref": "#/$defs/Document",
     }
-    for cls in package.registered:
+    for cls in package.visible:
         if issubclass(cls, Value):
             schema["$defs"][f"Value.{cls.__name__}"] = {
                 "title": cls.__name__,
