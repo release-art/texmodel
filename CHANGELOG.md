@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `texmodel.ext`, next to `std`, for opinionated helpers; its first module is `texmodel.ext.kplate`: `K(fraction)`, a colour
   on the black plate only (`K.nearest` rounds to a step); `Value[KOnly]`, bounded in Python and in data; `tint(Ink, 0.7)`,
   xcolor's `ac-ink!70`, refused for a base that is not `KOnly` (`TM-M047`); `plates` and `is_single_plate`.
+- `texmodel.ext.printpage`: `PrintPage(width=, height=, bleed=, overflow=, margin=)` writes the `\geometry` call and the PDF
+  page boxes (`/TrimBox`, `/BleedBox`, `/CropBox`) from the trim, edge by edge (`Sides`: `all=`, `horizontal=`/`vertical=`
+  or the four edges). `Sheet.TRIM` is a review copy with the same type area.
+- `texmodel.ext.intent`: `OutputIntent` writes the `\DocumentMetadata` keys of PDF/X and PDF/A with an intent of the same
+  condition each, and registers the ICC profile's output condition, without which l3pdfmeta writes no intent;
+  `OutputCondition.check_profile` reads an ICC header.
 
 ## [0.8.0] - 2026-10-28
 

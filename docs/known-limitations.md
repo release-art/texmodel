@@ -21,6 +21,14 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 - `base=` does not check that a package's own value replacing a base value of the same name has a compatible type, and the
   comment classes of `Package(comments=)` are not inherited from the base.
 
+## Print output
+
+- `PrintPage` is written once, when the package is declared: a document cannot change the trim, the bleed or the margin, and
+  one package has one sheet. Boxes are the same on every page (no recto and verso with different inner margins), crop marks
+  are not drawn, and the engine must be LuaTeX.
+- `OutputIntent` knows PDF/X-4 and PDF/A-2b. It checks an ICC header, not that the profile is the one named by its
+  condition, and whether a file is where the compile will look is the compiler's roots.
+
 ## Arguments and key lists
 
 - A definition needs LaTeX 2020-10 or later when its signature is not `\newcommand`-shaped (xparse is in the kernel from

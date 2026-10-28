@@ -273,6 +273,13 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   refused in Python and in data; `tint(Value, fraction)` is xcolor's `name!pct` and refuses a base that is not `KOnly`
   (`TM-M047`); `plates` and `is_single_plate` read any colour (an `RGB` is all four). Deriving a K from an sRGB colour
   needs an ICC profile and stays with the consumer.
+- D1d **A print page** (`texmodel.ext.printpage`): trim, bleed, overflow and margin, each a `Length` or `Sides` (`all=`,
+  `horizontal=`/`vertical=`, the four edges, with an edge replacing the base), written as numbers into `\geometry` and
+  `\pdfvariable pageattr` (`TM-M051`, `TM-M052`). The type area is the same in `Sheet.FULL` and `Sheet.TRIM`; no
+  `showcrop`, whose own offset made a calibrated half-bleed necessary. Fixed at declaration, LuaTeX only.
+- D1e **An output intent** (`texmodel.ext.intent`): one `\DocumentMetadata` for every standard, `colorprofiles` as
+  `subtype=path` pairs, the condition registered under both spellings of the profile (`TM-M048` to `TM-M050`); an ICC
+  header check (`TM-C014`, `TM-C015`).
 - D2 `doc.violations()`, `doc.render()` (str, pure, deterministic, no I/O),
   `doc.to_dict()`, `Doc.from_dict()` (migrates then validates), `doc.plan()` (every
   output line with provenance: model | body:line | user value).
