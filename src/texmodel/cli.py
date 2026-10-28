@@ -178,7 +178,7 @@ def _check_generated(root: pathlib.Path, config: Config, packages: tuple[Package
     for name in drift.stale:  # a stale file is named by component, as a document is
         plan = next(p for p in packages if name in p.files()).render_plan()
         for e in plan.edits((out / name).read_text(encoding="utf-8", errors="replace")):
-            typer.echo(f"{e.kind.value:8} {config.output}/{name} {e.path}: {e.found or e.expected}")
+            typer.echo(f"{e.kind.value:8} {config.output}/{name} {e.path}: {(e.found or e.expected).lstrip()}")
     for note in drift.notes:
         typer.echo(f"note     {note}")
     if drift.stale or drift.missing or drift.orphaned:
@@ -200,7 +200,7 @@ def _check_documents(root: pathlib.Path, config: Config) -> bool:
             failed = True
         elif isinstance(rendered, Plan):
             for e in rendered.edits(committed.read_text(encoding="utf-8")):
-                typer.echo(f"{e.kind.value:8} {name} {e.path}: {e.found or e.expected}")
+                typer.echo(f"{e.kind.value:8} {name} {e.path}: {(e.found or e.expected).lstrip()}")
                 failed = True
         elif committed.read_text(encoding="utf-8") != rendered:
             typer.echo(f"stale    {name}")

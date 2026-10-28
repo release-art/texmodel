@@ -45,8 +45,8 @@ def test_every_line_has_the_path_of_what_wrote_it():
         ("preamble.after_package[0]", r"\y"),
         ("document", r"\begin{document}"),
         ("Box[0]", r"\begin{smBox}"),
-        ("Box[0]/Item[0]", r"\smItem{a}"),
-        ("Box[0]/Item[1]", r"\smItem{b}"),
+        ("Box[0]/Item[0]", r"  \smItem{a}"),
+        ("Box[0]/Item[1]", r"  \smItem{b}"),
         ("Box[0]", r"\end{smBox}"),
         ("document", r"\end{document}"),
     ]
@@ -81,10 +81,10 @@ def test_edits_name_changed_removed_and_added_lines():
     lines = plan.text.splitlines()
     changed = plan.text.replace(r"\smItem{a}", r"\smItem{A}")
     assert plan.edits(changed) == [
-        Edit("Box[0]/Item[0]", r"\smItem{a}", r"\smItem{A}", EditKind.CHANGED, (FieldEdit("text", "A"),))
+        Edit("Box[0]/Item[0]", r"  \smItem{a}", r"  \smItem{A}", EditKind.CHANGED, (FieldEdit("text", "A"),))
     ]
     assert plan.edits("\n".join(x for x in lines if "{b}" not in x)) == [
-        Edit("Box[0]/Item[1]", r"\smItem{b}", "", EditKind.REMOVED)
+        Edit("Box[0]/Item[1]", r"  \smItem{b}", "", EditKind.REMOVED)
     ]
     assert plan.edits(plan.text.replace(r"\end{document}", "x\n\\end{document}")) == [
         Edit("Box[0]", "", "x", EditKind.ADDED)
@@ -149,7 +149,7 @@ def test_a_call_and_a_begin_line_have_spans_over_each_arguments_text():
     got = {x.tex: shown(x) for x in plan.lines if x.spans}
     assert got == {
         r"\begin{spPanel}{T}": [("title", "T")],
-        r"\spNote[L]{n}": [("label", "L"), ("text", "n")],
+        r"  \spNote[L]{n}": [("label", "L"), ("text", "n")],
         r"\spHead*{H}": [("starred", "*"), ("text", "H")],
     }
     assert not any(x.spans for x in plan.lines if x.tex.startswith((r"\end", r"\documentclass")))

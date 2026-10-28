@@ -111,7 +111,7 @@ def read_edits(
             "no command or environment to stub", code="TM-X033", hint="pass the packages the document loads"
         )
     names = "|".join(sorted(map(re.escape, classes), key=len, reverse=True))
-    is_call = re.compile(rf"\\(?:(begin|end)\{{({names})\}}|({names})(?![A-Za-z@]))")
+    is_call = re.compile(rf"\s*\\(?:(begin|end)\{{({names})\}}|({names})(?![A-Za-z@]))")
     lines = [x for x in plan.lines if is_call.match(x.tex)]
     sheets = {path: tex for p in packages for path, tex in p.files().items()} | dict(files or {})
     stubs = list(classes.values())

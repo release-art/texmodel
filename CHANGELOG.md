@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-28
+
+### Changed
+
+- A document's body is indented two spaces per level of environment: an environment's `\begin` and `\end` take its depth,
+  its children one level more, and `Environment.render()` writes the same text as the plan. Only the lines texmodel writes
+  are indented (the first line of a call, `\begin`, `\end`, comments): a `Passthrough` and the later lines of a call are
+  verbatim. The spans of a line move with the indent. Every generated document changes, so `texmodel check` reports a
+  committed one stale until it is rendered again, and a plan saved before reads every indented line as an edit.
+
 ## [0.7.0] - 2026-10-27
 
 ### Added
@@ -211,7 +221,8 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/release-art/texmodel/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/release-art/texmodel/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/release-art/texmodel/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/release-art/texmodel/compare/v0.4.1...v0.5.1

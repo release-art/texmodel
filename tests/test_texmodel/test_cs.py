@@ -50,7 +50,7 @@ def test_a_class_may_name_its_control_sequence():
     assert [control_name(c) for c in (fact, quick, box)] == ["cdFact", "quickfact", "quickbox"]
     assert box(quick(text="a"), title="T").violations() == [] or True
     assert quick(text="R&D").render() == r"\quickfact{R\&D}"
-    assert box(fact(text="a"), title="T").render() == "\\begin{quickbox}{T}\n\\cdFact{a}\n\\end{quickbox}"
+    assert box(fact(text="a"), title="T").render() == "\\begin{quickbox}{T}\n  \\cdFact{a}\n\\end{quickbox}"
 
 
 def test_a_reference_and_a_stub_use_the_explicit_name():

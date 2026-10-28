@@ -38,6 +38,7 @@ from ._internal.scan import scan_colours, scan_counters, scan_declarations
 from ._internal.values import fill_text
 from .body import Comment, Library, Syntax, TemplateRef, Whitespace
 from .components import (
+    INDENT,
     AnyValue,
     Command,
     Environment,
@@ -45,6 +46,8 @@ from .components import (
     Passthrough,
     Value,
     call_line,
+    control_name,
+    emit,
     env_spec_of,
     spec_of,
     value_spec_of,
@@ -176,20 +179,20 @@ def _tex_of(item: Raw | Entry) -> Raw:
     return item if isinstance(item, Raw) else item.raw()
 
 
-def _node_lines(node: Node, path: str) -> Iterator[Line]:
-    """The lines a node renders; children are indexed within their parent, as `violations()` paths are."""
-    rendered = node.render().splitlines()
-    spans = ()
-    if isinstance(node, Command | Environment):
-        call, found = call_line(node)
-        spans = tuple(Span(*s) for s in found) if "\n" not in call else ()  # a multi-line call has no one-line spans
-    if not isinstance(node, Environment):
-        yield from (Line(path, tex, spans) for tex in rendered)
+def _node_lines(node: Node, path: str, depth: int = 0) -> Iterator[Line]:
+    """The lines a node renders at `depth`; children are indexed within their parent, as `violations()` paths are."""
+    if not isinstance(node, Command | Environment):
+        yield from (Line(path, tex) for tex in emit(node, depth).splitlines())
         return
-    yield Line(path, rendered[0], spans)
-    for i, child in enumerate(node.content):
-        yield from _node_lines(child, f"{path}/{type(child).__name__}[{i}]")
-    yield Line(path, rendered[-1])
+    pad = INDENT * depth
+    call, found = call_line(node)
+    shift = len(pad)  # a multi-line call has no one-line spans
+    spans = tuple(Span(arg, start + shift, end + shift) for arg, start, end in found) if "\n" not in call else ()
+    yield from (Line(path, tex, spans) for tex in (pad + call).splitlines())
+    if isinstance(node, Environment):
+        for i, child in enumerate(node.content):
+            yield from _node_lines(child, f"{path}/{type(child).__name__}[{i}]", depth + 1)
+        yield Line(path, f"{pad}\\end{{{control_name(type(node))}}}")
 
 
 class Package:

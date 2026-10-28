@@ -145,7 +145,9 @@ def test_a_comment_child_is_not_counted_and_does_not_break_the_order():
         box(Header("x", "1"), item(text="a"), item(text="b")),
     ):
         assert node.violations() == []
-        assert [ln for ln in node.render().splitlines() if not ln.startswith("%")] == plain.render().splitlines()
+        assert [
+            ln for ln in node.render().splitlines() if not ln.lstrip().startswith("%")
+        ] == plain.render().splitlines()
     assert box(Comment("c")).violations()[0].code == "TM-C002"  # still one required Item
     (bad,) = box(item(text="a"), Comment("c"), item(text="b"), item(text="c"), item(text="d")).violations()
     assert bad.path == "Box/Item[4]"  # the real position, comments counted in the index
@@ -154,12 +156,14 @@ def test_a_comment_child_is_not_counted_and_does_not_break_the_order():
 def test_a_comment_has_a_plan_path_on_each_of_its_lines():
     pkg, item, box = small()
     plan = pkg.plan(Header("x", "1"), box(item(text="a"), Comment("p\nq"), item(text="b")))
-    paths = [(x.path, x.tex) for x in plan.lines if x.tex.startswith("%") and not x.tex.startswith("% com")]
+    paths = [
+        (x.path, x.tex) for x in plan.lines if x.tex.lstrip().startswith("%") and not x.tex.lstrip().startswith("% com")
+    ]
     assert paths == [
         ("Header[0]", "% Card: x"),
         ("Header[0]", "%   id: # 1"),
-        ("Box[1]/Comment[1]", "% p"),
-        ("Box[1]/Comment[1]", "% q"),
+        ("Box[1]/Comment[1]", "  % p"),
+        ("Box[1]/Comment[1]", "  % q"),
     ]
 
 

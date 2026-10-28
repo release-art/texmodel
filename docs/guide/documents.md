@@ -110,6 +110,18 @@ assert r"\setlength{\dkGap}{3mm}" in tex
 | `settings` | `Value` instances, written after the package ([Values](values.md#settings-for-a-document)) |
 | `preamble` | a `PreambleSlots`, below |
 
+## Layout
+
+Each level of environment indents its content by two spaces; the output is the same everywhere, so committed documents diff
+the same. Only the lines texmodel writes are indented: the first line of a call, `\begin`, `\end` and comments. A
+`Passthrough` and the later lines of a call are verbatim, because their text is the author's and may be a `verbatim` body.
+An environment whose body TeX reads verbatim should hold `Passthrough` children only. TeX skips spaces at the start of a
+line, so the typeset result is the same.
+
+```python
+assert Card(Name(text="Rex"), Fact(text="a")).render().splitlines()[1] == r"  \dkName{Rex}"
+```
+
 ## The preamble
 
 `Document(..., preamble=PreambleSlots(before_class=, before_package=, after_package=))` places TeX where the document

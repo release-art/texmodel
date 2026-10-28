@@ -811,7 +811,7 @@ def _grammar_violations(node: Environment, path: str) -> list[Violation]:
 def _render(node: Command | Environment | Passthrough) -> str:
     if violations := _violations(node, type(node).__name__):
         raise ExceptionGroup(f"invalid {type(node).__name__}", [v.error() for v in violations])
-    return _emit(node)
+    return emit(node)
 
 
 def call_line(node: Command | Environment) -> tuple[str, tuple[tuple[str, int, int], ...]]:
@@ -824,15 +824,21 @@ def call_line(node: Command | Environment) -> tuple[str, tuple[tuple[str, int, i
     return head + args, tuple((arg, start + len(head), end + len(head)) for arg, start, end in spans)
 
 
-def _emit(node: Node) -> str:
+INDENT = "  "  # per level of environment nesting; only lines texmodel writes take it (G1)
+
+
+def emit(node: Node, depth: int = 0) -> str:
+    """The TeX of a node at `depth`: the lines texmodel writes (`\\begin`, `\\end`, a call's first line, comments) take
+    `INDENT` per level; a `Passthrough` and a call's continuation lines are the author's text, verbatim."""
+    pad = INDENT * depth
     if isinstance(node, Comment):
-        return node.render()
+        return "\n".join(pad + line if line else line for line in node.render().splitlines())
     if isinstance(node, Passthrough):
         return node.tex.tex
-    first = call_line(node)[0]
+    first = pad + call_line(node)[0]
     if isinstance(node, Command):
         return first
-    return "\n".join([first, *map(_emit, node.content), f"\\end{{{control_name(type(node))}}}"])
+    return "\n".join([first, *(emit(c, depth + 1) for c in node.content), f"{pad}\\end{{{control_name(type(node))}}}"])
 
 
 def _syntax(cls: type, *sources: Source | None) -> Syntax:

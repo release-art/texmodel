@@ -151,7 +151,7 @@ def test_an_unregistered_component_cannot_render():
 def test_an_environment_renders_its_children_between_begin_and_end():
     s = shop()
     card = s.Card(s.Name(text="Rex"), s.Fact(text="a"), s.Fact(text="b"), title="T")
-    assert card.render() == "\\begin{shCard}[T]\n\\shName{Rex}\n\\shFact{a}\n\\shFact{b}\n\\end{shCard}"
+    assert card.render() == "\\begin{shCard}[T]\n  \\shName{Rex}\n  \\shFact{a}\n  \\shFact{b}\n\\end{shCard}"
     assert repr(card) == "Card(Name(text='Rex'), Fact(text='a'), Fact(text='b'), title='T')"
     assert card == s.Card(s.Name(text="Rex"), s.Fact(text="a"), s.Fact(text="b"), title="T") and hash(card) == hash(
         s.Card(s.Name(text="Rex"), s.Fact(text="a"), s.Fact(text="b"), title="T")
@@ -369,9 +369,9 @@ def test_a_document_is_complete_and_deterministic():
         "\\shTighttrue",
         "\\begin{document}",
         "\\begin{shCard}",
-        "\\shName{Rex}",
-        "\\shFact{50\\% sure}",
-        "\\shFact{b}",
+        "  \\shName{Rex}",
+        "  \\shFact{50\\% sure}",
+        "  \\shFact{b}",
         "\\end{shCard}",
         "\\shFact{after}",
         "\\end{document}",

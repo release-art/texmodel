@@ -101,7 +101,7 @@ def test_known_gap_a_line_triaged_by_a_tool_reads_as_a_hand_edit():
     purpose. The model's line diff has no such rule: it reports an edit."""
     plan, good = convert.plan(), convert.deck()
     mark = "%% (over-set: commented out to fit the card)"
-    line = next(ln for ln in good.splitlines() if ln.startswith(r"\cdLabelledSlot{\deckParamFactWhere}"))
+    line = next(ln for ln in good.splitlines() if ln.lstrip().startswith(r"\cdLabelledSlot{\deckParamFactWhere}"))
     (found,) = plan.edits(good.replace(line, f"{mark} {line}", 1))
     assert found.found.startswith(mark) and found.expected == line
 

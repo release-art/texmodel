@@ -73,7 +73,9 @@ def test_a_hand_edit_is_named_by_the_component_that_writes_the_line(project):
 def test_removed_and_added_lines_are_named_too(project):
     render_both()
     deck = project / "deck.tex"
-    deck.write_text(deck.read_text().replace(r"\ddItem{a}" + "\n", "").replace(r"\end{document}", "x\n\\end{document}"))
+    deck.write_text(
+        deck.read_text().replace(r"  \ddItem{a}" + "\n", "").replace(r"\end{document}", "x\n\\end{document}")
+    )
     out = runner.invoke(cli.app, ["check"]).stdout
     assert r"removed  deck.tex Box[0]/Item[0]: \ddItem{a}" in out and "added    deck.tex Box[0]: x" in out
 

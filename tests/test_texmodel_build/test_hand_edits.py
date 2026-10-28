@@ -88,7 +88,7 @@ def test_the_probe_names_the_argument_with_its_typed_value(monkeypatch):
     (edit,) = read(monkeypatch, edited, with_args(BASE, 3, "LL", "n"))
     assert (edit.path, edit.kind) == ("Inner[0]/Note[2]", EditKind.CHANGED)
     assert [(f.arg, f.found, f.value) for f in edit.fields] == [("label", "LL", "LL")]
-    assert edit.expected == r"\hdNote[L]{n}" and edit.found == r"\hdNote[LL]{n}"
+    assert edit.expected == r"  \hdNote[L]{n}" and edit.found == r"  \hdNote[LL]{n}"
 
 
 def test_a_value_that_is_not_of_the_type_carries_a_violation_at_the_field(monkeypatch):
@@ -125,7 +125,7 @@ def test_an_added_call_belongs_to_the_call_before_it(monkeypatch):
 
 def test_equal_calls_are_named_once_though_the_two_diffs_name_different_ones(monkeypatch):
     edited = PLAN.text.replace(
-        "\\hdPara{a}\n", "", 1
+        "  \\hdPara{a}\n", "", 1
     )  # the line diff names the first of the two equal lines or the second
     got = read(monkeypatch, edited, without(BASE, 2))
     assert [e.kind for e in got] == [EditKind.REMOVED]
