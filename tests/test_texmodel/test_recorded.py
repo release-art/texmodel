@@ -11,9 +11,9 @@ from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.document import Document
 from texmodel.errors import DeclarationError
-from texmodel.ext.recorded import MAX, MIN, SUM, Fold, Recorded, reduce
+from texmodel.ext.recorded import APPEND, LENGTHS, MAX, MIN, SUM, Fold, Recorded, reduce
 from texmodel.package import Package
-from texmodel.types import Raw
+from texmodel.types import Length, Raw
 from texmodel_build.compiler import Compiler
 from texmodel_build.diagnostics import Measurement
 from texmodel_build.testkit import check_library
@@ -22,7 +22,8 @@ pkg = Package("acme-rec", prefix="ar")
 LABEL = Recorded("LabelWidth")
 CARDS = Recorded("Cards", kind=int, fold=SUM)
 FEWEST = Recorded("Fewest", kind=int, fold=MIN)
-PARTS = {r.name: r.declare(pkg) for r in (LABEL, CARDS, FEWEST)}
+WIDTHS = Recorded("Widths", kind=LENGTHS, fold=APPEND)
+PARTS = {r.name: r.declare(pkg) for r in (LABEL, CARDS, FEWEST, WIDTHS)}
 
 
 def test_declare_registers_the_block_the_command_and_the_value():
@@ -95,6 +96,20 @@ def test_an_idempotent_fold_takes_a_value_twice_as_once(fold, xs):
     assert fold.idempotent and reduce(fold, [*xs, *xs]) == reduce(fold, xs)
 
 
+def test_a_list_keeps_its_order_and_is_not_idempotent():
+    assert reduce(APPEND, [3, 1, 2]) == [3, 1, 2] and reduce(APPEND, [1, 1]) == [1, 1]
+    assert not APPEND.idempotent and APPEND.kinds == (LENGTHS,)
+    sty = pkg.render()
+    assert r"\xdef\ar@recWidthsseen{\ifx\ar@recWidthsseen\@empty\else\ar@recWidthsseen,\fi\the\dimexpr#1\relax}" in sty
+    assert r"\xdef\arWidths{\ar@recWidthslast}" in sty and r"str_if_eq:eeTF" in sty  # strings, not catcodes
+    with pytest.raises(DeclarationError) as raised:
+        Recorded("Bad", kind=LENGTHS)  # MAX does not take a list
+    assert raised.value.code == "TM-M058"
+    with pytest.raises(DeclarationError) as raised:
+        Recorded("Bad", kind=Length, fold=APPEND)
+    assert raised.value.code == "TM-M058"
+
+
 def test_a_sum_is_not_idempotent_and_the_identities_change_nothing():
     assert not SUM.idempotent and reduce(SUM, [2, 2]) != reduce(SUM, [2])
     for fold, identity in ((MAX, 0), (SUM, 0), (MIN, float("inf"))):
@@ -106,15 +121,16 @@ CASES = {
     "LabelWidth": ([12, 30, 20], 30),
     "Cards": ([1, 1, 1, 1], 4),
     "Fewest": ([9, 3, 5], 3),
+    "Widths": ([12, 30, 20], "12.0pt,30.0pt,20.0pt"),
 }
 
 
 def document_tex(package):
     body = []
     for name, (xs, _) in CASES.items():
-        unit = "pt" if name == "LabelWidth" else ""
+        unit = "pt" if name in ("LabelWidth", "Widths") else ""
         body += [rf"\arRecord{name}{{{x}{unit}}}" for x in xs]
-    use = {"LabelWidth": r"\the\ar", "Cards": r"\ar", "Fewest": r"\ar"}  # an int is a macro: no `\the`
+    use = {"LabelWidth": r"\the\ar", "Cards": r"\ar", "Fewest": r"\ar", "Widths": r"\ar"}  # a macro: no `\the`
     probes = "".join(rf"\typeout{{texmodel:probe:{{}}{n}={use[n]}{n}}}" for n in CASES)
     start = probes.replace("{}", "start-")
     end = probes.replace("{}", "end-")
@@ -132,10 +148,13 @@ def test_the_value_settles_over_two_runs_and_the_tex_agrees_with_python(compiler
     result = comp.compile(src, tmp_path / "out")
     assert result.ok and result.passes >= 1, result.diagnostics
     found = {m.name: m.value for m in result.diagnostics if isinstance(m, Measurement)}
-    fold_of = {"LabelWidth": MAX, "Cards": SUM, "Fewest": MIN}
+    fold_of = {"LabelWidth": MAX, "Cards": SUM, "Fewest": MIN, "Widths": APPEND}
     for name, (xs, expected) in CASES.items():
-        assert reduce(fold_of[name], xs) == expected
         text = found[f"end-{name}"]
+        if name == "Widths":  # a list is the last run's, in order, as the .aux spelled it
+            assert reduce(APPEND, xs) == xs and text == expected
+            continue
+        assert reduce(fold_of[name], xs) == expected
         assert float(text.removesuffix("pt")) == expected if name == "LabelWidth" else int(text) == expected
         # what the final run read from the .aux before any card was recorded: the value, carried between runs
         assert found[f"start-{name}"] == found[f"end-{name}"]

@@ -289,6 +289,10 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   block, a `Record<Name>` command and a `Value`, all `defined_by` the block. The record is `\global`, the `.aux` line is
   guarded by `\providecommand`, and a run that ends with another value than it began with warns (`TM-M056` to `TM-M059`). An
   idempotent fold folds the last run's value into this run's; a sum reports it alone. A fold is data with a Python `reduce`.
+- D1h **Fitted text** (`texmodel.ext.fit`): a line fitted to a band at one main size, at most two shared reduced sizes and a
+  floor, on the document's baseline; the per-title fits are rounded by the split that loses least size in total
+  (`j * (o_j - o_n)` for two groups). The widths and the ascent and descent maxima are `Recorded` values (`LENGTHS` with
+  `APPEND`, and `MAX`). `choose_sizes` is the oracle for the expl3. No wrapping (`TM-M060` to `TM-M063`).
 - D2 `doc.violations()`, `doc.render()` (str, pure, deterministic, no I/O),
   `doc.to_dict()`, `Doc.from_dict()` (migrates then validates), `doc.plan()` (every
   output line with provenance: model | body:line | user value).

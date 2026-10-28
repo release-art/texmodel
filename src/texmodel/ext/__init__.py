@@ -5,4 +5,5 @@ r"""Extensions: opinionated helpers built on the core, one module each (`std` is
 - `printpage`: a print page (trim, bleed, margins) as geometry and PDF page boxes, edge by edge.
 - `spot`: a named plate on the press (a varnish, a foil) with a CMYK proxy, and tints of it.
 - `recorded`: a value only the whole document knows (the widest label), carried between runs, and its folds.
+- `fit`: a short line set to fit a band at sizes shared across the document, and the rule in Python.
 """

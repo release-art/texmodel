@@ -32,21 +32,25 @@ from ..types import Length, Raw
 _NAME = re.compile(r"[A-Z][A-Za-z]*")
 
 
+LENGTHS = list[Length]
+"""A recorded list of lengths: `Recorded("Widths", kind=LENGTHS, fold=APPEND)`."""
+
+
 @dataclasses.dataclass(frozen=True)
 class Fold:
     """How each measurement joins the document's value: `update` is the TeX statement that sets register `$acc` from
     itself and `$x`, `identity` the value that changes nothing, `reduce` the same fold in Python. An `idempotent` fold
     may take the previous run's value into this run (a maximum cannot shrink mid-run); the others report that value
-    alone, because a running total is partial."""
+    alone, because a running total, or a list, is partial."""
 
     name: str
-    update: Mapping[type, str]
-    identity: Mapping[type, str]
+    update: Mapping[Any, str]
+    identity: Mapping[Any, str]
     idempotent: bool
-    reduce: Callable[[Iterable[float]], float]
+    reduce: Callable[[Iterable[float]], object]
 
     @property
-    def kinds(self) -> tuple[type, ...]:
+    def kinds(self) -> tuple[Any, ...]:
         return tuple(self.update)
 
 
@@ -72,13 +76,18 @@ SUM = Fold(
     False,
     lambda xs: sum(xs),
 )
+APPEND = Fold(
+    "append",
+    {LENGTHS: r"\xdef$acc{\ifx$acc\@empty\else$acc,\fi\the\dimexpr$x\relax}"},
+    {LENGTHS: ""},
+    False,
+    lambda xs: list(xs),
+)
 
 LIBRARY = r"""
     <<effective>>
-    \new<<kind>>{\<<p>>@rec<<name>>seen}
-    \new<<kind>>{\<<p>>@rec<<name>>last}
-    \global\<<p>>@rec<<name>>seen=<<identity>>\relax
-    \global\<<p>>@rec<<name>>last=<<identity>>\relax
+    <<new_seen>>
+    <<new_last>>
     \newcommand{\<<p>>@rec<<name>>refresh}{%
       <<refresh>>%
     }
@@ -87,20 +96,24 @@ LIBRARY = r"""
       \<<p>>@rec<<name>>refresh
     }
     \newcommand{\<<p>>@rec<<name>>read}[1]{%
-      \global\<<p>>@rec<<name>>last=#1\relax
+      <<read_last>>%
       \<<p>>@rec<<name>>refresh
     }
     \AtEndDocument{%
       \if@filesw
         \immediate\write\@auxout{\string\providecommand\string\<<p>>@rec<<name>>read[1]{}}%
-        \immediate\write\@auxout{\string\<<p>>@rec<<name>>read{\the\<<p>>@rec<<name>>seen}}%
+        \immediate\write\@auxout{\string\<<p>>@rec<<name>>read{<<seen_text>>}}%
       \fi
-      \if<<equal>>\else
-        \PackageWarningNoLine{<<package>>}{<<name>> is not settled: this run used the last run's value.\MessageBreak
-          Rerun to set every card from the document's own}%
-      \fi
+      <<unsettled>>%
     }
 """
+
+
+def _warning(package: str, name: str) -> str:
+    return (
+        rf"\PackageWarningNoLine{{{package}}}{{{name} is not settled: this run used the last run's value.\MessageBreak "
+        r"Rerun to set every card from the document's own}"
+    )
 
 
 class RecordedParts(NamedTuple):
@@ -113,10 +126,11 @@ class RecordedParts(NamedTuple):
 @dataclasses.dataclass(frozen=True)
 class Recorded:
     """A document-wide value: `name` (CamelCase letters, the suffix of `\\<prefix>Record<Name>` and of the value
-    `\\<prefix><Name>`), its `kind` (`Length` or `int`) and the `fold` that combines measurements into it."""
+    `\\<prefix><Name>`), its `kind` (`Length`, `int`, or `LENGTHS`, a list of them) and the `fold` that combines
+    measurements into it."""
 
     name: str
-    kind: type = Length
+    kind: Any = Length
     fold: Fold = MAX
 
     def __post_init__(self) -> None:
@@ -124,52 +138,68 @@ class Recorded:
             raise DeclarationError(
                 f"Recorded.name={self.name!r}: capital letter first, letters only", code="TM-M056", path="name"
             )
-        if self.kind not in (Length, int):
-            raise DeclarationError(f"Recorded.kind={self.kind!r}: Length or int", code="TM-M057", path="kind")
+        if self.kind not in (Length, int, LENGTHS):
+            raise DeclarationError(f"Recorded.kind={self.kind!r}: Length, int or LENGTHS", code="TM-M057", path="kind")
         if self.kind not in self.fold.kinds:
             raise DeclarationError(
-                f"Recorded {self.name}: the {self.fold.name} fold does not take a {self.kind.__name__}",
+                f"Recorded {self.name}: the {self.fold.name} fold does not take a {self.kind!r}",
                 code="TM-M058",
                 path="fold",
             )
 
     def declare(self, package: Package) -> RecordedParts:
         """The block of the package's `.sty`, the command `Record<Name>` (one argument, the measurement) and the value
-        `<Name>`, which holds the fold so far: a length register, or a count for an `int`."""
+        `<Name>`, which holds the fold so far: a length register, a macro that expands to the number for an `int`, or to
+        the comma list for `LENGTHS`."""
         if not package.prefix:
             raise DeclarationError(
                 f"Recorded {self.name}: the package has no prefix", code="TM-M059", path=package.name
             )
-        length = self.kind is Length
         acc, update = rf"\{package.prefix}{self.name}", self.fold.update[self.kind]
         seen = rf"\{package.prefix}@rec{self.name}seen"
         last = rf"\{package.prefix}@rec{self.name}last"
+        identity = self.fold.identity[self.kind]
         fold = string.Template(update)
-        if length:  # a register: `\newlength` is what a `Value[Length]` is
-            effective = rf"\newlength{{{acc}}}\global{acc}={self.fold.identity[self.kind]}\relax"
+        warning = _warning(package.name, self.name)
+        if self.kind is Length:  # a register: `\newlength` is what a `Value[Length]` is
+            effective = rf"\newlength{{{acc}}}\global{acc}={identity}\relax"
+            new = rf"\newlength{{$reg}}\global$reg={identity}\relax"
             refresh = rf"\global{acc}={last}\relax" + (fold.substitute(acc=acc, x=seen) if self.fold.idempotent else "")
-        else:  # a macro that expands to the number: what a `Value[Raw]` is, and usable wherever a number is
-            effective = rf"\newcommand{{{acc}}}{{{self.fold.identity[self.kind]}}}"
+            read_last, seen_text = rf"\global{last}=#1\relax", rf"\the{seen}"
+            unsettled = rf"\ifdim{seen}={last}\else {warning}\fi"
+        elif self.kind is int:  # a macro that expands to the number: what a `Value[Raw]` is, and usable as a number
+            effective = rf"\newcommand{{{acc}}}{{{identity}}}"
+            new = rf"\newcount{{$reg}}\global$reg={identity}\relax"
             scratch = r"\count@"
             refresh = rf"\global{scratch}={last}\relax" + (
                 fold.substitute(acc=scratch, x=seen) if self.fold.idempotent else ""
             )
             refresh += rf"\xdef{acc}{{\the{scratch}}}"
+            read_last, seen_text = rf"\global{last}=#1\relax", rf"\the{seen}"
+            unsettled = rf"\ifnum{seen}={last}\else {warning}\fi"
+        else:  # a comma list kept in a macro; strings are compared, because the `.aux` re-reads catcodes
+            effective = rf"\newcommand{acc}{{}}"
+            new = r"\newcommand$reg{}"
+            refresh = rf"\xdef{acc}{{{last}}}"
+            read_last, seen_text = rf"\gdef{last}{{#1}}", seen
+            unsettled = rf"\csname str_if_eq:eeTF\endcsname{{{seen}}}{{{last}}}{{}}{{{warning}}}"
         lib = package.library(
             f"recorded-{self.name}",
             LIBRARY,
             fill={
-                "kind": Raw("length" if length else "count"),
                 "effective": Raw(effective),
+                "new_seen": Raw(string.Template(new).substitute(reg=seen)),
+                "new_last": Raw(string.Template(new).substitute(reg=last)),
                 "p": Raw(package.prefix),
                 "name": Raw(self.name),
-                "package": Raw(package.name),
-                "identity": Raw(self.fold.identity[self.kind]),
                 "refresh": Raw(refresh),
                 "update": Raw(fold.substitute(acc=seen, x="#1")),
-                "equal": Raw(rf"{'dim' if length else 'num'}{seen}={last}"),
+                "read_last": Raw(read_last),
+                "seen_text": Raw(seen_text),
+                "unsettled": Raw(unsettled),
             },
         )
+        length = self.kind is Length
         record = types.new_class(
             f"Record{self.name}",
             (Command,),
@@ -192,9 +222,9 @@ class Recorded:
         return RecordedParts(package.command(record), package.value(value))
 
 
-def reduce(fold: Fold, values: Iterable[float]) -> float:
+def reduce(fold: Fold, values: Iterable[float]) -> object:
     """The fold of `values` in Python: what the TeX of the same fold must come to."""
     return fold.reduce(values)
 
 
-__all__ = ["LIBRARY", "MAX", "MIN", "SUM", "Fold", "Recorded", "RecordedParts", "reduce"]
+__all__ = ["APPEND", "LENGTHS", "LIBRARY", "MAX", "MIN", "SUM", "Fold", "Recorded", "RecordedParts", "reduce"]

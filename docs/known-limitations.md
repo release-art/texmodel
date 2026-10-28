@@ -37,6 +37,12 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   its own measurement never settles: the run warns, and the author fixes it by measuring at a fixed size. Nothing stops a
   document setting the recorded value as it would any `Value`; it is measured, not set, by convention.
 
+## Fitted text
+
+- `Fit` shrinks to the floor and stops: a title wider than the measure there overflows, and the log names it. There is no
+  wrapping. `reduced_sizes` is 0, 1 or 2 (a general N is a different algorithm). A size needs a scalable font (OpenType
+  under LuaTeX, or `anyfontsize`).
+
 ## Arguments and key lists
 
 - A definition needs LaTeX 2020-10 or later when its signature is not `\newcommand`-shaped (xparse is in the kernel from

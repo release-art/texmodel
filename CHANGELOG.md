@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `texmodel.ext.printpage`: `PrintPage(width=, height=, bleed=, overflow=, margin=)` writes the `\geometry` call and the PDF
   page boxes (`/TrimBox`, `/BleedBox`, `/CropBox`) from the trim, edge by edge (`Sides`: `all=`, `horizontal=`/`vertical=`
   or the four edges). `Sheet.TRIM` is a review copy with the same type area.
+- `texmodel.ext.fit`: `Fit(name, target=, floor=, room=, treatment=, reduced_sizes=)` sets a short line to fit a band at one
+  main size for the whole document, a few shared smaller sizes (0, 1 or 2) for the lines that cannot reach it, never below
+  the floor, on one baseline; the widths are recorded in one run and used in the next. `choose_sizes` is the rule in Python.
+  `texmodel.ext.recorded` gains `LENGTHS` (a list of lengths) and the `APPEND` fold for it.
 - `texmodel.ext.recorded`: `Recorded(name, kind=, fold=)`, a value only the whole document knows (the widest label, the
   number of cards), carried between runs through the `.aux` with the `\global`, the guarded read and the "not settled" warning
   done once. `Fold` is data: `MAX`, `MIN`, `SUM` over a length or an integer, each with its Python `reduce`.

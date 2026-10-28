@@ -106,7 +106,8 @@ assert is_single_plate(K(0.7)) and not is_single_plate(CMYK(0.1, 0, 0, 0.9))
 
 The widest label and the number of cards are known only after the last card. `texmodel.ext.recorded` carries such a value
 from one run to the next through the `.aux` (`latexmk` reruns until it stops moving). A `Recorded` has a `name`, a `kind`
-(`Length` or `int`) and a `fold` that joins each measurement into it: `MAX`, `MIN` or `SUM`.
+(`Length`, `int` or `LENGTHS`, a list of lengths) and a `fold` that joins each measurement into it: `MAX`, `MIN`, `SUM`
+or, for a list, `APPEND`.
 
 ```python
 from texmodel.ext.recorded import MAX, SUM, Recorded, reduce
@@ -128,7 +129,39 @@ value other than the one it started from, it warns that the value is not settled
 - A `Fold` is data (`update`, `identity`, `idempotent`, and `reduce`, the same fold in Python as a test oracle); a `Fold` that
   does not take the kind is `TM-M058`. A name is capital-first letters (`TM-M056`), the kind `Length` or `int` (`TM-M057`),
   and the package needs a prefix (`TM-M059`).
-- An `int` value is a macro that expands to the number (`\vlCards`, with no `\the`); a length is a register.
+- An `int` value is a macro that expands to the number (`\vlCards`, with no `\the`); a length is a register; a list is a
+  macro that expands to the comma list. A `SUM` or an `APPEND` value is the last run's alone, as a running total or a list is
+  partial. A list is compared as strings, because the `.aux` is read back with other catcodes.
+
+## Text fitted to a band
+
+`texmodel.ext.fit` sets a short line, such as a card title, to fit a band at sizes shared across the document. Each title
+is fitted to the measure and to the band's height, and every title that can reach the `target` takes one main size, so a
+deck reads as one design. A few shared smaller sizes serve only the titles that cannot reach it, and no size is below the
+`floor`. Every title sits on one baseline, below the document's tallest ascent. The widths are measured in one run and used
+in the next (`Recorded` carries them), so the first pass fits each title to itself and says the sizes are not settled.
+
+```python
+from texmodel.ext.fit import Fit, choose_sizes
+
+fit = Fit("Title", target=Length("8mm"), floor=Length("3mm"), room=Length("12mm"), reduced_sizes=2)
+parts = fit.declare(pkg)            # \vlRecordTitle{text}, \vlFitTitle{name}{text}, and the lengths below
+assert r"\newcommand{\vlFitTitle}[2]{%" in pkg.render()
+assert choose_sizes([30.0, 24.0, 12.0], 24.0, target=25.0, floor=8.0, reduced_sizes=2) == (24.0, 30.0)
+```
+
+A card calls `\vlRecordTitle{text}` where it names itself, and `\vlFitTitle{name}{text}` where the title is drawn; the
+`name` is only for the log. Measure outside any box LaTeX defers: a single-face build neuters those boxes. `treatment` is the
+one way a title is set (`Raw(r"\textbf{#1}")`), used to measure and to draw, so a title is never fitted to ink it is not set in.
+
+- `Target`, `Floor` and `Room` are lengths a document may set; `Size` and `LineSize` hold the size the last title was set at
+  and the main size the baseline belongs to.
+- `reduced_sizes` is 0, 1 or 2 (`TM-M061`): zero is one size for everything; with two, the split of the titles that cannot
+  reach the target puts the first `j` (largest first) in the upper group, the `j` that maximises `j * (o_j - o_n)`. The rule is
+  `choose_sizes`, the oracle the TeX is tested against.
+- A title too wide for the measure at the floor is named in a warning, and overflows: there is no wrapping.
+- A name is capital-first letters (`TM-M060`), a size is positive and the floor is not above the target (`TM-M062`), and the
+  package needs a prefix (`TM-M063`).
 
 ## PDF strings
 
