@@ -15,6 +15,7 @@ PUBLIC = {
     "config",
     "document",
     "drift",
+    "ext",
     "errors",
     "interface",
     "keys",
@@ -43,7 +44,7 @@ NOT_API = {"inline_text", "text_of", "call_line", "spec_of", "env_spec_of", "val
 }  # fmt: skip
 
 
-@pytest.mark.parametrize("name", sorted(PUBLIC - {"cli", "std"}))
+@pytest.mark.parametrize("name", sorted(PUBLIC - {"cli", "ext", "std"}))
 def test_all_lists_what_a_module_offers(name):
     mod = importlib.import_module(f"texmodel.{name}")
     defined = {

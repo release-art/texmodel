@@ -128,7 +128,7 @@ from .body import (
 )
 from .errors import DeclarationError, Violation
 from .interface import BRACE, RAW_BODY, SQUARE, ArgOptions, BodyKind, FieldNotes, Gap, arg, body_of, field_info
-from .types import TEXT, Choice, Colour, Length, Raw, Text, ValueKind
+from .types import TEXT, Choice, Colour, Length, Raw, ValueKind
 
 if TYPE_CHECKING:
     from .package import Package
@@ -1018,7 +1018,7 @@ class Value[T]:
         )
 
 
-type AnyValue = Value[Length] | Value[Colour] | Value[bool] | Value[Text] | Value[Raw]
+type AnyValue = Value[Any]  # the kind, not the type, decides what `T` may be: a package adds its own (`KOnly`)
 
 
 def value_spec_of(cls: type[AnyValue]) -> ValueSpec:

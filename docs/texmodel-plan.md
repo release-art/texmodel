@@ -268,6 +268,11 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   `visible` (every class a document may name) and `value_named(name)` look in the base chain, and a name the package
   declares itself replaces the base's (no clash error: data names are looked up by class name, and control sequences of
   two prefixes cannot meet). Data, the schema and the slots' name check (`TM-M015`) use the same lookup.
+- D1c **One-plate colours** (`texmodel.ext.kplate`): `K(fraction)` is a `CMYK` on the black plate only, bounded like every
+  colour (`TM-M017`); `Value[KOnly]` is the colour kind with `K` as its type, so a default or setting off the plate is
+  refused in Python and in data; `tint(Value, fraction)` is xcolor's `name!pct` and refuses a base that is not `KOnly`
+  (`TM-M047`); `plates` and `is_single_plate` read any colour (an `RGB` is all four). Deriving a K from an sRGB colour
+  needs an ICC profile and stays with the consumer.
 - D2 `doc.violations()`, `doc.render()` (str, pure, deterministic, no I/O),
   `doc.to_dict()`, `Doc.from_dict()` (migrates then validates), `doc.plan()` (every
   output line with provenance: model | body:line | user value).

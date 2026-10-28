@@ -77,6 +77,31 @@ and `\begin{document}`. What the package computes in the preamble therefore alre
 assert setting_line(Gap(Length("3mm"))) == r"\setlength{\vlGap}{3mm}"
 ```
 
+## Colours on one plate
+
+`texmodel.ext.kplate` is for colours that ink the black plate only, such as text ink. `K(0.7)` is `0,0,0,0.7`; fractions
+are TeX's, so `K(70)` is refused (`TM-M017`). `Value[KOnly]` holds only a `K`, in its default and in every setting, in
+Python and in data (the schema says `number`, 0 to 1). `tint(Ink, 0.7)` is xcolor's `ac-ink!70`, which stays on the plate
+because the base has only one: a tint of any other value is refused (`TM-M047`). `plates(colour)` names the plates a
+colour inks and `is_single_plate(colour)` asks whether it is one or none.
+
+```python
+from texmodel.ext.kplate import K, KOnly, is_single_plate, tint
+from texmodel.types import CMYK
+
+
+@pkg.value
+class TextInk(Value[KOnly]):
+    """Text ink."""
+
+    default = K(0.95)
+
+
+assert r"\definecolor{vl-text-ink}{cmyk}{0,0,0,0.95}" in pkg.render()
+assert tint(TextInk, 0.7) == "vl-text-ink!70"
+assert is_single_plate(K(0.7)) and not is_single_plate(CMYK(0.1, 0, 0, 0.9))
+```
+
 ## PDF strings
 
 A `PdfString` field holds text for the inside of a PDF literal string you write yourself
