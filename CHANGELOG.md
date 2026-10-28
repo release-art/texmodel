@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `texmodel.ext.printpage`: `PrintPage(width=, height=, bleed=, overflow=, margin=)` writes the `\geometry` call and the PDF
   page boxes (`/TrimBox`, `/BleedBox`, `/CropBox`) from the trim, edge by edge (`Sides`: `all=`, `horizontal=`/`vertical=`
   or the four edges). `Sheet.TRIM` is a review copy with the same type area.
+- `texmodel.ext.spot`: `Spot(plate, proxy=)` and `Value[SpotColour]`, a named plate on the press (`\definespotcolor`, from
+  `colorspace`) with a CMYK proxy, and `tint(Varnish, 0.6)`, xcolor's `ap-varnish!60`. A plate name with a PDF delimiter is
+  refused (`TM-M053`); a spot is declared once, not set by a document (`TM-M055`). The test image gains `colorspace`.
 - `texmodel.ext.intent`: `OutputIntent` writes the `\DocumentMetadata` keys of PDF/X and PDF/A with an intent of the same
   condition each, and registers the ICC profile's output condition, without which l3pdfmeta writes no intent;
   `OutputCondition.check_profile` reads an ICC header.

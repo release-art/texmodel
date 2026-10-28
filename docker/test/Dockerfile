@@ -10,9 +10,9 @@ ARG BASE=releaseart/lualatex-python:latest
 FROM ${BASE}
 # The mirror drops a download now and then and tlmgr carries on without the package, so retry, then check the files exist.
 RUN for i in 1 2 3; do \
-      tlmgr install tagpdf enumitem hyphenat anyfontsize pdfrender tikzfill && break || { [ "$i" = 3 ] && exit 1; sleep 15; }; \
+      tlmgr install tagpdf enumitem hyphenat anyfontsize pdfrender tikzfill colorspace && break || { [ "$i" = 3 ] && exit 1; sleep 15; }; \
     done \
  && fmtutil-sys --byfmt lualatex >/dev/null \
- && for f in tagpdf-base.sty enumitem.sty hyphenat.sty anyfontsize.sty pdfrender.sty tikzfill.image.sty; do \
+ && for f in tagpdf-base.sty enumitem.sty hyphenat.sty anyfontsize.sty pdfrender.sty tikzfill.image.sty colorspace.sty; do \
       kpsewhich "$f" >/dev/null || { echo "missing after install: $f" >&2; exit 1; }; \
     done

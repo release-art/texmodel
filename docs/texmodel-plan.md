@@ -280,6 +280,11 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
 - D1e **An output intent** (`texmodel.ext.intent`): one `\DocumentMetadata` for every standard, `colorprofiles` as
   `subtype=path` pairs, the condition registered under both spellings of the profile (`TM-M048` to `TM-M050`); an ICC
   header check (`TM-C014`, `TM-C015`).
+- D1f **A spot colour** (`texmodel.ext.spot`): `Spot(plate, proxy=)` as the colour kind `SpotColour`
+  (`\definespotcolor`, `colorspace`), `tint` as xcolor's `name!pct` (`TM-M053` to `TM-M055`). A plate name is refused when
+  it holds a PDF delimiter or a TeX special; measured: spaces, non-ASCII and `_ ~ & $ ^ , : ; = @` write a clean PDF,
+  `/ ( ) < > [ ] { }` split the name without a TeX error. A document cannot set a spot: `colorspace` stops on a plate
+  defined twice.
 - D2 `doc.violations()`, `doc.render()` (str, pure, deterministic, no I/O),
   `doc.to_dict()`, `Doc.from_dict()` (migrates then validates), `doc.plan()` (every
   output line with provenance: model | body:line | user value).

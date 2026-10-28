@@ -36,6 +36,36 @@ overflow smaller than the bleed on any edge is `TM-M052`.
 `/MediaBox` is the engine's, and is not written (a second one is a duplicate key in every page dictionary). The page is
 written once, at declaration: a document does not change it, and the engine must be LuaTeX. Crop marks are not drawn.
 
+## A spot colour
+
+`texmodel.ext.spot` declares a named plate on the press, such as a varnish, a foil or a Pantone, with the process colour a
+viewer shows in its place. It is `/Separation /Scodix /DeviceCMYK` in the PDF: the press reads the plate name.
+
+```python
+from texmodel.components import Value
+from texmodel.ext.kplate import K
+from texmodel.ext.spot import Spot, SpotColour, tint
+
+
+@pkg.value
+class Varnish(Value[SpotColour]):
+    """Spot-UV varnish."""
+
+    default = Spot("Scodix", proxy=K(1))
+
+
+assert r"\definespotcolor{ap-varnish}{Scodix}{0,0,0,1}" in pkg.render()
+assert tint(Varnish, 0.6) == "ap-varnish!60"      # xcolor's tint: the plate at 60%
+```
+
+- A plate name may hold spaces, non-ASCII and most punctuation (`PANTONE 302 C`). A PDF name ends at `/ ( ) < > [ ] { }`,
+  and TeX reads `% # \`: a name with one of them writes a file cut in two or none at all, so it is `TM-M053`.
+- The package is `colorspace` (the `spotcolor` package is pdfTeX-only), loaded with `xcolor`.
+- `colorspace` stops on a plate defined twice, so a spot value is declared once and a document cannot set it (`TM-M055`).
+- A tint of a value that is not a spot is `TM-M054`; the proxy is a `CMYK`, bounded like every colour.
+- To give a mask only one plate, build it from `K` values and check it with `is_single_plate`
+  ([Values](values.md#colours-on-one-plate)).
+
 ## An output intent
 
 A PDF/X or PDF/A file names the ICC profile its colours are in. `OutputIntent` writes the `\DocumentMetadata` keys and
