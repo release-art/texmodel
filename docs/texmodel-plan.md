@@ -12,7 +12,7 @@ nothing about any brand, deck or business domain.
 **How to read this document.** It is the target specification plus the decisions log (§21). The guide and the cookbook
 describe what exists; §21 is the record of what was decided and built; §19 and §21a describe what is open; `docs/briefs/roadmap.md` is the order to do it in. Many ids below
 describe work that is *not built*. Checked against the code (v0.7.0), these are not built: scoped overrides `Set` (D4a),
-rules and `@rule` (D5), placement (M5), the `Namespace` policy (M6), `engine`/`kind`/`base` on `Package` and engine
+rules and `@rule` (D5), placement (M5), the `Namespace` policy (M6), `engine` and `kind` on `Package` and engine
 capabilities (M11, M13), `Markup`, `Path`, `Font`, `Snippet`, `PgfStyle`, `Cycle` and colour variants (T2, T5-T9), trust
 levels and limits (Z1), `texmodel explain` (E4), a `@covers` check (A2, V7), benchmarks (W2), `libcst` refactors and
 `texmodel init|show|try|make|change|release|adopt` (U1: the commands are `texmodel build|check|render|schema` and
@@ -92,7 +92,7 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   keyword-only in Python** (`T | None = arg(default=None)`, so a type checker reads them as keyword-only and accepts
   required fields after them); the renderer emits them where TeX needs them (`\newcommand` allows
   one optional argument, first). So `class Slot: text: Text; label: Text | None = None`
-  is called `Slot("A soft woof.", label="Sound")` and renders `\acSlot[Sound]{A soft woof.}`.
+  is called `Slot(text="A soft woof.", label="Sound")` and renders `\acSlot[Sound]{A soft woof.}`.
   TeX argument order is derived from the declaration, never written twice. The full
   slot model (delimiters, several optionals, tokens, groups, key lists) is in
   the guide (Arguments).
@@ -169,7 +169,7 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
 ### 3.5 Packages and classes
 
 - M11 `Package(name, prefix=, version=, date=, description=, header=, document_class=, adopted=, builtin=,
-  whitespace=)` is built. Planned: `engine`, and `kind="package"|"class"` with `base=…`; `kind="class"`
+  whitespace=, comments=, base=)` is built (`base`: D1b). Planned: `engine`, and `kind="package"|"class"`; `kind="class"`
   adds class options and `\LoadClass`. Document shape is not assumed: prose, fixed
   canvas slides and small bleeding pieces must all be expressible.
 - M12 Layering is a DAG (`requires`/`layer`); cycles are errors. `graphlib` orders it.
@@ -238,7 +238,7 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
 
 - D1 A Doc is an immutable tree built with the component classes:
   ```python
-  CardBack(Name("Golden Retriever"), Fact("Friendly & loyal."), Slot("A soft woof.", label="Sound"))
+  CardBack(Name(text="Golden Retriever"), Fact(text="Friendly & loyal."), Slot(text="A soft woof.", label="Sound"))
   ```
   Constructor signatures are the interface, so pyright flags wrong *argument* types and
   unknown keywords before anything runs; child counts and order are checked by
@@ -246,9 +246,9 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   Nodes are frozen pydantic models: **structural equality and hashing** come for free, so
   a Doc can be compared, deduplicated, cached, and asked which components it uses
   (`doc.components()`), and snapshots compare trees, not just text. `repr(doc)` is the
-  constructor expression that rebuilds it (`CardBack(Name('Golden Retriever'), …)`),
+  constructor expression that rebuilds it (`CardBack(Name(text='Golden Retriever'), …)`),
   used in error messages, goldens and debugging. An environment's arguments are keywords
-  and its children are positional: `CardBack(Name("Rex"), Fact("a"), Fact("b"), title="T")`;
+  and its children are positional: `CardBack(Name(text="Rex"), Fact(text="a"), Fact(text="b"), title="T")`;
   the class-level `children` is the grammar, the instance's `.content` the children.
   Building a node checks nothing but the signature (`violations()` does); `model_fields_set`
   is the fields the caller passed, so a default the author left is told from one they set.

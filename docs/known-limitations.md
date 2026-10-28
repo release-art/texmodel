@@ -16,6 +16,11 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 - No check of what TeX would do with a value: a `Length` key is checked to be a length, not to be sensible for the package.
   Layout is not checked at all; `Overset` types a package's own "does not fit" warning.
 
+## Packages on a base
+
+- `base=` does not check that a package's own value replacing a base value of the same name has a compatible type, and the
+  comment classes of `Package(comments=)` are not inherited from the base.
+
 ## Arguments and key lists
 
 - A definition needs LaTeX 2020-10 or later when its signature is not `\newcommand`-shaped (xparse is in the kernel from

@@ -18,7 +18,8 @@ output = "generated"
 package = "acme_cards.decks:Decks.birds"      # or "acme_cards.decks:make_package()"
 ```
 
-A family of packages (a core, its bases, one per series) is a list of pointers, or one pointer to an iterable of `Package`s.
+A family of packages (a core, its bases, one per series; a series names its base with `Package(..., base=)`, see
+[Documents](documents.md#a-package-built-on-another)) is a list of pointers, or one pointer to an iterable of `Package`s.
 `build` and `check` cover them all together, and a package name must be unique because it is a file name.
 
 ```toml

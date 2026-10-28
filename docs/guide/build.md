@@ -11,6 +11,7 @@ texmodel-build compile doc.tex --json --epoch 1700000000 --root generated
 texmodel-build compile deck.tex --plan "deck.build:plan()"   # diagnostics name the component: [Card[1]/CardBack[1]/Name[0]]
 texmodel-build build -j 4                   # every [tool.texmodel-build.targets.*]
 texmodel-build verify out/*.pdf             # verifier plugins; anything unconfirmable fails
+texmodel-build clean doc.tex                # remove its build output; --all also removes the PDF
 ```
 
 ```toml
