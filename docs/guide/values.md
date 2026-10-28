@@ -102,6 +102,34 @@ assert tint(TextInk, 0.7) == "vl-text-ink!70"
 assert is_single_plate(K(0.7)) and not is_single_plate(CMYK(0.1, 0, 0, 0.9))
 ```
 
+## Values only the whole document knows
+
+The widest label and the number of cards are known only after the last card. `texmodel.ext.recorded` carries such a value
+from one run to the next through the `.aux` (`latexmk` reruns until it stops moving). A `Recorded` has a `name`, a `kind`
+(`Length` or `int`) and a `fold` that joins each measurement into it: `MAX`, `MIN` or `SUM`.
+
+```python
+from texmodel.ext.recorded import MAX, SUM, Recorded, reduce
+
+record, width = Recorded("LabelWidth").declare(pkg)               # \vlRecordLabelWidth{<length>}, the length \vlLabelWidth
+count_record, count = Recorded("Cards", kind=int, fold=SUM).declare(pkg)
+assert r"\newcommand{\vlRecordLabelWidth}[1]{%" in pkg.render()
+assert reduce(MAX, [12, 30, 20]) == 30 and reduce(SUM, [1, 1, 1]) == 3
+```
+
+A card calls `\vlRecordLabelWidth{<its width>}` and reads `\vlLabelWidth`. A `MAX` or `MIN` value holds the fold of the last
+run's value and this run's; a `SUM` holds the last run's alone, because a running total is partial. When a run ends with a
+value other than the one it started from, it warns that the value is not settled, so a hand-driven single pass says so.
+
+- The record is `\global`, because the `.aux` is read inside a group; a line the installed package does not know is
+  swallowed, because the `.aux` may come from another version.
+- Measure where a card names itself, at a fixed size, and not inside a box LaTeX defers: a measurement that depends on the
+  value never settles.
+- A `Fold` is data (`update`, `identity`, `idempotent`, and `reduce`, the same fold in Python as a test oracle); a `Fold` that
+  does not take the kind is `TM-M058`. A name is capital-first letters (`TM-M056`), the kind `Length` or `int` (`TM-M057`),
+  and the package needs a prefix (`TM-M059`).
+- An `int` value is a macro that expands to the number (`\vlCards`, with no `\the`); a length is a register.
+
 ## PDF strings
 
 A `PdfString` field holds text for the inside of a PDF literal string you write yourself

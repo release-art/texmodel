@@ -31,6 +31,12 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 - `OutputIntent` knows PDF/X-4 and PDF/A-2b. It checks an ICC header, not that the profile is the one named by its
   condition, and whether a file is where the compile will look is the compiler's roots.
 
+## Recorded values
+
+- `Recorded` takes a length or an integer and the folds `MAX`, `MIN` and `SUM`; no flag, list or text. A value that depends on
+  its own measurement never settles: the run warns, and the author fixes it by measuring at a fixed size. Nothing stops a
+  document setting the recorded value as it would any `Value`; it is measured, not set, by convention.
+
 ## Arguments and key lists
 
 - A definition needs LaTeX 2020-10 or later when its signature is not `\newcommand`-shaped (xparse is in the kernel from

@@ -285,6 +285,10 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   it holds a PDF delimiter or a TeX special; measured: spaces, non-ASCII and `_ ~ & $ ^ , : ; = @` write a clean PDF,
   `/ ( ) < > [ ] { }` split the name without a TeX error. A document cannot set a spot: `colorspace` stops on a plate
   defined twice.
+- D1g **Recorded values** (`texmodel.ext.recorded`): `Recorded(name, kind=Length|int, fold=MAX|MIN|SUM)` declares a library
+  block, a `Record<Name>` command and a `Value`, all `defined_by` the block. The record is `\global`, the `.aux` line is
+  guarded by `\providecommand`, and a run that ends with another value than it began with warns (`TM-M056` to `TM-M059`). An
+  idempotent fold folds the last run's value into this run's; a sum reports it alone. A fold is data with a Python `reduce`.
 - D2 `doc.violations()`, `doc.render()` (str, pure, deterministic, no I/O),
   `doc.to_dict()`, `Doc.from_dict()` (migrates then validates), `doc.plan()` (every
   output line with provenance: model | body:line | user value).
