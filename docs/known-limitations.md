@@ -10,7 +10,8 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   defined another way counts as missing, and a library written in expl3 is not read, and an xparse type it does not model (`v`, `u`, `g`, `e`) is reported as
   `?` and matches nothing.
 - Python 3.15 and LuaLaTeX only. Compiling needs the reference image (or a local TeX Live with `latexmk`).
-- Not built: release migrations, `Doc` trees from data with migrations, trust levels and the injection corpus, the
+- Not built: change classification and the history of one model's data (§13 X5, X11, written in texpkg to move here; releases
+  and migrations are texpkg's), trust levels and the injection corpus, the
   sandbox verification, `texmodel-print`, a rules layer, `List[T]` settings (`Value[...]` takes `Length`, `Colour`, `bool`,
   `Text`, `Raw`, and a package's own kinds such as etoolbox's `Toggle`).
 - No check of what TeX would do with a value: a `Length` key is checked to be a length, not to be sensible for the package.

@@ -16,7 +16,7 @@ rules and `@rule` (D5), placement (M5), the `Namespace` policy (M6), `engine` an
 capabilities (M11, M13), `Markup`, `Path`, `Font`, `Snippet`, `PgfStyle`, `Cycle` and colour variants (T2, T5-T9), trust
 levels and limits (Z1), `texmodel explain` (E4), a `@covers` check (A2, V7), benchmarks (W2), `libcst` refactors and
 `texmodel init|show|try|make|change|release|adopt` (U1: the commands are `texmodel build|check|render|schema` and
-`texmodel-build doctor|compile|clean`), and migrations and releases (§13). Print (§14) and the sandbox (§12, Z2-Z3) are
+`texmodel-build doctor|compile|clean`), and one model's history (§13; releases and migrations are texpkg's). Print (§14) and the sandbox (§12, Z2-Z3) are
 planned. Read an unmarked id as a requirement unless §21 or the guide shows it built.
 
 ---
@@ -70,7 +70,7 @@ rules known only to the author; errors that surface as log text far from the cau
 | **Body** | the TeX implementing a Command/Environment, given explicitly: a string, a method returning one, or a `TemplateRef` to a file |
 | **Rule** | a pure check over a Doc returning structured violations |
 | **Target** | a named build: spec + engine + variant + verifier profile |
-| **Release** | a frozen version: schema, examples, migration chain |
+| **Release** | a frozen version: schema, examples, migration chain (texpkg's, §13) |
 
 ORM mapping: model ↔ Component; column type ↔ Type; bound parameter ↔ escaping at the
 type boundary; dialect ↔ engine profile; DDL ↔ package render; session/unit of work ↔
@@ -302,7 +302,7 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   `TM-M066`). A document picks the build with a class option. Not a conversion between models (T5). `colour_of(Value)` is the
   xcolor name of any colour value.
 - D2 `doc.violations()`, `doc.render()` (str, pure, deterministic, no I/O),
-  `doc.to_dict()`, `Doc.from_dict()` (migrates then validates), `doc.plan()` (every
+  `doc.to_dict()`, `Doc.from_dict()` (validates the current model; old data is migrated first, by texpkg, §13), `doc.plan()` (every
   output line with provenance: model | body:line | user value).
 - D3 Preamble and slot order are declared by the package; entries are placed by slot.
 - D4 **Variants** (e.g. print/preview) set package options/toggles declaratively; no
@@ -619,32 +619,33 @@ file access. The framework must be safe to feed untrusted data.
 
 ## 13. Versions and migrations
 
-- X1 A package has a semantic version (`packaging.version`; pre-releases like
-  `1.4.0-dev`); a spec records `model_version`.
-- X2 **Dev builds write `schema/next/`**; `release` freezes `schema/<version>/` plus
-  examples. Frozen directories are never rewritten.
-- X3 **Renames are declared on the model**: `field(renamed_from="text")` compiles to a
-  pydantic `AliasChoices` for tolerant reading and records `(from → to, old → new)` in
-  the release history. The alias can expire after a declared window.
-- X4 **Non-mechanical changes** are written once as a `@migration(frm, to)` function
-  (a before-validator in effect). Steps apply as a version-ordered chain (the upcaster
-  pattern: an old spec is lifted one version at a time and never validated raw).
-  A missing step is an error by default; `compatible_by_default` is opt-in per version.
-- X5 **Change classification** (major / minor / none) comes from diffing the
-  *declaration models* between the last release and the working tree, using Avro-style
-  compatibility rules: adding optional or relaxing = backward-compatible; removing,
-  renaming without alias, tightening, changing type or arity = breaking. The consumer
-  may override per-package. `build` reports the classification once; `release` acts.
-- X6 `release`: classify, scaffold the migration, bump, freeze schema+examples, verify
-  every earlier release's examples migrate and validate. Exactly one migration head is
-  enforced (branching is caught).
-- X7 **Property-based migration test**: generate specs from the *old* schema, migrate,
-  assert the new validator accepts them (stronger than committed examples alone).
-- X8 `stored_specs = False` marks a package with no persisted specs: `release` skips
-  migration scaffolding and the old-example check.
-- X9 Non-Python validators see only the current schema, so specs are migrated *before*
-  validation at every entry point (`make`, `Doc.from_dict`, CLI).
-- X10 Later (parked): squashing old migrations when the oldest supported release moves.
+**The line** (decided with texpkg, its V8): texmodel owns one model's history, its declared renames and what changed
+between two of its declarations; texpkg owns what spans releases: a package's versions, its frozen schemas, the
+migration API (`@migration(to=N)` over plain data, `Migrated`, `Unresolved`), running migrations in order, default
+migrations and the report of what no migration placed (texpkg V7, V10 to V33). A piece texpkg needs from texmodel is
+written in texpkg first, in a module with no texpkg-only dependency, and moved here as a cut once it is stable
+(texpkg N5, V9). The ids below keep their numbers; most now point at texpkg.
+
+- X1 Versions: texpkg's (a package's version, and the integer `data` version its migrations count, V28).
+- X2 Frozen schemas of earlier releases: texpkg's (V7, V11, V33).
+- X3 **Renames are declared on the model** (built): `field(renamed_from="text")` reads the old key (pydantic
+  `AliasChoices`) and the schema records it as `x-renamed-from`; texpkg reads that before its migrations run (V28).
+- X4 Non-mechanical changes: texpkg's migration API (V28, V32). Not built here.
+- X5 **Change classification is texmodel's**: compatible or breaking, from two JSON Schemas of one model, by Avro-style
+  rules (adding an optional field or relaxing is compatible; removing, renaming without an alias, tightening, changing a
+  type or an arity is breaking). Written in texpkg (`_internal/classify.py`, `schema_changes`, V12) to move here; the
+  release numbering around it (libtool's triples, V10) stays in texpkg. Not moved.
+- X6 `release` (classify, bump, freeze, check earlier examples): texpkg's (V11 to V13).
+- X7 A property-based migration test (data from the old schema, migrated, accepted by the new): texpkg's, over its
+  migrations.
+- X8 A package with no stored documents: texpkg's.
+- X9 Old data is migrated before it is validated (texpkg's `load`, V28, V31); `spec.from_dict` validates against the
+  current model only.
+- X10 Squashing old migrations: texpkg's, parked.
+- X11 **What stops data from being a valid tree of the current model is texmodel's**: the data path of a validation
+  error (`/content/1/content/0/text`), the schema at that path, pydantic's errors then the grammar's violations, and the
+  stored fields the model has no field for, which loading would drop without a word (texpkg V15, V30). Written in
+  texpkg (`_internal/history.py`) to move here; texpkg then imports it. Not moved.
 
 ---
 
@@ -754,11 +755,11 @@ class Ink(Value[Colour]):
 |---|---|---|
 | `init` / `doctor` | scaffold; report what this machine can do | no |
 | `build` | declarations → `generated/` (`.sty`, schema `next/`, docs) | no |
-| `check` | everything CI runs: drift, namespaces, adopted files, examples validate, goldens, old-release migrations; `--tex` adds the compile suite; `--bless` updates goldens after showing the diff | opt |
+| `check` | everything CI runs: drift, namespaces, adopted files, examples validate, goldens; `--tex` adds the compile suite; `--bless` updates goldens after showing the diff | opt |
 | `make SPEC --to tex\|pdf\|verified` | validate → render → compile → verify, stopping where asked | opt |
 | `show NAME\|SPEC` | signature/rules/example, or provenance-annotated plan | no |
 | `try Fact "text"` | render one call to a cropped image; `--watch` | yes |
-| `change` / `release` | classify a change, scaffold its migration; cut a version | no |
+| `change` | classify a change (X5); a release and its migration are texpkg's | no |
 | `adopt FILE` | check a hand-written file against its manifest | no |
 | `bundle` / `install` | self-contained export; install into a TeX tree | yes |
 | `refactor rename\|promote\|fmt` | libcst-based rename of a component (class, its `TemplateRef` targets, examples, goldens, rename record), promote to a folder, promote inline bodies to files | no |
@@ -788,14 +789,14 @@ Adding `Fact`:
 ```
 
 Every generated hunk starts with `from <Class> (body: <file>)`. No version directory
-churn, no migration file until `release`. A breaking change prints once at `build`:
+churn and no migration file (releases are texpkg's, §13). A breaking change prints once at `build`:
 `note Fact: argument label added (MINOR vs 1.3.0).`
 
 ### 15.5 Editing, in short
 
 - Body only → fragment + one generated hunk; schema untouched (the "internals only" signal).
-- Interface change → `build` classifies; arity or removal needs `release` to scaffold the
-  migration; renames use `renamed_from`.
+- Interface change → `build` classifies; arity or removal needs a migration, written in
+  texpkg (§13); renames use `renamed_from`.
 - `texmodel refactor rename` (via libcst) rewrites class, `TemplateRef` targets, examples,
   goldens and adds the rename record. `texmodel refactor promote Fact` moves a component
   into a folder.
@@ -803,7 +804,7 @@ churn, no migration file until `release`. A breaking change prints once at `buil
 ### 15.6 CI
 
 ```
-texmodel check               # drift, namespaces, adopted files, examples, goldens, migrations
+texmodel check               # drift, namespaces, adopted files, examples, goldens
 ruff / pyright               # style and types
 pytest                       # TeX-less layers, coverage gate, free tests
 texmodel check --tex         # compile suite + verifiers in the reference container
@@ -893,7 +894,7 @@ texmodel/
   render/    package + doc rendering, bodies, lints, family check
   engine/    profiles, escape tables, compile driver, log parsers      (only spawner)
   schema/    JSON Schema / OpenAPI export, show
-  migrate/   chain, classification, release, property test helpers
+  history/   one model's history: renames, change classification, what stops data validating (X5, X11)
   adopt/     manifest + scanner (conformance mode)
   testkit/   free tests, snapshots, assert_refuses, tex fixtures
   verify/    verifier plugin API (+ built-ins as extras)
@@ -934,7 +935,7 @@ whose history records an escaping bug and an over-set card. If not met, stop at 
 
 | Step | Deliverable | Covers |
 |---|---|---|
-| C0 | releases and migrations | X1-X10 |
+| C0 | one model's history, from texpkg (releases and migrations are texpkg's) | X5, X11 |
 | C1 | adoption of hand-written TeX beyond the minimal check (scanner reach, §21a 8) | M9, M10 |
 | C3 | equivalence and reference tests | V2a |
 | C4 | `texmodel-print` | P1-P4, T5-T7, C9 |
@@ -963,8 +964,9 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 - A5 Each consumer's driver/install/verify code can be deleted in favour of the
   framework with its existing tests passing.
 - A6 A hand-written class passes conformance mode with only a manifest added.
-- A7 A rename and a non-mechanical change both ship through `release` with working
-  migrations, and old examples migrate and validate.
+- A7 A rename and a non-mechanical change both ship through a texpkg release with working
+  migrations, and old examples migrate and validate; texmodel supplies the rename, the classification and the history
+  (§13).
 
 - A8 The hostile-string corpus (Z3) passes for every component in both reference
   packages, and the sandbox verification (Z2) is recorded as a passing test or as a
@@ -997,6 +999,7 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | `children = [Fact.times(2, 3)]` multiplicity syntax (`times([from,] to)` with `to=None` for no limit, plus `times.any()` and `times.at_least_one()`; not operator overloading) | decided |
 | An adopted (declared-only) package is a flag on the package, `Package(..., adopted=True)`: no bodies, no `.sty`, `texmodel check` compares the declarations with `[tool.texmodel] sources` | decided |
 | The interface check compares the argument count and whether the first is optional of what the scan reads (§21a 8); a name defined another way is missing (`TM-C010`, `TM-C011`); a public name the sources define that nothing declares is reported (`TM-C025`, K2) | decided |
+| Migrations follow texpkg's split (its V8): texmodel owns one model's history (renames, change classification X5, what stops data validating X11); texpkg owns releases, versions, frozen schemas, the migration API, running migrations and the unresolved report. A piece is written in texpkg first and moved here as a cut (texpkg N5, V9) | decided |
 | A diagnostic's file (C11): `-file-line-error` gives an error's; a line with none (`on input line N`, a box, `! message`) is in the file open at that point of the log, from the `texmodel:open:<name>` and `texmodel:close` lines a LuaTeX `start_file`/`stop_file` callback writes, run before the document as latexmk's `-pretex` (`%P`). TeX's `(file` ... `)` is not followed: message and box text carry unbalanced parentheses (measured). The callback prints LuaTeX's own file text, so the log keeps `(file)` and the font listing, and the PDF is byte-identical. A line in no file is not mapped to a component | decided |
 | Document preamble: `PreambleSlots(before_class, before_package, after_package)`, each a tuple of `Raw` or a typed entry, a `Document`'s `preamble`; public names used there are linted (`TM-M015`) | decided |
 | The harness types any package warning (`PackageWarning`, `TM-X019`); `Overset` types a "does not fit" warning through a configured rule or a `fit.` probe | decided |
@@ -1071,7 +1074,8 @@ Each is a candidate, not a decision. `docs/briefs/roadmap.md` orders them.
     `Text` variant with a declared normaliser would remove the converter's busiest part.
 13. **Reference image.** PDF/X-4 and PDF/A-2b output was never compiled in the tests; an ICC profile has to be supplied at test
     time. `texmodel-build doctor --sty` does not follow a package's own dependencies.
-14. **Spec round trip.** `Doc` with migrations (X); walking pydantic's field info for docs and constraints.
+14. **Spec round trip.** Migrations are texpkg's (§13). Left here: taking in texpkg's history and classification modules
+    (X5, X11), and walking pydantic's field info for docs and constraints.
 15. **Data-driven rendering.** `texmodel render --data cards.toml <pointer>` against the project's templates, with no hand-written
     converter. Needs a declared mapping from data fields to components, kept next to the components (joins, slot order, deck
     policies like title case), and a `[tool.texmodel] templates` key so bodies and adopted `sources` are found from

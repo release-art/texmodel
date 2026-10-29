@@ -16,14 +16,9 @@ Nothing open: what is found goes here first.
 | 1 | **Output-change labelling** (K3, G7). `check` names the minor release that changed a generated file; the changelog marks such a release. | Consumers commit `.sty` files and need to know which upgrade moved them. Open: where the record lives so the installed package can read it (a table in `drift.py` kept with the changelog, or a marker in the changelog shipped as package data). | small |
 | 2 | **Hand edits, the rest of it** (X2, §21a 5, 6, 18). `read_edits` and `Edit.fields` are built. Open: a `texmodel-build` command over `read_edits`; `Doc.apply(edits)` once the edits are trusted; settings (`Value`s) read by TeX (`\the\lbGap`, `\iflbFlag`, `\extractcolorspec`); a tree-aware diff (a move across environments reads as the close moved); a scan for a redefined stubbed macro; keyed children (a path by id), the ignore-marker rule and the import hook. | The first three need the consumer's real workflow; the last three change what a path means, so decide them together. | large |
 | 3 | **A print page chosen at load time** (`ext.printpage`). A package option picks the sheet (a crop build and a trim-only preview), landscape swaps the trim, `showcrop` and its flag are written, and the page boxes follow the sheet chosen. | `ColourSpace` already owns the package's `\ProcessOptions`, so the two need one options block or a declared order. The margin model is settled: the consumer's margins are from the trim and its type area is the same in both sheets, as `Sheet.TRIM` keeps it. Ask the consumer for its hand-written page, boxes and options files when this starts, to read the design (they stay out of the repo). | medium |
+| 4 | **Take in texpkg's history and classification** (§13 X5, X11; texpkg V8, V9). Move texpkg's `_internal/history.py` (the data path of a validation error, the schema at a path, what stops data from being a valid tree, stored fields the model lacks) and the schema diff of `_internal/classify.py` (`schema_changes`, Avro-style rules) into texmodel, with their tests; texpkg then imports them. | texpkg wrote both to move here as a cut: `history.py` depends on `texmodel.components` and pydantic only; `classify.py` keeps libtool's triples (`contracts.Pair`, `Triple`) in texpkg. Migrations themselves stay in texpkg. | medium |
 
-## 3. Needs a decision first
-
-| # | Item | Open question |
-|---|---|---|
-| 4 | **`Doc` with migrations** (§21a 14; plan C0, X1 to X10). `renamed_from` is built; a saved document whose declaration changed is not migrated. | Whether stored documents (a consumer keeping defaults written out) reach this before 1.0. If so, move it above 1 to 3. |
-
-## 4. Waits for a second consumer to ask
+## 3. Waits for a second consumer to ask
 
 Not started on purpose; each needs a design or a real workflow first.
 
@@ -32,7 +27,7 @@ Not started on purpose; each needs a design or a real workflow first.
 - **`List[T]` fields** (X4, §21a 1): separator, per-item wrapper, empty list.
 - **A counter as a `ValueKind`** (K1): claims a counter namespace.
 - **Smaller ideas** (§21a 2, 4, 9 to 13, 16, 17, 19): `Measure` beyond `fit`, grammar interleaving, PDF strings and PDF/A, declared preamble slots, declared-only variants, consumer policies, the reference image's PDF/X and ICC gaps, constructive-body whitespace, stubs for settings, expl3 as its own `.sty`.
-- **Gate B and Stage C** (plan §19; X5): a timed first-time author and a second consumer with an escaping bug and an over-set card; then migrations as releases, adoption beyond the minimal check, equivalence tests, `texmodel-print`, performance budgets and 1.0.
+- **Gate B and Stage C** (plan §19): a timed first-time author and a second consumer with an escaping bug and an over-set card; then adoption beyond the minimal check, equivalence tests, `texmodel-print`, performance budgets and 1.0.
 - **Trust levels, the injection corpus and the sandbox** (plan Z1 to Z3): needed before untrusted data may reach a `Raw` field.
 
 ---
