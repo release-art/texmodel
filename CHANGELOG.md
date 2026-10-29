@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-29
+
 ### Changed
 
 - `ColourName` is a `str` subclass you can build: `ColourName(Ink, tint=0.7)` is `ab-ink!70`, `mix=` gives `a!70!b`, and
@@ -259,7 +261,8 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/release-art/texmodel/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/release-art/texmodel/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/release-art/texmodel/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/release-art/texmodel/compare/v0.5.1...v0.6.0
