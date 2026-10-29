@@ -4,6 +4,9 @@ A printer trims to `/TrimBox` and lets artwork run to `/BleedBox`; PDF/X require
 file can be valid and trimmed to the wrong size. `PrintPage` derives both from the trim, the bleed and the margin
 around the trim, edge by edge. All of it is numbers in the generated `.sty`: nothing is computed by TeX.
 
+The page is fixed when the package is generated: one sheet, which no package option switches (a crop build and a
+preview build, or landscape), and no crop marks. A page chosen when TeX loads the package keeps its own geometry.
+
 ```python
 page = PrintPage(
     width=Length("105mm"), height=Length("138mm"),     # the trim

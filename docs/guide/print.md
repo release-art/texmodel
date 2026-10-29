@@ -65,7 +65,7 @@ assert ColourName(Varnish, tint=0.6) == "ap-varnish!60"      # xcolor's tint: th
 - `colorspace` stops on a plate defined twice, so a spot value is declared once and a document cannot set it (`TM-M055`).
 - The proxy is a `CMYK`, bounded like every colour. A tint is `ColourName(Varnish, tint=0.6)`.
 - A spot inks its own plate: it mixes with nothing that inks another, and a mask of `K` values is checked with
-  `is_single_plate` ([Values](values.md#plates)).
+  `plates_of` ([Values](values.md#plates)).
 
 ## An output intent
 

@@ -7,26 +7,21 @@ The specification is `docs/texmodel-plan.md`; `§21a N` below names an idea ther
 
 ## 1. Correctness and trust
 
-| # | Item | Why now | Size |
-|---|---|---|---|
-| 1 | **Diagnostic mapping** (§21a 3). A package warning's `input line N` has no file, so one raised inside another file is mislabelled. | A wrong answer from a diagnostic is worse than none. | small |
-| 2 | **A flaky compile test.** `test_fatal_errors_are_explained_not_just_failed[missing_package.tex]` raised `ToolchainError` from latexmk once in a full run and passed alone. Find the shared state (the font cache, a parallel run). | A flaky required gate trains people to rerun it. | small |
-| 3 | **A public-API snapshot in CI** (plan I2, A9; `griffe`). Every public module now has an `__all__`, so the snapshot is the list of those names and their signatures. | 0.4.0 removed names; the next removal should be a reviewed diff, not a surprise. | small |
-| 4 | **Hide the rest of the plumbing** that is public by name only (`inline_text`, `text_of`, `call_line`, `spec_of`, `env_spec_of`, `value_spec_of`, `field_info`, `record_fields`, `FieldNotes`, `body_of`; listed in `NOT_API` in `tests/test_texmodel/test_public_api.py`). Needs `components.py` and `interface.py` split so the helpers move to `_internal` without a cycle. | The smaller the surface, the cheaper every later change. | medium |
+Nothing open: what is found goes here first.
 
 ## 2. Asked for by a consumer
 
 | # | Item | Notes | Size |
 |---|---|---|---|
-| 5 | **Output-change labelling** (K3, G7). `check` names the minor release that changed a generated file; the changelog marks such a release. | Consumers commit `.sty` files and need to know which upgrade moved them. | small |
-| 6 | **Hand edits, the rest of it** (X2, §21a 5, 6, 18). `read_edits` and `Edit.fields` are built. Open: a `texmodel-build` command over `read_edits`; `Doc.apply(edits)` once the edits are trusted; settings (`Value`s) read by TeX (`\the\lbGap`, `\iflbFlag`, `\extractcolorspec`); a tree-aware diff (a move across environments reads as the close moved); a scan for a redefined stubbed macro; keyed children (a path by id), the ignore-marker rule and the import hook. | The first three need the consumer's real workflow; the last three change what a path means, so decide them together. | large |
-| 7 | **External sources checked both ways** (K2). A name a hand-written `.sty` defines that nothing declares is reported, as a library's `TM-C012` is. | Completes adoption for anyone keeping hand-written TeX. | medium |
+| 1 | **Output-change labelling** (K3, G7). `check` names the minor release that changed a generated file; the changelog marks such a release. | Consumers commit `.sty` files and need to know which upgrade moved them. Open: where the record lives so the installed package can read it (a table in `drift.py` kept with the changelog, or a marker in the changelog shipped as package data). | small |
+| 2 | **Hand edits, the rest of it** (X2, §21a 5, 6, 18). `read_edits` and `Edit.fields` are built. Open: a `texmodel-build` command over `read_edits`; `Doc.apply(edits)` once the edits are trusted; settings (`Value`s) read by TeX (`\the\lbGap`, `\iflbFlag`, `\extractcolorspec`); a tree-aware diff (a move across environments reads as the close moved); a scan for a redefined stubbed macro; keyed children (a path by id), the ignore-marker rule and the import hook. | The first three need the consumer's real workflow; the last three change what a path means, so decide them together. | large |
+| 3 | **A print page chosen at load time** (`ext.printpage`). A package option picks the sheet (a crop build and a trim-only preview), landscape swaps the trim, `showcrop` and its flag are written, and the page boxes follow the sheet chosen. | `ColourSpace` already owns the package's `\ProcessOptions`, so the two need one options block or a declared order. The margin model is settled: the consumer's margins are from the trim and its type area is the same in both sheets, as `Sheet.TRIM` keeps it. Ask the consumer for its hand-written page, boxes and options files when this starts, to read the design (they stay out of the repo). | medium |
 
 ## 3. Needs a decision first
 
 | # | Item | Open question |
 |---|---|---|
-| 8 | **`Doc` with migrations** (§21a 14; plan C0, X1 to X10). `renamed_from` is built; a saved document whose declaration changed is not migrated. | Whether stored documents (a consumer keeping defaults written out) reach this before 1.0. If so, move it above 5 to 7. |
+| 4 | **`Doc` with migrations** (§21a 14; plan C0, X1 to X10). `renamed_from` is built; a saved document whose declaration changed is not migrated. | Whether stored documents (a consumer keeping defaults written out) reach this before 1.0. If so, move it above 1 to 3. |
 
 ## 4. Waits for a second consumer to ask
 

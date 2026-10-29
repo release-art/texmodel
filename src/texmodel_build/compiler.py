@@ -56,13 +56,13 @@ class ImageInfo:
     revision: str
 
 
-def _located(diagnostic: Diagnostic, source: pathlib.Path, plans: Mapping[str, Plan]) -> Diagnostic:
-    """Add the path of the plan of the diagnostic's file, by file name, for its line. A line with no file (a package's
-    `on input line N`) is taken to be in `source`; ponytail: a package warning raised inside another file is then
-    mislabelled (the `(./file.tex` stack is not recovered from the log: TeX wraps log lines, so counting parentheses is
-    not reliable)."""
-    plan = plans.get(source.name if diagnostic.file is None else pathlib.PurePath(diagnostic.file).name)
-    if diagnostic.line is None or plan is None or not 1 <= diagnostic.line <= len(plan.lines):
+def _located(diagnostic: Diagnostic, plans: Mapping[str, Plan]) -> Diagnostic:
+    """Add the path of the plan of the diagnostic's file, by file name, for its line. A line whose file the log does
+    not say is not placed: a guess at the main document would name the wrong component."""
+    if diagnostic.file is None or diagnostic.line is None:
+        return diagnostic
+    plan = plans.get(pathlib.PurePath(diagnostic.file).name)
+    if plan is None or not 1 <= diagnostic.line <= len(plan.lines):
         return diagnostic
     return dataclasses.replace(diagnostic, path=plan.path_of(diagnostic.line))
 
@@ -195,7 +195,7 @@ class Compiler:
             )
 
         found_plans = {**(plans or {}), **({source.name: plan} if plan is not None else {})}
-        diagnostics = [_located(d, source, found_plans) for d in diagnostics]
+        diagnostics = [_located(d, found_plans) for d in diagnostics]
         result = CompileResult(
             pdf=pdf if has_pdf else None,
             log=log if fresh else None,
@@ -241,9 +241,9 @@ class Compiler:
         ]
         proc = self._tool("latexmk", args, source, outdir)
         if proc.returncode == 127 or (self.image and proc.returncode == 125):
-            raise ToolchainError(
-                f"could not run latexmk: {_tail(proc.stderr)}", code="TM-T004", hint="run `texmodel-build doctor`"
-            )
+            # 125 is docker's own failure (the daemon, a mount), not latexmk's: say which, so a one-off is diagnosable
+            who = "docker could not start the container" if proc.returncode == 125 else "could not run latexmk"
+            raise ToolchainError(f"{who}: {_tail(proc.stderr)}", code="TM-T004", hint="run `texmodel-build doctor`")
         return proc
 
     def _not_converged(self, source: pathlib.Path, outdir: pathlib.Path, passes: int) -> Diagnostic:

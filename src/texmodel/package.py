@@ -16,6 +16,7 @@ from typing import Any, NamedTuple
 
 from pydantic.fields import FieldInfo
 
+from ._internal.emit import INDENT, call_line, emit
 from ._internal.pieces import template_text
 from ._internal.render import (
     EnvSpec,
@@ -35,22 +36,17 @@ from ._internal.render import (
     undeclared,
 )
 from ._internal.scan import scan_colours, scan_counters, scan_declarations
+from ._internal.specs import env_spec_of, spec_of, value_spec_of
 from ._internal.values import fill_text
 from .body import Comment, Library, Syntax, TemplateRef, Whitespace
 from .components import (
-    INDENT,
     AnyValue,
     Command,
     Environment,
     Node,
     Passthrough,
     Value,
-    call_line,
     control_name,
-    emit,
-    env_spec_of,
-    spec_of,
-    value_spec_of,
 )
 from .document import OPTION, Document
 from .drift import stamp
@@ -364,17 +360,19 @@ class Package:
         doc: str,
         *,
         fields: Mapping[str, tuple[object, object]] | None = None,
-        body: str,
+        body: str | None = None,
+        defined_by: Library | None = None,
         cs: str | None = None,
         module: str | None = None,
     ) -> type[Command]:
         """Declare and register a command from data, for names a program decides at run time. `fields` maps a field
         name to `(hint, field(...))` in TeX order, as `create_model` does (`{"name": (Raw, field(doc="the name"))}`);
-        `body` is TeX. Declaring the same data again returns the class made first; other data under the name is
-        `TM-M007`. `module` (default: the package's name) is shown in messages."""
+        `body` is TeX, or `defined_by` the library block that defines it. Declaring the same data again returns the
+        class made first; other data under the name is `TM-M007`. `module` (default: the package's name) is shown in
+        messages."""
         given = dict(fields or {})
-        data = (doc, cs, body, tuple((n, h, _field_data(f)) for n, (h, f) in given.items()))
-        return self._make("command", name, data, module, self.command, Command, doc, cs, body, given)
+        data = (doc, cs, body, defined_by, tuple((n, h, _field_data(f)) for n, (h, f) in given.items()))
+        return self._make("command", name, data, module, self.command, Command, doc, cs, defined_by, body, given)
 
     def make_value(
         self,
@@ -384,13 +382,17 @@ class Package:
         *,
         default: object = None,
         colour_name: str | None = None,
+        defined_by: Library | None = None,
         cs: str | None = None,
         module: str | None = None,
     ) -> type[AnyValue]:
         """Declare and register a value from data: `kind` is `Length`, `Colour`, `bool`, `Text`, `Raw` or a package's
-        own. Declaring the same data again returns the class made first; other data under the name is `TM-M007`."""
-        data = (kind, doc, default, colour_name, cs)
-        return self._make("value", name, data, module, self.value, Value[kind], doc, cs, None, {}, default, colour_name)
+        own; `defined_by` is the library block that defines it. Declaring the same data again returns the class made
+        first; other data under the name is `TM-M007`."""
+        data = (kind, doc, default, colour_name, defined_by, cs)
+        return self._make(
+            "value", name, data, module, self.value, Value[kind], doc, cs, defined_by, None, {}, default, colour_name
+        )
 
     def _make(
         self,
@@ -402,6 +404,7 @@ class Package:
         base: type,
         doc: str,
         cs: str | None,
+        defined_by: Library | None,
         body: str | None,
         fields: Mapping[str, tuple[object, object]],
         default: object = None,
@@ -421,8 +424,10 @@ class Package:
         namespace: dict[str, object] = {"__doc__": doc, "__module__": module}
         if cs is not None:
             namespace["cs"] = cs
+        if defined_by is not None:
+            namespace["defined_by"] = defined_by
         if what == "command":
-            namespace["body"] = body
+            namespace |= {"body": body} if body is not None else {}
             namespace["__annotations__"] = {n: h for n, (h, _) in fields.items()}
             namespace |= {n: f for n, (_, f) in fields.items()}
         else:
@@ -569,7 +574,8 @@ class Package:
         """Every declared component is defined in `sources` (the hand-written TeX) with the signature declared (M9).
 
         Read by `texmodel check` for an adopted package. A name that `sources` define some other way than
-        `\\newcommand`, `\\providecommand`, `\\newenvironment` or an xparse `\\NewDocumentCommand` counts as missing.
+        `\\newcommand`, `\\providecommand`, `\\newenvironment` or an xparse `\\NewDocumentCommand` counts as missing. A
+        public name (`<prefix>Name`) the sources define that nothing declares is `TM-C025`, as a library's is `TM-C012`.
         """
         found = scan_declarations("\n".join(sources))
         out: list[Violation] = []
@@ -590,7 +596,21 @@ class Package:
                         hint="change the declaration or the package so they agree",
                     )
                 )
-        return out
+        known = self.known_controls
+        return out + [
+            Violation(
+                "TM-C025",
+                self.name,
+                f"\\{n} is defined by the sources but nothing declares it",
+                hint="declare it, or give the helper a name outside the public namespace (an @ in it)",
+            )
+            for n in found
+            if self._public(n) and n not in known
+        ]
+
+    def _public(self, name: str) -> bool:
+        """`<prefix>Name`: a name in the package's public namespace (none for a package without a prefix)."""
+        return bool(self.prefix) and re.fullmatch(rf"{self.prefix}[A-Z][A-Za-z]*", name) is not None
 
     def _parts(self) -> dict[str, "_Defs"]:
         """What each library defines, by library name, in the forms `scan` reads; a library written in expl3 is not
@@ -646,19 +666,17 @@ class Package:
                     *addressed(self.prefix, value.__name__, value.cs), value.colour_name
                 )
                 out += _compare(value.__name__, lib.name, parts[lib.name], [(t, k, "") for t, k, _ in names])
-        if self.prefix:
-            public = re.compile(rf"{self.prefix}[A-Z][A-Za-z]*")
-            for lib, defs in parts.items():
-                out += [
-                    Violation(
-                        "TM-C012",
-                        lib,
-                        f"\\{n} is defined by library {lib} but nothing declares it",
-                        hint="declare it, or give the helper a name outside the public namespace (an @ in it)",
-                    )
-                    for n in defs.controls
-                    if public.fullmatch(n) and n not in self._controls
-                ]
+        for lib, defs in parts.items():
+            out += [
+                Violation(
+                    "TM-C012",
+                    lib,
+                    f"\\{n} is defined by library {lib} but nothing declares it",
+                    hint="declare it, or give the helper a name outside the public namespace (an @ in it)",
+                )
+                for n in defs.controls
+                if self._public(n) and n not in self._controls
+            ]
         return out + [Violation("TM-C013", self.name, message) for message in self._duplicates()]
 
     def plan(self, *body: Node | Document) -> Plan:

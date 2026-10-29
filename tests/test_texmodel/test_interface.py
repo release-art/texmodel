@@ -11,6 +11,8 @@ from hypothesis import (
     strategies as st,
 )
 
+from texmodel._internal.bodies import body_of
+from texmodel._internal.fields import FieldNotes
 from texmodel._internal.render import canonical, newcommand_fits, signature, xparse_spec
 from texmodel._internal.scan import scan_declarations, xparse_letters
 from texmodel.body import Hole
@@ -22,13 +24,11 @@ from texmodel.interface import (
     SQUARE,
     ColourName,
     Delimiter,
-    FieldNotes,
     Gap,
     SlotGroup,
     Star,
     Token,
     arg,
-    body_of,
 )
 from texmodel.keys import KeyRules
 from texmodel.package import Package

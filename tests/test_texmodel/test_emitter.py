@@ -9,7 +9,8 @@ from hypothesis import (
 )
 from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
 
-from texmodel.body import Cs, Group, Hole, Lit, Seq, Whitespace, inline_text
+from texmodel._internal.inline import inline_text
+from texmodel.body import Cs, Group, Hole, Lit, Seq, Whitespace
 from texmodel.components import Command
 from texmodel.document import Document
 from texmodel.package import Package

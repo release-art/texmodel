@@ -94,7 +94,10 @@ import pydantic
 from pydantic.fields import FieldInfo
 from pydantic_core import CoreSchema, core_schema
 
-from ._internal.pieces import pieces_of, refs_in, syntaxes_in, template_text
+from ._internal.bodies import body_of
+from ._internal.emit import NodeKind, emit
+from ._internal.fields import FieldNotes, field_info
+from ._internal.pieces import pieces_of, template_text
 from ._internal.render import (
     BOOL,
     COLOUR,
@@ -102,17 +105,13 @@ from ._internal.render import (
     RAW_KIND,
     TEXT_KIND,
     Arg,
-    EnvSpec,
-    Spec,
-    ValueSpec,
     argument_violations,
-    arguments,
-    call_arguments,
     check_name,
     tex_arguments,
     written,
 )
-from ._internal.values import value_ok
+from ._internal.specs import control_name, env_spec_of, spec_of
+from ._internal.values import plates_outside, value_ok
 from .body import (
     Comment,
     Cs,
@@ -126,9 +125,6 @@ from .body import (
     Syntax,
     TemplateRef,
     TexRaw,
-    Whitespace,
-    inline_text,
-    join,
 )
 from .errors import DeclarationError, Violation
 from .interface import (
@@ -138,13 +134,10 @@ from .interface import (
     ArgOptions,
     BodyKind,
     ColourName,
-    FieldNotes,
     Gap,
     arg,
-    body_of,
-    field_info,
 )
-from .types import TEXT, Choice, Colour, Length, Plate, Raw, ValueKind, plates_of
+from .types import TEXT, Choice, Colour, Length, Plate, Raw, ValueKind
 
 if TYPE_CHECKING:
     from .package import Package
@@ -317,23 +310,6 @@ def _source(cls: type, name: str) -> Source | None:
     return tuple(out), " + ".join(dict.fromkeys(origins))
 
 
-def control_name(cls: type) -> str:
-    """The control sequence of a registered component or value, without the backslash: its `cs`, else its package's
-    prefix and its class name. A colour is not a control sequence (`TM-M042`)."""
-    name: str | None = getattr(cls, "__tm_cs__", None)
-    if name is None and isinstance(getattr(cls, "__tm_kind__", None), ValueKind) and hasattr(cls, "__tm_prefix__"):
-        raise DeclarationError(
-            f"{cls.__qualname__}: a colour has no control sequence",
-            code="TM-M042",
-            hint="its name is `colour_name`, else prefix-kebab (xcolor's namespace)",
-        )
-    if name is None:
-        raise DeclarationError(
-            f"{cls.__qualname__}: not registered with a package", code="TM-M019", hint="decorate it with @pkg.command"
-        )
-    return name
-
-
 class _Node(pydantic.BaseModel, metaclass=_Meta):
     """What a `Command` and an `Environment` share: a frozen pydantic model (its fields are the arguments), declaration
     data, `repr`, `violations` and `render`. The schema is built on first use (`from_dict`, `to_dict`, a schema)."""
@@ -349,6 +325,7 @@ class _Node(pydantic.BaseModel, metaclass=_Meta):
     )
     __tm_args__: ClassVar[tuple[Arg, ...]]
     __tm_doc__: ClassVar[str]
+    __tm_node__: ClassVar[NodeKind]  # what `emit` writes for it
     __tm_prefix__: ClassVar[str]  # set when a package registers the class
     __tm_cs__: ClassVar[str]  # likewise: the control sequence, see `control_name`
     cs: ClassVar[str | None] = None  # the TeX name, when it is not prefix + class name (`cs = "includegraphics"`)
@@ -435,6 +412,7 @@ def field(
 class Command(_Node):
     """A TeX command (`\\newcommand`) whose arguments are the class's fields."""
 
+    __tm_node__ = NodeKind.COMMAND
     __tm_inline__: ClassVar[Source | None]
 
     @classmethod
@@ -456,6 +434,7 @@ class Command(_Node):
 class Environment(_Node):
     """A TeX environment (`\\newenvironment`): fields are its arguments, positional arguments its children."""
 
+    __tm_node__ = NodeKind.ENVIRONMENT
     content: tuple[Node, ...]
     children: ClassVar[Sequence[type | Repeat | Anywhere]] = ()  # the grammar: components in order, with counts (M4)
     __tm_inline__: ClassVar[tuple[Source | None, Source | None]]
@@ -491,6 +470,7 @@ class Passthrough(_Node, kw_only=False):
     """TeX written as it is (B3): a layout `\\vspace` between components. It claims no control sequence; a grammar must
     list it (`Passthrough.times.any()`, or `Anywhere(Passthrough)`) before an environment accepts one."""
 
+    __tm_node__ = NodeKind.PASSTHROUGH
     tex: Raw
     __tm_args__: ClassVar[tuple[Arg, ...]] = (Arg("tex", RAW_BODY, hint=Raw),)
     __tm_doc__: ClassVar[str] = "TeX written as it is."
@@ -576,31 +556,6 @@ def _ref(cls: type, kind: RefKind, required: tuple[ArgValue, ...], optional: dic
 def _nested_ok(a: Arg, value: object) -> bool:
     """A `Raw` argument may hold calls (a `Ref`, or a `Seq` of pieces): a conditional's branch is TeX."""
     return a.body.kind is BodyKind.RAW and a.body.expression is None and isinstance(value, Ref | Seq)
-
-
-def _ref_text(ref: Ref, owner: str, syntax: Syntax) -> str:
-    """The TeX a reference stands for. The target must be registered: its prefix is part of the name."""
-    if not hasattr(ref.target, "__tm_cs__"):
-        raise DeclarationError(
-            f"{owner}: calls {ref.target.__name__}, which is not registered with a package",
-            code="TM-M019",
-            path=owner,
-            hint="register it (decorate it with its package's command/environment) before the body that calls it",
-        )
-    name = control_name(ref.target)
-    declared = typing.cast("type[Command] | type[Environment]", ref.target).__tm_args__
-
-    def flat(value: object) -> object:  # a call inside an argument is written where it stands
-        if isinstance(value, Ref | Seq):
-            return Raw(inline_text(value, lambda inner: _ref_text(inner, owner, syntax), syntax))
-        return value
-
-    args = arguments(declared, {a.name: flat(v) for a, v in zip(declared, ref.values, strict=True)}, syntax)
-    return {
-        RefKind.CALL: f"\\{name}{args}",
-        RefKind.OPEN: f"\\begin{{{name}}}{args}",
-        RefKind.CLOSE: f"\\end{{{name}}}",
-    }[ref.kind]
 
 
 def _repr(node: Command | Environment | Passthrough) -> str:
@@ -878,129 +833,6 @@ def _render(node: Command | Environment | Passthrough) -> str:
     return emit(node)
 
 
-def call_line(node: Command | Environment) -> tuple[str, tuple[tuple[str, int, int], ...]]:
-    """The call of a command, or the `\\begin` line of an environment, and where each argument's text stands in it as
-    `(field, start, end)` (delimiters excluded)."""
-    cls = type(node)
-    name = control_name(cls)
-    args, spans = call_arguments(cls.__tm_args__, {a.name: getattr(node, a.name) for a in cls.__tm_args__})
-    head = f"\\{name}" if isinstance(node, Command) else f"\\begin{{{name}}}"
-    return head + args, tuple((arg, start + len(head), end + len(head)) for arg, start, end in spans)
-
-
-INDENT = "  "  # per level of environment nesting; only lines texmodel writes take it (G1)
-
-
-def emit(node: Node, depth: int = 0) -> str:
-    """The TeX of a node at `depth`: the lines texmodel writes (`\\begin`, `\\end`, a call's first line, comments) take
-    `INDENT` per level; a `Passthrough` and a call's continuation lines are the author's text, verbatim."""
-    pad = INDENT * depth
-    if isinstance(node, Comment):
-        return "\n".join(pad + line if line else line for line in node.render().splitlines())
-    if isinstance(node, Passthrough):
-        return node.tex.tex
-    first = pad + call_line(node)[0]
-    if isinstance(node, Command):
-        return first
-    return "\n".join([first, *(emit(c, depth + 1) for c in node.content), f"{pad}\\end{{{control_name(type(node))}}}"])
-
-
-def _syntax(cls: type, *sources: Source | None) -> Syntax:
-    """The one syntax of a body, or of an environment's two (`TM-M031` if its pieces differ); `LATEX2E` if none says."""
-    found = dict.fromkeys(s for src in sources if src for piece in src[0] for s in syntaxes_in(piece))
-    if len(found) > 1:
-        raise DeclarationError(
-            f"{cls.__qualname__}: the body mixes {' and '.join(s.value for s in found)}",
-            code="TM-M031",
-            path=cls.__name__,
-            hint="a body is written in one syntax: give every TexRaw, TemplateRef and Cs the same `syntax=`",
-        )
-    return next(iter(found), Syntax.LATEX2E)
-
-
-def _required(
-    cls: type, found: Source | None, option: str, default: Whitespace, syntax: Syntax
-) -> tuple[str, str, tuple[type, ...]]:
-    """The text of a body (the package's default whitespace policy for pieces that have none), its origin and the
-    components it calls."""
-    if found is None:
-        raise DeclarationError(
-            f"{cls.__module__}.{cls.__qualname__}: no {option}",
-            code="TM-M006",
-            path=cls.__name__,
-            hint=f'define `{option}` as a string, a TemplateRef("file.tex"), a TexRaw, or a method returning one',
-        )
-    owner = f"{cls.__qualname__}.{option}"
-    text = join(found[0], default, owner, lambda ref: _ref_text(ref, owner, syntax), syntax)
-    return text, found[1], tuple(dict.fromkeys(r.target for p in found[0] for r in refs_in(p)))
-
-
-def _declared_only(cls: "type[Command] | type[Environment]", *sources: Source | None) -> None:
-    """A component of an adopted package (M9) or one a library block defines (§21) is only declared: another source
-    has its TeX, so a body would never render and is refused."""
-    if any(sources):
-        who = "a library block" if cls.defined_by is not None else "the hand-written package (it is adopted)"
-        raise DeclarationError(
-            f"{cls.__module__}.{cls.__qualname__}: has a body, but {who} defines it",
-            code="TM-M032",
-            path=cls.__name__,
-            hint="remove the body: the other source is the definition",
-        )
-
-
-def spec_of(cls: type[Command], *, declared_only: bool = False, whitespace: Whitespace = Whitespace.KEEP) -> Spec:
-    """The declaration as the renderer sees it, with its body (M8); `declared_only` (M9) has none."""
-    declared_only = declared_only or cls.defined_by is not None
-    if declared_only:
-        _declared_only(cls, cls.__tm_inline__)
-    syntax = _syntax(cls, cls.__tm_inline__)
-    body, origin, refs = (
-        ("", "declared", ()) if declared_only else _required(cls, cls.__tm_inline__, "body", whitespace, syntax)
-    )
-    return Spec(
-        cls.__name__,
-        cls.__tm_doc__,
-        cls.__tm_args__,
-        body,
-        origin,
-        f"{cls.__module__}.{cls.__qualname__}",
-        cls.__tm_unused__,
-        refs,
-        cls.__dict__.get("cs"),
-        syntax,
-    )
-
-
-def env_spec_of(
-    cls: type[Environment], *, declared_only: bool = False, whitespace: Whitespace = Whitespace.KEEP
-) -> EnvSpec:
-    """As `spec_of`, with two bodies: `begin` and `end`."""
-    declared_only = declared_only or cls.defined_by is not None
-    syntax = _syntax(cls, *cls.__tm_inline__)
-    if declared_only:
-        _declared_only(cls, *cls.__tm_inline__)
-        begin = end = ""
-        origin, refs = "declared", ()
-    else:
-        begin, begin_origin, begin_refs = _required(cls, cls.__tm_inline__[0], "begin", whitespace, syntax)
-        end, end_origin, end_refs = _required(cls, cls.__tm_inline__[1], "end", whitespace, syntax)
-        origin = " + ".join(dict.fromkeys((begin_origin, end_origin)))
-        refs = tuple(dict.fromkeys((*begin_refs, *end_refs)))
-    return EnvSpec(
-        cls.__name__,
-        cls.__tm_doc__,
-        cls.__tm_args__,
-        begin,
-        end,
-        origin,
-        f"{cls.__module__}.{cls.__qualname__}",
-        cls.__tm_unused__,
-        refs,
-        cls.__dict__.get("cs"),
-        syntax,
-    )
-
-
 _KINDS: dict[object, ValueKind] = {Length: LENGTH, Colour: COLOUR, bool: BOOL, str: TEXT_KIND, Raw: RAW_KIND}
 
 
@@ -1013,13 +845,8 @@ def _check_plates(cls: "type[Value[Any]]", kind: ValueKind, default: object) -> 
             f"{cls.__qualname__}: plates belongs to a colour value", code="TM-M069", path=cls.__name__
         )
     cls.plates = frozenset(declared)
-    if default is not None and not plates_of(default) <= cls.plates:
-        raise DeclarationError(
-            f"{cls.__qualname__}: the default inks {sorted(plates_of(default) - cls.plates)}, "
-            f"outside its plates {sorted(cls.plates)}",
-            code="TM-M070",
-            path=cls.__name__,
-        )
+    if default is not None and (why := plates_outside(cls.plates, default)):
+        raise DeclarationError(f"{cls.__qualname__}: the default {why}", code="TM-M070", path=cls.__name__)
 
 
 class Value[T]:
@@ -1049,11 +876,8 @@ class Value[T]:
         """A document's setting for this value (D1a): `FactGap(Length("3mm"))`, checked against the declared type."""
         if not isinstance(value, kind := type(self).__tm_kind__.python):
             raise DeclarationError(f"{type(self).__name__}({value!r}): expected a {kind}", code="TM-M014")
-        if (allowed := type(self).plates) is not None and not plates_of(value) <= allowed:
-            raise DeclarationError(
-                f"{type(self).__name__}: {value!r} inks {sorted(plates_of(value) - allowed)} outside {sorted(allowed)}",
-                code="TM-M070",
-            )
+        if why := plates_outside(type(self).plates, value):
+            raise DeclarationError(f"{type(self).__name__}: {value!r} {why}", code="TM-M070")
         self.value = value
 
     def __repr__(self) -> str:
@@ -1108,20 +932,6 @@ class Value[T]:
 
 
 type AnyValue = Value[Any]  # the kind, not the type, decides what `T` may be: a package adds its own (`Dual`)
-
-
-def value_spec_of(cls: type[AnyValue]) -> ValueSpec:
-    return ValueSpec(
-        cls.__name__,
-        cls.__tm_doc__,
-        cls.__dict__.get("default"),
-        cls.__tm_kind__,
-        f"{cls.__module__}.{cls.__qualname__}",
-        cls.needs_packages,
-        cls.colour_name,
-        cls.cs,
-        cls.meta,
-    )
 
 
 @dataclasses.dataclass(frozen=True)

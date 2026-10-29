@@ -17,12 +17,11 @@ warning: there is no wrapping, so it overflows.
 import dataclasses
 import math
 import re
-import types
 from collections.abc import Sequence
 from typing import Any, NamedTuple
 
 from ..body import Syntax
-from ..components import Command, Value
+from ..components import Command, Value, field
 from ..errors import DeclarationError
 from ..package import Package
 from ..types import Length, Raw
@@ -30,9 +29,10 @@ from .recorded import APPEND, LENGTHS, Recorded
 
 _NAME = re.compile(r"[A-Z][A-Za-z]*")
 
+# The two public lengths are `\newlength`, as every `Value[Length]` is, so the scanner (`declared`) reads them.
 LIBRARY = r"""
-    \dim_new:N \<<p>><<n>>Size
-    \dim_new:N \<<p>><<n>>LineSize
+    \newlength { \<<p>><<n>>Size }
+    \newlength { \<<p>><<n>>LineSize }
     \dim_new:N \l_<<m>>_width_dim
     \dim_new:N \l_<<m>>_ascent_dim
     \dim_new:N \l_<<m>>_descent_dim
@@ -250,9 +250,9 @@ class Fit:
             raise DeclarationError(
                 f"Fit.reduced_sizes={self.reduced_sizes!r}: 0, 1 or 2", code="TM-M061", path="reduced_sizes"
             )
-        for field in ("target", "floor", "room", "reference"):
-            if getattr(self, field).inches <= 0:
-                raise DeclarationError(f"Fit.{field}={getattr(self, field)}: a size", code="TM-M062", path=field)
+        for key in ("target", "floor", "room", "reference"):
+            if getattr(self, key).inches <= 0:
+                raise DeclarationError(f"Fit.{key}={getattr(self, key)}: a size", code="TM-M062", path=key)
         if self.floor.inches > self.target.inches:
             raise DeclarationError("Fit: the floor is above the target", code="TM-M062", path="floor")
 
@@ -288,32 +288,24 @@ class Fit:
             },
         )
 
-        def command(name: str, fields: dict[str, Any], doc: str) -> type[Command]:
-            cls = types.new_class(
-                name,
-                (Command,),
-                exec_body=lambda ns: ns.update(
-                    __doc__=doc, __module__=package.name, __annotations__=fields, defined_by=lib
-                ),
-            )
-            return package.command(cls)
-
-        def reading(name: str, doc: str) -> type[Value[Any]]:
-            cls = types.new_class(
-                name,
-                (Value[Length],),
-                exec_body=lambda ns: ns.update(__doc__=doc, __module__=package.name, defined_by=lib),
-            )
-            return package.value(cls)
-
+        text = (Raw, field())
         return FitParts(
-            command(f"Record{self.name}", {"text": Raw}, f"Measure a {self.name} for the deck."),
-            command(f"Fit{self.name}", {"name": Raw, "text": Raw}, f"Set a {self.name} to fit its band."),
+            package.make_command(
+                f"Record{self.name}", f"Measure a {self.name} for the deck.", fields={"text": text}, defined_by=lib
+            ),
+            package.make_command(
+                f"Fit{self.name}",
+                f"Set a {self.name} to fit its band.",
+                fields={"name": (Raw, field()), "text": text},
+                defined_by=lib,
+            ),
             values["Target"],
             values["Floor"],
             values["Room"],
-            reading(f"{self.name}Size", "The size the last title was set at."),
-            reading(f"{self.name}LineSize", "The main size, which the deck's baseline belongs to."),
+            package.make_value(f"{self.name}Size", Length, "The size the last title was set at.", defined_by=lib),
+            package.make_value(
+                f"{self.name}LineSize", Length, "The main size, which the deck's baseline belongs to.", defined_by=lib
+            ),
         )
 
 

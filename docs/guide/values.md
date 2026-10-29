@@ -84,7 +84,7 @@ shows every registration error; on one plate it cannot misregister with itself. 
 ink with `plates`, and a default, a setting or data outside them is refused (`TM-M070`):
 
 ```python
-from texmodel.ext.plates import K, Plate, is_single_plate, plates_of
+from texmodel.ext.plates import K, Plate, plates_of
 from texmodel.types import CMYK, Colour
 
 
@@ -97,7 +97,7 @@ class TextInk(Value[Colour]):
 
 
 assert r"\definecolor{vl-text-ink}{cmyk}{0,0,0,0.95}" in pkg.render()
-assert plates_of(K(0.7)) == {Plate.K} and is_single_plate(K(0.7)) and not is_single_plate(CMYK(0.1, 0, 0, 0.9))
+assert plates_of(K(0.7)) == {Plate.K} and plates_of(CMYK(0.1, 0, 0, 0.9)) == {Plate.C, Plate.K}
 ```
 
 `K(0.7)` is `0,0,0,0.7`; fractions are TeX's, so `K(70)` is refused (`TM-M017`). `plates_of(colour)` names the plates a
@@ -181,12 +181,12 @@ from one run to the next through the `.aux` (`latexmk` reruns until it stops mov
 or, for a list, `APPEND`.
 
 ```python
-from texmodel.ext.recorded import MAX, SUM, Recorded, reduce
+from texmodel.ext.recorded import MAX, SUM, Recorded
 
 record, width = Recorded("LabelWidth").declare(pkg)               # \vlRecordLabelWidth{<length>}, the length \vlLabelWidth
 count_record, count = Recorded("Cards", kind=int, fold=SUM).declare(pkg)
 assert r"\newcommand{\vlRecordLabelWidth}[1]{%" in pkg.render()
-assert reduce(MAX, [12, 30, 20]) == 30 and reduce(SUM, [1, 1, 1]) == 3
+assert MAX.reduce([12, 30, 20]) == 30 and SUM.reduce([1, 1, 1]) == 3
 ```
 
 A card calls `\vlRecordLabelWidth{<its width>}` and reads `\vlLabelWidth`. A `MAX` or `MIN` value holds the fold of the last

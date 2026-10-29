@@ -39,6 +39,10 @@ sources = ["res/brand/*.sty"]            # globs, relative to pyproject.toml
 texmodel check     # TM-C010: declared, not defined; TM-C011: defined with another signature
 ```
 
+The check runs both ways: a public `<prefix>Name` the sources define that nothing declares is `TM-C025`. Declare it (a
+length or a flag the package defines is a `Command` with no arguments), or name the helper outside the public namespace,
+with an `@` in it.
+
 The scan is regex-level and honest about it. It reads `\newcommand`, `\providecommand`, `\DeclareRobustCommand`,
 `\newenvironment`, the xparse `\NewDocumentCommand` family, `\newlength`, `\newsavebox`, `\newfontfamily`, `\newtoggle`,
 `\newif` (with `\Xtrue` and `\Xfalse`), `\definecolor`, `\colorlet` and `\newcounter`. A name defined any other way (`\def`,

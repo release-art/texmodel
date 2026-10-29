@@ -20,7 +20,7 @@ import dataclasses
 from decimal import ROUND_HALF_EVEN, Decimal
 
 from ..errors import DeclarationError
-from ..types import CMYK, PROCESS, Colour, Plate, plain_number, plates_of
+from ..types import CMYK, PROCESS, Plate, plain_number, plates_of
 
 
 @dataclasses.dataclass(frozen=True, init=False, repr=False)
@@ -42,9 +42,4 @@ class K(CMYK):
         return cls(float((Decimal(str(k)) / unit).to_integral_value(ROUND_HALF_EVEN) * unit))
 
 
-def is_single_plate(colour: Colour) -> bool:
-    """Whether the colour inks no more than one plate: `K(0.7)` and `Gray(0.3)` do, a `CMYK` with two inks does not."""
-    return len(plates_of(colour)) <= 1
-
-
-__all__ = ["PROCESS", "K", "Plate", "is_single_plate", "plates_of"]
+__all__ = ["PROCESS", "K", "Plate", "plates_of"]

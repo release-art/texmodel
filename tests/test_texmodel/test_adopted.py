@@ -118,14 +118,24 @@ def test_a_body_or_a_value_on_an_adopted_package_is_refused():
 
 
 def test_the_interface_check_finds_missing_names_and_signature_drift():
-    assert hand()[0].check_interface(STY) == []
+    assert [v.code for v in hand()[0].check_interface(STY)] == ["TM-C025"] * 4  # hdBare, hdNote, hdBox, hdPlain
     old = STY.replace(r"\newcommand{ \hdSlot }[2][]{#2}", r"\newcommand{\hdSlot}[1]{#1}").replace(
         r"\newenvironment{hdCard}{}{}", ""
     )
-    found = {(v.code, v.path): v for v in hand()[0].check_interface(old)}
+    found = {(v.code, v.path): v for v in hand()[0].check_interface(old) if v.code != "TM-C025"}
     assert set(found) == {("TM-C011", "Slot"), ("TM-C010", "Card")}
     assert "declared [2][], the sources define [1]" in found["TM-C011", "Slot"].message
     assert "declared without arguments" not in found["TM-C011", "Slot"].message
+
+
+def test_a_public_name_the_sources_define_and_nothing_declares_is_reported():
+    pkg, *_ = hand()
+    assert [v.message for v in pkg.check_interface(STY)] == [
+        f"\\{n} is defined by the sources but nothing declares it" for n in ("hdBare", "hdNote", "hdBox", "hdPlain")
+    ]
+    assert (
+        Package("bare", prefix="", adopted=True).check_interface(r"\newcommand{\Bare}{x}") == []
+    )  # no prefix, no namespace
 
 
 def test_a_declaration_with_no_arguments_is_compared_too():

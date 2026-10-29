@@ -7,6 +7,7 @@ The image comes from TEXMODEL_TEST_IMAGE, else `[tool.texmodel-build] image`.
 import os
 import pathlib
 import shutil
+import textwrap
 import tomllib
 
 import pikepdf
@@ -93,6 +94,46 @@ def test_real_diagnostics_are_typed(compiler, tmp_path):
 def test_fatal_errors_are_explained_not_just_failed(compiler, tmp_path, name, code):
     result = compiler.compile(doc(tmp_path, name), tmp_path / "out")
     assert not result.ok and code in codes(result) and "TM-X099" not in codes(result)
+
+
+PLACED = {
+    "acwarn.sty": r"""
+        \ProvidesPackage{acwarn}
+        \PackageWarning{acwarn}{while it loads}
+        \newcommand{\acWarn}[1]{\PackageWarning{acwarn}{#1}}
+    """,
+    "part.tex": r"""
+        \acWarn{in the part}
+    """,
+    "main.tex": r"""
+        \documentclass{article}
+        \usepackage{acwarn}
+        \begin{document}
+        \acWarn{in main}
+        \input{part}
+        \acWarn{after the part)}
+        \end{document}
+    """,
+}
+
+
+def test_a_warning_is_placed_in_the_file_that_raised_it(compiler, tmp_path):
+    """`on input line N` names no file; the engine's file marks do (a `)` in a message does not confuse them)."""
+    (tmp_path / "src").mkdir()
+    for name, text in PLACED.items():
+        (tmp_path / "src" / name).write_text(textwrap.dedent(text).strip() + "\n", encoding="utf-8")
+    result = compiler.compile(tmp_path / "src" / "main.tex", tmp_path / "out")
+    placed = {
+        w.message: (pathlib.PurePath(w.file or "").name, w.line)
+        for w in result.diagnostics
+        if isinstance(w, d.PackageWarning)
+    }
+    assert placed == {
+        "while it loads": ("acwarn.sty", 2),
+        "in main": ("main.tex", 4),
+        "in the part": ("part.tex", 1),
+        "after the part)": ("main.tex", 6),
+    }
 
 
 def test_two_builds_in_reproducible_mode_are_byte_identical(compiler, tmp_path):

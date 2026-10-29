@@ -39,6 +39,11 @@ The compile log becomes typed diagnostics with stable codes:
 A fallback means no failure is silent. A package warning is how a hand-written package says a card does not fit
 (`TM-X019`).
 
+Each diagnostic has its file and line. A warning's `on input line N` names no file, so every compile marks in the log each
+TeX file it opens and closes (a LuaTeX callback run before the document; the PDF is unchanged), and the line is placed in
+the file open at that point: a warning raised in an `\input` part or in a package while it loads names that file, not the
+main document. A line the log places in no file has no file and is not mapped to a component.
+
 ## Does not fit
 
 A package's "does not fit" warning becomes a typed `Overset` (`TM-X031`, an error: item, needs, has, over, in pt) when a rule

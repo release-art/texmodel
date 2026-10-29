@@ -12,7 +12,7 @@ from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
 from texmodel.document import Document
 from texmodel.errors import DeclarationError
 from texmodel.ext.fit import Fit, choose_sizes
-from texmodel.package import Package
+from texmodel.package import Package, declared
 from texmodel.types import Length, Raw
 from texmodel_build.compiler import Compiler
 from texmodel_build.diagnostics import Measurement
@@ -32,6 +32,10 @@ def test_declare_registers_the_commands_the_values_and_the_three_records():
     assert r"\cs_new:Npn \af_Title_treat:n #1 { \textbf{#1} }" in sty
     assert r"\setlength{\afTitleTarget}{12mm}" in sty and r"\int_compare:nNnTF { 2 } = { 0 }" in sty
     assert pkg.check_parts() == []
+
+
+def test_the_scanner_reads_the_lengths_a_fit_declares():
+    assert {"afTitleSize", "afTitleLineSize"} <= declared(pkg.render())
 
 
 @pytest.mark.parametrize(
