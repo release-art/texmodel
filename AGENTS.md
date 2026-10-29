@@ -15,6 +15,7 @@ what it does not do, [docs/briefs/roadmap.md](docs/briefs/roadmap.md) the ordere
 
 **Pre-1.0:** no backward compatibility for the Python API, the CLI, the configuration or the generated output: rename or remove
 directly. List every such change under `Changed` or `Removed` in `CHANGELOG.md`; a patch release never changes generated output (G7).
+A release that changes generated output also gets an `Output change: <what>.` line and an entry in `drift.OUTPUT_CHANGES`.
 
 ## Principles
 

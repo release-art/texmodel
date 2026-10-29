@@ -211,6 +211,30 @@ every value and `<Name>Setting` for the data of one setting. Use it
 for editor support and validators of the TOML or JSON that `from_dict` reads. It describes one package's data, so it needs a
 single `package` in the configuration.
 
+## Stored data that changed
+
+`texmodel.history` reads stored data against today's model, for whoever migrates it (texpkg runs the migrations).
+`problems` is everything that stops the data from loading, each a `Problem` with a data path, the reason, the stored
+value and the schema of the field there; `unplaced` is a stored field the model no longer has, which loading would drop
+without a word. `schema_changes` compares two schemas of one model and gives each change a `Level`: an optional field
+added is `COMPATIBLE`, a field removed or a bound tightened is `BREAKING`, a field renamed with `renamed_from` keeps old
+data loading.
+
+```python
+import copy
+
+from texmodel.history import Level, problems, schema_changes, unplaced, worst
+
+schema = json_schema(Card)
+stored = {"type": "Card", "content": [{"type": "Name", "text": "Fox", "colour": "red"}, {"type": "Fact"}]}
+assert [p.path for p in problems(Card, stored, schema)] == ["/content/1/text"]
+assert [p.path for p in unplaced(stored, schema)] == ["/content/0/colour"]
+
+shorter = copy.deepcopy(schema)
+shorter["$defs"]["Fact"]["properties"]["text"]["maxLength"] = 80
+assert worst(schema_changes(schema, shorter)) is Level.BREAKING
+```
+
 ## Where a line came from
 
 `pkg.plan(...)` takes the arguments of `pkg.document(...)` and returns a `Plan`: every output line with the path of what

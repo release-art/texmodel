@@ -633,8 +633,9 @@ written in texpkg first, in a module with no texpkg-only dependency, and moved h
 - X4 Non-mechanical changes: texpkg's migration API (V28, V32). Not built here.
 - X5 **Change classification is texmodel's**: compatible or breaking, from two JSON Schemas of one model, by Avro-style
   rules (adding an optional field or relaxing is compatible; removing, renaming without an alias, tightening, changing a
-  type or an arity is breaking). Written in texpkg (`_internal/classify.py`, `schema_changes`, V12) to move here; the
-  release numbering around it (libtool's triples, V10) stays in texpkg. Not moved.
+  type or an arity is breaking). Built: `texmodel.history.schema_changes`, `Level`, `Change`, `worst`, moved from texpkg
+  (`_internal/classify.py`, V12); the release numbering around it (libtool's triples, V10) and the interface diff stay
+  in texpkg.
 - X6 `release` (classify, bump, freeze, check earlier examples): texpkg's (V11 to V13).
 - X7 A property-based migration test (data from the old schema, migrated, accepted by the new): texpkg's, over its
   migrations.
@@ -644,8 +645,9 @@ written in texpkg first, in a module with no texpkg-only dependency, and moved h
 - X10 Squashing old migrations: texpkg's, parked.
 - X11 **What stops data from being a valid tree of the current model is texmodel's**: the data path of a validation
   error (`/content/1/content/0/text`), the schema at that path, pydantic's errors then the grammar's violations, and the
-  stored fields the model has no field for, which loading would drop without a word (texpkg V15, V30). Written in
-  texpkg (`_internal/history.py`) to move here; texpkg then imports it. Not moved.
+  stored fields the model has no field for, which loading would drop without a word (texpkg V15, V30). Built:
+  `texmodel.history` (`problems`, `unplaced`, `pointer`, `violation_pointer`, `schema_at`, `Problem`), moved from texpkg
+  (`_internal/history.py`); a problem is a frozen `Problem`, not a dict.
 
 ---
 
@@ -935,7 +937,7 @@ whose history records an escaping bug and an over-set card. If not met, stop at 
 
 | Step | Deliverable | Covers |
 |---|---|---|
-| C0 | one model's history, from texpkg (releases and migrations are texpkg's) | X5, X11 |
+| C0 | one model's history, from texpkg (built: `texmodel.history`; releases and migrations are texpkg's) | X5, X11 |
 | C1 | adoption of hand-written TeX beyond the minimal check (scanner reach, §21a 8) | M9, M10 |
 | C3 | equivalence and reference tests | V2a |
 | C4 | `texmodel-print` | P1-P4, T5-T7, C9 |
@@ -999,6 +1001,7 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | `children = [Fact.times(2, 3)]` multiplicity syntax (`times([from,] to)` with `to=None` for no limit, plus `times.any()` and `times.at_least_one()`; not operator overloading) | decided |
 | An adopted (declared-only) package is a flag on the package, `Package(..., adopted=True)`: no bodies, no `.sty`, `texmodel check` compares the declarations with `[tool.texmodel] sources` | decided |
 | The interface check compares the argument count and whether the first is optional of what the scan reads (§21a 8); a name defined another way is missing (`TM-C010`, `TM-C011`); a public name the sources define that nothing declares is reported (`TM-C025`, K2) | decided |
+| Output-change labelling (G7, K3): `drift.OUTPUT_CHANGES` lists each release whose generated output differs for the same declarations, with one line on how; its changelog section carries the same line (`Output change: ...`), a test keeps the two equal. A stale file written by another version gets a note: only its version line differs, the releases between that changed output, or none (then it is a hand edit or a change to the declarations). The table is in the wheel, so the installed `check` needs no changelog | decided |
 | Migrations follow texpkg's split (its V8): texmodel owns one model's history (renames, change classification X5, what stops data validating X11); texpkg owns releases, versions, frozen schemas, the migration API, running migrations and the unresolved report. A piece is written in texpkg first and moved here as a cut (texpkg N5, V9) | decided |
 | A diagnostic's file (C11): `-file-line-error` gives an error's; a line with none (`on input line N`, a box, `! message`) is in the file open at that point of the log, from the `texmodel:open:<name>` and `texmodel:close` lines a LuaTeX `start_file`/`stop_file` callback writes, run before the document as latexmk's `-pretex` (`%P`). TeX's `(file` ... `)` is not followed: message and box text carry unbalanced parentheses (measured). The callback prints LuaTeX's own file text, so the log keeps `(file)` and the font listing, and the PDF is byte-identical. A line in no file is not mapped to a component | decided |
 | Document preamble: `PreambleSlots(before_class, before_package, after_package)`, each a tuple of `Raw` or a typed entry, a `Document`'s `preamble`; public names used there are linted (`TM-M015`) | decided |
@@ -1074,8 +1077,8 @@ Each is a candidate, not a decision. `docs/briefs/roadmap.md` orders them.
     `Text` variant with a declared normaliser would remove the converter's busiest part.
 13. **Reference image.** PDF/X-4 and PDF/A-2b output was never compiled in the tests; an ICC profile has to be supplied at test
     time. `texmodel-build doctor --sty` does not follow a package's own dependencies.
-14. **Spec round trip.** Migrations are texpkg's (§13). Left here: taking in texpkg's history and classification modules
-    (X5, X11), and walking pydantic's field info for docs and constraints.
+14. **Spec round trip.** Migrations are texpkg's (§13); one model's history is `texmodel.history` (X5, X11). Left:
+    walking pydantic's field info for docs and constraints.
 15. **Data-driven rendering.** `texmodel render --data cards.toml <pointer>` against the project's templates, with no hand-written
     converter. Needs a declared mapping from data fields to components, kept next to the components (joins, slot order, deck
     policies like title case), and a `[tool.texmodel] templates` key so bodies and adopted `sources` are found from

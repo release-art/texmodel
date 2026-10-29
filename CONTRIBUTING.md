@@ -14,7 +14,9 @@ bin/test.sh                           # pytest, 100% coverage gate
   `docker/test/Dockerfile`: the published reference image plus the few TeX packages the suite needs that it does not carry yet
   (`TEXMODEL_TEST_IMAGE=texmodel-test pdm run pytest -m tex`); CI uses it.
 - Generated output is a contract (plan G7). `tests/fixtures/acme_cards/generated/acme-cards.sty` is the golden; if you change
-  rendering on purpose, regenerate it and say so in the changelog:
+  rendering on purpose, regenerate it and say so in the changelog: an `Output change: <what>.` line at the top of the
+  release's section, with the same text in `texmodel.drift.OUTPUT_CHANGES` (a test keeps them in step). Only a minor
+  release changes output:
   `pdm run python -c "import sys, pathlib; sys.path.insert(0, 'tests/fixtures'); import acme_cards as a; [pathlib.Path('tests/fixtures/acme_cards/generated', k).write_text(v) for k, v in a.pkg.files(version='0.1.0').items()]"`
 - `tests/examples/` holds complete example packages with committed output (`expected/`); they double as documentation.
   After an intended output change: `UPDATE_GOLDEN=1 pdm run pytest tests/test_texmodel/test_examples.py`, review the diff.

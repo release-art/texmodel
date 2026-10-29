@@ -17,6 +17,7 @@ PUBLIC = {
     "drift",
     "ext",
     "errors",
+    "history",
     "interface",
     "keys",
     "keyvals",

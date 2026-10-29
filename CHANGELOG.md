@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `texmodel check` says what an upgrade explains of a stale generated file written by another version: only its version
+  line, the releases in between that changed generated output and how, or none, so the rest is a hand edit or a change to
+  the declarations. `texmodel.drift.OUTPUT_CHANGES` lists those releases (0.3.0, 0.3.2, 0.8.0, 0.10.0); each changelog
+  section that changes output starts with an `Output change:` line.
+- `texmodel.history`, one model's history (plan §13), moved from texpkg: `problems(model, data, schema)` (what stops stored
+  data from being a valid tree: pydantic's errors with the field's schema, then the grammar's violations) and
+  `unplaced(data, schema)` (stored fields the model no longer has), each a `Problem(path, reason, value, schema)` with a
+  data path; `schema_changes(old, new)`, two JSON Schemas of one model as `Change`s with a `Level` (`NONE`, `REVISION`,
+  `COMPATIBLE`, `BREAKING`, by Avro-style rules), and `worst`. Releases and migrations stay in texpkg, which imports these.
+
 ## [0.10.0] - 2026-10-29
+
+Output change: `ext.fit` declares its two public lengths with `\newlength`.
 
 ### Added
 
@@ -82,6 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `OutputCondition.check_profile` reads an ICC header.
 
 ## [0.8.0] - 2026-10-28
+
+Output change: a document's body is indented two spaces per level of environment.
 
 ### Changed
 
@@ -203,7 +219,7 @@ Components are frozen pydantic models. A hand edit is named by argument and read
 
 ## [0.3.2] - 2026-10-23
 
-Generated output changes only for a value written from a float (a long tail of digits becomes five decimals).
+Output change: a value written from a float has five decimals.
 
 ### Changed
 
@@ -220,6 +236,8 @@ Generated output changes only for a value written from a float (a long tail of d
   (`TM-M042`).
 
 ## [0.3.0] - 2026-10-22
+
+Output change: defaults in definitions, dateless `\ProvidesPackage`, settings after `\usepackage`, 5-decimal colours.
 
 Parts and models: a package can be a list of TeX parts filled from typed models, checked against the components that call
 them. Value kinds are data, so a package adds its own.

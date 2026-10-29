@@ -36,7 +36,17 @@ texmodel schema             # writes the JSON Schema of the package's data to sc
 ```
 
 A stale line names its component: `changed generated/acme-cards.sty Fact: ...`. The header records the generator version
-(`generated with texmodel X.Y.Z`), so `check` can say "written by 0.1.0, current is 0.2.0".
+(`generated with texmodel X.Y.Z`), so when a stale file was written by another version, `check` says what the upgrade
+explains of it: only the version line, the releases in between that changed generated output and how, or none, and then
+the difference is a hand edit or a change to your declarations:
+
+```text
+note     acme-cards.sty: generated with texmodel 0.9.0, current is 0.10.0; output changed in 0.10.0 (`ext.fit` declares
+         its two public lengths with `\newlength`): run `texmodel build`
+```
+
+A minor release may change generated output; a patch release never does. Each one that does says so in the changelog
+(`Output change: ...`), and `texmodel.drift.OUTPUT_CHANGES` carries the same list.
 
 ## Committed documents
 

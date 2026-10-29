@@ -51,6 +51,7 @@ texmodel.document.Document(*content: Node, options: Sequence[str] = …, setting
 texmodel.document.OPTION: Pattern
 texmodel.drift.Drift(stale: tuple[str, ...] = …, missing: tuple[str, ...] = …, orphaned: tuple[str, ...] = …, notes: tuple[str, ...] = …) -> None
 texmodel.drift.Drift.ok: property
+texmodel.drift.OUTPUT_CHANGES: dict
 texmodel.drift.check_drift(expected: Mapping[str, str | bytes], root: pathlib.Path, owned: Sequence[str] = …, *, version: str | None = …) -> Drift
 texmodel.drift.stamp(version: str) -> str
 texmodel.errors.DeclarationError(message: str, *, code: str = …, path: str = …, hint: str = …) -> None
@@ -110,6 +111,16 @@ texmodel.ext.spot.KIND: ValueKind
 texmodel.ext.spot.Spot(plate: str, proxy: CMYK = …) -> None
 texmodel.ext.spot.Spot.plates: property
 texmodel.ext.spot.SpotColour: _AnnotatedAlias
+texmodel.history.Change(level: Level, where: str, what: str) -> None
+texmodel.history.Level(*values)
+texmodel.history.Problem(path: str, reason: str, value: object = …, schema: Mapping[str, Any] = …) -> None
+texmodel.history.pointer(loc: Sequence[str | int]) -> str
+texmodel.history.problems(model: type[Command] | type[Environment], data: Mapping[str, object], schema: Mapping[str, Any]) -> list[Problem]
+texmodel.history.schema_at(schema: Mapping[str, Any], loc: Sequence[str | int]) -> dict[str, Any]
+texmodel.history.schema_changes(old: Mapping[str, Any], new: Mapping[str, Any]) -> list[Change]
+texmodel.history.unplaced(state: Mapping[str, Any], schema: Mapping[str, Any], path: str = …) -> list[Problem]
+texmodel.history.violation_pointer(path: str) -> str
+texmodel.history.worst(changes: Sequence[Change]) -> Level
 texmodel.interface.ANGLE: Delimiter
 texmodel.interface.ArgOptions(delimiter: Delimiter | None, fill: str | Gap, sep: str | None, group: SlotGroup | None, booleans: tuple[str, str] | None) -> None
 texmodel.interface.BRACE: Delimiter
