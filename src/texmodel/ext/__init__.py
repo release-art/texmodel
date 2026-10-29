@@ -1,6 +1,6 @@
 r"""Extensions: opinionated helpers built on the core, one module each (`std` is the standard TeX headers).
 
-- `kplate`: colours on the black plate only, tints that stay on it, and which plates a colour inks.
+- `plates`: the plates a colour inks, a colour value that may ink only some of them, and the K-only colour `K`.
 - `intent`: a PDF output intent (PDF/X, PDF/A): the `\\DocumentMetadata` keys and the ICC condition registration.
 - `printpage`: a print page (trim, bleed, margins) as geometry and PDF page boxes, edge by edge.
 - `spot`: a named plate on the press (a varnish, a foil) with a CMYK proxy, and tints of it.

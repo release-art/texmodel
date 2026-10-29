@@ -268,11 +268,12 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   `visible` (every class a document may name) and `value_named(name)` look in the base chain, and a name the package
   declares itself replaces the base's (no clash error: data names are looked up by class name, and control sequences of
   two prefixes cannot meet). Data, the schema and the slots' name check (`TM-M015`) use the same lookup.
-- D1c **One-plate colours** (`texmodel.ext.kplate`): `K(fraction)` is a `CMYK` on the black plate only, bounded like every
-  colour (`TM-M017`); `Value[KOnly]` is the colour kind with `K` as its type, so a default or setting off the plate is
-  refused in Python and in data; `tint(Value, fraction)` is xcolor's `name!pct` and refuses a base that is not `KOnly`
-  (`TM-M047`); `plates` and `is_single_plate` read any colour (an `RGB` is all four). Deriving a K from an sRGB colour
-  needs an ICC profile and stays with the consumer.
+- D1c **Plates** (`texmodel.ext.plates`, `Value.plates`): a colour value declares the plates it may ink (`{Plate.K}` is K-only,
+  `{Plate.C, Plate.M}` a duotone; a spot is its own plate) and a default, a setting or data outside them is refused
+  (`TM-M069`, `TM-M070`). `plates_of` reads any colour (an `RGB` is all four, a `Gray` the K plate unless it is white);
+  `K(fraction)` is a `CMYK` on the black plate, bounded like every colour (`TM-M017`). A tint or a mix keeps the plates
+  only when both ends ink the same ones (D1j). Deriving a K from an sRGB colour needs an ICC profile and stays with the
+  consumer; a job-wide set of plates is the same primitive on the package, not built.
 - D1d **A print page** (`texmodel.ext.printpage`): trim, bleed, overflow and margin, each a `Length` or `Sides` (`all=`,
   `horizontal=`/`vertical=`, the four edges, with an edge replacing the base), written as numbers into `\geometry` and
   `\pdfvariable pageattr` (`TM-M051`, `TM-M052`). The type area is the same in `Sheet.FULL` and `Sheet.TRIM`; no

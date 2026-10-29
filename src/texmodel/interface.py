@@ -35,7 +35,7 @@ from pydantic.fields import FieldInfo
 from pydantic_core import core_schema
 
 from .errors import DeclarationError
-from .types import CMYK, PDF, RGB, TEXT, Choice, Gray, Length, Raw, plain_number
+from .types import CMYK, PDF, PROCESS, RGB, TEXT, Choice, Gray, Length, Plate, Raw, plain_number, plates_of
 
 
 @dataclasses.dataclass(frozen=True)
@@ -94,37 +94,75 @@ def colour_of(value: type[Any]) -> str:
             f"colour_of({value.__name__}): not a registered colour value",
             code="TM-M066",
             path=value.__name__,
-            hint="a Value[Colour], Value[KOnly], Value[Dual] or Value[SpotColour] registered with a package",
+            hint="a Value[Colour], Value[Dual] or Value[SpotColour] registered with a package",
         )
     from ._internal.render import colour_name  # imports this module
 
     return str(value.colour_name or colour_name(value.__tm_prefix__, value.__name__))
 
 
+XCOLOR: Final[Mapping[str, frozenset[str] | None]] = {
+    "white": None,  # inks nothing, so any colour may be mixed with it
+    "black": frozenset({Plate.K}),
+    "darkgray": frozenset({Plate.K}),
+    "gray": frozenset({Plate.K}),
+    "lightgray": frozenset({Plate.K}),
+    **dict.fromkeys(
+        "blue brown cyan green lime magenta olive orange pink purple red teal violet yellow".split(), PROCESS
+    ),
+}
+"""xcolor's base colours and the plates each inks in the `cmyk` model (`None`: none, `white`)."""
+
+
+def constraint_of(value: type[Any]) -> frozenset[str]:
+    """The plates a colour value may ink: its `plates`, else a spot's own plate, else the four process plates."""
+    if value.plates is not None:
+        return frozenset(value.plates)
+    default = value.declared_default()
+    inked: frozenset[str] = plates_of(default) if default is not None else frozenset[str]()
+    return inked if inked - PROCESS else PROCESS
+
+
 def _colour_ref(base: "str | type[Any]") -> str:
     return base if isinstance(base, str) else colour_of(base)
 
 
+def _constraint(base: "str | type[Any]") -> frozenset[str] | None:
+    """What a mix compares: a colour value's plates, xcolor's for its own names; `None` for `white` and for a name
+    nothing here knows (a node checks that one against its package)."""
+    return XCOLOR.get(base) if isinstance(base, str) else constraint_of(base)
+
+
 class ColourName(str):
     """The name of a colour or an xcolor expression: `ColourName("red")`, `ColourName(Ink, tint=0.7)` (a colour value,
-    tinted: `ap-ink!70`), `ColourName(Ink, tint=0.7, over=Paper)` (`ap-ink!70!ap-paper`). A `str`, so a plain string
-    is as good in a field; `names` are the colours it uses, which a node checks against its package (`TM-C022`).
-    `tint` is a fraction, 0 to 1."""
+    tinted: `ap-ink!70`), `ColourName(Ink, tint=0.7, mix=Paper)` (`ap-ink!70!ap-paper`: 70% ink, 30% paper). A `str`, so
+    a plain string is as good in a field; `names` are the colours it uses, which a node checks against its package
+    (`TM-C022`). `tint` is a fraction, 0 to 1. Both ends of a mix may ink the same plates and no others (`TM-M068`,
+    and `TM-C024` for any expression), so K-only ink is not mixed with a CMYK colour, a duotone or a spot."""
 
     __slots__ = ()
 
     def __new__(
-        cls, base: "str | type[Any]", *, tint: float | None = None, over: "str | type[Any] | None" = None
+        cls, base: "str | type[Any]", *, tint: float | None = None, mix: "str | type[Any] | None" = None
     ) -> "ColourName":
         text = _colour_ref(base)
         if tint is not None:
             if not 0 <= tint <= 1:
                 raise DeclarationError(f"ColourName: tint {tint!r} is in [0, 1]", code="TM-M017", path="tint")
             text += f"!{plain_number(tint * 100)}"
-            if over is not None:
-                text += f"!{_colour_ref(over)}"
-        elif over is not None:
-            raise DeclarationError("ColourName: over= needs a tint=", code="TM-M067", path="over")
+            if mix is not None:
+                text += f"!{_colour_ref(mix)}"
+                ends = (_constraint(base), _constraint(mix))
+                if None not in ends and ends[0] != ends[1]:
+                    raise DeclarationError(
+                        f"ColourName: {_colour_ref(base)} inks {sorted(ends[0] or ())} and {_colour_ref(mix)} "
+                        f"inks {sorted(ends[1] or ())}",
+                        code="TM-M068",
+                        path="mix",
+                        hint="both ends of a mix may ink the same plates and no others",
+                    )
+        elif mix is not None:
+            raise DeclarationError("ColourName: mix= needs a tint=", code="TM-M067", path="mix")
         if not _CHARS.fullmatch(text):
             raise DeclarationError(
                 f"ColourName({text!r}): letters, digits and `!-.+` only, a letter first", code="TM-M067"
@@ -398,7 +436,9 @@ __all__ = [
     "Body",
     "BodyKind",
     "ColourName",
+    "XCOLOR",
     "colour_of",
+    "constraint_of",
     "Delimiter",
     "FLAG",
     "Flag",

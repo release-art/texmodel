@@ -7,11 +7,12 @@ from test_texmodel_build.test_compile_tex import compiler, fonts, require_files 
 from texmodel.components import Value
 from texmodel.document import Document
 from texmodel.errors import DeclarationError
-from texmodel.ext.kplate import K, KOnly
-from texmodel.ext.spot import Spot, SpotColour, tint
+from texmodel.ext.plates import K, Plate
+from texmodel.ext.spot import Spot, SpotColour
+from texmodel.interface import ColourName, constraint_of
 from texmodel.package import Package
 from texmodel.spec import from_dict, json_schema, to_dict
-from texmodel.types import CMYK
+from texmodel.types import CMYK, Colour
 from texmodel_build.compiler import Compiler
 
 pkg = Package("acme-spot", prefix="ap")
@@ -32,9 +33,10 @@ class Pantone(Value[SpotColour]):
 
 
 @pkg.value
-class Ink(Value[KOnly]):
+class Ink(Value[Colour]):
     """Text ink."""
 
+    plates = {Plate.K}
     default = K(0.95)
 
 
@@ -103,22 +105,9 @@ def test_data_round_trips_and_is_checked():
     assert set(shape["properties"]) == {"plate", "proxy"}
 
 
-def test_a_tint_is_xcolors_percent_of_a_spot_value_only():
-    assert (
-        tint(Varnish, 0.6) == "ap-varnish!60"
-        and tint(Pantone, 1) == "ap-pantone!100"
-        and tint(Varnish, 0) == "ap-varnish!0"
-    )
-    for other in (Ink, int):
-        with pytest.raises(DeclarationError) as raised:
-            tint(other, 0.5)  # type: ignore[arg-type]
-        assert raised.value.code == "TM-M054"
-    with pytest.raises(DeclarationError) as raised:
-        tint(Varnish, 60)
-    assert raised.value.code == "TM-M017"
-
-
-def test_a_tint_uses_the_class_colour_name():
+def test_a_spot_inks_its_own_plate_and_a_tint_of_it_is_xcolors_percent():
+    assert Spot("Scodix").plates == {"Scodix"} and constraint_of(Varnish) == {"Scodix"}
+    assert ColourName(Varnish, tint=0.6) == "ap-varnish!60" and ColourName(Pantone, tint=1) == "ap-pantone!100"
     named = Package("acme-named", prefix="nm")
 
     @named.value
@@ -128,7 +117,11 @@ def test_a_tint_uses_the_class_colour_name():
         colour_name = "nmFoil"
         default = Spot("Foil")
 
-    assert tint(Foil, 0.5) == "nmFoil!50"
+    assert ColourName(Foil, tint=0.5) == "nmFoil!50"
+    for other in (Ink, Pantone):  # a spot is its own plate: it mixes with nothing that inks another
+        with pytest.raises(DeclarationError) as raised:
+            ColourName(Varnish, tint=0.5, mix=other)
+        assert raised.value.code == "TM-M068"
 
 
 @pytest.mark.tex
@@ -136,7 +129,8 @@ def test_a_tint_uses_the_class_colour_name():
 def test_the_separations_and_their_tints_reach_the_pdf(compiler, tmp_path):  # noqa: F811
     require_files(compiler, "colorspace.sty")
     (tmp_path / "acme-spot.sty").write_text(pkg.render())
-    body = rf"\textcolor{{{tint(Pantone, 0.6)}}}{{x}}\textcolor{{{tint(Varnish, 1)}}}{{y}}\textcolor{{ap-varnish}}{{z}}"
+    tinted, full = ColourName(Pantone, tint=0.6), ColourName(Varnish, tint=1)
+    body = rf"\textcolor{{{tinted}}}{{x}}\textcolor{{{full}}}{{y}}\textcolor{{ap-varnish}}{{z}}"
     src = tmp_path / "doc.tex"
     src.write_text(pkg.document().replace(r"\begin{document}", "\\begin{document}\n" + body))
     comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(tmp_path,))

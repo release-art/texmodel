@@ -43,8 +43,9 @@ viewer shows in its place. It is `/Separation /Scodix /DeviceCMYK` in the PDF: t
 
 ```python
 from texmodel.components import Value
-from texmodel.ext.kplate import K
-from texmodel.ext.spot import Spot, SpotColour, tint
+from texmodel.ext.plates import K
+from texmodel.interface import ColourName
+from texmodel.ext.spot import Spot, SpotColour
 
 
 @pkg.value
@@ -55,16 +56,16 @@ class Varnish(Value[SpotColour]):
 
 
 assert r"\definespotcolor{ap-varnish}{Scodix}{0,0,0,1}" in pkg.render()
-assert tint(Varnish, 0.6) == "ap-varnish!60"      # xcolor's tint: the plate at 60%
+assert ColourName(Varnish, tint=0.6) == "ap-varnish!60"      # xcolor's tint: the plate at 60%
 ```
 
 - A plate name may hold spaces, non-ASCII and most punctuation (`PANTONE 302 C`). A PDF name ends at `/ ( ) < > [ ] { }`,
   and TeX reads `% # \`: a name with one of them writes a file cut in two or none at all, so it is `TM-M053`.
 - The package is `colorspace` (the `spotcolor` package is pdfTeX-only), loaded with `xcolor`.
 - `colorspace` stops on a plate defined twice, so a spot value is declared once and a document cannot set it (`TM-M055`).
-- A tint of a value that is not a spot is `TM-M054`; the proxy is a `CMYK`, bounded like every colour.
-- To give a mask only one plate, build it from `K` values and check it with `is_single_plate`
-  ([Values](values.md#colours-on-one-plate)).
+- The proxy is a `CMYK`, bounded like every colour. A tint is `ColourName(Varnish, tint=0.6)`.
+- A spot inks its own plate: it mixes with nothing that inks another, and a mask of `K` values is checked with
+  `is_single_plate` ([Values](values.md#plates)).
 
 ## An output intent
 

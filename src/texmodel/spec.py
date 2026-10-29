@@ -34,8 +34,9 @@ from ._internal.preamble_data import PreambleData, preamble_data
 from .body import Comment
 from .components import AnyValue, Children, Command, Environment, Node, Value
 from .document import OPTION, Document
-from .errors import Violation
+from .errors import DeclarationError, Violation
 from .package import Package
+from .types import plates_of
 
 
 def _path(root: str, loc: Sequence[str | int]) -> str:
@@ -73,6 +74,21 @@ def _values(package: Package) -> dict[str, type[AnyValue]]:
     return {c.__name__: typing.cast("type[AnyValue]", c) for c in package.visible if issubclass(c, Value)}
 
 
+def _setting_type(cls: type[AnyValue]) -> Any:  # noqa: ANN401
+    """What a setting's `value` is in data: the kind's type, and for a colour with `plates`, inside them."""
+    python: Any = cls.__tm_kind__.python
+    allowed = cls.plates
+    if allowed is None:
+        return python
+
+    def inside(value: Any) -> Any:  # noqa: ANN401
+        if extra := plates_of(value) - allowed:
+            raise ValueError(f"inks {sorted(extra)}, outside {sorted(allowed)}")
+        return value
+
+    return Annotated[python, pydantic.AfterValidator(inside)]
+
+
 def _document_model(package: Package) -> type[pydantic.BaseModel]:
     """The data of a `Document` of this package as a model: the nodes and values it registers are what data may name."""
     fields: dict[str, Any] = {
@@ -86,7 +102,7 @@ def _document_model(package: Package) -> type[pydantic.BaseModel]:
             pydantic.create_model(
                 f"{name}Setting",
                 type=typing.cast("Any", (Literal[name], ...)),
-                value=typing.cast("Any", (cls.__tm_kind__.python, ...)),
+                value=typing.cast("Any", (_setting_type(cls), ...)),
             )
             for name, cls in values.items()
         ]
@@ -98,6 +114,8 @@ def _document_model(package: Package) -> type[pydantic.BaseModel]:
 def _document_from(package: Package, data: Mapping[str, object]) -> Document:
     try:
         found: Any = _document_model(package).model_validate(data)
+    except DeclarationError as exc:  # a colour component outside [0, 1] stops the validation
+        raise ExceptionGroup("invalid Document", [Violation("TM-C020", "settings", str(exc)).error()]) from exc
     except pydantic.ValidationError as exc:
         raise ExceptionGroup(
             "invalid Document",

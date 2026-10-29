@@ -5,7 +5,7 @@ import pytest
 from texmodel.components import Command, Environment, Passthrough, Value
 from texmodel.errors import DeclarationError
 from texmodel.ext.colourspace import ColourPair, ColourSpace, Dual
-from texmodel.ext.kplate import K, KOnly
+from texmodel.ext.plates import K, Plate
 from texmodel.interface import ColourName, body_of
 from texmodel.package import Package
 from texmodel.spec import from_dict, json_schema, to_dict
@@ -16,16 +16,18 @@ series = Package("acme-series", prefix="as", base=brand)
 
 
 @brand.value
-class Ink(Value[KOnly]):
+class Ink(Value[Colour]):
     """Text ink."""
 
+    plates = {Plate.K}
     default = K(0.95)
 
 
 @brand.value
 class Paper(Value[Colour]):
-    """The paper."""
+    """The paper, tinted by the black plate only."""
 
+    plates = {Plate.K}
     default = CMYK(0, 0, 0, 0)
 
 
@@ -49,8 +51,8 @@ def test_a_name_is_a_string_and_a_colour_value_gives_its_name():
     assert ColourName("red") == "red" and isinstance(ColourName("red"), str)
     assert ColourName(Ink) == "ab-ink" and ColourName(Paper) == "ab-paper"
     assert ColourName(Ink, tint=0.7) == "ab-ink!70" and ColourName(Ink, tint=0.375) == "ab-ink!37.5"
-    assert ColourName(Ink, tint=0.7, over=Paper) == "ab-ink!70!ab-paper"
-    assert ColourName("red", tint=0.5, over="blue") == "red!50!blue" and ColourName("red", tint=0) == "red!0"
+    assert ColourName(Ink, tint=0.7, mix=Paper) == "ab-ink!70!ab-paper"
+    assert ColourName("red", tint=0.5, mix="blue") == "red!50!blue" and ColourName("red", tint=0) == "red!0"
 
 
 @pytest.mark.parametrize(
@@ -58,7 +60,8 @@ def test_a_name_is_a_string_and_a_colour_value_gives_its_name():
     [
         ({"base": "two words"}, "TM-M067"),
         ({"base": "1red"}, "TM-M067"),
-        ({"base": "red", "over": "blue"}, "TM-M067"),
+        ({"base": "red", "mix": "blue"}, "TM-M067"),
+        ({"base": Ink, "tint": 0.5, "mix": "red"}, "TM-M068"),
         ({"base": "red", "tint": 70}, "TM-M017"),
         ({"base": "red", "tint": -0.1}, "TM-M017"),
         ({"base": int}, "TM-M066"),
@@ -93,7 +96,7 @@ def test_a_colour_the_package_declares_a_library_defines_or_xcolor_names_is_know
     assert violations(colour=ColourName(Ink)) == []  # a value of the base package
     assert violations(colour=ColourName("abFoil")) == []  # a library defines it
     assert violations(colour=ColourName("red")) == [] and violations(colour=ColourName("darkgray!50!white")) == []
-    assert violations(colour=ColourName(Ink, tint=0.7, over=Paper)) == []
+    assert violations(colour=ColourName(Ink, tint=0.7, mix=Paper)) == []
     assert violations(colour="ab-ink!30", other="gray") == []  # a plain string is as good
 
 
@@ -172,3 +175,40 @@ def test_data_reads_a_string_and_writes_one():
         with pytest.raises(ExceptionGroup):
             from_dict(series, {"content": [{"type": "Label", "text": "x", "colour": bad}]})
     assert json_schema(Label)["properties"]["colour"]["type"] == "string"
+
+
+def test_both_ends_of_a_mix_ink_the_same_plates():
+    duo = Package("acme-duo", prefix="ad", base=brand)
+
+    @duo.value
+    class Wash(Value[Colour]):
+        """Two plates."""
+
+        plates = {Plate.C, Plate.M}
+        default = CMYK(0.2, 0.1, 0, 0)
+
+    @duo.value
+    class Process(Value[Colour]):
+        """Any process plate."""
+
+        default = CMYK(0.1, 0.4, 0.3, 0)
+
+    assert ColourName(Ink, tint=0.7, mix=Paper) == "ab-ink!70!ab-paper"  # both K only
+    assert ColourName(Ink, tint=0.7, mix="white") == "ab-ink!70!white"  # white inks nothing
+    assert ColourName(Ink, tint=0.4, mix="black") == "ab-ink!40!black"  # xcolor's black is the K plate
+    for other in (Wash, Process, "red", "gray!50"[:4] if False else "blue"):
+        with pytest.raises(DeclarationError) as raised:
+            ColourName(Ink, tint=0.5, mix=other)
+        assert raised.value.code == "TM-M068"
+    with pytest.raises(DeclarationError):
+        ColourName(Wash, tint=0.5, mix=Process)  # two plates are not four
+
+
+def test_an_expression_that_mixes_different_plates_is_a_violation_whoever_wrote_it():
+    assert violations(colour="ab-ink!70!ab-paper") == [] and violations(colour="ab-ink!70!white") == []
+    assert violations(colour="ab-ink!70!red") == [("TM-C024", "Label.colour")]
+    assert violations(colour="red!50!blue") == []  # two process colours
+    assert violations(colour="ab-ink!50!ab-paper!20!blue") == [("TM-C024", "Label.colour")]  # every name counts
+    (found,) = Label(text="x", colour=ColourName("ab-ink!70!red")).violations()
+    assert "ab-ink K" in found.message and "red C+M+Y+K" in found.message
+    assert violations(colour="ab-ink!70!nonsense") == [("TM-C022", "Label.colour")]  # an unknown name has no plates yet

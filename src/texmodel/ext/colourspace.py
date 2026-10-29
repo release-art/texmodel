@@ -15,7 +15,7 @@ class Ink(Value[Dual]):
     default = ColourPair(cmyk=K(0.95), rgb="2d2c2b")
 ```
 
-`colour_of(Ink)` is the xcolor name, for a body or a field: `tint(Ink, 0.7)` is `ap-ink!70`.
+`colour_of(Ink)` is the xcolor name, for a body or a field: `ColourName(Ink, tint=0.7)` is `ap-ink!70`.
 """
 
 import dataclasses
@@ -32,7 +32,7 @@ from ..components import Value
 from ..errors import DeclarationError
 from ..interface import colour_of
 from ..package import Package
-from ..types import CMYK, RGB, Raw, plain_number
+from ..types import CMYK, RGB, Raw
 
 _HEX = re.compile(r"[0-9A-Fa-f]{6}")
 
@@ -68,6 +68,11 @@ class ColourPair:
                     f"ColourPair.rgb={rgb!r}: six hex digits, such as '2d2c2b'", code="TM-M064", path="rgb"
                 )
             object.__setattr__(self, "rgb", rgb.upper())
+
+    @property
+    def plates(self) -> frozenset[str]:
+        """The plates of its print build: none for a screen-only colour."""
+        return frozenset() if self.cmyk is None else self.cmyk.plates
 
     @classmethod
     def __get_pydantic_core_schema__(cls, source: object, handler: Any) -> cs.CoreSchema:  # noqa: ANN401
@@ -164,15 +169,4 @@ class ColourSpace:
         return package.value(flag)
 
 
-def tint(value: type[Value[Any]], fraction: float) -> str:
-    """xcolor's tint of a `Value[Dual]` toward white, in whichever build is in use: `tint(Ink, 0.7)` is `ap-ink!70`."""
-    if getattr(value, "__tm_kind__", None) is not KIND:
-        raise DeclarationError(
-            f"tint({value.__name__}): not a Value[Dual]", code="TM-M066", path=value.__name__, hint="Value[Dual]"
-        )
-    if not 0 <= fraction <= 1:
-        raise DeclarationError(f"tint({value.__name__}, {fraction!r}): in [0, 1]", code="TM-M017", path=value.__name__)
-    return f"{colour_of(value)}!{plain_number(fraction * 100)}"
-
-
-__all__ = ["KIND", "Build", "ColourPair", "ColourSpace", "Dual", "colour_of", "tint"]
+__all__ = ["KIND", "Build", "ColourPair", "ColourSpace", "Dual", "colour_of"]

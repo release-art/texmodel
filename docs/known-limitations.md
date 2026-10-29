@@ -37,6 +37,13 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   it, and may not process them twice. A `Dual` colour is not a spot (no screen build) and not checked for agreement between
   its two builds: that is the consumer's colour conversion.
 
+## Plates
+
+- A colour is process (a subset of C, M, Y, K) or one spot: xcolor cannot mix a separation with CMYK, so `plates` sets that
+  mix a spot with process plates describe a job, not a colour, and are not accepted on a value. A colour a library defines
+  counts as a process colour in a mix, and the names of `dvipsnames` and the like are not known. `black` and the grays are the
+  K plate in the `cmyk` model only.
+
 ## Recorded values
 
 - `Recorded` takes a length or an integer and the folds `MAX`, `MIN` and `SUM`; no flag, list or text. A value that depends on

@@ -2,8 +2,8 @@ r"""spot: a named plate on the press (a varnish, a foil, a Pantone) with a CMYK 
 
 `Spot("Scodix", proxy=K(1))` is `/Separation /Scodix /DeviceCMYK`: the press reads the plate name, and a viewer that
 does not render the plate shows the proxy. `Value[SpotColour]` declares one (`\definespotcolor`, from `colorspace`: the
-`spotcolor` package is pdfTeX-only) and `tint(Varnish, 0.6)` is xcolor's `ap-varnish!60`. A plate is registered once, so
-a spot value is declared and tinted, never set by a document (`TM-M055`).
+`spotcolor` package is pdfTeX-only) and `ColourName(Varnish, tint=0.6)` is xcolor's `ap-varnish!60`. A plate is
+registered once, so a spot value is declared and tinted, never set by a document (`TM-M055`).
 
 ```python
 class Varnish(Value[SpotColour]):
@@ -21,11 +21,9 @@ from typing import Annotated, Any
 from pydantic_core import core_schema as cs
 
 from .._internal.render import COLOUR, colour_name
-from ..components import Value
 from ..errors import DeclarationError
-from ..types import CMYK, plain_number
-from .colourspace import colour_of
-from .kplate import K
+from ..types import CMYK
+from .plates import K
 
 # A PDF name ends at a delimiter, and TeX reads `%` `#` `\` `{` `}`: any of them in a plate name writes a file whose
 # name is cut in two (qpdf: "expected dictionary key"), or no file at all. Spaces and non-ASCII are written escaped.
@@ -50,6 +48,11 @@ class Spot:
                 path="plate",
                 hint="a PDF name ends at a delimiter; spaces and non-ASCII are fine",
             )
+
+    @property
+    def plates(self) -> frozenset[str]:
+        """Its own plate."""
+        return frozenset({self.plate})
 
     @classmethod
     def __get_pydantic_core_schema__(cls, source: object, handler: Any) -> cs.CoreSchema:  # noqa: ANN401
@@ -108,18 +111,4 @@ SpotColour = Annotated[Spot, KIND]
 """`Value[SpotColour]`: a spot colour; its default, and every setting, is a `Spot`."""
 
 
-def tint(value: type[Value[Any]], fraction: float) -> str:
-    """xcolor's tint of a `Value[SpotColour]` toward white: `tint(Varnish, 0.6)` is `ap-varnish!60`."""
-    if getattr(value, "__tm_kind__", None) is not KIND:
-        raise DeclarationError(
-            f"tint({value.__name__}): not a Value[SpotColour]",
-            code="TM-M054",
-            path=value.__name__,
-            hint="declare it as Value[SpotColour] with a Spot default",
-        )
-    if not 0 <= fraction <= 1:
-        raise DeclarationError(f"tint({value.__name__}, {fraction!r}): in [0, 1]", code="TM-M017", path=value.__name__)
-    return f"{colour_of(value)}!{plain_number(fraction * 100)}"
-
-
-__all__ = ["KIND", "Spot", "SpotColour", "tint"]
+__all__ = ["KIND", "Spot", "SpotColour"]

@@ -9,9 +9,10 @@ from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
 from texmodel.components import Value
 from texmodel.document import Document
 from texmodel.errors import DeclarationError
-from texmodel.ext.colourspace import Build, ColourPair, ColourSpace, Dual, colour_of, tint
-from texmodel.ext.kplate import K, KOnly
+from texmodel.ext.colourspace import Build, ColourPair, ColourSpace, Dual, colour_of
+from texmodel.ext.plates import K, Plate
 from texmodel.ext.spot import Spot, SpotColour
+from texmodel.interface import ColourName
 from texmodel.package import Package
 from texmodel.spec import from_dict, json_schema, to_dict
 from texmodel.types import CMYK, RGB, Colour
@@ -95,9 +96,10 @@ def test_colour_of_names_any_registered_colour_value():
     other = Package("acme-other", prefix="ao")
 
     @other.value
-    class Black(Value[KOnly]):
+    class Black(Value[Colour]):
         """K."""
 
+        plates = {Plate.K}
         default = K(1)
 
     @other.value
@@ -122,14 +124,9 @@ def test_colour_of_names_any_registered_colour_value():
     assert raised.value.code == "TM-M066"
 
 
-def test_a_tint_is_xcolors_percent_in_whichever_build_is_in_use():
-    assert tint(Ink, 0.7) == "as-ink!70" and tint(Web, 1) == "asWeb!100"
-    with pytest.raises(DeclarationError) as raised:
-        tint(Plain, 0.5)
-    assert raised.value.code == "TM-M066"
-    with pytest.raises(DeclarationError) as raised:
-        tint(Ink, 70)
-    assert raised.value.code == "TM-M017"
+def test_a_dual_colour_tints_in_whichever_build_is_in_use_and_inks_its_print_plates():
+    assert ColourName(Ink, tint=0.7) == "as-ink!70" and ColourName(Web, tint=1) == "asWeb!100"
+    assert ColourPair(cmyk=K(0.5), rgb="777777").plates == {Plate.K} and ColourPair(rgb="0F8CB8").plates == frozenset()
 
 
 def test_a_document_setting_redefines_both_builds_and_data_round_trips():
@@ -169,7 +166,7 @@ def build(compiler, tmp_path, name, options):  # noqa: F811
     work.mkdir()
     (work / "acme-space.sty").write_text(pkg.render())
     src = work / "doc.tex"
-    body = rf"\textcolor{{{colour_of(Ink)}}}{{x}}\textcolor{{{tint(Ink, 0.5)}}}{{y}}"
+    body = rf"\textcolor{{{colour_of(Ink)}}}{{x}}\textcolor{{{ColourName(Ink, tint=0.5)}}}{{y}}"
     tex = pkg.document(Document(options=options)).replace(r"\begin{document}", "\\begin{document}\n" + body)
     src.write_text(tex)
     comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(work,))

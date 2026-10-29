@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `ColourName` is a `str` subclass you can build: `ColourName(Ink, tint=0.7)` is `ab-ink!70`, `over=` gives `a!70!b`, and
-  `tint` is a fraction. A field typed `ColourName` is checked against its package: a colour value of the package or its base,
+- `ColourName` is a `str` subclass you can build: `ColourName(Ink, tint=0.7)` is `ab-ink!70`, `mix=` gives `a!70!b`, and
+  `tint` is a fraction. Both ends of a mix may ink the same plates and no others (`TM-M068` when built from values,
+  `TM-C024` for any expression a node checks). A field typed `ColourName` is checked against its package: a colour value of the package or its base,
   a colour one of its LaTeX libraries defines, or an xcolor base name; anything else is `TM-C022`, and an expression that is
   not `name!50!name` is `TM-C023`. A plain string still loads and renders, but a type checker now asks for `ColourName(...)`.
   `COLOUR_NAME` is gone from `texmodel.interface`.
@@ -19,16 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `texmodel.ext`, next to `std`, for opinionated helpers; its first module is `texmodel.ext.kplate`: `K(fraction)`, a colour
-  on the black plate only (`K.nearest` rounds to a step); `Value[KOnly]`, bounded in Python and in data; `tint(Ink, 0.7)`,
-  xcolor's `ac-ink!70`, refused for a base that is not `KOnly` (`TM-M047`); `plates` and `is_single_plate`.
+- `texmodel.ext`, next to `std`, for opinionated helpers; its first module is `texmodel.ext.plates`: `K(fraction)`, a colour
+  on the black plate only (`K.nearest` rounds to a step), and `is_single_plate`. `Value.plates` is the set of plates a
+  colour value may ink (`{Plate.K}`: K only, `{Plate.C, Plate.M}`: a duotone); a default, a setting or data outside it is
+  refused (`TM-M070`). `plates_of(colour)` names the plates any colour inks, and `Plate` the process ones; a spot is its own
+  plate.
 - `texmodel.ext.printpage`: `PrintPage(width=, height=, bleed=, overflow=, margin=)` writes the `\geometry` call and the PDF
   page boxes (`/TrimBox`, `/BleedBox`, `/CropBox`) from the trim, edge by edge (`Sides`: `all=`, `horizontal=`/`vertical=`
   or the four edges). `Sheet.TRIM` is a review copy with the same type area.
 - `texmodel.ext.colourspace`: `ColourPair(cmyk=, rgb=)` and `Value[Dual]`, a colour with a print build and a screen build under
   one xcolor name, chosen by the package options `cmyk` and `rgb` that `ColourSpace` declares (a document passes one with
-  `Document(options=["rgb"])`); `colour_of(Value)`, the xcolor name of any colour value, used by `kplate.tint` and
-  `spot.tint`; `tint` for a `Dual`.
+  `Document(options=["rgb"])`); `colour_of(Value)`, the xcolor name of any colour value.
 - `texmodel.ext.fit`: `Fit(name, target=, floor=, room=, treatment=, reduced_sizes=)` sets a short line to fit a band at one
   main size for the whole document, a few shared smaller sizes (0, 1 or 2) for the lines that cannot reach it, never below
   the floor, on one baseline; the widths are recorded in one run and used in the next. `choose_sizes` is the rule in Python.
@@ -37,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   number of cards), carried between runs through the `.aux` with the `\global`, the guarded read and the "not settled" warning
   done once. `Fold` is data: `MAX`, `MIN`, `SUM` over a length or an integer, each with its Python `reduce`.
 - `texmodel.ext.spot`: `Spot(plate, proxy=)` and `Value[SpotColour]`, a named plate on the press (`\definespotcolor`, from
-  `colorspace`) with a CMYK proxy, and `tint(Varnish, 0.6)`, xcolor's `ap-varnish!60`. A plate name with a PDF delimiter is
+  `colorspace`) with a CMYK proxy, and `ColourName(Varnish, tint=0.6)`, xcolor's `ap-varnish!60`. A plate name with a PDF delimiter is
   refused (`TM-M053`); a spot is declared once, not set by a document (`TM-M055`). The test image gains `colorspace`.
 - `texmodel.ext.intent`: `OutputIntent` writes the `\DocumentMetadata` keys of PDF/X and PDF/A with an intent of the same
   condition each, and registers the ICC profile's output condition, without which l3pdfmeta writes no intent;

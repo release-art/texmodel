@@ -83,7 +83,11 @@ import dataclasses
 import inspect
 import types
 import typing
-from collections.abc import Mapping, Sequence
+from collections.abc import (
+    Mapping,
+    Sequence,
+    Set as AbstractSet,
+)
 from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, dataclass_transform, overload
 
 import pydantic
@@ -140,7 +144,7 @@ from .interface import (
     body_of,
     field_info,
 )
-from .types import TEXT, Choice, Colour, Length, Raw, ValueKind
+from .types import TEXT, Choice, Colour, Length, Plate, Raw, ValueKind, plates_of
 
 if TYPE_CHECKING:
     from .package import Package
@@ -760,34 +764,50 @@ def _violations(node: Command | Environment | Passthrough, path: str) -> list[Vi
     return out
 
 
+def _plates_shown(plates: AbstractSet[str]) -> str:
+    """`CMYK`, `K`, `Scodix`: the process plates in press order, then the spots."""
+    return "+".join([*(p for p in Plate if p in plates), *sorted(plates - set(Plate))]) if plates else "none"
+
+
 def _colour_violations(node: Command | Environment | Passthrough, path: str) -> list[Violation]:
-    """A colour argument names colours its package declares (`TM-C022`): a colour value, a colour a library defines, or
-    one of xcolor's base names; an expression that is not `name!50!name` is `TM-C023`. A node outside a package is not
-    checked."""
+    """A colour argument names colours its package declares (`TM-C022`) and mixes only colours that ink the same plates
+    (`TM-C024`); an expression that is not `name!50!name` is `TM-C023`. A node outside a package is not checked."""
     package = typing.cast("Package | None", getattr(type(node), "__tm_package__", None))
     if package is None:
         return []
-    known = package.known_colours()
+    known = package.colour_constraints()
     out: list[Violation] = []
     for a in type(node).__tm_args__:
         value = getattr(node, a.name)
-        if a.body.kind is not BodyKind.COLOUR_NAME or not isinstance(value, str) or value in ("", None):
+        if a.body.kind is not BodyKind.COLOUR_NAME or not isinstance(value, str) or value == "":
             continue
+        where = f"{path}.{a.name}"
         try:
             names = ColourName(value).names
         except DeclarationError as exc:
-            out.append(Violation("TM-C023", f"{path}.{a.name}", str(exc), hint="name, name!50 or name!50!name"))
+            out.append(Violation("TM-C023", where, str(exc), hint="name, name!50 or name!50!name"))
             continue
         out += [
             Violation(
                 "TM-C022",
-                f"{path}.{a.name}",
+                where,
                 f"{a.name}: colour {n!r} is not declared by package {package.name}",
                 hint="declare a colour value, define it in a library, or use an xcolor base name",
             )
             for n in names
             if n not in known
         ]
+        mixed = {n: known[n] for n in dict.fromkeys(names) if known.get(n) is not None}
+        if len({known[n] for n in mixed}) > 1:
+            shown = ", ".join(f"{n} {_plates_shown(mixed[n] or frozenset())}" for n in mixed)
+            out.append(
+                Violation(
+                    "TM-C024",
+                    where,
+                    f"{a.name}: {value!r} mixes colours that ink different plates ({shown})",
+                    hint="both ends of a mix may ink the same plates and no others",
+                )
+            )
     return out
 
 
@@ -984,6 +1004,24 @@ def env_spec_of(
 _KINDS: dict[object, ValueKind] = {Length: LENGTH, Colour: COLOUR, bool: BOOL, str: TEXT_KIND, Raw: RAW_KIND}
 
 
+def _check_plates(cls: "type[Value[Any]]", kind: ValueKind, default: object) -> None:
+    """A colour value's `plates`: only a colour has them, and its default stays inside them (`TM-M069`, `TM-M070`)."""
+    if (declared := cls.__dict__.get("plates")) is None:
+        return
+    if not kind.named:
+        raise DeclarationError(
+            f"{cls.__qualname__}: plates belongs to a colour value", code="TM-M069", path=cls.__name__
+        )
+    cls.plates = frozenset(declared)
+    if default is not None and not plates_of(default) <= cls.plates:
+        raise DeclarationError(
+            f"{cls.__qualname__}: the default inks {sorted(plates_of(default) - cls.plates)}, "
+            f"outside its plates {sorted(cls.plates)}",
+            code="TM-M070",
+            path=cls.__name__,
+        )
+
+
 class Value[T]:
     """A typed setting: `\\newlength`, `\\definecolor`, `\\newif`, `\\newcommand` or a package's own (`Toggle`), chosen
     by `T`; `default` is an instance of `T`. A `Value[Text]` of an adopted package may leave `default` out: the
@@ -994,6 +1032,7 @@ class Value[T]:
     colour_name: ClassVar[str | None] = None  # a `Value[Colour]`'s name when it is not `<prefix>-<kebab>` (`"acInk"`)
     cs: ClassVar[str | None] = None  # the whole control sequence, when it is not prefix + class name (`"acshowcrop"`)
     defined_by: ClassVar[Library | None] = None  # the library block that defines it, so it renders no definition
+    plates: ClassVar[AbstractSet[str] | None] = None  # a colour's plates: the set it may ink, `{Plate.K}` is K-only
     meta: ClassVar[Mapping[str, object]] = {}  # the schema's `x-` keys on this value
     __tm_doc__: ClassVar[str]
     __tm_kind__: ClassVar[ValueKind]
@@ -1010,6 +1049,11 @@ class Value[T]:
         """A document's setting for this value (D1a): `FactGap(Length("3mm"))`, checked against the declared type."""
         if not isinstance(value, kind := type(self).__tm_kind__.python):
             raise DeclarationError(f"{type(self).__name__}({value!r}): expected a {kind}", code="TM-M014")
+        if (allowed := type(self).plates) is not None and not plates_of(value) <= allowed:
+            raise DeclarationError(
+                f"{type(self).__name__}: {value!r} inks {sorted(plates_of(value) - allowed)} outside {sorted(allowed)}",
+                code="TM-M070",
+            )
         self.value = value
 
     def __repr__(self) -> str:
@@ -1056,13 +1100,14 @@ class Value[T]:
             raise DeclarationError(
                 f"{cls.__qualname__}: default {default!r} is not a {kind.name}", code="TM-M014", path=cls.__name__
             )
+        _check_plates(cls, kind, default)
         cls.__tm_doc__, cls.__tm_kind__ = doc, kind
         cls.needs_packages = tuple(
             sorted({*cls.needs_packages, *kind.needs}, key=lambda p: p if isinstance(p, str) else p.name)
         )
 
 
-type AnyValue = Value[Any]  # the kind, not the type, decides what `T` may be: a package adds its own (`KOnly`)
+type AnyValue = Value[Any]  # the kind, not the type, decides what `T` may be: a package adds its own (`Dual`)
 
 
 def value_spec_of(cls: type[AnyValue]) -> ValueSpec:
