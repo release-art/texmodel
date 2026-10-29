@@ -293,6 +293,10 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   floor, on the document's baseline; the per-title fits are rounded by the split that loses least size in total
   (`j * (o_j - o_n)` for two groups). The widths and the ascent and descent maxima are `Recorded` values (`LENGTHS` with
   `APPEND`, and `MAX`). `choose_sizes` is the oracle for the expl3. No wrapping (`TM-M060` to `TM-M063`).
+- D1i **Print and screen colours** (`texmodel.ext.colourspace`): `ColourPair` states both builds, the colour kind `Dual`
+  declares one name guarded by `\if<prefix>Cmyk`, and `ColourSpace` declares the options and the flag (`TM-M064` to
+  `TM-M066`). A document picks the build with a class option. Not a conversion between models (T5). `colour_of(Value)` is the
+  xcolor name of any colour value.
 - D2 `doc.violations()`, `doc.render()` (str, pure, deterministic, no I/O),
   `doc.to_dict()`, `Doc.from_dict()` (migrates then validates), `doc.plan()` (every
   output line with provenance: model | body:line | user value).

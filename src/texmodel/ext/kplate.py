@@ -20,10 +20,11 @@ from typing import Annotated, Any
 
 from pydantic_core import core_schema as cs
 
-from .._internal.render import COLOUR, colour_name
+from .._internal.render import COLOUR
 from ..components import Value
 from ..errors import DeclarationError
 from ..types import CMYK, RGB, Colour, Gray, plain_number
+from .colourspace import colour_of
 
 
 @dataclasses.dataclass(frozen=True, init=False, repr=False)
@@ -102,8 +103,7 @@ def tint(value: type[Value[Any]], fraction: float) -> str:
         )
     if not 0 <= fraction <= 1:
         raise DeclarationError(f"tint({value.__name__}, {fraction!r}): in [0, 1]", code="TM-M017", path=value.__name__)
-    name = value.colour_name or colour_name(value.__tm_prefix__, value.__name__)
-    return f"{name}!{plain_number(fraction * 100)}"
+    return f"{colour_of(value)}!{plain_number(fraction * 100)}"
 
 
 __all__ = ["KIND", "K", "KOnly", "Plate", "is_single_plate", "plates", "tint"]

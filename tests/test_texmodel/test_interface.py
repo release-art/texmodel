@@ -290,7 +290,7 @@ def test_each_value_type_is_written_and_checked():
         n=3,
         flag=True,
         colour=CMYK(0, 0, 0, 1),
-        name="blue!50",
+        name=ColourName("blue!50"),
         align=Align.RIGHT,
         place=Place(Length("1cm"), LengthExpr(r"\linewidth")),
         size=Size(2, 3),

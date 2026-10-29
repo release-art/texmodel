@@ -102,6 +102,65 @@ assert tint(TextInk, 0.7) == "vl-text-ink!70"
 assert is_single_plate(K(0.7)) and not is_single_plate(CMYK(0.1, 0, 0, 0.9))
 ```
 
+## Colour names
+
+A field typed `ColourName` holds an xcolor name or expression. It is a `str`, built from a colour value so the name is not typed
+by hand and the tint is a keyword, a fraction as everywhere in texmodel:
+
+```python
+from texmodel.interface import ColourName
+
+assert ColourName("red") == "red" and ColourName("red", tint=0.5, over="blue") == "red!50!blue"
+```
+
+`ColourName(Ink)` is `vl-ink`, `ColourName(Ink, tint=0.7)` is `vl-ink!70` and `ColourName(Ink, tint=0.7, over=Paper)` is
+`vl-ink!70!vl-paper`. `ColourName("red!50!blue")` takes an expression as written, `name`, `name!50` or `name!50!name`,
+with numbers up to 100 (`TM-M067`); a tint outside 0 to 1 is `TM-M017`.
+
+A node checks the colours its `ColourName` arguments use (`violations()`, and so `document` and `plan`): each must be a
+colour value of its package or of its base, a colour one of its LaTeX libraries defines, or one of xcolor's base names
+(`black blue brown cyan darkgray gray green lightgray lime magenta olive orange pink purple red teal violet white yellow`).
+Anything else is `TM-C022` at the field, and an expression that is not that grammar is `TM-C023`. The names of the
+`dvipsnames` or `svgnames` options are not known: declare the colour, or take a `Raw`. A node outside a package is not
+checked, and neither are the colour keys of a `KeyVals`.
+
+## Colours for print and screen
+
+A brand that prints and shows on screen states each colour twice. `texmodel.ext.colourspace` holds both in a `ColourPair`
+and declares the colour under one xcolor name, the CMYK definition when the print build is in use and the HTML one when
+not. It is not a conversion between models: both builds are stated.
+
+```python
+from texmodel.ext.colourspace import ColourPair, ColourSpace, Dual, colour_of, tint
+from texmodel.ext.kplate import K
+from texmodel.package import Package
+
+print_pkg = Package("acme-print-colours", prefix="pc")
+ColourSpace().declare(print_pkg)                  # first: the cmyk and rgb options, and the flag
+
+
+@print_pkg.value
+class Ink(Value[Dual]):
+    """Text ink."""
+
+    default = ColourPair(cmyk=K(0.95), rgb="2d2c2b")
+
+
+assert colour_of(Ink) == "pc-ink" and tint(Ink, 0.7) == "pc-ink!70"
+assert r"\definecolor{pc-ink}{HTML}{2D2C2B}" in print_pkg.render()
+```
+
+A body or a field uses the name as any xcolor name: `\textcolor{pc-ink}{...}`, `fill=pc-ink!70`. A document picks the build
+with a class option, `Document(options=["rgb"])`, which LaTeX gives to every package that declares it; CMYK is the default
+(`ColourSpace(Build.RGB)` changes it). `colour_of(Ink)` is the name of any colour value (`Value[Colour]`, `KOnly`, `Dual`,
+`SpotColour`), `tint(Ink, 0.7)` xcolor's tint in whichever build is in use.
+
+- `rgb` is six hex digits, or an `RGB` rounded to 8 bits. Either side may be `None` (`TM-M064` if both are): a colour with
+  no print build is undefined in print, which is xcolor's error and not a silent conversion.
+- `ColourSpace` processes the package's options (`\ProcessOptions`, once per package), so it is declared before the colours
+  and before any other options the package declares (`TM-M065`).
+- A value that is not a registered colour is `TM-M066` in `colour_of` and `tint`.
+
 ## Values only the whole document knows
 
 The widest label and the number of cards are known only after the last card. `texmodel.ext.recorded` carries such a value

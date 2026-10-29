@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `ColourName` is a `str` subclass you can build: `ColourName(Ink, tint=0.7)` is `ab-ink!70`, `over=` gives `a!70!b`, and
+  `tint` is a fraction. A field typed `ColourName` is checked against its package: a colour value of the package or its base,
+  a colour one of its LaTeX libraries defines, or an xcolor base name; anything else is `TM-C022`, and an expression that is
+  not `name!50!name` is `TM-C023`. A plain string still loads and renders, but a type checker now asks for `ColourName(...)`.
+  `COLOUR_NAME` is gone from `texmodel.interface`.
+- `colour_of(Value)`, the xcolor name of a colour value, moves to `texmodel.interface` (`texmodel.ext.colourspace` still
+  exports it).
+
 ### Added
 
 - `texmodel.ext`, next to `std`, for opinionated helpers; its first module is `texmodel.ext.kplate`: `K(fraction)`, a colour
@@ -15,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `texmodel.ext.printpage`: `PrintPage(width=, height=, bleed=, overflow=, margin=)` writes the `\geometry` call and the PDF
   page boxes (`/TrimBox`, `/BleedBox`, `/CropBox`) from the trim, edge by edge (`Sides`: `all=`, `horizontal=`/`vertical=`
   or the four edges). `Sheet.TRIM` is a review copy with the same type area.
+- `texmodel.ext.colourspace`: `ColourPair(cmyk=, rgb=)` and `Value[Dual]`, a colour with a print build and a screen build under
+  one xcolor name, chosen by the package options `cmyk` and `rgb` that `ColourSpace` declares (a document passes one with
+  `Document(options=["rgb"])`); `colour_of(Value)`, the xcolor name of any colour value, used by `kplate.tint` and
+  `spot.tint`; `tint` for a `Dual`.
 - `texmodel.ext.fit`: `Fit(name, target=, floor=, room=, treatment=, reduced_sizes=)` sets a short line to fit a band at one
   main size for the whole document, a few shared smaller sizes (0, 1 or 2) for the lines that cannot reach it, never below
   the floor, on one baseline; the widths are recorded in one run and used in the next. `choose_sizes` is the rule in Python.

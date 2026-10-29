@@ -24,6 +24,7 @@ from .._internal.render import COLOUR, colour_name
 from ..components import Value
 from ..errors import DeclarationError
 from ..types import CMYK, plain_number
+from .colourspace import colour_of
 from .kplate import K
 
 # A PDF name ends at a delimiter, and TeX reads `%` `#` `\` `{` `}`: any of them in a plate name writes a file whose
@@ -118,8 +119,7 @@ def tint(value: type[Value[Any]], fraction: float) -> str:
         )
     if not 0 <= fraction <= 1:
         raise DeclarationError(f"tint({value.__name__}, {fraction!r}): in [0, 1]", code="TM-M017", path=value.__name__)
-    name = value.colour_name or colour_name(value.__tm_prefix__, value.__name__)
-    return f"{name}!{plain_number(fraction * 100)}"
+    return f"{colour_of(value)}!{plain_number(fraction * 100)}"
 
 
 __all__ = ["KIND", "Spot", "SpotColour", "tint"]

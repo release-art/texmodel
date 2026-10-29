@@ -60,6 +60,11 @@ from .preamble import Entry, PdfInfo, RequireMetadata
 from .testing import Component, stub_tex
 from .types import Raw, balanced
 
+XCOLOR_BASE = (
+    "black blue brown cyan darkgray gray green lightgray lime magenta olive orange pink purple red teal violet white "
+    "yellow"
+).split()
+"""The colour names xcolor defines without a package option."""
 _NAME = re.compile(r"[a-z][a-z0-9-]*")
 _PREFIX = re.compile(r"[a-z]*")  # empty: the package of a standard TeX library, whose names carry none
 _DATE = re.compile(r"\d{4}/\d{2}/\d{2}")  # \ProvidesPackage's date slot: YYYY/MM/DD (G3)
@@ -447,6 +452,17 @@ class Package:
         """The value class called `name` that `visible` holds, or `None`."""
         found = next((c for c in self.visible if c.__name__ == name), None)
         return typing.cast("type[AnyValue]", found) if found and issubclass(found, Value) else None
+
+    def known_colours(self) -> frozenset[str]:
+        """The colour names an argument may use in this package: its colour values and its base chain's, the colours
+        its LaTeX libraries define, and xcolor's own base names."""
+        found = set(XCOLOR_BASE)
+        for p in self._lineage():
+            found |= p._colours.keys()  # noqa: SLF001
+            for item in p._items:  # noqa: SLF001
+                if isinstance(item, Library) and item.syntax is Syntax.LATEX2E:
+                    found |= scan_colours(item.text)
+        return frozenset(found)
 
     def _lineage(self) -> list["Package"]:
         """The base chain, farthest base first, this package last."""

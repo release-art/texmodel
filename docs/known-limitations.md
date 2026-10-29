@@ -31,6 +31,12 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 - `OutputIntent` knows PDF/X-4 and PDF/A-2b. It checks an ICC header, not that the profile is the one named by its
   condition, and whether a file is where the compile will look is the compiler's roots.
 
+## Colours for print and screen
+
+- `ColourSpace` owns the package's options processing: a package that declares other options of its own must do so before
+  it, and may not process them twice. A `Dual` colour is not a spot (no screen build) and not checked for agreement between
+  its two builds: that is the consumer's colour conversion.
+
 ## Recorded values
 
 - `Recorded` takes a length or an integer and the folds `MAX`, `MIN` and `SUM`; no flag, list or text. A value that depends on
@@ -51,7 +57,7 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   `Raw` pieces instead.
 - Verbatim and delimited-by-token arguments are not modelled. Neither is an optional braced group (xparse `g`).
 - A colour model (`CMYK`, `RGB`, `Gray`) writes its components, `0,0,0,1`, which suits `\definecolor` and
-  `\color[cmyk]{...}`; a macro that wants a name takes `ColourName`.
+  `\color[cmyk]{...}`; a macro that wants a name takes `ColourName`, which the package checks (`TM-C022`).
 - A `KeyVals` that fails its own checks (`exclusive`, `requires`, a wrong type) raises pydantic's `ValidationError` when it
   is built, not a `Violation` from `violations()`.
 - Key libraries differ in ways the presets only partly capture. `KeyRules` was measured against pgfkeys, xkeyval, keyval

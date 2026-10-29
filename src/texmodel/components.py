@@ -127,7 +127,19 @@ from .body import (
     join,
 )
 from .errors import DeclarationError, Violation
-from .interface import BRACE, RAW_BODY, SQUARE, ArgOptions, BodyKind, FieldNotes, Gap, arg, body_of, field_info
+from .interface import (
+    BRACE,
+    RAW_BODY,
+    SQUARE,
+    ArgOptions,
+    BodyKind,
+    ColourName,
+    FieldNotes,
+    Gap,
+    arg,
+    body_of,
+    field_info,
+)
 from .types import TEXT, Choice, Colour, Length, Raw, ValueKind
 
 if TYPE_CHECKING:
@@ -739,11 +751,43 @@ def _violations(node: Command | Environment | Passthrough, path: str) -> list[Vi
         if why := argument_violations(a, getattr(node, a.name)):
             out.append(Violation("TM-C003", f"{path}.{a.name}", f"{a.name}: {why}"))
     out += _slot_violations(node, path)
+    out += _colour_violations(node, path)
     if isinstance(node, Environment):
         out += _grammar_violations(node, path)
         for i, child in enumerate(node.content):
             if isinstance(child, Command | Environment | Passthrough):  # pyright: ignore[reportUnnecessaryIsInstance]
                 out += _violations(child, f"{path}/{type(child).__name__}[{i}]")
+    return out
+
+
+def _colour_violations(node: Command | Environment | Passthrough, path: str) -> list[Violation]:
+    """A colour argument names colours its package declares (`TM-C022`): a colour value, a colour a library defines, or
+    one of xcolor's base names; an expression that is not `name!50!name` is `TM-C023`. A node outside a package is not
+    checked."""
+    package = typing.cast("Package | None", getattr(type(node), "__tm_package__", None))
+    if package is None:
+        return []
+    known = package.known_colours()
+    out: list[Violation] = []
+    for a in type(node).__tm_args__:
+        value = getattr(node, a.name)
+        if a.body.kind is not BodyKind.COLOUR_NAME or not isinstance(value, str) or value in ("", None):
+            continue
+        try:
+            names = ColourName(value).names
+        except DeclarationError as exc:
+            out.append(Violation("TM-C023", f"{path}.{a.name}", str(exc), hint="name, name!50 or name!50!name"))
+            continue
+        out += [
+            Violation(
+                "TM-C022",
+                f"{path}.{a.name}",
+                f"{a.name}: colour {n!r} is not declared by package {package.name}",
+                hint="declare a colour value, define it in a library, or use an xcolor base name",
+            )
+            for n in names
+            if n not in known
+        ]
     return out
 
 
