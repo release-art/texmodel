@@ -1,6 +1,6 @@
 # Draft: restore the data from an edited document
 
-Roadmap item 1. Status: **decided** (2026-10-29); nothing is built. The decisions are at the end.
+Roadmap item 1. Status: **built** in texmodel (steps 0 to 2, 4, 5); texpkg's `Document.restore()` (step 3) waits for the release. The decisions are at the end.
 
 ## The job
 
@@ -29,7 +29,8 @@ saved document, so reordering on regeneration cannot misplace an edit.
 | The argument a change lies in, and its new text | `Edit.fields`, `FieldEdit` |
 | The new text as a typed value of the field's type, or the `Violation` saying it is none (`TM-C021`) | `testing.read_call` (Python); `texmodel.run.hand_edits.read_edits` (through TeX, with stubs) |
 | Refusing to overwrite an edit that was not ingested | texpkg `Document.save()` |
-| A plan path as a data path (`/content/1/content/0`) | texpkg `_internal/handedits.data_path` |
+| A plan path as a data path (`/content/1/content/0`) | `plan.data_path`, `Edit.data_path` |
+| The data that writes the edits, and every other edit with its `Reason` | `restore.restore` |
 
 ## Design
 
@@ -41,7 +42,7 @@ from texmodel.restore import restore
 restored = restore(pkg, document, edits)     # edits from Plan.edits(text), or from read_edits
 restored.document     # the Document, with every edit that could be restored
 restored.applied      # the edits it holds
-restored.unapplied    # Unapplied(edit, reason, violation) for each one it does not: its Reason, and why
+restored.unapplied    # Unapplied(edit, reason, violation, writes) for each one it does not: its Reason, and why
 ```
 
 - `document` is the one texmodel last wrote (the system keeps it, as texpkg's saved tree, or rebuilds it from its data);
@@ -74,6 +75,7 @@ with the reason.
 | A change over a command name, a delimiter, several lines of one call, or no argument | `NOT_IN_ARGUMENT` |
 | Some lines of a node removed or commented out; a commented line also edited | `PARTIAL_REMOVAL` |
 | An argument that reads to no value of its type (an unbalanced brace, an unknown command) | `INVALID_VALUE`, with `TM-C021` |
+| A field these readers do not read back from text (a colour, a key list) | `UNREADABLE` |
 | A removal or a comment-out the grammar does not allow (the only lead fact) | `GRAMMAR`, with its violation |
 | Restored data that writes another line (`R&D` for `R\&D`) | `MISMATCH`, with the line texmodel would write |
 
@@ -131,6 +133,7 @@ in the same parent, the system finds its record without counting.
 0. `texmodel.run` first (`docs/briefs/run.md`), so `read_edits` is already at its new path.
 1. `texmodel.restore` with changed arguments and the gate; the `Reason` enum and its registry test.
 2. Removals and comment-outs, against the grammar.
-3. `data_path` from texpkg; texpkg's `Document` then restores its saved tree with it.
+3. `data_path` in texmodel (built). texpkg, after the release: its `Document.restore()` restores its saved tree with
+   it; texpkg's own `data_path` drops its tree's root step (`Deck[0]`), which texmodel's keeps as `/content/0`.
 4. The round-trip law and the `read_edits` compile test.
 5. Guide (`documents.md`, `testing.md`), known limitations, the plan's decisions log, changelog.

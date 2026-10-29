@@ -253,6 +253,34 @@ assert plan.lines[0].path == "header"
   argument's text, empty when it is over the command name, a delimiter or several arguments. A baseline saved without
   `Line.spans` gives no fields. `texmodel.run.hand_edits.read_edits` reads the same edits with TeX, with typed values:
   [Testing](testing.md#hand-edits-read-by-tex).
+- `edit.data_path` is where the edited node is in the document's `to_dict` data: `Card[0]/Fact[1]` is
+  `PurePosixPath("/content/0/content/1")`, `settings[0]` is `/settings/0`; `None` for the header and the class line.
 - `plan.path_of(39)` names the component behind a log's `input line 39`.
 - `await Compiler().compile(src, out, plan=plan)` does that for every diagnostic in the source: `diagnostic.path` is the component
   behind its line. `plans={"deck.sty": pkg.render_plan()}` does the same for diagnostics in other files, by file name.
+
+## Restoring hand edits
+
+`restore(pkg, document, edits)` gives back the data that writes a hand-edited file: `document` is the one texmodel last
+wrote, `edits` are its plan's edits of the file (or `read_edits`'). A changed argument restores as its field's new
+value; a node whose every line is deleted, or commented out as itself (`%`, then the line), is removed from its parent.
+Regenerating writes no line in its place.
+
+```python
+from texmodel.restore import Reason, restore
+
+written = Document(Card(Name(text="Rex"), Fact(text="Friendly."), Fact(text="Loud.")))
+text = pkg.plan(written).text.replace(r"\dkFact{Friendly.}", r"\dkFact{Friendly \& calm.}")
+text = text.replace(r"  \dkFact{Loud.}", r"%  \dkFact{Loud.}").replace(r"\dkName{Rex}", r"\dkName{R&D}")
+restored = restore(pkg, written, pkg.plan(written).edits(text))
+assert to_dict(restored.document)["content"][0]["content"][1:] == [{"type": "Fact", "text": "Friendly & calm."}]
+(refused,) = restored.unapplied
+assert refused.reason is Reason.INVALID_VALUE and refused.violation.code == "TM-C021"  # `&` unescaped
+```
+
+Every edit comes back once: in `applied`, or in `unapplied` with a `Reason` (a stable `TM-R` code). An edit is applied
+only when the document with it writes the edited line exactly. One that writes another line is `MISMATCH`, with the line
+it writes in `writes`. A removal the grammar refuses is `GRAMMAR`, with the grammar's violation. Lines that are not
+data come back as `NO_DATA_CHANGE`, `NOT_DATA`, `SETTING` or `COMMENT` (a card's id is never restored), and an added
+line as `ADDED_LINE`: the system that keeps the data decides what to do with them. Edits found against another
+document are refused (`TM-X034`).

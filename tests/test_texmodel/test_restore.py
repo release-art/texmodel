@@ -1,10 +1,11 @@
-"""Restoring the data behind a hand-edited document (§21, X2), on the synthetic card deck: what restores, what comes back
-unapplied with its reason, and the law that the restored data writes every edit it holds."""
+"""Restoring the data behind a hand-edited document (§21), on the synthetic card deck: what restores, what comes
+back unapplied with its reason, and the law that the restored data writes every edit it holds."""
 
 import dataclasses
 import pathlib
 import re
 import string
+from typing import Any
 
 import pytest
 from card_deck import convert, model
@@ -13,6 +14,7 @@ from hypothesis import (
     settings,
     strategies as st,
 )
+from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 
 import texmodel
 from texmodel.components import Command
@@ -21,6 +23,7 @@ from texmodel.errors import DeclarationError, Violation
 from texmodel.package import Package
 from texmodel.plan import Edit, EditKind, FieldEdit, data_path
 from texmodel.restore import Reason, restore
+from texmodel.run.hand_edits import read_edits
 from texmodel.spec import to_dict
 from texmodel.types import CMYK, Text, escape
 
@@ -31,6 +34,10 @@ TEXT = PLAN.text
 FOX_FACT = r"    \cdLeadFact{Its whiskers help it feel in the dark.}"
 FOX_WHERE = r"    \cdLabelledSlot{\deckParamFactWhere}{In gardens and parks.}"
 OWL_FACT = r"    \cdLeadFact{Owls swallow small prey whole.}"
+
+
+def data(document: Document) -> Any:  # noqa: ANN401  # to_dict's nested data, indexed in the asserts
+    return to_dict(document)
 
 
 def restored(text: str):
@@ -46,7 +53,7 @@ def test_a_reworded_fact_restores_as_its_new_text_and_writes_the_edited_file():
     found = restored(edited)
     assert [e.path for e in found.applied] == ["Card[1]/CardBack[1]/LeadFact[2]"] and found.unapplied == ()
     assert model.pkg.plan(found.document).text == edited
-    back = to_dict(found.document)["content"][1]["content"][1]["content"][2]  # pyright: ignore[reportIndexIssue]
+    back = data(found.document)["content"][1]["content"][1]["content"][2]
     assert back == {"type": "LeadFact", "text": "Its whiskers feel 50% of the dark."}
     assert found.applied[0].data_path == pathlib.PurePosixPath("/content/1/content/1/content/2")
 
@@ -60,8 +67,8 @@ def test_a_dropped_slot_deleted_or_commented_out_is_removed_from_its_card(line):
     edited = TEXT.replace(FOX_WHERE + "\n", line + "\n" if line else "")
     found = restored(edited)
     assert [e.path for e in found.applied] == ["Card[1]/CardBack[1]/LabelledSlot[5]"] and found.unapplied == ()
-    back = found.document.content[1].content[1]  # pyright: ignore[reportAttributeAccessIssue]
-    assert [type(c).__name__ for c in back.content][-1] == "LabelledSlot" and len(back.content) == 5
+    back = data(found.document)["content"][1]["content"][1]["content"]
+    assert [c["type"] for c in back][-1] == "LabelledSlot" and len(back) == 5
     assert model.pkg.plan(found.document).text == TEXT.replace(FOX_WHERE + "\n", "")  # regeneration writes no line
 
 
@@ -190,7 +197,11 @@ def test_an_optional_argument_left_out_restores_as_its_default():
     # as `read_edits` reports it: TeX sees the optional argument empty
     edit = Edit("Note[0]", line.tex, plain, EditKind.CHANGED, (FieldEdit("label", ""),))
     found = restore(small, document, [edit])
-    assert found.applied == (edit,) and found.document.content[0].label is None  # pyright: ignore[reportAttributeAccessIssue]
+    assert found.applied == (edit,) and data(found.document)["content"][0] == {
+        "type": "Note",
+        "text": "n",
+        "label": None,
+    }
 
 
 # --- the registry, the paths, the law -------------------------------------------------------------------------------
@@ -223,14 +234,24 @@ DROPPABLE = [i for i, x in enumerate(PLAN.lines) if re.search(r"LabelledSlot\[\d
 def test_the_restored_data_writes_every_edit_it_holds(reworded, dropped):
     """The law: rewordings (escaped as texmodel escapes) and dropped slots (deleted, or commented out) all restore, and
     the restored document writes the edited file, but for the commented lines, which regeneration does not write."""
-    lines = [x.tex for x in PLAN.lines]
+    lines: list[str | None] = [x.tex for x in PLAN.lines]
     for i, words in reworded.items():
-        m = CALL.match(lines[i])
+        m = CALL.match(PLAN.lines[i].tex)
         lines[i] = f"{m[1]}{escape(words)}{m[3]}" if m else lines[i]
     for i, comment in dropped.items():
-        lines[i] = f"%{lines[i]}" if comment else None  # pyright: ignore[reportCallIssue, reportArgumentType]
+        lines[i] = f"%{lines[i]}" if comment else None
     edited = "\n".join(x for x in lines if x is not None) + "\n"
     found = restored(edited)
     assert found.unapplied == ()
     written = "\n".join(x for i, x in enumerate(lines) if x is not None and i not in dropped) + "\n"
     assert model.pkg.plan(found.document).text == written
+
+
+@pytest.mark.tex
+@pytest.mark.timeout(300)
+async def test_edits_read_by_tex_restore_as_the_lines_do(compiler):  # noqa: F811
+    edited = TEXT.replace(FOX_FACT, FOX_FACT.replace("dark", "night")).replace(FOX_WHERE, f"% {FOX_WHERE.lstrip()}")
+    files = {"res/card-deck.sty": (convert.HERE / "res" / "card-deck.sty").read_text(encoding="utf-8")}
+    by_tex = restore(model.pkg, DECK, await read_edits(compiler, PLAN, edited, model.pkg, files=files))
+    by_lines = restored(edited)
+    assert by_tex.document == by_lines.document != DECK and len(by_tex.applied) == 2 and by_tex.unapplied == ()

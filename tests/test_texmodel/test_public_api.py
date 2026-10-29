@@ -25,6 +25,7 @@ PUBLIC = {
     "plan",
     "pointer",
     "preamble",
+    "restore",
     "run",
     "testing",
     "spec",

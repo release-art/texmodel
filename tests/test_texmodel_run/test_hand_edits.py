@@ -144,6 +144,12 @@ async def test_a_call_that_tex_does_not_run_is_removed_though_its_line_is_there(
     assert [e.kind for e in got].count(EditKind.ADDED) == 2
 
 
+async def test_a_call_commented_out_is_one_removal_of_its_line(monkeypatch):
+    edited = PLAN.text.replace("\\hdPara{z}\n", "% \\hdPara{z}\n")
+    (edit,) = await read(monkeypatch, edited, without(BASE, 6))
+    assert (edit.path, edit.kind, edit.found) == ("Para[2]", EditKind.REMOVED, "% \\hdPara{z}")
+
+
 async def test_another_command_on_the_line_is_a_change_without_fields(monkeypatch):
     edited = PLAN.text.replace(r"\hdPara{z}", r"\hdNote{z}")
     (edit,) = await read(monkeypatch, edited, [*BASE[:-1], Call("hdNote", ("", "z"))])

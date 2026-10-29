@@ -73,16 +73,21 @@ def _probed(base: list[Call], got: list[Call], lines: list[Line], classes: Mappi
 
 def _merged(line_edits: list[Edit], probed: _Probed, is_call: re.Pattern[str]) -> list[Edit]:
     """The line edits, each with what the calls add. A `CHANGED` line takes the fields of the probe's edit at its
-    path, or is `UNREAD`. An added or removed line stays as it is and uses up one probe edit about the same call (equal
-    neighbouring calls cannot be told apart, so the two diffs may name different ones). What is left only TeX saw."""
+    path, is `REMOVED` when the probe lost its call (`% \\acFact{...}`), or is `UNREAD`. An added or removed line
+    stays as it is and uses up one probe edit about the same call (equal neighbouring calls cannot be told apart, so
+    the two diffs may name different ones). What is left only TeX saw."""
     out: list[Edit] = []
     for e in line_edits:
         if e.kind is EditKind.CHANGED:
             i = next((i for i, (p, _) in enumerate(probed) if (p.path, p.kind) == (e.path, e.kind)), None)
-            if i is None:
-                out.append(dataclasses.replace(e, kind=EditKind.UNREAD, fields=()))
-            else:
+            gone = next((i for i, (p, _) in enumerate(probed) if (p.path, p.kind) == (e.path, EditKind.REMOVED)), None)
+            if i is not None:
                 out.append(dataclasses.replace(e, fields=probed.pop(i)[0].fields))
+            elif gone is not None:  # its call TeX no longer runs: commented out, the line still there
+                probed.pop(gone)
+                out.append(dataclasses.replace(e, kind=EditKind.REMOVED, fields=()))
+            else:
+                out.append(dataclasses.replace(e, kind=EditKind.UNREAD, fields=()))
             continue
         out.append(e)
         if m := is_call.match(e.expected or e.found):

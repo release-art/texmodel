@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `texmodel.restore.restore(pkg, document, edits)`: the document that writes a hand-edited file, from the document
+  texmodel last wrote and its plan's edits (or `read_edits`'). A changed argument restores as its field's new value; a
+  node deleted, or commented out as itself, is removed when its parent's grammar allows. Each edit is applied only when
+  the document with it writes the edited line exactly; every other comes back in `unapplied` with a `Reason`, one
+  registry of stable `TM-R001`-`TM-R011` codes. Edits of another document are refused (`TM-X034`).
+- `plan.data_path(path)` and `Edit.data_path`: where a plan line's writer is in the document's `to_dict` data, a
+  `PurePosixPath` (`/content/1/content/0`, `/settings/2`, `/preamble/after_package/0`).
+
+### Fixed
+
+- `Plan.edits` pairs a line with itself commented out or re-spaced inside a replaced block, so deleting one line and
+  commenting out the next names each by its own path; a line the same on both sides of a block (difflib's autojunk on a
+  long file) is no longer an edit.
+- `read_edits` reports a call commented out on its line as one `REMOVED` edit, not `UNREAD` and `REMOVED`.
+
 ### Changed
 
 - `texmodel_build` is `texmodel.run`, a subpackage of `texmodel` (`from texmodel.run.compiler import Compiler`). The

@@ -1048,6 +1048,7 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | Snapshot library vs own `bless` | open: evaluate with V2a |
 | Exact list of built-in rule codes | open |
 | A copy of texmodel with no metadata sets `package.GENERATOR_VERSION`; a `TemplateRef` is read through `importlib.resources` (a zip works); `texmodel.run.fonts` reads the fonts a compile embedded from its log (A7, A8) | decided |
+| Restoring hand edits is `texmodel.restore.restore`, pure, in the core: a changed argument and a node deleted or commented out as itself (`%`, spaces, the line) restore; an edit is applied only when the document with it writes the edited line exactly; every other comes back with a `Reason` (one `@enum.unique` registry of `TM-R` codes, a test refuses one elsewhere) and settings, comments and added lines are not restored; `data_path` names a plan line's writer in the `to_dict` data (2026-10-29, `docs/briefs/hand-edits.md`) | decided |
 | The engine side is `texmodel.run`, a subpackage behind an exhaustive layers contract, not a second top-level package (`_build` named a build step it is not); one `texmodel` command with a `run` group; `[tool.texmodel.run]`; what starts a process is `async def`, and a timeout or a cancellation kills the process and its container (C3); `build_targets` and `verify_files` run `jobs` in a `TaskGroup`; verifiers are async (2026-10-29, `docs/briefs/run.md`) | decided |
 
 ---

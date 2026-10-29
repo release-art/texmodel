@@ -89,7 +89,7 @@ exhaustive = true
 layers = [
     "cli",
     "run",
-    "_internal : body : bundle : components : config : document : drift : errors : ext : history : interface : keys : keyvals : package : plan : pointer : preamble : spec : std : testing : types",
+    "_internal : body : bundle : components : config : document : drift : errors : ext : history : interface : keys : keyvals : package : plan : pointer : preamble : restore : spec : std : testing : types",
 ]
 
 [tool.towncrier]

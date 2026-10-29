@@ -191,6 +191,7 @@ texmodel.package.declared(text: str) -> frozenset[str]
 texmodel.package.generator_version() -> str
 texmodel.package.setting_line(value: AnyValue) -> str
 texmodel.plan.Edit(path: str, expected: str, found: str, kind: EditKind, fields: tuple[FieldEdit, ...] = …) -> None
+texmodel.plan.Edit.data_path: property
 texmodel.plan.EditKind(*values)
 texmodel.plan.FieldEdit(arg: str, found: str, value: object = …, violation: Violation | None = …) -> None
 texmodel.plan.Line(path: str, tex: str, spans: tuple[Span, ...] = …) -> None
@@ -201,6 +202,7 @@ texmodel.plan.Plan.path_of(self, number: int) -> str
 texmodel.plan.Plan.text: property
 texmodel.plan.Plan.to_json(self) -> str
 texmodel.plan.Span(arg: str, start: int, end: int) -> None
+texmodel.plan.data_path(path: str) -> pathlib.PurePosixPath | None
 texmodel.pointer.load_document(spec: str, root: pathlib.Path) -> str | Plan
 texmodel.pointer.load_packages(spec: str | Sequence[str], root: pathlib.Path) -> tuple[Package, ...]
 texmodel.pointer.load_plan(spec: str, root: pathlib.Path) -> Plan
@@ -219,6 +221,10 @@ texmodel.preamble.PreambleSlots(before_class: tuple[Raw | Entry, ...] = …, bef
 texmodel.preamble.PreambleSlots.items(self) -> Iterator[tuple[str, int, Raw | Entry]]
 texmodel.preamble.RequireMetadata(**entries: str) -> None
 texmodel.preamble.RequireMetadata.raw(self) -> Raw
+texmodel.restore.Reason(*values)
+texmodel.restore.Restored(document: Document, applied: tuple[Edit, ...], unapplied: tuple[Unapplied, ...]) -> None
+texmodel.restore.Unapplied(edit: Edit, reason: Reason, violation: Violation | None = …, writes: str | None = …) -> None
+texmodel.restore.restore(pkg: Package, document: Document, edits: Sequence[Edit]) -> Restored
 texmodel.run.CompileResult(*, pdf: pathlib.Path | None, log: pathlib.Path | None, passes: int, pages: int | None, diagnostics: tuple[Diagnostic, ...], seconds: float, engine: str, engine_version: str, latexmk_version: str, image: str | None = …, image_digest: str | None = …, image_revision: str | None = …) -> None
 texmodel.run.Compiler(*, engine: Engine = …, image: str | None = …, roots: tuple[pathlib.Path, ...] = …, font_dirs: tuple[pathlib.Path, ...] = …, halt_on_error: bool = …, font_cache: pathlib.Path | None = …, max_passes: int = …, epoch: int | None = …, measures: tuple[Measure, ...] = …, timeout: float = …) -> None
 texmodel.run.compiler.Compiler(*, engine: Engine = …, image: str | None = …, roots: tuple[pathlib.Path, ...] = …, font_dirs: tuple[pathlib.Path, ...] = …, halt_on_error: bool = …, font_cache: pathlib.Path | None = …, max_passes: int = …, epoch: int | None = …, measures: tuple[Measure, ...] = …, timeout: float = …) -> None

@@ -1,4 +1,4 @@
-"""Restore the data behind a hand-edited document (§21, X2): from the document texmodel last wrote and the edits found
+"""Restore the data behind a hand-edited document (§21): from the document texmodel last wrote and the edits found
 in the file, the document that writes those edits, and every edit it cannot restore with its reason.
 
 ```py

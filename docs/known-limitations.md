@@ -100,6 +100,11 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   calls have no identity: a deleted one is named by position. A move across environments reads as the close moved.
 - A key list, a PDF string, a `Raw` subclass and a colour in a `Value` are not read (no value, no violation); a record
   reads as a plain tuple; a length written `3 cm` is read, and `3mm` against `0.3 cm` are two values.
+- `restore` does not restore an added line, a setting, the preamble or a comment: they come back unapplied with their
+  `Reason`. A call over several lines and a change over a delimiter or the command name are `NOT_IN_ARGUMENT`. A field
+  these readers do not read (above) is `UNREADABLE`; a colour reads as its parts, not its model, so it is too.
+- A comment-out is only `%`, spaces and the line unchanged; a line commented and edited, or `%%`, is a `PARTIAL_REMOVAL`.
+- An optional argument restored to its default is stored as set (`"label": null` in `to_dict`), not left out.
 
 ## The standard headers
 

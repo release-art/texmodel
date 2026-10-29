@@ -215,3 +215,20 @@ def test_a_token_at_the_end_of_a_line_can_be_the_edited_argument():
     assert r"\spTail{t}*" in plan.text
     (edit,) = plan.edits(plan.text.replace(r"\spTail{t}*", r"\spTail{t}"))
     assert [(f.arg, f.found) for f in edit.fields] == [("starred", "")]
+
+
+def test_a_line_the_same_on_both_sides_of_a_replaced_block_is_no_edit():
+    """difflib skips a line that is in more than one in a hundred of a long file as an anchor (autojunk), so a block it
+    reports replaced can hold such a line unchanged: it is no edit."""
+    plan = Plan(tuple(Line("p", r"\end{x}") if i % 2 else Line("p", f"l{i}") for i in range(400)))
+    found = [x.tex for x in plan.lines]
+    found[10], found[12] = "A", "B"
+    assert [(e.expected, e.found) for e in plan.edits("\n".join(found) + "\n")] == [("l10", "A"), ("l12", "B")]
+
+
+def test_a_line_commented_out_pairs_with_itself_though_its_neighbour_is_gone():
+    plan = Plan(tuple(Line(f"N[{i}]", rf"  \x{{{i}}}") for i in range(4)))
+    found = [r"  \x{0}", r"%  \x{2}", r"  \x{3}"]  # the second line deleted, the third commented out
+    edits = plan.edits("\n".join(found) + "\n")
+    assert [(e.path, e.kind) for e in edits] == [("N[1]", EditKind.REMOVED), ("N[2]", EditKind.CHANGED)]
+    assert edits[1].found == r"%  \x{2}"
