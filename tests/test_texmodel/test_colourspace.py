@@ -4,7 +4,7 @@ import re
 
 import pikepdf
 import pytest
-from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
+from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.components import Value
 from texmodel.document import Document
@@ -14,10 +14,10 @@ from texmodel.ext.plates import K, Plate
 from texmodel.ext.spot import Spot, SpotColour
 from texmodel.interface import ColourName
 from texmodel.package import Package
+from texmodel.run.compiler import Compiler
+from texmodel.run.testkit import check_library
 from texmodel.spec import from_dict, json_schema, to_dict
 from texmodel.types import CMYK, RGB, Colour
-from texmodel_build.compiler import Compiler
-from texmodel_build.testkit import check_library
 
 pkg = Package("acme-space", prefix="as")
 FLAG = ColourSpace().declare(pkg)
@@ -45,9 +45,11 @@ class Plain(Value[Colour]):
     default = CMYK(0, 0, 0, 1)
 
 
-def test_the_block_the_flag_and_both_builds_of_each_colour_are_declared():
+def test_the_option_the_flag_and_both_builds_of_each_colour_are_declared():
     sty = pkg.render()
-    assert r"\newif\ifasCmyk" in sty and r"\asCmyktrue" in sty and r"\ProcessOptions\relax" in sty
+    assert r"\newif\ifasCmyk" in sty and r"\asCmyktrue" in sty and r"\ProcessKeyOptions [ acme-space ]" in sty
+    assert "cmyk .legacy_if_set:n = asCmyk ," in sty and "rgb .legacy_if_set_inverse:n = asCmyk ," in sty
+    assert sty.index("ProcessKeyOptions") < sty.index(r"\definecolor")  # the options come before every colour
     assert FLAG.__name__ == "Cmyk" and pkg.check_parts() == []
     assert r"\ifasCmyk" in sty and r"\definecolor{as-ink}{cmyk}{0,0,0,0.95}" in sty
     assert r"\definecolor{as-ink}{HTML}{2D2C2B}" in sty and r"\definecolor{asWeb}{HTML}{0F8CB8}" in sty
@@ -72,7 +74,7 @@ def test_a_pair_holds_hex_or_an_rgb_and_at_least_one_build():
     assert raised.value.code == "TM-M064"
 
 
-def test_colourspace_is_declared_before_the_colours_and_once_with_a_prefix():
+def test_colourspace_may_come_after_the_colours_and_twice_is_one_option():
     late = Package("acme-late", prefix="al")
 
     @late.value
@@ -81,14 +83,15 @@ def test_colourspace_is_declared_before_the_colours_and_once_with_a_prefix():
 
         default = ColourPair(cmyk=K(1))
 
+    ColourSpace().declare(late)  # the options section comes before every colour, wherever it is declared
+    assert late.render().index("ProcessKeyOptions") < late.render().index(r"\definecolor")
+    assert ColourSpace().declare(pkg) is FLAG  # declared again the same way: the same option
     with pytest.raises(DeclarationError) as raised:
-        ColourSpace().declare(late)
-    assert raised.value.code == "TM-M065"
+        ColourSpace(Build.RGB).declare(pkg)  # another default
+    assert raised.value.code == "TM-M073"
     with pytest.raises(DeclarationError) as raised:
         ColourSpace().declare(Package("bare", prefix=""))
     assert raised.value.code == "TM-M065"
-    with pytest.raises(DeclarationError):
-        ColourSpace().declare(pkg)  # its block is declared once
 
 
 def test_colour_of_names_any_registered_colour_value():
@@ -161,7 +164,7 @@ def fills(pdf):
     return re.findall(r"([\d. ]+) (k|rg)\b", content)
 
 
-def build(compiler, tmp_path, name, options):  # noqa: F811
+async def build(compiler, tmp_path, name, options):  # noqa: F811
     work = tmp_path / name
     work.mkdir()
     (work / "acme-space.sty").write_text(pkg.render())
@@ -170,17 +173,17 @@ def build(compiler, tmp_path, name, options):  # noqa: F811
     tex = pkg.document(Document(options=options)).replace(r"\begin{document}", "\\begin{document}\n" + body)
     src.write_text(tex)
     comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(work,))
-    return comp.compile(src, work / "out")
+    return await comp.compile(src, work / "out")
 
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_a_class_option_picks_the_build_and_the_same_name_reads_both(compiler, tmp_path):  # noqa: F811
-    printed = build(compiler, tmp_path, "print", [])
+async def test_a_class_option_picks_the_build_and_the_same_name_reads_both(compiler, tmp_path):  # noqa: F811
+    printed = await build(compiler, tmp_path, "print", [])
     assert printed.ok and printed.pdf, printed.diagnostics
     with pikepdf.open(printed.pdf) as pdf:
         assert ("0 0 0 0.95", "k") in [(a.strip(), b) for a, b in fills(pdf)]  # the CMYK build, by default
-    screen = build(compiler, tmp_path, "screen", ["rgb"])
+    screen = await build(compiler, tmp_path, "screen", ["rgb"])
     assert screen.ok and screen.pdf, screen.diagnostics
     with pikepdf.open(screen.pdf) as pdf:
         found = [(a.strip(), b) for a, b in fills(pdf)]
@@ -193,12 +196,12 @@ def test_a_class_option_picks_the_build_and_the_same_name_reads_both(compiler, t
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_a_screen_only_colour_is_undefined_in_print_and_the_block_defines_the_flag(compiler, tmp_path):  # noqa: F811
+async def test_a_screen_only_colour_is_undefined_in_print_and_the_block_defines_the_flag(compiler, tmp_path):  # noqa: F811
     work = tmp_path / "web"
     work.mkdir()
     (work / "acme-space.sty").write_text(pkg.render())
     src = work / "doc.tex"
     src.write_text(pkg.document().replace(r"\begin{document}", "\\begin{document}\n\\textcolor{asWeb}{x}"))
     comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(work,))
-    assert not comp.compile(src, work / "out").ok  # xcolor: undefined colour in the print build
-    assert check_library(compiler, pkg) == []
+    assert not (await comp.compile(src, work / "out")).ok  # xcolor: undefined colour in the print build
+    assert await check_library(compiler, pkg) == []

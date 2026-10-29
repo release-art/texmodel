@@ -2,11 +2,12 @@ r"""colourspace: a colour with a print build and a screen build, one name, chose
 
 A brand that prints and shows on screen states each colour twice: CMYK for print, RGB for screen. `ColourPair` holds
 both, and `Value[Dual]` declares it under one xcolor name (`ap-ink`): the CMYK definition when the print build is
-in use, the HTML one when not. A document picks the build with a class option (`Document(options=["rgb"])`), which
-LaTeX gives to every package that declares it. It is not a conversion between models: both builds are stated.
+in use, the HTML one when not. The build is the package option `cmyk` (and its inverse `rgb`): a document sets the flag
+`ColourSpace.declare` returns, or passes a class option (`Document(options=["rgb"])`), which LaTeX gives to every
+package that declares it. It is not a conversion between models: both builds are stated.
 
 ```python
-ColourSpace().declare(pkg)          # before the colours: the options and the flag
+ColourSpace().declare(pkg)          # the option `cmyk` / `rgb` and its flag
 
 
 class Ink(Value[Dual]):
@@ -31,17 +32,9 @@ from ..components import Value
 from ..errors import DeclarationError
 from ..interface import colour_of
 from ..package import Package
-from ..types import CMYK, RGB, Raw
+from ..types import CMYK, RGB
 
 _HEX = re.compile(r"[0-9A-Fa-f]{6}")
-
-LIBRARY = r"""
-    \newif\if<<p>>Cmyk
-    \<<p>>Cmyk<<default>>
-    \DeclareOption{cmyk}{\<<p>>Cmyktrue}
-    \DeclareOption{rgb}{\<<p>>Cmykfalse}
-    \ProcessOptions\relax
-"""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -137,28 +130,21 @@ class Build(enum.Enum):
 
 @dataclasses.dataclass(frozen=True)
 class ColourSpace:
-    """The `cmyk` and `rgb` package options and the flag `\\if<prefix>Cmyk` the colours test. It processes the
-    package's options (`\\ProcessOptions`, once per package), so it is declared before the colours and before any other
-    options the package declares."""
+    """The package option `cmyk`, with its inverse `rgb`, and the flag `\\if<prefix>Cmyk` the colours test. The
+    options section comes before every colour, so it may be declared anywhere in the package."""
 
     default: Build = Build.CMYK
 
     def declare(self, package: Package) -> type[Value[Any]]:
-        """The block, and the flag as a `Value[bool]` (`\\if<prefix>Cmyk`) that the block defines."""
+        """The option, and the flag it sets, a `Value[bool]` (`\\if<prefix>Cmyk`)."""
         if not package.prefix:
             raise DeclarationError("ColourSpace: the package has no prefix", code="TM-M065", path=package.name)
-        if any(getattr(c, "__tm_kind__", None) is KIND for c in package.registered):
-            raise DeclarationError(
-                "ColourSpace: declare it before the colours: the colours test its flag when the package loads",
-                code="TM-M065",
-                path=package.name,
-            )
-        lib = package.library(
-            "colourspace",
-            LIBRARY,
-            fill={"p": Raw(package.prefix), "default": Raw("true" if self.default is Build.CMYK else "false")},
+        return package.option(
+            "cmyk",
+            flag=self.default is Build.CMYK,
+            inverse="rgb",
+            doc="Whether the print build of the colours is in use.",
         )
-        return package.make_value("Cmyk", bool, "Whether the print build of the colours is in use.", defined_by=lib)
 
 
 __all__ = ["KIND", "Build", "ColourPair", "ColourSpace", "Dual", "colour_of"]

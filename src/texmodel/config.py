@@ -26,6 +26,7 @@ def load_config(pyproject: pathlib.Path) -> Config:
     table: dict[str, Any] | None = tomllib.loads(pyproject.read_text(encoding="utf-8")).get("tool", {}).get("texmodel")
     if table is None:
         raise DeclarationError(f"{pyproject}: no [tool.texmodel] table", code="TM-D001", hint="add [tool.texmodel]")
+    table = {k: v for k, v in table.items() if k != "run"}  # [tool.texmodel.run] is texmodel.run's own table
     known = {f.name for f in dataclasses.fields(Config)}
     if unknown := sorted(set(table) - known):
         raise DeclarationError(

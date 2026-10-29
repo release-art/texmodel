@@ -3,9 +3,11 @@ after each control word, runs of spaces one)."""
 
 import re
 
-from ..errors import DeclarationError
+from ..errors import DeclarationError, Violation
 from ..interface import Body, BodyKind
+from ..plan import FieldEdit
 from ..types import Length, Raw, escape
+from .render import Arg
 from .values import value_ok, value_text
 
 _CONTROL_WORD = re.compile(r"\\[A-Za-z]+")
@@ -102,3 +104,18 @@ def read_value(body: Body, text: str, *, booleans: tuple[str, str] = ("true", "f
             return [read_value(body.items[0], p, booleans=booleans, sep=sep) for p in text.split(sep)] if text else []
         case _:
             raise NotImplementedError(body.kind.value)
+
+
+def read_field(a: Arg, text: str) -> FieldEdit:
+    """One argument's text (as `\\detokenize` shows it) as a `FieldEdit`: the typed value it reads back to. An optional
+    argument left out or empty has no value. A text that is not a value of the field's type has a `Violation`
+    (`TM-C021`) whose path is the field; what the text cannot say (a colour's model, a key list) has neither."""
+    if a.optional and not a.token and not text:
+        return FieldEdit(a.name, text)
+    try:
+        return FieldEdit(a.name, text, read_value(a.body, text, booleans=a.booleans, sep=a.sep))
+    except NotImplementedError:
+        return FieldEdit(a.name, text)
+    except ValueError as exc:
+        hint = f"expected {a.body.describe()}"
+        return FieldEdit(a.name, text, violation=Violation("TM-C021", a.name, f"{a.name}: {exc}", hint=hint))

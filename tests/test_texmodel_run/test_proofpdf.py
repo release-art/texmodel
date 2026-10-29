@@ -4,10 +4,10 @@ import pathlib
 import pikepdf
 import pytest
 
-from texmodel_build import testkit
-from texmodel_build._internal.proofpdf import ProofPdf
-from texmodel_build.diagnostics import Severity
-from texmodel_build.verify import Profile, registered, verify_file
+from texmodel.run import testkit
+from texmodel.run._internal.proofpdf import ProofPdf
+from texmodel.run.diagnostics import Severity
+from texmodel.run.verify import Profile, registered, verify_file
 
 
 @pytest.fixture
@@ -23,21 +23,21 @@ def pdf(tmp_path) -> pathlib.Path:
 STRUCTURE = {"pdfa": False, "colour": False}
 
 
-def test_the_adapter_runs_proof_pdfs_in_process_checks(pdf):
-    report = verify_file(pdf, Profile(checks=("proof-pdf",), options={"proof-pdf": STRUCTURE}), registered())
+async def test_the_adapter_runs_proof_pdfs_in_process_checks(pdf):
+    report = await verify_file(pdf, Profile(checks=("proof-pdf",), options={"proof-pdf": STRUCTURE}), registered())
     assert not report.ok  # a bare page has no PDF/X-4 identity
     assert {f.check for f in report.findings}
     assert all(f.severity in (Severity.ERROR, Severity.WARNING) for f in report.findings)
 
 
-def test_options_map_onto_proof_pdfs_profile(pdf):
+async def test_options_map_onto_proof_pdfs_profile(pdf):
     options = {
         **STRUCTURE,
         "geometry": {"trim_w_mm": 50, "trim_h_mm": 50, "bleed_mm": 3},
         "allow_spots": ["Dieline"],
         "proof_profile": "p.icc",
     }
-    findings = ProofPdf().verify(pdf, options)
+    findings = await ProofPdf().verify(pdf, options)
     assert any("trim" in f.message.lower() or "box" in f.message.lower() for f in findings)
 
 
@@ -63,5 +63,5 @@ def test_without_proof_pdf_installed_the_verifier_fails_closed(monkeypatch):
     assert "pip install 'texmodel[proof-pdf]'" in (ProofPdf().unavailable({}) or "")
 
 
-def test_the_adapter_passes_the_plugin_contract(tmp_path):
-    testkit.check_verifier_contract(ProofPdf(), tmp_path)
+async def test_the_adapter_passes_the_plugin_contract(tmp_path):
+    await testkit.check_verifier_contract(ProofPdf(), tmp_path)

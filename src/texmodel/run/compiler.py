@@ -6,8 +6,8 @@ is the image's job: with an `image` the compile runs `docker run` over it with t
 output directory writable; without one it runs the tools on this machine (for instance, when already inside the image).
 """
 
+import asyncio
 import dataclasses
-import functools
 import logging
 import os
 import pathlib
@@ -15,6 +15,7 @@ import re
 import time
 import uuid
 from collections.abc import Mapping, Sequence
+from typing import Any
 
 from texmodel.errors import DeclarationError
 from texmodel.plan import Plan
@@ -85,34 +86,40 @@ class Compiler:
     epoch: int | None = None  # reproducible mode (C6): pins SOURCE_DATE_EPOCH
     measures: tuple[Measure, ...] = ()  # how to read a package's warnings as typed measurements (B2)
     timeout: float = 300.0  # seconds, wall clock; the container is killed when it passes
+    # what a probe found, kept for this compiler's life; `dataclasses.replace` starts a new one, as a new engine needs
+    _probed: dict[str, Any] = dataclasses.field(default_factory=dict[str, Any], init=False, repr=False, compare=False)
 
-    @functools.cached_property
-    def _fonts(self) -> pathlib.Path | None:
+    async def _fonts(self) -> pathlib.Path | None:
         """The font cache, one directory per image: a font database is only valid for the fonts it indexed."""
         if self.font_cache is None:
             return None
-        info = self.image_info
+        info = await self.image_info()
         return (self.font_cache / info.digest.removeprefix("sha256:")[:12] if info else self.font_cache).resolve()
 
     # -- probing -----------------------------------------------------------------------------------------
 
-    @functools.cached_property
-    def versions(self) -> Versions:
+    async def versions(self) -> Versions:
+        """The engine's and latexmk's versions and the optional tools present, probed once."""
+        if "versions" in self._probed:
+            return self._probed["versions"]
         script = (
             f"latexmk -v 2>&1 | head -n 2; echo @@; {self.engine.binary} --version 2>&1 | head -n 1; echo @@; "
             f"for t in {' '.join(_TOOLS)}; do command -v $t >/dev/null && echo $t; done; true"
         )
-        proc = self._sh(script)
+        proc = await self._sh(script)
         latexmk, engine, tools = (proc.stdout.split("@@\n") + ["", ""])[:3]
         m = _VERSION.search(latexmk)
-        return Versions(engine.strip(), m[1] if m else "", tuple(tools.split()))
+        found = self._probed["versions"] = Versions(engine.strip(), m[1] if m else "", tuple(tools.split()))
+        return found
 
-    @functools.cached_property
-    def image_info(self) -> ImageInfo | None:
+    async def image_info(self) -> ImageInfo | None:
+        """The image's digest and revision, inspected once; `None` without an image."""
         if self.image is None:
             return None
+        if "image" in self._probed:
+            return self._probed["image"]
         fmt = '{{.Id}}|{{index .Config.Labels "org.opencontainers.image.revision"}}'
-        proc = spawn(
+        proc = await spawn(
             ["docker", "image", "inspect", "--format", fmt, self.image], cwd=None, env=self._host_env(), timeout=60
         )
         if proc.returncode != 0:
@@ -122,19 +129,21 @@ class Compiler:
                 hint=f"docker pull {self.image}",
             )
         digest, _, revision = proc.stdout.strip().partition("|")
-        return ImageInfo(digest, revision)
+        found = self._probed["image"] = ImageInfo(digest, revision)
+        return found
 
-    def check_ready(self) -> Versions:
+    async def check_ready(self) -> Versions:
         """The versions, or a ToolchainError naming what is missing (`doctor` and `compile` both use this)."""
-        _ = self.image_info
-        if not self.versions.latexmk_version:
+        await self.image_info()
+        versions = await self.versions()
+        if not versions.latexmk_version:
             where = f"image {self.image}" if self.image else "this machine"
             raise ToolchainError(
                 f"latexmk is not available in {where}", code="TM-T003", hint="the images need latexmk (plan C8)"
             )
-        return self.versions
+        return versions
 
-    def missing_files(self, files: Sequence[str]) -> tuple[str, ...]:
+    async def missing_files(self, files: Sequence[str]) -> tuple[str, ...]:
         """Which of `files` `kpsewhich` cannot find, here or in the image (D2); no network is used."""
         if not files:
             return ()
@@ -145,11 +154,11 @@ class Compiler:
             "command -v kpsewhich >/dev/null || { echo 'kpsewhich is not installed' >&2; exit 127; }\n"
             f'for f in {" ".join(files)}; do kpsewhich "$f" >/dev/null || echo "$f"; done'
         )
-        return tuple(self._sh(script).stdout.split())
+        return tuple((await self._sh(script)).stdout.split())
 
     # -- compiling ---------------------------------------------------------------------------------------
 
-    def compile(
+    async def compile(
         self,
         source: pathlib.Path,
         outdir: pathlib.Path,
@@ -168,11 +177,11 @@ class Compiler:
                 code="TM-X002",
                 hint="intermediates never share a directory with sources (C7)",
             )
-        versions = self.check_ready()
-        info = self.image_info
+        versions = await self.check_ready()
+        info = await self.image_info()
         outdir.mkdir(parents=True, exist_ok=True)
         started = time.time()
-        proc = self._latexmk(source, outdir)
+        proc = await self._latexmk(source, outdir)
         diagnostics: list[Diagnostic] = []
         stem = source.stem
         log, pdf = outdir / f"{stem}.log", outdir / f"{stem}.pdf"
@@ -185,7 +194,7 @@ class Compiler:
         passes = max((int(n) for n in _RUN.findall(proc.stdout)), default=0)
 
         if _UNSTABLE.search(proc.stdout + proc.stderr):  # latexmk says it on stderr
-            diagnostics.append(self._not_converged(source, outdir, passes))
+            diagnostics.append(await self._not_converged(source, outdir, passes))
         if proc.timed_out:
             diagnostics.append(Unexplained(message=f"timed out after {self.timeout:g}s"))
         elif (proc.returncode != 0 or not has_pdf) and not any(d.severity is Severity.ERROR for d in diagnostics):
@@ -212,11 +221,13 @@ class Compiler:
         )
         return result
 
-    def clean(self, source: pathlib.Path, outdir: pathlib.Path, *, everything: bool = False) -> None:
+    async def clean(self, source: pathlib.Path, outdir: pathlib.Path, *, everything: bool = False) -> None:
         """`latexmk -c` (`-C` with `everything`); if latexmk cannot run, delete the known intermediate files."""
         source, outdir = source.resolve(), outdir.resolve()
         try:
-            proc = self._tool("latexmk", ["-C" if everything else "-c", "-outdir={out}", source.name], source, outdir)
+            proc = await self._tool(
+                "latexmk", ["-C" if everything else "-c", "-outdir={out}", source.name], source, outdir
+            )
             if proc.returncode == 0:
                 return
         except ToolchainError:
@@ -227,7 +238,7 @@ class Compiler:
 
     # -- internals ---------------------------------------------------------------------------------------
 
-    def _latexmk(self, source: pathlib.Path, outdir: pathlib.Path, extra: Sequence[str] = ()) -> Proc:
+    async def _latexmk(self, source: pathlib.Path, outdir: pathlib.Path, extra: Sequence[str] = ()) -> Proc:
         args = [
             *self.engine.latexmk_args,
             "-interaction=nonstopmode",
@@ -239,18 +250,18 @@ class Compiler:
             *extra,
             source.name,
         ]
-        proc = self._tool("latexmk", args, source, outdir)
+        proc = await self._tool("latexmk", args, source, outdir)
         if proc.returncode == 127 or (self.image and proc.returncode == 125):
             # 125 is docker's own failure (the daemon, a mount), not latexmk's: say which, so a one-off is diagnosable
             who = "docker could not start the container" if proc.returncode == 125 else "could not run latexmk"
-            raise ToolchainError(f"{who}: {_tail(proc.stderr)}", code="TM-T004", hint="run `texmodel-build doctor`")
+            raise ToolchainError(f"{who}: {_tail(proc.stderr)}", code="TM-T004", hint="run `texmodel run doctor`")
         return proc
 
-    def _not_converged(self, source: pathlib.Path, outdir: pathlib.Path, passes: int) -> Diagnostic:
+    async def _not_converged(self, source: pathlib.Path, outdir: pathlib.Path, passes: int) -> Diagnostic:
         """One more pass, to see which `.aux` entries still move (C1a)."""
         aux = outdir / f"{source.stem}.aux"
         before = aux.read_text(encoding="utf-8", errors="replace") if aux.is_file() else ""
-        self._latexmk(source, outdir, extra=["-g", "-e", "$max_repeat=1;"])
+        await self._latexmk(source, outdir, extra=["-g", "-e", "$max_repeat=1;"])
         after = aux.read_text(encoding="utf-8", errors="replace") if aux.is_file() else ""
         changed = aux_diff(before, after)
         return NotConverged(
@@ -258,7 +269,7 @@ class Compiler:
             changed=changed,
         )
 
-    def _locations(self, source: pathlib.Path, outdir: pathlib.Path) -> dict[str, str | list[str]]:
+    async def _locations(self, source: pathlib.Path, outdir: pathlib.Path) -> dict[str, str | list[str]]:
         if self.image:
             roots = [f"/work/roots/{i}" for i, _ in enumerate(self.roots)]
             fonts = [f"/work/fonts/{i}" for i, _ in enumerate(self.font_dirs)]
@@ -273,7 +284,7 @@ class Compiler:
             "out": str(outdir),
             "roots": [str(r.resolve()) for r in self.roots],
             "fonts": [str(f.resolve()) for f in self.font_dirs],
-            "cache": str(self._fonts) if self._fonts else "",
+            "cache": str(fonts) if (fonts := await self._fonts()) else "",
         }
 
     def _env(self, loc: dict[str, str | list[str]]) -> dict[str, str]:
@@ -284,30 +295,40 @@ class Compiler:
     def _host_env(self) -> dict[str, str]:
         return {k: os.environ[k] for k in ("PATH", "HOME", "DOCKER_HOST", "DOCKER_CONFIG") if k in os.environ}
 
-    def _tool(self, tool: str, args: Sequence[str], source: pathlib.Path, outdir: pathlib.Path) -> Proc:
-        """Run `tool` with `{out}` in args replaced by the output directory as the tool sees it."""
-        loc = self._locations(source, outdir)
+    async def _tool(self, tool: str, args: Sequence[str], source: pathlib.Path, outdir: pathlib.Path) -> Proc:
+        """Run `tool` with `{out}` in args replaced by the output directory as the tool sees it. A run in the image that
+        times out or is cancelled has its container killed, so none is left behind."""
+        loc = await self._locations(source, outdir)
         roots = loc["roots"]
         assert isinstance(roots, list)
         env = self._env(loc)
         argv = [a.replace("{out}", str(loc["out"])) for a in args]
-        if self._fonts:
-            self._fonts.mkdir(parents=True, exist_ok=True)
+        cache = await self._fonts()
+        if cache:
+            cache.mkdir(parents=True, exist_ok=True)
         if not self.image:
-            return spawn([tool, *argv], cwd=source.parent, env={**self._host_env(), **env}, timeout=self.timeout)
+            return await spawn([tool, *argv], cwd=source.parent, env={**self._host_env(), **env}, timeout=self.timeout)
         name = f"texmodel-{uuid.uuid4().hex[:12]}"
         mounts = [(source.parent, loc["src"], True), (outdir, loc["out"], False)]
         mounts += [(r.resolve(), p, True) for r, p in zip(self.roots, roots, strict=True)]
         fonts = loc["fonts"]
         assert isinstance(fonts, list)
         mounts += [(f.resolve(), p, True) for f, p in zip(self.font_dirs, fonts, strict=True)]
-        if self._fonts:
-            mounts.append((self._fonts, loc["cache"], False))
+        if cache:
+            mounts.append((cache, loc["cache"], False))
         docker = self._docker(name, mounts, env, tool)
-        proc = spawn([*docker, *argv], cwd=None, env=self._host_env(), timeout=self.timeout)
+        try:
+            proc = await spawn([*docker, *argv], cwd=None, env=self._host_env(), timeout=self.timeout)
+        except asyncio.CancelledError:
+            await self._kill(name)
+            raise
         if proc.timed_out:
-            spawn(["docker", "kill", name], cwd=None, env=self._host_env(), timeout=30)
+            await self._kill(name)
         return proc
+
+    async def _kill(self, container: str) -> None:
+        """`docker kill`: killing the `docker run` client does not stop its container."""
+        await spawn(["docker", "kill", container], cwd=None, env=self._host_env(), timeout=30)
 
     def _docker(
         self,
@@ -328,15 +349,15 @@ class Compiler:
             argv += ["-e", f"{k}={v}"]
         return [*argv, "--entrypoint", entrypoint, self.image]
 
-    def _sh(self, script: str) -> Proc:
+    async def _sh(self, script: str) -> Proc:
         if self.image:
             docker = ["docker", "run", "--rm", "--entrypoint", "sh", self.image, "-c", script]
-            proc = spawn(docker, cwd=None, env=self._host_env(), timeout=120)
+            proc = await spawn(docker, cwd=None, env=self._host_env(), timeout=120)
         else:
-            proc = spawn(["sh", "-c", script], cwd=None, env=self._host_env(), timeout=120)
+            proc = await spawn(["sh", "-c", script], cwd=None, env=self._host_env(), timeout=120)
         if proc.returncode != 0:
             raise ToolchainError(
-                f"probe failed: {_tail(proc.stderr)}", code="TM-T005", hint="run `texmodel-build doctor`"
+                f"probe failed: {_tail(proc.stderr)}", code="TM-T005", hint="run `texmodel run doctor`"
             )
         return proc
 

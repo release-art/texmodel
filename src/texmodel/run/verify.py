@@ -1,7 +1,7 @@
 """Verifier plugins (V4, V5, L1): checks over a built file, discovered through entry points.
 
 A verifier is any object with a `name`, an `unavailable(options)` that says why it cannot run here (or `None`), and a
-`verify(path, options)` returning findings. Register it in the `texmodel_build.verifiers` entry-point group, as a
+`async verify(path, options)` returning findings. Register it in the `texmodel.run.verifiers` entry-point group, as a
 callable that returns the verifier.
 
 The rule that matters is V5, **unconfirmable means failure**: a verifier that cannot run, a file that cannot be opened,
@@ -9,18 +9,18 @@ a plugin that crashes, and a profile that selects nothing are all errors, never 
 the exemption registry, which keeps it listed with its reason.
 """
 
+import asyncio
 import dataclasses
 import fnmatch
 import importlib.metadata
 import pathlib
 from collections.abc import Mapping, Sequence
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Protocol
 
 from .diagnostics import Severity
 from .errors import ToolchainError
 
-GROUP = "texmodel_build.verifiers"
+GROUP = "texmodel.run.verifiers"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -64,7 +64,7 @@ class Verifier(Protocol):
         """Why this verifier cannot run here with these options (a missing tool, say), or `None`."""
         ...
 
-    def verify(self, path: pathlib.Path, options: Mapping[str, Any]) -> Sequence[Finding]: ...
+    async def verify(self, path: pathlib.Path, options: Mapping[str, Any]) -> Sequence[Finding]: ...
 
 
 def registered() -> dict[str, Verifier]:
@@ -91,7 +91,7 @@ def exemption(path: pathlib.PurePath, exempt: Mapping[str, str]) -> str | None:
     return None
 
 
-def verify_file(
+async def verify_file(
     path: pathlib.Path,
     profile: Profile,
     available: Mapping[str, Verifier],
@@ -118,13 +118,13 @@ def verify_file(
             findings.append(Finding(name, Severity.ERROR, f"cannot confirm: {why}"))
             continue
         try:
-            findings.extend(verifier.verify(path, options))
+            findings.extend(await verifier.verify(path, options))
         except Exception as exc:
             findings.append(Finding(name, Severity.ERROR, f"verifier crashed: {exc!r}"))
     return FileReport(path, tuple(findings))
 
 
-def verify_files(
+async def verify_files(
     paths: Sequence[pathlib.Path],
     profile: Profile,
     available: Mapping[str, Verifier],
@@ -132,13 +132,16 @@ def verify_files(
     *,
     jobs: int = 1,
 ) -> list[FileReport]:
-    """One report per path, in order."""
+    """One report per path, in order, up to `jobs` at once."""
+    slots = asyncio.Semaphore(max(1, jobs))
 
-    def one(path: pathlib.Path) -> FileReport:
-        return verify_file(path, profile, available, exempt)
+    async def one(path: pathlib.Path) -> FileReport:
+        async with slots:
+            return await verify_file(path, profile, available, exempt)
 
-    with ThreadPoolExecutor(max_workers=max(1, jobs)) as pool:
-        return list(pool.map(one, paths))
+    async with asyncio.TaskGroup() as group:
+        running = [group.create_task(one(p)) for p in paths]
+    return [r.result() for r in running]
 
 
 def expand_targets(

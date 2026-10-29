@@ -11,7 +11,7 @@ Python objects, a JSON Schema for their data, checks that committed files are cu
 > [known limitations](docs/known-limitations.md).
 
 ```zsh
-pip install texmodel                 # the library and the texmodel-build command
+pip install texmodel                 # the library and the texmodel command
 pip install 'texmodel[proof-pdf]'    # plus the proof-pdf verifier
 ```
 
@@ -51,7 +51,7 @@ texmodel check     # exit 1 if a committed generated file is stale, missing or o
 - **Checked early.** A bad declaration is refused when the class is defined, with a stable code (`TM-M0xx`) and the class
   named. A bad document reports everything wrong at once, each with a path.
 - **Typed.** `Text` is escaped, `Raw` passes through; `Length`, colours, flags, choices and key lists are values, not strings.
-- **No TeX needed to run.** The library never starts a process. `texmodel-build` is the optional `latexmk` driver.
+- **No TeX needed to run.** The library never starts a process. `texmodel.run` is the optional `latexmk` driver.
 
 ## Documentation
 
@@ -72,5 +72,5 @@ change. Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
 ## Licence
 
-[MIT](LICENSE). The reference images carry their own licences (Ghostscript is AGPL); `texmodel-build` runs them as a
+[MIT](LICENSE). The reference images carry their own licences (Ghostscript is AGPL); `texmodel run` runs them as a
 separate process and ships none of their code.

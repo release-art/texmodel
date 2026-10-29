@@ -1,7 +1,7 @@
 """Typed preamble entries (§21): rendered text, slot rules and plan paths."""
 
 import pytest
-from test_texmodel_build.test_compile_tex import compiler, fonts, require_files  # noqa: F401
+from test_texmodel_run.test_compile_tex import compiler, fonts, require_files  # noqa: F401
 
 from texmodel.components import Passthrough
 from texmodel.document import Document
@@ -57,18 +57,18 @@ def test_an_entry_in_the_wrong_slot_is_refused_with_its_path():
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_document_metadata_is_accepted_and_reaches_the_pdf(compiler, tmp_path):  # noqa: F811
+async def test_document_metadata_is_accepted_and_reaches_the_pdf(compiler, tmp_path):  # noqa: F811
     """`RequireMetadata` before `\\documentclass`, as the reference image's LaTeX reads it (needs `tagpdf-base`)."""
     import pikepdf
 
-    require_files(compiler, "tagpdf-base.sty")
+    await require_files(compiler, "tagpdf-base.sty")
     slots = PreambleSlots(before_class=(RequireMetadata(lang="en-GB", pdfversion="1.7"),))
     plan = latex.package.plan(
         Document(Passthrough(Raw("x")), preamble=slots)
     )  # the kernel header: no \\usepackage line
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "d.tex").write_text(plan.text, encoding="utf-8")
-    result = compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out", plan=plan)
+    result = await compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out", plan=plan)
     assert result.ok, [(d.path, d.message) for d in result.errors]
     with pikepdf.open(result.pdf) as pdf:  # pyright: ignore[reportArgumentType]
         assert pdf.pdf_version == "1.7" and str(pdf.Root.Lang) == "en-GB"
@@ -76,7 +76,7 @@ def test_document_metadata_is_accepted_and_reaches_the_pdf(compiler, tmp_path): 
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_input_if_exists_reads_a_file_that_is_there_and_ignores_one_that_is_not(compiler, tmp_path):  # noqa: F811
+async def test_input_if_exists_reads_a_file_that_is_there_and_ignores_one_that_is_not(compiler, tmp_path):  # noqa: F811
     slots = PreambleSlots(after_package=(InputIfExists("variant"), InputIfExists("absent")))
     check = Passthrough(
         Raw(r"\ifdefined\variantloaded\else\errmessage{variant.tex was not read}\fi x")
@@ -85,7 +85,7 @@ def test_input_if_exists_reads_a_file_that_is_there_and_ignores_one_that_is_not(
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "variant.tex").write_text(r"\def\variantloaded{1}", encoding="utf-8")
     (tmp_path / "src" / "d.tex").write_text(plan.text, encoding="utf-8")
-    result = compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out", plan=plan)
+    result = await compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out", plan=plan)
     assert result.ok, [(d.path, d.message) for d in result.errors]
 
 

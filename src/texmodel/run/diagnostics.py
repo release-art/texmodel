@@ -180,7 +180,7 @@ class MeasureKind(enum.Enum):
 
 @dataclasses.dataclass(frozen=True)
 class Measure:
-    """`[tool.texmodel-build.measures.<name>]`: how to read one package's warning as a typed measurement (B2).
+    """`[tool.texmodel.run.measures.<name>]`: how to read one package's warning as a typed measurement (B2).
     `pattern` is searched in the warning's message and has the named groups `item`, `needs` and `has`, lengths
     (`322.436pt`, `11mm`; a bare number is in pt)."""
 
@@ -197,11 +197,11 @@ class Measure:
             chosen = MeasureKind(kind)
         except (re.error, ValueError) as exc:
             raise DeclarationError(
-                f"[tool.texmodel-build.measures.{name}]: {exc}", code="TM-D032", hint='kind is "fit"; pattern a regex'
+                f"[tool.texmodel.run.measures.{name}]: {exc}", code="TM-D032", hint='kind is "fit"; pattern a regex'
             ) from exc
         if missing := {"item", "needs", "has"} - set(compiled.groupindex):
             raise DeclarationError(
-                f"[tool.texmodel-build.measures.{name}]: pattern lacks the groups {sorted(missing)}",
+                f"[tool.texmodel.run.measures.{name}]: pattern lacks the groups {sorted(missing)}",
                 code="TM-D032",
                 hint="use (?P<item>...), (?P<needs>...) and (?P<has>...)",
             )

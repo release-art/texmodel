@@ -1,6 +1,5 @@
 """The built-in verifier over proof-pdf (the `proof-pdf` extra): PDF/A, PDF/X-4, geometry, colour, proofing."""
 
-import asyncio
 import pathlib
 from collections.abc import Mapping, Sequence
 from typing import Any
@@ -39,11 +38,10 @@ class ProofPdf:
         missing = core.missing_tools(profile)
         return f"missing tools: {', '.join(missing)}" if missing else None
 
-    def verify(self, path: pathlib.Path, options: Mapping[str, Any]) -> Sequence[Finding]:
+    async def verify(self, path: pathlib.Path, options: Mapping[str, Any]) -> Sequence[Finding]:
         from proof_pdf import core, models
 
-        # ponytail: asyncio.run per file, so not callable inside a running loop; fine for the CLI and threads.
-        report = asyncio.run(core.verify_file(path, _profile(options)))
+        report = await core.verify_file(path, _profile(options))
         return [
             Finding(
                 f.check, Severity.ERROR if f.severity is models.Severity.ERROR else Severity.WARNING, f.message, f.page

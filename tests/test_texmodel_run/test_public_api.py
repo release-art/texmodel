@@ -1,11 +1,11 @@
-"""The public/private line of texmodel-build: top-level modules are public, everything else is in ``_internal``."""
+"""The public/private line of texmodel.run: top-level modules are public, everything else is in ``_internal``."""
 
 import importlib
 import pkgutil
 
 import pytest
 
-import texmodel_build
+import texmodel.run
 
 PUBLIC = {
     "cli", "compiler", "config", "diagnostics", "engines", "errors", "fonts", "hand_edits", "result", "targets",
@@ -14,13 +14,13 @@ PUBLIC = {
 
 
 def test_only_the_public_modules_sit_at_the_top_level():
-    top = {m.name for m in pkgutil.iter_modules(texmodel_build.__path__)}
+    top = {m.name for m in pkgutil.iter_modules(texmodel.run.__path__)}
     assert top - {"_internal"} == PUBLIC
 
 
 @pytest.mark.parametrize("name", sorted(PUBLIC - {"cli"}))
 def test_all_lists_what_a_module_offers(name):
-    mod = importlib.import_module(f"texmodel_build.{name}")
+    mod = importlib.import_module(f"texmodel.run.{name}")
     defined = {
         n for n, o in vars(mod).items() if not n.startswith("_") and getattr(o, "__module__", None) == mod.__name__
     }

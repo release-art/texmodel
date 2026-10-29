@@ -90,9 +90,9 @@ texmodel.ext.plates.PROCESS: frozenset
 texmodel.ext.plates.Plate(*values)
 texmodel.ext.plates.plates_of(colour: object) -> frozenset[str]
 texmodel.ext.printpage.LIBRARY: str
-texmodel.ext.printpage.PrintPage(*, width: Length, height: Length, bleed: Length | Sides, overflow: Length | Sides | None = …, margin: Length | Sides | None = …, sheet: Sheet = …) -> None
+texmodel.ext.printpage.PrintPage(*, width: Length, height: Length, bleed: Length | Sides, overflow: Length | Sides | None = …, margin: Length | Sides | None = …, sheet: Sheet = …, marks: bool = …) -> None
 texmodel.ext.printpage.PrintPage.boxes(self) -> str
-texmodel.ext.printpage.PrintPage.declare(self, package: Package) -> None
+texmodel.ext.printpage.PrintPage.declare(self, package: Package, *, full: type[Value[Any]] | None = …, landscape: type[Value[Any]] | None = …) -> None
 texmodel.ext.printpage.PrintPage.geometry(self) -> str
 texmodel.ext.printpage.Sheet(*values)
 texmodel.ext.printpage.Sides(*, all: Length | None = …, horizontal: Length | None = …, vertical: Length | None = …, top: Length | None = …, right: Length | None = …, bottom: Length | None = …, left: Length | None = …) -> None
@@ -174,6 +174,8 @@ texmodel.package.Package.known_controls: property
 texmodel.package.Package.library(self, name: str, source: str | TemplateRef, *, syntax: Syntax = …, fill: object | None = …) -> Library
 texmodel.package.Package.make_command(self, name: str, doc: str, *, fields: Mapping[str, tuple[object, object]] | None = …, body: str | None = …, defined_by: Library | None = …, cs: str | None = …, module: str | None = …) -> type[Command]
 texmodel.package.Package.make_value(self, name: str, kind: object, doc: str, *, default: object = …, colour_name: str | None = …, defined_by: Library | None = …, cs: str | None = …, module: str | None = …) -> type[AnyValue]
+texmodel.package.Package.option(self, name: str, *, doc: str, flag: bool | None = …, length: Length | None = …, choice: Choice | None = …, inverse: str | None = …, cs: str | None = …) -> type[AnyValue]
+texmodel.package.Package.options: property
 texmodel.package.Package.plan(self, *body: Node | Document) -> Plan
 texmodel.package.Package.registered: property
 texmodel.package.Package.render(self, *, version: str | None = …) -> str
@@ -217,6 +219,82 @@ texmodel.preamble.PreambleSlots(before_class: tuple[Raw | Entry, ...] = …, bef
 texmodel.preamble.PreambleSlots.items(self) -> Iterator[tuple[str, int, Raw | Entry]]
 texmodel.preamble.RequireMetadata(**entries: str) -> None
 texmodel.preamble.RequireMetadata.raw(self) -> Raw
+texmodel.run.CompileResult(*, pdf: pathlib.Path | None, log: pathlib.Path | None, passes: int, pages: int | None, diagnostics: tuple[Diagnostic, ...], seconds: float, engine: str, engine_version: str, latexmk_version: str, image: str | None = …, image_digest: str | None = …, image_revision: str | None = …) -> None
+texmodel.run.Compiler(*, engine: Engine = …, image: str | None = …, roots: tuple[pathlib.Path, ...] = …, font_dirs: tuple[pathlib.Path, ...] = …, halt_on_error: bool = …, font_cache: pathlib.Path | None = …, max_passes: int = …, epoch: int | None = …, measures: tuple[Measure, ...] = …, timeout: float = …) -> None
+texmodel.run.compiler.Compiler(*, engine: Engine = …, image: str | None = …, roots: tuple[pathlib.Path, ...] = …, font_dirs: tuple[pathlib.Path, ...] = …, halt_on_error: bool = …, font_cache: pathlib.Path | None = …, max_passes: int = …, epoch: int | None = …, measures: tuple[Measure, ...] = …, timeout: float = …) -> None
+async texmodel.run.compiler.Compiler.check_ready(self) -> Versions
+async texmodel.run.compiler.Compiler.clean(self, source: pathlib.Path, outdir: pathlib.Path, *, everything: bool = …) -> None
+async texmodel.run.compiler.Compiler.compile(self, source: pathlib.Path, outdir: pathlib.Path, *, plan: Plan | None = …, plans: Mapping[str, Plan] | None = …) -> CompileResult
+async texmodel.run.compiler.Compiler.image_info(self) -> ImageInfo | None
+async texmodel.run.compiler.Compiler.missing_files(self, files: Sequence[str]) -> tuple[str, ...]
+async texmodel.run.compiler.Compiler.versions(self) -> Versions
+texmodel.run.compiler.ImageInfo(digest: str, revision: str) -> None
+texmodel.run.compiler.Versions(engine_version: str, latexmk_version: str, tools: tuple[str, ...]) -> None
+texmodel.run.config.BuildConfig(*, engine: str = …, image: str = …, targets: dict[str, Target] = …, profiles: dict[str, Profile] = …, measures: dict[str, Measure] = …, exempt: dict[str, str] = …) -> None
+texmodel.run.config.Target(*, name: str, source: str, engine: str = …, plan: str = …) -> None
+texmodel.run.config.load_build_config(pyproject: pathlib.Path) -> BuildConfig
+texmodel.run.diagnostics.Diagnostic(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …) -> None
+texmodel.run.diagnostics.Diagnostic.to_dict(self) -> dict[str, Any]
+texmodel.run.diagnostics.DocumentRefusal(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …) -> None
+texmodel.run.diagnostics.KINDS: dict
+texmodel.run.diagnostics.Measure(name: str, package: str, pattern: re.Pattern[str], kind: MeasureKind = …) -> None
+texmodel.run.diagnostics.Measure.declare(cls, name: str, package: str, pattern: str, kind: str = …) -> Measure
+texmodel.run.diagnostics.MeasureKind(*values)
+texmodel.run.diagnostics.Measurement(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, name: str = …, value: str = …) -> None
+texmodel.run.diagnostics.MissingCharacter(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, font: str = …, codepoint: int = …) -> None
+texmodel.run.diagnostics.MissingFile(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, name: str = …) -> None
+texmodel.run.diagnostics.NotConverged(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, changed: tuple[str, ...] = …) -> None
+texmodel.run.diagnostics.OverfullBox(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, amount_pt: float = …, direction: str = …) -> None
+texmodel.run.diagnostics.Overset(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, item: str = …, needs_pt: float = …, has_pt: float = …, over_pt: float = …) -> None
+texmodel.run.diagnostics.PackageError(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, package: str = …) -> None
+texmodel.run.diagnostics.PackageWarning(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, package: str = …) -> None
+texmodel.run.diagnostics.RerunNeeded(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …) -> None
+texmodel.run.diagnostics.Severity(*values)
+texmodel.run.diagnostics.TexError(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …) -> None
+texmodel.run.diagnostics.UndefinedControlSequence(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, name: str = …) -> None
+texmodel.run.diagnostics.UndefinedReference(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, kind: str = …, name: str = …) -> None
+texmodel.run.diagnostics.Unexplained(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …) -> None
+texmodel.run.diagnostics.diagnostic_from_dict(data: dict[str, Any]) -> Diagnostic
+texmodel.run.diagnostics.overset(item: str, needs: str, has: str, **where: Any) -> Overset | None
+texmodel.run.diagnostics.points(text: str) -> float
+texmodel.run.engines.ENGINES: dict
+texmodel.run.engines.Engine(name: str, binary: str, latexmk_args: tuple[str, ...], parse_log: Callable[[str, Sequence[Measure]], tuple[Diagnostic, ...]]) -> None
+texmodel.run.engines.LUALATEX: Engine
+texmodel.run.engines.get_engine(name: str) -> Engine
+texmodel.run.errors.CompileError(message: str, *, diagnostics: tuple[Diagnostic, ...] = …, **kwargs: str) -> None
+texmodel.run.errors.ToolchainError(message: str, *, code: str = …, path: str = …, hint: str = …) -> None
+texmodel.run.fonts.embedded(log: str, cwd: pathlib.Path) -> list[pathlib.Path]
+texmodel.run.fonts.outside(log: str, allowed: Sequence[pathlib.Path], cwd: pathlib.Path) -> list[pathlib.Path]
+async texmodel.run.hand_edits.read_edits(compiler: Compiler, plan: Plan, text: str, *packages: Package, files: Mapping[str, str] | None = …) -> list[Edit]
+texmodel.run.result.CompileResult(*, pdf: pathlib.Path | None, log: pathlib.Path | None, passes: int, pages: int | None, diagnostics: tuple[Diagnostic, ...], seconds: float, engine: str, engine_version: str, latexmk_version: str, image: str | None = …, image_digest: str | None = …, image_revision: str | None = …) -> None
+texmodel.run.result.CompileResult.errors: property
+texmodel.run.result.CompileResult.from_dict(cls, data: dict[str, Any], **override: Any) -> Self
+texmodel.run.result.CompileResult.ok: property
+texmodel.run.result.CompileResult.probe(self, name: str) -> str
+texmodel.run.result.CompileResult.probes: property
+texmodel.run.result.CompileResult.raise_for_status(self) -> None
+texmodel.run.result.CompileResult.to_dict(self) -> dict[str, Any]
+texmodel.run.targets.BuildSummary(results: dict[str, CompileResult]) -> None
+texmodel.run.targets.BuildSummary.lines(self) -> list[str]
+texmodel.run.targets.BuildSummary.ok: property
+async texmodel.run.targets.build_targets(targets: Iterable[Target], compiler: Compiler, *, root: pathlib.Path, outdir: pathlib.Path, jobs: int = …) -> BuildSummary
+async texmodel.run.testkit.check_library(compiler: Compiler, package: Package, files: Mapping[str, str] | None = …) -> list[Violation]
+async texmodel.run.testkit.check_verifier_contract(verifier: Verifier, tmp_path: pathlib.Path) -> None
+async texmodel.run.testkit.run_probes(compiler: Compiler, tex: str, files: Mapping[str, str] | None = …, *, plans: Mapping[str, Plan] | None = …) -> list[Measurement]
+texmodel.run.verify.FileReport(path: pathlib.Path, findings: tuple[Finding, ...] = …, exempt: str | None = …) -> None
+texmodel.run.verify.FileReport.errors: property
+texmodel.run.verify.FileReport.ok: property
+texmodel.run.verify.Finding(check: str, severity: Severity, message: str, page: int | None = …) -> None
+texmodel.run.verify.GROUP: str
+texmodel.run.verify.Profile(*, name: str = …, checks: tuple[str, ...] = …, options: Mapping[str, Mapping[str, Any]] = …) -> None
+texmodel.run.verify.Verifier(*args, **kwargs)
+texmodel.run.verify.Verifier.unavailable(self, options: Mapping[str, Any]) -> str | None
+async texmodel.run.verify.Verifier.verify(self, path: pathlib.Path, options: Mapping[str, Any]) -> Sequence[Finding]
+texmodel.run.verify.exemption(path: pathlib.PurePath, exempt: Mapping[str, str]) -> str | None
+texmodel.run.verify.expand_targets(paths: Sequence[pathlib.Path], exclude: Sequence[str] = …, suffix: str = …) -> list[pathlib.Path]
+texmodel.run.verify.registered() -> dict[str, Verifier]
+async texmodel.run.verify.verify_file(path: pathlib.Path, profile: Profile, available: Mapping[str, Verifier], exempt: Mapping[str, str] | None = …) -> FileReport
+async texmodel.run.verify.verify_files(paths: Sequence[pathlib.Path], profile: Profile, available: Mapping[str, Verifier], exempt: Mapping[str, str] | None = …, *, jobs: int = …) -> list[FileReport]
 texmodel.spec.from_dict(target: type[Command] | type[Environment] | Package, data: Mapping[str, object]) -> Node | Document
 texmodel.spec.json_schema(target: type[Command] | type[Environment] | Package) -> dict[str, Any]
 texmodel.spec.to_dict(node: Node | Document) -> dict[str, object]
@@ -258,77 +336,3 @@ texmodel.types.escape(text: str) -> str
 texmodel.types.pdf_escape(text: str) -> str
 texmodel.types.plain_number(x: float) -> str
 texmodel.types.plates_of(colour: object) -> frozenset[str]
-texmodel_build.compiler.Compiler(*, engine: Engine = …, image: str | None = …, roots: tuple[pathlib.Path, ...] = …, font_dirs: tuple[pathlib.Path, ...] = …, halt_on_error: bool = …, font_cache: pathlib.Path | None = …, max_passes: int = …, epoch: int | None = …, measures: tuple[Measure, ...] = …, timeout: float = …) -> None
-texmodel_build.compiler.Compiler.check_ready(self) -> Versions
-texmodel_build.compiler.Compiler.clean(self, source: pathlib.Path, outdir: pathlib.Path, *, everything: bool = …) -> None
-texmodel_build.compiler.Compiler.compile(self, source: pathlib.Path, outdir: pathlib.Path, *, plan: Plan | None = …, plans: Mapping[str, Plan] | None = …) -> CompileResult
-texmodel_build.compiler.Compiler.image_info: property
-texmodel_build.compiler.Compiler.missing_files(self, files: Sequence[str]) -> tuple[str, ...]
-texmodel_build.compiler.Compiler.versions: property
-texmodel_build.compiler.ImageInfo(digest: str, revision: str) -> None
-texmodel_build.compiler.Versions(engine_version: str, latexmk_version: str, tools: tuple[str, ...]) -> None
-texmodel_build.config.BuildConfig(*, engine: str = …, image: str = …, targets: dict[str, Target] = …, profiles: dict[str, Profile] = …, measures: dict[str, Measure] = …, exempt: dict[str, str] = …) -> None
-texmodel_build.config.Target(*, name: str, source: str, engine: str = …, plan: str = …) -> None
-texmodel_build.config.load_build_config(pyproject: pathlib.Path) -> BuildConfig
-texmodel_build.diagnostics.Diagnostic(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …) -> None
-texmodel_build.diagnostics.Diagnostic.to_dict(self) -> dict[str, Any]
-texmodel_build.diagnostics.DocumentRefusal(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …) -> None
-texmodel_build.diagnostics.KINDS: dict
-texmodel_build.diagnostics.Measure(name: str, package: str, pattern: re.Pattern[str], kind: MeasureKind = …) -> None
-texmodel_build.diagnostics.Measure.declare(cls, name: str, package: str, pattern: str, kind: str = …) -> Measure
-texmodel_build.diagnostics.MeasureKind(*values)
-texmodel_build.diagnostics.Measurement(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, name: str = …, value: str = …) -> None
-texmodel_build.diagnostics.MissingCharacter(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, font: str = …, codepoint: int = …) -> None
-texmodel_build.diagnostics.MissingFile(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, name: str = …) -> None
-texmodel_build.diagnostics.NotConverged(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, changed: tuple[str, ...] = …) -> None
-texmodel_build.diagnostics.OverfullBox(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, amount_pt: float = …, direction: str = …) -> None
-texmodel_build.diagnostics.Overset(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, item: str = …, needs_pt: float = …, has_pt: float = …, over_pt: float = …) -> None
-texmodel_build.diagnostics.PackageError(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, package: str = …) -> None
-texmodel_build.diagnostics.PackageWarning(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, package: str = …) -> None
-texmodel_build.diagnostics.RerunNeeded(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …) -> None
-texmodel_build.diagnostics.Severity(*values)
-texmodel_build.diagnostics.TexError(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …) -> None
-texmodel_build.diagnostics.UndefinedControlSequence(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, name: str = …) -> None
-texmodel_build.diagnostics.UndefinedReference(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …, kind: str = …, name: str = …) -> None
-texmodel_build.diagnostics.Unexplained(*, code: str = …, severity: Severity = …, message: str = …, file: str | None = …, line: int | None = …, path: str | None = …, count: int = …) -> None
-texmodel_build.diagnostics.diagnostic_from_dict(data: dict[str, Any]) -> Diagnostic
-texmodel_build.diagnostics.overset(item: str, needs: str, has: str, **where: Any) -> Overset | None
-texmodel_build.diagnostics.points(text: str) -> float
-texmodel_build.engines.ENGINES: dict
-texmodel_build.engines.Engine(name: str, binary: str, latexmk_args: tuple[str, ...], parse_log: Callable[[str, Sequence[Measure]], tuple[Diagnostic, ...]]) -> None
-texmodel_build.engines.LUALATEX: Engine
-texmodel_build.engines.get_engine(name: str) -> Engine
-texmodel_build.errors.CompileError(message: str, *, diagnostics: tuple[Diagnostic, ...] = …, **kwargs: str) -> None
-texmodel_build.errors.ToolchainError(message: str, *, code: str = …, path: str = …, hint: str = …) -> None
-texmodel_build.fonts.embedded(log: str, cwd: pathlib.Path) -> list[pathlib.Path]
-texmodel_build.fonts.outside(log: str, allowed: Sequence[pathlib.Path], cwd: pathlib.Path) -> list[pathlib.Path]
-texmodel_build.hand_edits.read_edits(compiler: Compiler, plan: Plan, text: str, *packages: Package, files: Mapping[str, str] | None = …) -> list[Edit]
-texmodel_build.result.CompileResult(*, pdf: pathlib.Path | None, log: pathlib.Path | None, passes: int, pages: int | None, diagnostics: tuple[Diagnostic, ...], seconds: float, engine: str, engine_version: str, latexmk_version: str, image: str | None = …, image_digest: str | None = …, image_revision: str | None = …) -> None
-texmodel_build.result.CompileResult.errors: property
-texmodel_build.result.CompileResult.from_dict(cls, data: dict[str, Any], **override: Any) -> Self
-texmodel_build.result.CompileResult.ok: property
-texmodel_build.result.CompileResult.probe(self, name: str) -> str
-texmodel_build.result.CompileResult.probes: property
-texmodel_build.result.CompileResult.raise_for_status(self) -> None
-texmodel_build.result.CompileResult.to_dict(self) -> dict[str, Any]
-texmodel_build.targets.BuildSummary(results: dict[str, CompileResult]) -> None
-texmodel_build.targets.BuildSummary.lines(self) -> list[str]
-texmodel_build.targets.BuildSummary.ok: property
-texmodel_build.targets.build_targets(targets: Iterable[Target], compiler: Compiler, *, root: pathlib.Path, outdir: pathlib.Path, jobs: int = …) -> BuildSummary
-texmodel_build.testkit.check_library(compiler: Compiler, package: Package, files: Mapping[str, str] | None = …) -> list[Violation]
-texmodel_build.testkit.check_verifier_contract(verifier: Verifier, tmp_path: pathlib.Path) -> None
-texmodel_build.testkit.run_probes(compiler: Compiler, tex: str, files: Mapping[str, str] | None = …, *, plans: Mapping[str, Plan] | None = …) -> list[Measurement]
-texmodel_build.verify.FileReport(path: pathlib.Path, findings: tuple[Finding, ...] = …, exempt: str | None = …) -> None
-texmodel_build.verify.FileReport.errors: property
-texmodel_build.verify.FileReport.ok: property
-texmodel_build.verify.Finding(check: str, severity: Severity, message: str, page: int | None = …) -> None
-texmodel_build.verify.GROUP: str
-texmodel_build.verify.Profile(*, name: str = …, checks: tuple[str, ...] = …, options: Mapping[str, Mapping[str, Any]] = …) -> None
-texmodel_build.verify.Verifier(*args, **kwargs)
-texmodel_build.verify.Verifier.unavailable(self, options: Mapping[str, Any]) -> str | None
-texmodel_build.verify.Verifier.verify(self, path: pathlib.Path, options: Mapping[str, Any]) -> Sequence[Finding]
-texmodel_build.verify.exemption(path: pathlib.PurePath, exempt: Mapping[str, str]) -> str | None
-texmodel_build.verify.expand_targets(paths: Sequence[pathlib.Path], exclude: Sequence[str] = …, suffix: str = …) -> list[pathlib.Path]
-texmodel_build.verify.registered() -> dict[str, Verifier]
-texmodel_build.verify.verify_file(path: pathlib.Path, profile: Profile, available: Mapping[str, Verifier], exempt: Mapping[str, str] | None = …) -> FileReport
-texmodel_build.verify.verify_files(paths: Sequence[pathlib.Path], profile: Profile, available: Mapping[str, Verifier], exempt: Mapping[str, str] | None = …, *, jobs: int = …) -> list[FileReport]

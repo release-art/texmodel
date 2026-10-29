@@ -8,7 +8,7 @@ from hypothesis import (
     given,
     strategies as st,
 )
-from test_texmodel_build.test_compile_tex import compiler, fonts, require_files  # noqa: F401
+from test_texmodel_run.test_compile_tex import compiler, fonts, require_files  # noqa: F401
 
 from texmodel.components import Command, Value
 from texmodel.document import Document
@@ -80,13 +80,13 @@ def test_a_pdf_string_round_trips_through_data_and_the_schema():
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_a_pdf_string_reaches_the_log_exactly_as_escaped(compiler, tmp_path: pathlib.Path):  # noqa: F811
+async def test_a_pdf_string_reaches_the_log_exactly_as_escaped(compiler, tmp_path: pathlib.Path):  # noqa: F811
     pkg, meta = pdf_package()
     text = "Fox (Vulpes) 50% {x} #1 _a_ ~b ^c $5 a\\b  two   spaces — ünï"
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "pdf-demo.sty").write_text(pkg.render(), encoding="utf-8")
     (tmp_path / "src" / "d.tex").write_text(pkg.document(meta(text=text)), encoding="utf-8")
-    result = compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out")
+    result = await compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out")
     assert result.ok, [(x.message, x.code) for x in result.diagnostics]
     assert result.probe("s") == pdf_escape(text)
 
@@ -179,18 +179,18 @@ def info_package(route: str):
 @pytest.mark.tex
 @pytest.mark.timeout(300)
 @pytest.mark.parametrize("route", TITLE_ROUTES)
-def test_the_info_dictionary_holds_exactly_the_text(compiler, tmp_path: pathlib.Path, route):  # noqa: F811
+async def test_the_info_dictionary_holds_exactly_the_text(compiler, tmp_path: pathlib.Path, route):  # noqa: F811
     import pikepdf
 
     if route == "pdfmanagement":
-        require_files(compiler, "tagpdf-base.sty")
+        await require_files(compiler, "tagpdf-base.sty")
     pkg, put = info_package(TITLE_ROUTES[route])
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "info-demo.sty").write_text(pkg.render(), encoding="utf-8")
     nodes = [put(key=f"K{i}", text=text) for i, text in enumerate(CORPUS)]
     managed = PreambleSlots(before_class=(RequireMetadata(),)) if route == "pdfmanagement" else None
     (tmp_path / "src" / "d.tex").write_text(pkg.document(Document(*nodes, preamble=managed)), encoding="utf-8")
-    result = compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out")
+    result = await compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out")
     assert result.ok, [(x.message, x.code) for x in result.diagnostics]
     with pikepdf.open(result.pdf) as pdf:  # pyright: ignore[reportArgumentType]
         got = {i: str(pdf.docinfo[f"/K{i}"]) for i in range(len(CORPUS)) if f"/K{i}" in pdf.docinfo}
@@ -199,7 +199,7 @@ def test_the_info_dictionary_holds_exactly_the_text(compiler, tmp_path: pathlib.
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_the_same_text_unescaped_breaks_the_dictionary(compiler, tmp_path: pathlib.Path):  # noqa: F811
+async def test_the_same_text_unescaped_breaks_the_dictionary(compiler, tmp_path: pathlib.Path):  # noqa: F811
     """The control: through a `Raw` field the parenthesis ends the string early, so the check above can fail."""
     import pikepdf
 
@@ -216,6 +216,6 @@ def test_the_same_text_unescaped_breaks_the_dictionary(compiler, tmp_path: pathl
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "naive-demo.sty").write_text(pkg.render(), encoding="utf-8")
     (tmp_path / "src" / "d.tex").write_text(pkg.document(Put(key="K0", text=Raw("a) /K1 (b"))), encoding="utf-8")
-    result = compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out")
+    result = await compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out")
     with pikepdf.open(result.pdf) as pdf:  # pyright: ignore[reportArgumentType]
         assert "/K1" in pdf.docinfo  # the text became a key of its own

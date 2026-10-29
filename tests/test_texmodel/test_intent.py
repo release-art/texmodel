@@ -5,13 +5,13 @@ from typing import Any
 
 import pikepdf
 import pytest
-from test_texmodel_build.test_compile_tex import compiler, fonts, require_files  # noqa: F401
+from test_texmodel_run.test_compile_tex import compiler, fonts, require_files  # noqa: F401
 
 from texmodel.document import Document
 from texmodel.errors import DeclarationError
 from texmodel.ext.intent import OutputCondition, OutputIntent, Standard
 from texmodel.package import Package
-from texmodel_build.compiler import Compiler
+from texmodel.run.compiler import Compiler
 
 CONDITION = OutputCondition(
     "Acme_coated.icc", identifier="ACME 39", info="Coated acme (ISO 12647-2:2004)", registry="http://www.color.org"
@@ -98,9 +98,9 @@ def test_a_profile_is_checked_by_its_header():
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_the_registered_condition_reaches_the_pdf_as_an_output_intent(compiler, tmp_path):  # noqa: F811
+async def test_the_registered_condition_reaches_the_pdf_as_an_output_intent(compiler, tmp_path):  # noqa: F811
     """A profile under a name l3pdfmeta does not know: without `declare` there is no intent; with it, both."""
-    require_files(compiler, "tagpdf-base.sty")  # PDF/A loads it; the base image has not got it yet
+    await require_files(compiler, "tagpdf-base.sty")  # PDF/A loads it; the base image has not got it yet
     where = "/opt/texlive/texmf-dist/tex/generic/colorprofiles/sRGB.icc"
     data = subprocess.run(  # noqa: S603
         ["docker", "run", "--rm", compiler.image, "cat", where], check=True, capture_output=True
@@ -118,7 +118,7 @@ def test_the_registered_condition_reaches_the_pdf_as_an_output_intent(compiler, 
     src = tmp_path / "doc.tex"
     src.write_text(pkg.document(Document(preamble=intent.slots())).replace(r"\begin{document}", "\\begin{document}\nx"))
     comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(tmp_path,))
-    result = comp.compile(src, tmp_path / "out")
+    result = await comp.compile(src, tmp_path / "out")
     assert result.ok and result.pdf, result.diagnostics
     with pikepdf.open(result.pdf) as pdf:
         (found,) = pdf.Root.OutputIntents
@@ -129,7 +129,7 @@ def test_the_registered_condition_reaches_the_pdf_as_an_output_intent(compiler, 
     plain.write_text(
         bare.document(Document(preamble=intent.slots())).replace(r"\begin{document}", "\\begin{document}\nx")
     )
-    unregistered = comp.compile(plain, tmp_path / "out2")
+    unregistered = await comp.compile(plain, tmp_path / "out2")
     assert unregistered.pdf
     with pikepdf.open(unregistered.pdf) as pdf:
         assert "/OutputIntents" not in pdf.Root  # the silent failure `declare` prevents

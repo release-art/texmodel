@@ -15,7 +15,7 @@ from collections.abc import Callable
 import pydantic
 
 import texmodel
-import texmodel_build
+import texmodel.run
 
 SNAPSHOT = pathlib.Path(__file__).parent / "fixtures" / "public_api.txt"
 
@@ -53,13 +53,13 @@ def _signature(obj: Callable[..., object]) -> str:
 
 def _line(name: str, obj: object) -> str:
     if callable(obj) and (isinstance(obj, type) or inspect.isroutine(obj)):
-        return name + _signature(obj)
+        return ("async " if inspect.iscoroutinefunction(obj) else "") + name + _signature(obj)
     return f"{name}: {type(obj).__name__}"
 
 
 def snapshot() -> str:
     lines: list[str] = []
-    for module in sorted(_modules(texmodel) + _modules(texmodel_build), key=lambda m: m.__name__):
+    for module in sorted(_modules(texmodel), key=lambda m: m.__name__):
         for name in sorted(getattr(module, "__all__", ())):
             obj = getattr(module, name)
             lines.append(_line(f"{module.__name__}.{name}", obj))

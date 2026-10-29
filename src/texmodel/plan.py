@@ -9,8 +9,29 @@ import dataclasses
 import difflib
 import enum
 import json
+import pathlib
+import re
 
 from .errors import Violation
+
+_NODE = re.compile(r"[A-Z]\w*\[(\d+)\]")  # a component's step: its class name (TM-M001) and its index in its parent
+_SETTING = re.compile(r"settings\[(\d+)\]")
+_ENTRY = re.compile(r"preamble\.(before_class|before_package|after_package)\[(\d+)\]")
+_COMMENTED = re.compile(r"^\s*%?\s*")
+
+
+def data_path(path: str) -> pathlib.PurePosixPath | None:
+    """Where the writer of a plan line is in the document's data (`spec.to_dict`): `Card[1]/CardBack[1]/Name[0]` is
+    `/content/1/content/1/content/0`, `settings[2]` is `/settings/2`, `preamble.after_package[0]` is
+    `/preamble/after_package/0`. `None` for a line no value wrote (`header`, `document`, `options`)."""
+    if found := _SETTING.fullmatch(path):
+        return pathlib.PurePosixPath("/settings", found[1])
+    if found := _ENTRY.fullmatch(path):
+        return pathlib.PurePosixPath("/preamble", found[1], found[2])
+    steps = [_NODE.fullmatch(part) for part in path.split("/")]
+    if not all(steps):
+        return None
+    return pathlib.PurePosixPath("/", *(part for step in steps if step for part in ("content", step[1])))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -34,7 +55,7 @@ class EditKind(enum.Enum):
     ADDED = "added"  # in the file, not in the plan
     REMOVED = "removed"  # in the plan, not in the file
     CHANGED = "changed"
-    UNREAD = "unread"  # the line differs, but TeX reads the same calls from it (`texmodel_build.hand_edits`)
+    UNREAD = "unread"  # the line differs, but TeX reads the same calls from it (`texmodel.run.hand_edits`)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -59,6 +80,11 @@ class Edit:
     found: str
     kind: EditKind
     fields: tuple[FieldEdit, ...] = ()
+
+    @property
+    def data_path(self) -> pathlib.PurePosixPath | None:
+        """`data_path` of `path`: for an `ADDED` line, of the line it follows."""
+        return data_path(self.path)
 
 
 def _found_at(equal: list[tuple[int, int, int]], at: int, *, first: bool, default: int) -> int:
@@ -99,6 +125,11 @@ def _fields(line: Line, found: str) -> tuple[FieldEdit, ...]:
     )
 
 
+def _key(line: str) -> str:
+    """A line with any indentation and one leading `%` gone: what a line and its comment-out have in common."""
+    return _COMMENTED.sub("", line).rstrip()
+
+
 def _compared(line: str, ignore_comments: bool) -> str:
     """A comment line compares equal to any other comment line when comments are ignored."""
     return "%" if ignore_comments and line.lstrip().startswith("%") else line
@@ -121,19 +152,35 @@ class Plan:
         `ignore_comments`, a line that is a comment (starts with `%`) in both is not compared, so a changed audit block
         is no edit; a comment turned into text, or text into a comment, still is."""
         found = text.splitlines()
-        out: list[Edit] = []
         a = [_compared(x.tex, ignore_comments) for x in self.lines]
         b = [_compared(x, ignore_comments) for x in found]
+        out: list[Edit] = []
         for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b).get_opcodes():
             if tag == "equal":
                 continue
-            for k in range(max(i2 - i1, j2 - j1)):
-                was = self.lines[i1 + k] if i1 + k < i2 else None
-                path = was.path if was else self.lines[i2 - 1].path  # an added line belongs to the line before it
-                kind = EditKind.CHANGED if was and j1 + k < j2 else EditKind.REMOVED if was else EditKind.ADDED
-                now = found[j1 + k] if j1 + k < j2 else ""
-                fields = _fields(was, now) if was and kind is EditKind.CHANGED else ()
-                out.append(Edit(path, was.tex if was else "", now, kind, fields))
+            # inside a replaced block, a line pairs first with itself commented out or re-spaced, the rest by position
+            keys = difflib.SequenceMatcher(
+                None, [_key(x) for x in a[i1:i2]], [_key(x) for x in b[j1:j2]], autojunk=False
+            )
+            for _, p1, p2, q1, q2 in keys.get_opcodes():
+                out += self._paired(found, a, b, (i1 + p1, i1 + p2), (j1 + q1, j1 + q2))
+        return out
+
+    def _paired(
+        self, found: list[str], a: list[str], b: list[str], old: tuple[int, int], new: tuple[int, int]
+    ) -> list[Edit]:
+        """The plan's lines `old` against the file's lines `new`, by position; a line the same on both sides is none."""
+        (i1, i2), (j1, j2) = old, new
+        out: list[Edit] = []
+        for k in range(max(i2 - i1, j2 - j1)):
+            was = self.lines[i1 + k] if i1 + k < i2 else None
+            if was and j1 + k < j2 and a[i1 + k] == b[j1 + k]:
+                continue
+            path = was.path if was else self.lines[i2 - 1].path  # an added line belongs to the line before it
+            kind = EditKind.CHANGED if was and j1 + k < j2 else EditKind.REMOVED if was else EditKind.ADDED
+            now = found[j1 + k] if j1 + k < j2 else ""
+            fields = _fields(was, now) if was and kind is EditKind.CHANGED else ()
+            out.append(Edit(path, was.tex if was else "", now, kind, fields))
         return out
 
     def to_json(self) -> str:
@@ -153,4 +200,4 @@ class Plan:
         )
 
 
-__all__ = ["Edit", "EditKind", "FieldEdit", "Line", "Plan", "Span"]
+__all__ = ["Edit", "EditKind", "FieldEdit", "Line", "Plan", "Span", "data_path"]

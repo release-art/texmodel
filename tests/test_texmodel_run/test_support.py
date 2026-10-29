@@ -1,10 +1,21 @@
 import os
+import pathlib
+import re
 
 import pytest
 
+import texmodel
 from texmodel.errors import DeclarationError
-from texmodel_build._internal.env import build_env
-from texmodel_build.engines import ENGINES, LUALATEX, get_engine
+from texmodel.run._internal.env import build_env
+from texmodel.run.engines import ENGINES, LUALATEX, get_engine
+
+
+def test_only_spawn_starts_a_process():
+    """import-linter forbids `subprocess`; asyncio's process calls are attributes it cannot see, so read them."""
+    src = pathlib.Path(texmodel.__file__).parent
+    starts = re.compile(r"create_subprocess_(?:exec|shell)|os\.(?:system|popen|exec|spawn|fork)")
+    found = sorted(str(p.relative_to(src)) for p in src.rglob("*.py") if starts.search(p.read_text(encoding="utf-8")))
+    assert found == ["run/_internal/spawn.py"]
 
 
 def test_env_is_hermetic_and_orders_the_search_path():

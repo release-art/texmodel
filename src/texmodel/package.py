@@ -12,11 +12,12 @@ import textwrap
 import types
 import typing
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from typing import Any, NamedTuple
+from typing import Annotated, Any, NamedTuple
 
 from pydantic.fields import FieldInfo
 
 from ._internal.emit import INDENT, call_line, emit
+from ._internal.options import Option, OptionKind, choice_kind
 from ._internal.pieces import template_text
 from ._internal.render import (
     EnvSpec,
@@ -55,7 +56,7 @@ from .interface import XCOLOR, colour_of, constraint_of
 from .plan import Line, Plan, Span
 from .preamble import Entry, PdfInfo, RequireMetadata
 from .testing import Component, stub_tex
-from .types import PROCESS, Raw, balanced
+from .types import PROCESS, Choice, Length, Raw, balanced
 
 _NAME = re.compile(r"[a-z][a-z0-9-]*")
 _PREFIX = re.compile(r"[a-z]*")  # empty: the package of a standard TeX library, whose names carry none
@@ -63,6 +64,7 @@ _DATE = re.compile(r"\d{4}/\d{2}/\d{2}")  # \ProvidesPackage's date slot: YYYY/M
 
 
 _LIBRARY_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_-]*")
+_OPTION_NAME = re.compile(r"[a-z]+(?:-[a-z]+)*")  # a LaTeX key: letters, `-` between words (it names a macro too)
 _BAD_OPTION = re.compile(r"[%\\\n]")  # a comment, a control sequence or a line end
 
 
@@ -232,6 +234,7 @@ class Package:
         self._colours: dict[str, str] = {}  # colour name -> qualname; its own namespace
         self._classes: list[type] = []  # every registered class, in registration order
         self._made: dict[tuple[str, str], tuple[tuple[object, ...], type]] = {}  # `make_*`: (kind, name) -> data, class
+        self._options: dict[str, Option] = {}  # package options by name, in registration order (§21)
         if base is not None:
             self.require(base)
 
@@ -331,6 +334,10 @@ class Package:
 
     def value[V: type[AnyValue]](self, cls: V) -> V:
         """Register a value class: `\\newlength`, `\\definecolor`, `\\newif` or `\\newcommand` by its type (M1a)."""
+        return self._value(cls, rendered=cls.defined_by is None)
+
+    def _value[V: type[AnyValue]](self, cls: V, *, rendered: bool) -> V:
+        """Register a value; `rendered` puts its declaration among the items (an option's is in the options section)."""
         spec = value_spec_of(cls)
         if self.adopted and not spec.kind.adoptable:
             raise DeclarationError(
@@ -347,12 +354,106 @@ class Package:
             (tables[table], key, shown)
             for table, key, shown in spec.kind.claims(*addressed(self.prefix, spec.name, spec.cs), spec.alias)
         ]
-        self._add(spec, *claims, rendered=cls.defined_by is None)
+        self._add(spec, *claims, rendered=rendered)
         if not spec.kind.named:  # a colour is not a control sequence
             cls.__tm_cs__ = "".join(addressed(self.prefix, spec.name, spec.cs))
         cls.__tm_prefix__ = self.prefix
         self._classes.append(cls)
         return cls
+
+    def option(
+        self,
+        name: str,
+        *,
+        doc: str,
+        flag: bool | None = None,
+        length: Length | None = None,
+        choice: Choice | None = None,
+        inverse: str | None = None,
+        cs: str | None = None,
+    ) -> type[AnyValue]:
+        """Declare a package option (§21) and return the value it sets: a `flag` (`crop`, `crop=false`, and the
+        `inverse` key `nocrop`), a `length` (`bleed=2mm`) or a `choice` (`accent=moss`, a member's name in lowercase);
+        the argument given is its default. The value's class is the option's name in CamelCase (`show-crop` is
+        `ShowCrop`), its control sequence `<prefix><Class>` unless `cs` names it. A module declares the options it
+        needs when it is added to a package: the same name declared again the same way is the option declared first;
+        another default, kind, inverse or `cs` is `TM-M073`. A document sets an option as it sets any value, and it is
+        written where it takes effect, in `\\usepackage[...]`."""
+        given = [(k, v) for k, v in ((OptionKind.FLAG, flag), (OptionKind.LENGTH, length), (OptionKind.CHOICE, choice))]
+        chosen = [(k, v) for k, v in given if v is not None]
+        problem = (
+            f"{name!r} is not an option name: lowercase letters, `-` between words"
+            if not _OPTION_NAME.fullmatch(name)
+            else "give one of flag=, length= or choice=: the kind of the option and its default"
+            if len(chosen) != 1
+            else f"inverse {inverse!r} is not an option name, or names the option itself"
+            if inverse is not None and (not _OPTION_NAME.fullmatch(inverse) or inverse == name)
+            else "only a flag has an inverse"
+            if inverse is not None and chosen[0][0] is not OptionKind.FLAG
+            else "a package with no prefix (or no \\usepackage of its own) needs `cs=` and a \\usepackage"
+            if self.builtin or (not self.prefix and cs is None)
+            else None
+        )
+        if problem:
+            raise DeclarationError(f"{self.name}: option {problem}", code="TM-M072", path=name)
+        kind, default = chosen[0]
+        same = (kind, default, inverse, cs)
+        taken = {o.inverse: o.name for o in self._options.values() if o.inverse} | {n: n for n in self._options}
+        if (earlier := self._options.get(name)) is not None:
+            if earlier.same != same:
+                raise DeclarationError(
+                    f"{self.name}: option {name!r} is declared again differently: (kind, default, inverse, cs) "
+                    f"{earlier.same!r}, now {same!r}",
+                    code="TM-M073",
+                    path=name,
+                    hint="two modules share an option only when they declare it the same way",
+                )
+            return earlier.value
+        if (clash := next((k for k in (name, inverse) if k in taken), None)) is not None:
+            raise DeclarationError(
+                f"{self.name}: option key {clash!r} is already the key of option {taken[clash]!r}",
+                code="TM-M073",
+                path=name,
+            )
+        hint: object = (
+            bool
+            if kind is OptionKind.FLAG
+            else Length
+            if kind is OptionKind.LENGTH
+            else Annotated[type(default), choice_kind(type(typing.cast("Choice", default)))]
+        )
+        namespace = {"__doc__": doc, "__module__": self.name, "default": default} | ({"cs": cs} if cs else {})
+        made = types.new_class(
+            "".join(word.capitalize() for word in name.split("-")),
+            (Value[hint],),
+            exec_body=lambda ns: ns.update(namespace),
+        )
+        value = self._value(typing.cast("type[AnyValue]", made), rendered=False)
+        self._options[name] = Option(name, kind, default, inverse, cs, value)
+        return value
+
+    def _option_lines(self) -> list[str]:
+        """The options section (§21): each option's register with its default, the keys, one `\\ProcessKeyOptions`."""
+        declared = [
+            line
+            for o in self._options.values()
+            for line in render_value(self.prefix, value_spec_of(o.value)).splitlines()
+        ]
+        keys = [f"    {k}" for o in self._options.values() for k in o.keys(o.value.__tm_cs__)]
+        return [
+            *declared,
+            "\\ExplSyntaxOn",
+            f"\\keys_define:nn {{ {self.name} }}",
+            "  {",
+            *keys,
+            "  }",
+            f"\\ProcessKeyOptions [ {self.name} ]",
+            "\\ExplSyntaxOff",
+        ]
+
+    def _option_of(self, cls: type) -> tuple["Package", Option] | None:
+        """The package of this family that declared `cls` as its option, and the option."""
+        return next(((p, o) for p in self._lineage() for o in p._options.values() if o.value is cls), None)  # noqa: SLF001
 
     def make_command(
         self,
@@ -441,6 +542,11 @@ class Package:
     def registered(self) -> tuple[type, ...]:
         """Every registered command, environment and value class, in registration order."""
         return tuple(self._classes)
+
+    @property
+    def options(self) -> tuple[type[AnyValue], ...]:
+        """The values this package's options set (`option`), in declaration order."""
+        return tuple(o.value for o in self._options.values())
 
     @property
     def visible(self) -> tuple[type, ...]:
@@ -556,7 +662,9 @@ class Package:
             *(Line("requires", tex) for tex in requires),
             *([Line("requires", "")] if requires else []),
         ]
-        if not self._items:
+        if self._options:  # right after the packages, so everything below reads the options (§21)
+            lines += [*(Line("options", tex) for tex in self._option_lines()), Line("options", "")]
+        elif not self._items:
             lines.append(Line("requires", ""))  # the file ends with the empty body's own blank line
         for n, s in enumerate(self._items):
             text = self._render_item(s).splitlines()
@@ -740,10 +848,19 @@ class Package:
                 for tex in _tex_of(raw).tex.splitlines()
             ]
 
+        # An option is set where it takes effect, when its package loads: this package's in `\\usepackage[...]`, a
+        # base's passed to it first. Every other setting goes right after the package, in the order given.
+        routed = [(i, v, self._option_of(type(v))) for i, v in enumerate(settings)]
+        own = [found[1].text(v.value) for _, v, found in routed if found and found[0] is self]
+        passed = [
+            Line(f"settings[{i}]", f"\\PassOptionsToPackage{{{found[1].text(v.value)}}}{{{found[0].name}}}")
+            for i, v, found in routed
+            if found and found[0] is not self
+        ]
+        use = f"\\usepackage[{','.join(own)}]{{{self.name}}}" if own else f"\\usepackage{{{self.name}}}"
+
         def values() -> list[Line]:
-            """Every setting goes right after the package, in the order given, so what the package computes in the
-            preamble already sees it."""
-            return [Line(f"settings[{i}]", setting_line(v)) for i, v in enumerate(settings)]
+            return [Line(f"settings[{i}]", setting_line(v)) for i, v, found in routed if not found]
 
         return Plan(
             (
@@ -751,7 +868,8 @@ class Package:
                 *slot("before_class"),
                 Line("document", f"\\documentclass{opts}{{{self.document_class}}}"),
                 *slot("before_package"),
-                *([] if self.builtin else [Line("document", f"\\usepackage{{{self.name}}}")]),
+                *passed,
+                *([] if self.builtin else [Line("document", use)]),
                 *values(),
                 *slot("after_package"),
                 Line("document", "\\begin{document}"),
@@ -771,7 +889,7 @@ class Package:
     def test_document(self, *body: Node | Document, stub: Sequence[Component] = ()) -> str:
         """A `.tex` for testing `body` against stubs (§21): the real packages are loaded, then each class in `stub`
         is replaced by a macro that writes `texmodel:probe:callN=...` to the log instead of typesetting. Read the calls
-        with `texmodel_build.testkit.run_probes` and `testing.Call.parse`; `testing.expand` gives the same calls
+        with `texmodel.run.testkit.run_probes` and `testing.Call.parse`; `testing.expand` gives the same calls
         without TeX."""
         document = _document_of(body)
         slots = document.preamble

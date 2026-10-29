@@ -19,10 +19,10 @@ from .compiler import Compiler
 from .testkit import run_probes
 
 
-def _calls(compiler: Compiler, tex: str, stubs: Sequence[Component], files: Mapping[str, str]) -> list[Call]:
+async def _calls(compiler: Compiler, tex: str, stubs: Sequence[Component], files: Mapping[str, str]) -> list[Call]:
     """The calls the stubs log when `tex` compiles, in document order."""
     stubbed = tex.replace(r"\begin{document}", stub_tex(stubs) + "\n" + r"\begin{document}", 1)
-    found = run_probes(compiler, stubbed, files)
+    found = await run_probes(compiler, stubbed, files)
     numbered = sorted((int(m.name.removeprefix("call")), m.value) for m in found if re.fullmatch(r"call\d+", m.name))
     return [Call.parse(value) for _, value in numbered]
 
@@ -93,7 +93,7 @@ def _merged(line_edits: list[Edit], probed: _Probed, is_call: re.Pattern[str]) -
     return [*out, *(p for p, _ in probed)]
 
 
-def read_edits(
+async def read_edits(
     compiler: Compiler, plan: Plan, text: str, *packages: Package, files: Mapping[str, str] | None = None
 ) -> list[Edit]:
     """What `text` changed against `plan`, read by TeX: `Plan.edits` with each `CHANGED` line's `fields` carrying the
@@ -115,14 +115,14 @@ def read_edits(
     lines = [x for x in plan.lines if is_call.match(x.tex)]
     sheets = {path: tex for p in packages for path, tex in p.files().items()} | dict(files or {})
     stubs = list(classes.values())
-    base = _calls(compiler, plan.text, stubs, sheets)
+    base = await _calls(compiler, plan.text, stubs, sheets)
     if len(base) != len(lines):
         raise TexmodelError(
             f"the plan makes {len(base)} calls of stubbed components but {len(lines)} of its lines call one",
             code="TM-X032",
             hint="a macro of the hand-written TeX in the plan calls a component; give a `Package` it was written with",
         )
-    probed = _probed(base, _calls(compiler, text, stubs, sheets), lines, classes)
+    probed = _probed(base, await _calls(compiler, text, stubs, sheets), lines, classes)
     return _merged(plan.edits(text), probed, is_call)
 
 

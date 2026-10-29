@@ -16,7 +16,7 @@ rules and `@rule` (D5), placement (M5), the `Namespace` policy (M6), `engine` an
 capabilities (M11, M13), `Markup`, `Path`, `Font`, `Snippet`, `PgfStyle`, `Cycle` and colour variants (T2, T5-T9), trust
 levels and limits (Z1), `texmodel explain` (E4), a `@covers` check (A2, V7), benchmarks (W2), `libcst` refactors and
 `texmodel init|show|try|make|change|release|adopt` (U1: the commands are `texmodel build|check|render|schema` and
-`texmodel-build doctor|compile|clean`), and one model's history (§13; releases and migrations are texpkg's). Print (§14) and the sandbox (§12, Z2-Z3) are
+`texmodel run doctor|compile|clean`), and one model's history (§13; releases and migrations are texpkg's). Print (§14) and the sandbox (§12, Z2-Z3) are
 planned. Read an unmarked id as a requirement unless §21 or the guide shows it built.
 
 ---
@@ -276,10 +276,10 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   consumer; a job-wide set of plates is the same primitive on the package, not built.
 - D1d **A print page** (`texmodel.ext.printpage`): trim, bleed, overflow and margin, each a `Length` or `Sides` (`all=`,
   `horizontal=`/`vertical=`, the four edges, with an edge replacing the base), written as numbers into `\geometry` and
-  `\pdfvariable pageattr` (`TM-M051`, `TM-M052`). The type area is the same in `Sheet.FULL` and `Sheet.TRIM`; no
-  `showcrop`, whose own offset made a calibrated half-bleed necessary. Fixed at declaration, LuaTeX only: a sheet, landscape
-  or page boxes chosen by a package option when TeX loads it is on the roadmap, open on how it shares `\ProcessOptions`
-  with `ColourSpace`.
+  `\pdfvariable pageattr` (`TM-M051`, `TM-M052`). The type area is the same in `Sheet.FULL` and `Sheet.TRIM`; `marks`
+  adds `showcrop` to the full sheet, which measured does not move the type area. `declare(pkg, full=, landscape=)` takes
+  flag options and writes every sheet they choose as numbers in `\if` branches; a landscape sheet turns its sides with it,
+  so they must be symmetric (`TM-M074`, `TM-M075`). LuaTeX only.
 - D1e **An output intent** (`texmodel.ext.intent`): one `\DocumentMetadata` for every standard, `colorprofiles` as
   `subtype=path` pairs, the condition registered under both spellings of the profile (`TM-M048` to `TM-M050`); an ICC
   header check (`TM-C014`, `TM-C015`).
@@ -298,8 +298,8 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   `APPEND`, and `MAX`). `choose_sizes` is the oracle for the expl3. No wrapping (`TM-M060` to `TM-M063`). The two public
   lengths, `<Name>Size` and `<Name>LineSize`, are `\newlength` as any `Value[Length]` is, so the scanner reads them.
 - D1i **Print and screen colours** (`texmodel.ext.colourspace`): `ColourPair` states both builds, the colour kind `Dual`
-  declares one name guarded by `\if<prefix>Cmyk`, and `ColourSpace` declares the options and the flag (`TM-M064` to
-  `TM-M066`). A document picks the build with a class option. Not a conversion between models (T5). `colour_of(Value)` is the
+  declares one name guarded by `\if<prefix>Cmyk`, and `ColourSpace` declares the package option `cmyk` (inverse `rgb`)
+  and its flag (`TM-M064` to `TM-M066`). A document picks the build with the flag, or the class option `rgb`. Not a conversion between models (T5). `colour_of(Value)` is the
   xcolor name of any colour value.
 - D2 `doc.violations()`, `doc.render()` (str, pure, deterministic, no I/O),
   `doc.to_dict()`, `Doc.from_dict()` (validates the current model; old data is migrated first, by texpkg, §13), `doc.plan()` (every
@@ -878,10 +878,11 @@ template strings for bodies (TeX braces fight interpolation). The one other hole
 
 ## 18. Package structure
 
-Two packages in one distribution, `texmodel`: `texmodel` (`src/texmodel`), the rendering
-core, which never spawns a process; and `texmodel_build` (`src/texmodel_build`, command `texmodel-build`), the optional compile and
-verify side (§7, §8), configured in `[tool.texmodel-build]`. Consumers that already pin a toolchain in an image (as the
-owner's do) need only the first.
+One package, `texmodel` (`src/texmodel`): the rendering core, which never spawns a process, and `texmodel.run`
+(`src/texmodel/run`, commands `texmodel run ...`), the optional compile and verify side (§7, §8), configured in
+`[tool.texmodel.run]` and async throughout. An exhaustive import-linter layers contract keeps them apart: `cli` above
+`run` above every core module. Consumers that already pin a toolchain in an image (as the owner's do) need only the
+core.
 
 Convention (as pydantic and proof-pdf do): public API is the top-level
 modules of `texmodel/`; private implementation lives in `texmodel/_internal/`. A test lists
@@ -1001,6 +1002,7 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | `children = [Fact.times(2, 3)]` multiplicity syntax (`times([from,] to)` with `to=None` for no limit, plus `times.any()` and `times.at_least_one()`; not operator overloading) | decided |
 | An adopted (declared-only) package is a flag on the package, `Package(..., adopted=True)`: no bodies, no `.sty`, `texmodel check` compares the declarations with `[tool.texmodel] sources` | decided |
 | The interface check compares the argument count and whether the first is optional of what the scan reads (§21a 8); a name defined another way is missing (`TM-C010`, `TM-C011`); a public name the sources define that nothing declares is reported (`TM-C025`, K2) | decided |
+| Package options (§21, roadmap's print page): `Package.option` declares a flag, a length or a choice; every option is a key of the l3keys family named after the package, `.usage:n = load`, processed once by `\ProcessKeyOptions` in an options section right after the `\RequirePackage` lines; the register it sets is LaTeX2e's (`\newif`, `\newlength`, `\newcommand`). A module declares what it needs when added to a package: the same declaration again is the same option, another is `TM-M073`. A document's setting of an option is written in `\usepackage[...]` (a base's is passed to it). Text, colours and key lists stay settings. `ColourSpace` is one option, `cmyk` with inverse `rgb` | decided |
 | Output-change labelling (G7, K3): `drift.OUTPUT_CHANGES` lists each release whose generated output differs for the same declarations, with one line on how; its changelog section carries the same line (`Output change: ...`), a test keeps the two equal. A stale file written by another version gets a note: only its version line differs, the releases between that changed output, or none (then it is a hand edit or a change to the declarations). The table is in the wheel, so the installed `check` needs no changelog | decided |
 | Migrations follow texpkg's split (its V8): texmodel owns one model's history (renames, change classification X5, what stops data validating X11); texpkg owns releases, versions, frozen schemas, the migration API, running migrations and the unresolved report. A piece is written in texpkg first and moved here as a cut (texpkg N5, V9) | decided |
 | A diagnostic's file (C11): `-file-line-error` gives an error's; a line with none (`on input line N`, a box, `! message`) is in the file open at that point of the log, from the `texmodel:open:<name>` and `texmodel:close` lines a LuaTeX `start_file`/`stop_file` callback writes, run before the document as latexmk's `-pretex` (`%P`). TeX's `(file` ... `)` is not followed: message and box text carry unbalanced parentheses (measured). The callback prints LuaTeX's own file text, so the log keeps `(file)` and the font listing, and the PDF is byte-identical. A line in no file is not mapped to a component | decided |
@@ -1045,10 +1047,11 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | Image font/ICC content, and the MIT-vs-AGPL-image reading (C8) | open |
 | Snapshot library vs own `bless` | open: evaluate with V2a |
 | Exact list of built-in rule codes | open |
-| A copy of texmodel with no metadata sets `package.GENERATOR_VERSION`; a `TemplateRef` is read through `importlib.resources` (a zip works); `texmodel_build.fonts` reads the fonts a compile embedded from its log (A7, A8) | decided |
+| A copy of texmodel with no metadata sets `package.GENERATOR_VERSION`; a `TemplateRef` is read through `importlib.resources` (a zip works); `texmodel.run.fonts` reads the fonts a compile embedded from its log (A7, A8) | decided |
+| The engine side is `texmodel.run`, a subpackage behind an exhaustive layers contract, not a second top-level package (`_build` named a build step it is not); one `texmodel` command with a `run` group; `[tool.texmodel.run]`; what starts a process is `async def`, and a timeout or a cancellation kills the process and its container (C3); `build_targets` and `verify_files` run `jobs` in a `TaskGroup`; verifiers are async (2026-10-29, `docs/briefs/run.md`) | decided |
 
 ---
-| A hand edit names the argument it changed (`Line.spans`, `Edit.fields`, `FieldEdit`; found by comparing the line with the plan's text, empty unless the change is inside one argument) and, read by TeX, the typed value (`texmodel_build.hand_edits.read_edits`: every component stubbed, the plan's text and the edited text compiled, calls aligned by the whole call and merged with the line diff by path; `EditKind.UNREAD` where the line differs and the calls do not). A value is read by its `BodyKind` (`texmodel.testing.read_call`; `TM-C021` for text that is not of the field's type); the probe route is not in `texmodel check`, which never compiles | decided |
+| A hand edit names the argument it changed (`Line.spans`, `Edit.fields`, `FieldEdit`; found by comparing the line with the plan's text, empty unless the change is inside one argument) and, read by TeX, the typed value (`texmodel.run.hand_edits.read_edits`: every component stubbed, the plan's text and the edited text compiled, calls aligned by the whole call and merged with the line diff by path; `EditKind.UNREAD` where the line differs and the calls do not). A value is read by its `BodyKind` (`texmodel.testing.read_call`; `TM-C021` for text that is not of the field's type); the probe route is not in `texmodel check`, which never compiles | decided |
 
 ## 21a. Open ideas and gaps
 
@@ -1076,7 +1079,7 @@ Each is a candidate, not a decision. `docs/briefs/roadmap.md` orders them.
 12. **Consumer policies in the library?** Title case, apostrophe normalisation and PDF-subject cutting were consumer code. A
     `Text` variant with a declared normaliser would remove the converter's busiest part.
 13. **Reference image.** PDF/X-4 and PDF/A-2b output was never compiled in the tests; an ICC profile has to be supplied at test
-    time. `texmodel-build doctor --sty` does not follow a package's own dependencies.
+    time. `texmodel run doctor --sty` does not follow a package's own dependencies.
 14. **Spec round trip.** Migrations are texpkg's (§13); one model's history is `texmodel.history` (X5, X11). Left:
     walking pydantic's field info for docs and constraints.
 15. **Data-driven rendering.** `texmodel render --data cards.toml <pointer>` against the project's templates, with no hand-written
@@ -1088,6 +1091,16 @@ Each is a candidate, not a decision. `docs/briefs/roadmap.md` orders them.
 18. **`Comment`.** Keyed matching of comments (item 6).
 19. **expl3.** Whether a library block may become its own `.sty`; a parser option (a small function behind the static lints
     would let a parser replace them).
+20. **Reports from a pipeline.** Business reports (annual and board reports, statements, data sheets) that must be correct,
+    reproducible and print-grade, produced by a program rather than drawn in a designer: typed data, a reviewed diff for
+    every template change, PDF/X. Pieces, in order: a typed table model that emits `tabularray` (`tblr`, `longtblr`:
+    cells as arguments, never `&` or `\\` by hand; numbers formatted in Python); charts rendered in Python and embedded
+    as PDF; data binding (item 15); then a second consumer to test it. Measured (TeX Live 2026, `tabularray`
+    2025-11-27, a scratch build): a 120-row `longtblr` breaks over ten A6 pages, repeats its header rows (`rowhead`),
+    writes "(Continued)" captions and "Continued on next page" footers, and needs no rerun for column widths; a row is
+    never split across pages. An engine of texmodel's own (cells boxed and measured in expl3) is weeks of work, and
+    multi-page with repeated headers its hardest part; worth it only for what `tabularray` cannot do (splitting a tall
+    row). Out of scope: a visual designer, data connectors, scheduling. The reference image lacks `tabularray`.
 
 ---
 

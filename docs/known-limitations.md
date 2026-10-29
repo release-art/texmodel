@@ -23,10 +23,9 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 
 ## Print output
 
-- `PrintPage` is written once, when the package is declared: a document cannot change the trim, the bleed or the margin, and
-  one package has one sheet. No package option chooses the sheet (a crop build and a trim-only preview), landscape, or the
-  page boxes when TeX loads the package; such a page keeps its hand-written geometry. Boxes are the same on every page (no
-  recto and verso with different inner margins), crop marks are not drawn (`showcrop`), and the engine must be LuaTeX.
+- `PrintPage`'s trim, bleed and margin are declared once: a document chooses among the sheets the package's options
+  give (full or trim, portrait or landscape), not other sizes. A landscape sheet needs symmetric sides (`TM-M074`).
+  Boxes are the same on every page (no recto and verso with different inner margins), and the engine must be LuaTeX.
 - A spot colour is declared once: a document cannot set it, and two values with the same plate name are a compile error
   (`Duplicated spot name`), not a declaration error. Plate names are checked only for what breaks the PDF name or TeX.
 - `OutputIntent` knows PDF/X-4 and PDF/A-2b. It checks an ICC header, not that the profile is the one named by its
@@ -34,8 +33,8 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 
 ## Colours for print and screen
 
-- `ColourSpace` owns the package's options processing: a package that declares other options of its own must do so before
-  it, and may not process them twice. A `Dual` colour is not a spot (no screen build) and not checked for agreement between
+- A package option is a flag, a length or a choice; a text, a colour or a key list is a setting after `\usepackage`. A
+  class option that names a package's key is not checked. A `Dual` colour is not a spot (no screen build) and not checked for agreement between
   its two builds: that is the consumer's colour conversion.
 
 ## Plates
@@ -80,8 +79,12 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 
 ## Building
 
-- `texmodel_build.fonts` reads the font listing LuaTeX ends its log with; a compile that stopped early has none, and a font
+- `texmodel.run.fonts` reads the font listing LuaTeX ends its log with; a compile that stopped early has none, and a font
   inside an included PDF is never listed.
+- A timed-out or cancelled compile on this machine (no `image`) kills `latexmk`, not the engine it started: that
+  `lualatex` runs to its end. In the image, `docker kill` stops the whole container.
+- `texmodel.run` is async only. Synchronous code calls it through `asyncio.run(...)`, which cannot run inside an event
+  loop that is already running.
 - A copy of texmodel embedded where its installed metadata cannot be read must set `texmodel.package.GENERATOR_VERSION`,
   or the stamp of generated files is the version of whichever texmodel is installed (or `0.0.0`).
 

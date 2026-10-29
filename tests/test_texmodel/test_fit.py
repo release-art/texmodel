@@ -7,16 +7,16 @@ from hypothesis import (
     given,
     strategies as st,
 )
-from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
+from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.document import Document
 from texmodel.errors import DeclarationError
 from texmodel.ext.fit import Fit, choose_sizes
 from texmodel.package import Package, declared
+from texmodel.run.compiler import Compiler
+from texmodel.run.diagnostics import Measurement
+from texmodel.run.testkit import check_library
 from texmodel.types import Length, Raw
-from texmodel_build.compiler import Compiler
-from texmodel_build.diagnostics import Measurement
-from texmodel_build.testkit import check_library
 
 pkg = Package("acme-fit", prefix="af")
 FIT = Fit("Title", target=Length("12mm"), floor=Length("3mm"), room=Length("12mm"), treatment=Raw(r"\textbf{#1}"))
@@ -138,12 +138,12 @@ def points(text):
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_the_tex_chooses_what_the_python_rule_chooses(compiler, tmp_path):  # noqa: F811
+async def test_the_tex_chooses_what_the_python_rule_chooses(compiler, tmp_path):  # noqa: F811
     (tmp_path / "acme-fit.sty").write_text(pkg.render())
     src = tmp_path / "doc.tex"
     src.write_text(document_tex())
     comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(tmp_path,))
-    result = comp.compile(src, tmp_path / "out")
+    result = await comp.compile(src, tmp_path / "out")
     assert result.ok, result.diagnostics
     found = {m.name: m.value for m in result.diagnostics if isinstance(m, Measurement)}
     ref, room, floor, target = (Length(x).inches * 72.27 for x in ("10mm", "12mm", "3mm", "12mm"))
@@ -165,5 +165,5 @@ def test_the_tex_chooses_what_the_python_rule_chooses(compiler, tmp_path):  # no
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_the_library_defines_what_it_declares(compiler):  # noqa: F811
-    assert check_library(compiler, pkg) == []
+async def test_the_library_defines_what_it_declares(compiler):  # noqa: F811
+    assert await check_library(compiler, pkg) == []

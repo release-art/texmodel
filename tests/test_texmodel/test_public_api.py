@@ -25,6 +25,7 @@ PUBLIC = {
     "plan",
     "pointer",
     "preamble",
+    "run",
     "testing",
     "spec",
     "std",

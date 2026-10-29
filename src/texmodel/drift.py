@@ -14,6 +14,7 @@ OUTPUT_CHANGES: Final[Mapping[str, str]] = {
     "0.3.2": "a value written from a float has five decimals",
     "0.8.0": "a document's body is indented two spaces per level of environment",
     "0.10.0": r"`ext.fit` declares its two public lengths with `\newlength`",
+    "0.11.0": "a package with a `ColourSpace` declares `cmyk` and `rgb` as l3keys options in an options section",
 }
 """The releases whose generated output differs from the release before for the same declarations, and how (G7, K3).
 Each has the same text in its `CHANGELOG.md` section, on a line `Output change: <text>.`"""

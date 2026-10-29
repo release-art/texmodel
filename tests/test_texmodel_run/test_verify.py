@@ -5,10 +5,10 @@ import pathlib
 import pytest
 from typer.testing import CliRunner
 
-from texmodel_build import cli, testkit
-from texmodel_build.diagnostics import Severity
-from texmodel_build.errors import ToolchainError
-from texmodel_build.verify import Finding, Profile, exemption, expand_targets, registered, verify_file, verify_files
+from texmodel.run import cli, testkit
+from texmodel.run.diagnostics import Severity
+from texmodel.run.errors import ToolchainError
+from texmodel.run.verify import Finding, Profile, exemption, expand_targets, registered, verify_file, verify_files
 
 runner = CliRunner()
 
@@ -22,7 +22,7 @@ class Fake:
         self.seen_options.append(options)
         return self._why
 
-    def verify(self, path, options):
+    async def verify(self, path, options):
         if self._boom:
             raise RuntimeError("kaboom")
         return self._findings
@@ -35,29 +35,29 @@ def pdf(tmp_path) -> pathlib.Path:
     return path
 
 
-def test_a_clean_verifier_passes_and_receives_its_own_options(pdf):
+async def test_a_clean_verifier_passes_and_receives_its_own_options(pdf):
     v = Fake(findings=[Finding("c", Severity.WARNING, "advisory", page=2)])
-    report = verify_file(pdf, Profile(options={"fake": {"x": 1}}), {"fake": v})
+    report = await verify_file(pdf, Profile(options={"fake": {"x": 1}}), {"fake": v})
     assert report.ok and report.findings[0].page == 2 and v.seen_options == [{"x": 1}]
 
 
-def test_errors_fail_the_file(pdf):
-    report = verify_file(pdf, Profile(), {"v": Fake("v", [Finding("c", Severity.ERROR, "bad")])})
+async def test_errors_fail_the_file(pdf):
+    report = await verify_file(pdf, Profile(), {"v": Fake("v", [Finding("c", Severity.ERROR, "bad")])})
     assert not report.ok and [f.message for f in report.errors] == ["bad"]
 
 
-def test_unconfirmable_means_failure(pdf, tmp_path):
+async def test_unconfirmable_means_failure(pdf, tmp_path):
     avail = {"v": Fake("v", why="no gs")}
-    assert [f.message for f in verify_file(pdf, Profile(), avail).errors] == ["cannot confirm: no gs"]
-    assert not verify_file(pdf, Profile(), {}).ok  # nothing installed: nothing was checked
-    assert not verify_file(pdf, Profile(checks=("nope",)), avail).ok  # unknown verifier
-    crashed = verify_file(pdf, Profile(), {"v": Fake("v", boom=True)})
+    assert [f.message for f in (await verify_file(pdf, Profile(), avail)).errors] == ["cannot confirm: no gs"]
+    assert not (await verify_file(pdf, Profile(), {})).ok  # nothing installed: nothing was checked
+    assert not (await verify_file(pdf, Profile(checks=("nope",)), avail)).ok  # unknown verifier
+    crashed = await verify_file(pdf, Profile(), {"v": Fake("v", boom=True)})
     assert "verifier crashed: RuntimeError('kaboom')" in crashed.errors[0].message
-    assert verify_file(tmp_path / "gone.pdf", Profile(), avail).errors[0].check == "open"
+    assert (await verify_file(tmp_path / "gone.pdf", Profile(), avail)).errors[0].check == "open"
 
 
-def test_exemptions_are_listed_with_their_reason_and_never_fail(pdf):
-    report = verify_file(pdf, Profile(), {}, {"*.pdf": "internal docs"})
+async def test_exemptions_are_listed_with_their_reason_and_never_fail(pdf):
+    report = await verify_file(pdf, Profile(), {}, {"*.pdf": "internal docs"})
     assert report.ok and report.exempt == "internal docs" and report.findings == ()
 
 
@@ -68,13 +68,13 @@ def test_exemption_globs_match_at_any_directory_level():
     assert exemption(p, {"other/*": "r3"}) is None
 
 
-def test_verify_files_keeps_order_across_threads(tmp_path):
+async def test_verify_files_keeps_order_across_threads(tmp_path):
     files = []
     for i in range(5):
         f = tmp_path / f"{i}.pdf"
         f.write_bytes(b"x")
         files.append(f)
-    reports = verify_files(files, Profile(), {"v": Fake("v")}, jobs=3)
+    reports = await verify_files(files, Profile(), {"v": Fake("v")}, jobs=3)
     assert [r.path for r in reports] == files
 
 
@@ -102,15 +102,15 @@ def test_entry_points_register_the_builtin_and_a_broken_plugin_is_an_error(monke
     assert info.value.code == "TM-V001"
 
 
-def test_the_contract_helper_accepts_a_good_verifier_and_rejects_bad_ones(tmp_path):
-    testkit.check_verifier_contract(Fake(), tmp_path)
-    testkit.check_verifier_contract(Fake(why="no tool"), tmp_path)
+async def test_the_contract_helper_accepts_a_good_verifier_and_rejects_bad_ones(tmp_path):
+    await testkit.check_verifier_contract(Fake(), tmp_path)
+    await testkit.check_verifier_contract(Fake(why="no tool"), tmp_path)
     with pytest.raises(AssertionError):
-        testkit.check_verifier_contract(Fake(name=""), tmp_path)
+        await testkit.check_verifier_contract(Fake(name=""), tmp_path)
     broken = Fake()
     broken.unavailable = lambda options: 42  # type: ignore[method-assign,assignment,return-value]
     with pytest.raises(AssertionError):
-        testkit.check_verifier_contract(broken, tmp_path)
+        await testkit.check_verifier_contract(broken, tmp_path)
 
 
 @pytest.fixture
@@ -119,9 +119,9 @@ def project(tmp_path, monkeypatch):
     fake = Fake("fake", [Finding("c", Severity.ERROR, "bad", page=1)])
     monkeypatch.setattr(cli, "registered", lambda: {"fake": fake})
     (tmp_path / "pyproject.toml").write_text(
-        '[tool.texmodel-build.exempt]\n"manual.pdf" = "never printed"\n'
-        '[tool.texmodel-build.profiles.print]\nchecks = ["fake"]\n'
-        "[tool.texmodel-build.profiles.print.options.fake]\nx = 1\n"
+        '[tool.texmodel.run.exempt]\n"manual.pdf" = "never printed"\n'
+        '[tool.texmodel.run.profiles.print]\nchecks = ["fake"]\n'
+        "[tool.texmodel.run.profiles.print.options.fake]\nx = 1\n"
     )
     (tmp_path / "ok.pdf").write_bytes(b"x")
     (tmp_path / "manual.pdf").write_bytes(b"x")
