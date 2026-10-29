@@ -110,9 +110,10 @@ def test_known_gap_a_line_triaged_by_a_tool_reads_as_a_hand_edit():
 
 
 def test_interface_drift_a_macros_arity_changed_in_the_package():
-    (drifted,) = model.pkg.check_interface(OLD_STY)
+    drifted, extra = model.pkg.check_interface(OLD_STY)
     assert (drifted.code, drifted.path) == ("TM-C011", "TalkAboutMe")
     assert "declared [2][], the sources define [1]" in drifted.message
+    assert extra.code == "TM-C025" and r"\cdSafeInset" in extra.message  # the old package's name the model never had
 
 
 def test_interface_drift_is_what_texmodel_check_reports(tmp_path, monkeypatch):

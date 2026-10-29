@@ -59,6 +59,20 @@ def test_a_made_value_has_its_kind_default_and_names():
     assert failed.value.code == "TM-M007"
 
 
+def test_a_made_component_a_library_defines_renders_no_definition():
+    pkg = Package("bb-demo", prefix="bb")
+    lib = pkg.library("own", r"\newcommand{\bbMark}[1]{#1}\newlength{\bbGap}")
+    mark = pkg.make_command("Mark", "a mark", fields={"text": (Raw, field())}, defined_by=lib)
+    gap = pkg.make_value("Gap", Length, "a gap", defined_by=lib)
+    assert pkg.make_value("Gap", Length, "a gap", defined_by=lib) is gap
+    assert (mark.defined_by, gap.defined_by) == (lib, lib)
+    assert pkg.render().count(r"\newcommand{\bbMark}") == 1 and pkg.render().count(r"\newlength{\bbGap}") == 1
+    assert r"\bbMark{x}" in pkg.document(mark(text=Raw("x")))
+    with pytest.raises(DeclarationError) as failed:
+        pkg.make_value("Gap", Length, "a gap")
+    assert failed.value.code == "TM-M007"
+
+
 def test_a_bare_default_is_a_field_default():
     pkg = Package("bb-demo", prefix="bb")
     made = pkg.make_command("Opt", "optional", fields={"x": (Raw | None, None)}, body=r"#x")

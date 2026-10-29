@@ -2,11 +2,12 @@
 
 import pytest
 
+from texmodel._internal.bodies import body_of
 from texmodel.components import Command, Environment, Passthrough, Value
 from texmodel.errors import DeclarationError
 from texmodel.ext.colourspace import ColourPair, ColourSpace, Dual
 from texmodel.ext.plates import K, Plate
-from texmodel.interface import ColourName, body_of
+from texmodel.interface import ColourName
 from texmodel.package import Package
 from texmodel.spec import from_dict, json_schema, to_dict
 from texmodel.types import CMYK, Colour, Raw, Text
@@ -78,7 +79,7 @@ def test_names_are_the_colours_an_expression_uses():
     assert ColourName("red!50!blue!20").names == ("red", "blue")
     for bad in ("red!!blue", "red!50!50", "red!150", "red!x", "red!50!"):
         with pytest.raises(DeclarationError) as raised:
-            _ = ColourName(bad).names
+            ColourName(bad)
         assert raised.value.code == "TM-M067"
 
 

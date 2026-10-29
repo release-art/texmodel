@@ -25,17 +25,14 @@ arguments, other delimiters, tokens) is defined with `\NewDocumentCommand`.
 import dataclasses
 import enum
 import re
-import types
-import typing
 from collections.abc import Mapping
 from typing import Annotated, Any, Final, Literal
 
-import pydantic
-from pydantic.fields import FieldInfo
 from pydantic_core import core_schema
 
+from ._internal.fields import FieldNotes, field_info
 from .errors import DeclarationError
-from .types import CMYK, PDF, PROCESS, RGB, TEXT, Choice, Gray, Length, Plate, Raw, plain_number, plates_of
+from .types import PROCESS, Choice, Plate, plain_number, plates_of
 
 
 @dataclasses.dataclass(frozen=True)
@@ -83,7 +80,6 @@ Switch = Annotated[bool, SWITCH]
 leaves it out."""
 _NAME = re.compile(r"[A-Za-z][A-Za-z0-9.+-]*")
 _NUMBER = re.compile(r"[0-9]+(?:\.[0-9]+)?")
-_CHARS = re.compile(r"[A-Za-z][A-Za-z0-9!.+-]*")
 
 
 def colour_of(value: type[Any]) -> str:
@@ -163,35 +159,25 @@ class ColourName(str):
                     )
         elif mix is not None:
             raise DeclarationError("ColourName: mix= needs a tint=", code="TM-M067", path="mix")
-        if not _CHARS.fullmatch(text):
-            raise DeclarationError(
-                f"ColourName({text!r}): letters, digits and `!-.+` only, a letter first", code="TM-M067"
-            )
+        parts = text.split("!")
+        if not all(_NAME.fullmatch(n) for n in parts[0::2]) or not all(
+            _NUMBER.fullmatch(n) and float(n) <= 100 for n in parts[1::2]
+        ):
+            raise DeclarationError(f"ColourName({text!r}): not `name`, `name!50` or `name!50!name`", code="TM-M067")
         return super().__new__(cls, text)
 
     @property
     def names(self) -> tuple[str, ...]:
-        """The colours the expression uses, in order; `TM-M067` if it is not `name(!number(!name)?)*`."""
-        parts = self.split("!")
-        names = parts[0::2]
-        numbers = parts[1::2]
-        if not all(_NAME.fullmatch(n) for n in names) or not all(
-            _NUMBER.fullmatch(n) and float(n) <= 100 for n in numbers
-        ):
-            raise DeclarationError(
-                f"ColourName({str(self)!r}): not `name`, `name!50` or `name!50!name`", code="TM-M067"
-            )
-        return tuple(names)
+        """The colours the expression uses, in order."""
+        return tuple(self.split("!")[0::2])
 
     @classmethod
     def __get_pydantic_core_schema__(cls, source: object, handler: Any) -> core_schema.CoreSchema:  # noqa: ANN401
         def make(value: str) -> "ColourName":
             try:
-                found = cls(value)
-                found.names  # noqa: B018  # the grammar is checked here too
+                return cls(value)
             except DeclarationError as exc:
                 raise ValueError(str(exc)) from exc
-            return found
 
         return core_schema.no_info_after_validator_function(
             make, core_schema.str_schema(), serialization=core_schema.plain_serializer_function_ser_schema(str)
@@ -269,27 +255,6 @@ def arg(
     return field_info(default, notes, ArgOptions(delimiter, fill, sep, group, booleans), kw_only=kw_only)
 
 
-@dataclasses.dataclass(frozen=True)
-class FieldNotes:
-    """What `field()` and `arg()` say about a field besides its slot: its old name in data, its doc, its `x-` keys."""
-
-    renamed_from: str | None = None
-    doc: str | None = None
-    meta: Mapping[str, object] = dataclasses.field(default_factory=dict[str, object])
-
-
-def field_info(default: object, notes: FieldNotes, *more: object, kw_only: bool | None) -> FieldInfo:
-    """A pydantic field carrying `notes` (and `more`, an `ArgOptions`) in its metadata; the schema shows the doc, the
-    old name as `x-renamed-from` and the meta as `x-` keys. `dataclasses.MISSING` makes it required."""
-    extra: dict[str, Any] = {f"x-{k}": v for k, v in notes.meta.items()}
-    if notes.renamed_from is not None:
-        extra = {"x-renamed-from": notes.renamed_from, **extra}
-    given: dict[str, Any] = {} if default is dataclasses.MISSING else {"default": default}
-    info: FieldInfo = pydantic.Field(**given, kw_only=kw_only, description=notes.doc, json_schema_extra=extra or None)
-    info.metadata += [notes, *more]
-    return info
-
-
 @enum.unique
 class BodyKind(enum.Enum):
     TEXT = "Text"
@@ -334,99 +299,6 @@ class Body:
 
 RAW_BODY: Final = Body(BodyKind.RAW)
 TEXT_BODY: Final = Body(BodyKind.TEXT)
-
-_COLOURS = (CMYK, RGB, Gray)
-
-
-def _members(hint: Any) -> list[Any]:  # noqa: ANN401
-    """`X | None` as [X], `A | B` as [A, B]."""
-    found = (
-        typing.get_args(hint)
-        if isinstance(hint, types.UnionType) or typing.get_origin(hint) is typing.Union
-        else (hint,)
-    )
-    return [m for m in found if m is not type(None)]
-
-
-def record_fields(tp: Any) -> list[tuple[str, Any]] | None:  # noqa: ANN401, PLR0911
-    """The attributes and types of a NamedTuple, a dataclass or a pydantic model that is not a `KeyVals`, in order."""
-    hints: dict[str, Any] = typing.get_type_hints(tp, include_extras=True)
-    named = getattr(tp, "_fields", None)  # a NamedTuple
-    if isinstance(named, tuple):
-        return [(n, hints[n]) for n in typing.cast("tuple[str, ...]", named)]
-    if dataclasses.is_dataclass(tp):
-        return [(f.name, hints[f.name]) for f in dataclasses.fields(tp)]
-    model_fields = getattr(tp, "model_fields", None)
-    if isinstance(model_fields, dict):
-        return [(n, hints[n]) for n in typing.cast("dict[str, object]", model_fields)]
-    return None
-
-
-def body_of(hint: Any) -> Body | None:  # noqa: ANN401, C901
-    """The body a field annotation means, or None if it is no supported type. `X | None` is `X`."""
-    members = _members(hint)
-    if len(members) != 1:
-        return _union_body(members)
-    (h,) = members
-    marks = typing.get_args(h)[1:] if typing.get_origin(h) is Annotated else ()
-    inner = typing.get_args(h)[0] if marks else h
-    simple = {TEXT: BodyKind.TEXT, PDF: BodyKind.PDF}
-    for mark in marks:
-        if mark in simple:
-            return Body(simple[mark])
-        if isinstance(mark, Token):
-            return Body(BodyKind.TOKEN, token=mark.char)
-    if marks:
-        return body_of(inner)
-    origin = typing.get_origin(h)
-    if origin is Item or origin is OptionalValue:
-        return body_of(typing.get_args(h)[0])
-    if isinstance(h, type) and issubclass(h, ColourName):
-        return Body(BodyKind.COLOUR_NAME)
-    if h is Raw:
-        return RAW_BODY
-    if isinstance(h, type) and issubclass(h, Raw):
-        return Body(BodyKind.RAW, expression=h)
-    if h is bool:
-        return Body(BodyKind.BOOL)
-    if h is int:
-        return Body(BodyKind.INT)
-    if h is float:
-        return Body(BodyKind.FLOAT)
-    if isinstance(h, type) and issubclass(h, Length):
-        return Body(BodyKind.LENGTH)
-    if isinstance(h, type) and issubclass(h, Choice):
-        return Body(BodyKind.CHOICE, choice=h)
-    if isinstance(h, type) and getattr(h, "__tm_keyvals__", False):
-        return Body(BodyKind.KEYVALS, keyvals=h)
-    if origin is list:
-        element = body_of(typing.get_args(h)[0])
-        return None if element is None else Body(BodyKind.LIST, items=(element,))
-    if origin is tuple:
-        return _tuple_body(typing.get_args(h))
-    if isinstance(h, type) and (fields := record_fields(h)) is not None:
-        bodies = [body_of(t) for _, t in fields]
-        if None in bodies:
-            return None
-        return Body(BodyKind.TUPLE, items=tuple(b for b in bodies if b is not None), attrs=tuple(n for n, _ in fields))
-    return None
-
-
-def _tuple_body(args: tuple[Any, ...]) -> Body | None:
-    if len(args) == 2 and args[1] is Ellipsis:
-        element = body_of(args[0])
-        return None if element is None else Body(BodyKind.LIST, items=(element,))
-    bodies = [body_of(a) for a in args]
-    return (
-        None if not bodies or None in bodies else Body(BodyKind.TUPLE, items=tuple(b for b in bodies if b is not None))
-    )
-
-
-def _union_body(members: list[Any]) -> Body | None:
-    """The one union a field may be: the colour models (`Colour`)."""
-    if members and set(members) == set(_COLOURS):
-        return Body(BodyKind.COLOUR)
-    return None
 
 
 __all__ = [

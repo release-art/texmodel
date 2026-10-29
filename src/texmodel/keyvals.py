@@ -27,9 +27,10 @@ from typing import Any, ClassVar, cast
 
 import pydantic
 
+from ._internal.bodies import body_of
 from ._internal.values import unprotected, value_text
 from .errors import DeclarationError
-from .interface import FLAG, SWITCH, Body, BodyKind, Item, OptionalValue, body_of
+from .interface import FLAG, SWITCH, Body, BodyKind, Item, OptionalValue
 from .keys import KeyRules
 
 

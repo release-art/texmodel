@@ -84,7 +84,8 @@ cut = pkg.make_value("Bleed", Length, "the bleed", default=Length("3mm"))
 
 `fields` maps a name to `(hint, field(...))` in TeX order, as pydantic's `create_model` does. Declaring the same data again
 returns the class made first, so several series can share a macro. Other data under the same name is `TM-M007`. `module`
-(default: the package's name) is the module shown in messages.
+(default: the package's name) is the module shown in messages. `defined_by=` a block from `pkg.library` declares a command
+or value that block defines, so it renders no definition (a command then has no `body`).
 
 ```python
 assert pkg.make_value("Bleed", Length, "the bleed", default=Length("3mm")) is cut

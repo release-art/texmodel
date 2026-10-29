@@ -41,6 +41,11 @@ class DeckName(Value[Text]):
 
 
 @pkg.command
+class BackHeight(Command):
+    """The height a card back's body may take: a length the hand-written package declares and sets."""
+
+
+@pkg.command
 class CardImage(Command):
     """A card face's picture, by path."""
 

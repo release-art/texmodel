@@ -7,7 +7,7 @@ from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
 from texmodel.components import Value
 from texmodel.document import Document
 from texmodel.errors import DeclarationError
-from texmodel.ext.plates import PROCESS, K, Plate, is_single_plate, plates_of
+from texmodel.ext.plates import PROCESS, K, Plate, plates_of
 from texmodel.interface import ColourName, constraint_of
 from texmodel.package import Package
 from texmodel.spec import from_dict, json_schema, to_dict
@@ -67,8 +67,6 @@ def test_plates_say_which_inks_a_colour_uses():
     assert plates_of(Gray(0.3)) == {Plate.K} and plates_of(Gray(1)) == frozenset()
     assert plates_of(RGB(0, 0, 0)) == PROCESS == set(Plate)
     assert Plate.K == "K" and {Plate.K} == {"K"}  # a plate is a string, a spot's is its name
-    assert is_single_plate(K(0.7)) and is_single_plate(Gray(0.3)) and is_single_plate(CMYK(0, 0, 0, 0))
-    assert not is_single_plate(CMYK(0.1, 0, 0, 0.9)) and not is_single_plate(RGB(0, 0, 0))
     with pytest.raises(DeclarationError) as raised:
         plates_of("red")
     assert raised.value.code == "TM-M071"

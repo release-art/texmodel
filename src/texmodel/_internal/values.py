@@ -3,15 +3,26 @@ and turning it into TeX."""
 
 import dataclasses
 import re
-from collections.abc import Mapping
+from collections.abc import (
+    Mapping,
+    Set as AbstractSet,
+)
 from typing import Any, cast
 
-from ..body import Syntax, text_of
+from ..body import Syntax
 from ..errors import DeclarationError
 from ..interface import Body, BodyKind
-from ..types import CMYK, RGB, Gray, Length, Raw, pdf_escape, plain_number
+from ..types import CMYK, RGB, Gray, Length, Raw, pdf_escape, plain_number, plates_of
+from .inline import text_of
 
 _COLOUR_NAME = re.compile(r"[A-Za-z][A-Za-z0-9!.+-]*")
+
+
+def plates_outside(allowed: AbstractSet[str] | None, colour: object) -> str | None:
+    """Why `colour` inks plates outside a value's `plates` (`TM-M070`); None when it does not or there are none."""
+    if allowed is None or not (extra := plates_of(colour) - allowed):
+        return None
+    return f"inks {sorted(extra)}, outside {sorted(allowed)}"
 
 
 def unprotected(text: str, chars: str) -> bool:

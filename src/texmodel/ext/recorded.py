@@ -20,11 +20,10 @@ import dataclasses
 import math
 import re
 import string
-import types
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any, NamedTuple
 
-from ..components import Command, Value
+from ..components import Command, Value, field
 from ..errors import DeclarationError
 from ..package import Package
 from ..types import Length, Raw
@@ -48,10 +47,6 @@ class Fold:
     identity: Mapping[Any, str]
     idempotent: bool
     reduce: Callable[[Iterable[float]], object]
-
-    @property
-    def kinds(self) -> tuple[Any, ...]:
-        return tuple(self.update)
 
 
 _MAX_INT = "2147483647"
@@ -140,7 +135,7 @@ class Recorded:
             )
         if self.kind not in (Length, int, LENGTHS):
             raise DeclarationError(f"Recorded.kind={self.kind!r}: Length, int or LENGTHS", code="TM-M057", path="kind")
-        if self.kind not in self.fold.kinds:
+        if self.kind not in self.fold.update:
             raise DeclarationError(
                 f"Recorded {self.name}: the {self.fold.name} fold does not take a {self.kind!r}",
                 code="TM-M058",
@@ -199,32 +194,19 @@ class Recorded:
                 "unsettled": Raw(unsettled),
             },
         )
-        length = self.kind is Length
-        record = types.new_class(
+        record = package.make_command(
             f"Record{self.name}",
-            (Command,),
-            exec_body=lambda ns: ns.update(
-                __doc__=f"Record a measurement of {self.name}.",
-                __module__=package.name,
-                __annotations__={"value": Raw},
-                defined_by=lib,
-            ),
+            f"Record a measurement of {self.name}.",
+            fields={"value": (Raw, field())},
+            defined_by=lib,
         )
-        value = types.new_class(
+        value = package.make_value(
             self.name,
-            (Value[Length if length else Raw],),
-            exec_body=lambda ns: ns.update(
-                __doc__=f"The {self.fold.name} of the {self.name} records, as of the last run.",
-                __module__=package.name,
-                defined_by=lib,
-            ),
+            Length if self.kind is Length else Raw,
+            f"The {self.fold.name} of the {self.name} records, as of the last run.",
+            defined_by=lib,
         )
-        return RecordedParts(package.command(record), package.value(value))
+        return RecordedParts(record, value)
 
 
-def reduce(fold: Fold, values: Iterable[float]) -> object:
-    """The fold of `values` in Python: what the TeX of the same fold must come to."""
-    return fold.reduce(values)
-
-
-__all__ = ["APPEND", "LENGTHS", "LIBRARY", "MAX", "MIN", "SUM", "Fold", "Recorded", "RecordedParts", "reduce"]
+__all__ = ["APPEND", "LENGTHS", "LIBRARY", "MAX", "MIN", "SUM", "Fold", "Recorded", "RecordedParts"]

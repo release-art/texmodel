@@ -11,7 +11,7 @@ from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.document import Document
 from texmodel.errors import DeclarationError
-from texmodel.ext.recorded import APPEND, LENGTHS, MAX, MIN, SUM, Fold, Recorded, reduce
+from texmodel.ext.recorded import APPEND, LENGTHS, MAX, MIN, SUM, Fold, Recorded
 from texmodel.package import Package
 from texmodel.types import Length, Raw
 from texmodel_build.compiler import Compiler
@@ -87,18 +87,18 @@ values = st.lists(st.integers(min_value=0, max_value=10_000), max_size=12)
 def test_a_fold_does_not_depend_on_the_order(fold, xs, seed):
     shuffled = list(xs)
     seed.shuffle(shuffled)
-    assert reduce(fold, shuffled) == reduce(fold, xs)
+    assert fold.reduce(shuffled) == fold.reduce(xs)
 
 
 @pytest.mark.parametrize("fold", [MAX, MIN], ids=lambda f: f.name)
 @given(xs=values)
 def test_an_idempotent_fold_takes_a_value_twice_as_once(fold, xs):
-    assert fold.idempotent and reduce(fold, [*xs, *xs]) == reduce(fold, xs)
+    assert fold.idempotent and fold.reduce([*xs, *xs]) == fold.reduce(xs)
 
 
 def test_a_list_keeps_its_order_and_is_not_idempotent():
-    assert reduce(APPEND, [3, 1, 2]) == [3, 1, 2] and reduce(APPEND, [1, 1]) == [1, 1]
-    assert not APPEND.idempotent and APPEND.kinds == (LENGTHS,)
+    assert APPEND.reduce([3, 1, 2]) == [3, 1, 2] and APPEND.reduce([1, 1]) == [1, 1]
+    assert not APPEND.idempotent and tuple(APPEND.update) == (LENGTHS,)
     sty = pkg.render()
     assert r"\xdef\ar@recWidthsseen{\ifx\ar@recWidthsseen\@empty\else\ar@recWidthsseen,\fi\the\dimexpr#1\relax}" in sty
     assert r"\xdef\arWidths{\ar@recWidthslast}" in sty and r"str_if_eq:eeTF" in sty  # strings, not catcodes
@@ -111,9 +111,9 @@ def test_a_list_keeps_its_order_and_is_not_idempotent():
 
 
 def test_a_sum_is_not_idempotent_and_the_identities_change_nothing():
-    assert not SUM.idempotent and reduce(SUM, [2, 2]) != reduce(SUM, [2])
+    assert not SUM.idempotent and SUM.reduce([2, 2]) != SUM.reduce([2])
     for fold, identity in ((MAX, 0), (SUM, 0), (MIN, float("inf"))):
-        assert reduce(fold, [5, identity]) == reduce(fold, [5])
+        assert fold.reduce([5, identity]) == fold.reduce([5])
     assert isinstance(MAX, Fold)
 
 
@@ -152,9 +152,9 @@ def test_the_value_settles_over_two_runs_and_the_tex_agrees_with_python(compiler
     for name, (xs, expected) in CASES.items():
         text = found[f"end-{name}"]
         if name == "Widths":  # a list is the last run's, in order, as the .aux spelled it
-            assert reduce(APPEND, xs) == xs and text == expected
+            assert APPEND.reduce(xs) == xs and text == expected
             continue
-        assert reduce(fold_of[name], xs) == expected
+        assert fold_of[name].reduce(xs) == expected
         assert float(text.removesuffix("pt")) == expected if name == "LabelWidth" else int(text) == expected
         # what the final run read from the .aux before any card was recorded: the value, carried between runs
         assert found[f"start-{name}"] == found[f"end-{name}"]

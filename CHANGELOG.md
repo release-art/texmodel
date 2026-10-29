@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-29
+
+### Added
+
+- `Package.make_command` and `make_value` take `defined_by=`, a library block that defines the command or value; a command
+  made so has no `body`.
+
+### Changed
+
+- `texmodel.ext.fit` declares its two public lengths, `\<prefix><Name>Size` and `\<prefix><Name>LineSize`, with
+  `\newlength` (was `\dim_new:N`), so `declared()` and the adoption scanner read them. A package that declares a `Fit`
+  renders a different `.sty`.
+- `ColourName` checks its whole grammar (`name!50!name`, numbers up to 100) when it is built (`TM-M067`), not when
+  `names` is read.
+- `texmodel check` on an adopted package reports a public `<prefix>Name` the hand-written sources define that nothing
+  declares (`TM-C025`), as it reports a library's (`TM-C012`): a check that passed may now fail until the name is declared
+  or renamed with an `@`.
+- A compile places a line that names no file of its own (a package warning's `on input line N`, a box, a `! message`) in
+  the file open at that point: LuaLaTeX runs a `start_file`/`stop_file` callback before the document (latexmk's
+  `-pretex`, the engine's command is `%O %P`) that marks each TeX file in the log. A warning raised in an `\input` part or
+  in a package while it loads names that file, and is no longer mapped to a line of the main document; a line in no file
+  is not mapped. The PDF is unchanged; the log gains `texmodel:open:<name>` and `texmodel:close` lines.
+- `TM-T004` says "docker could not start the container" when `docker run` itself fails (exit 125), and "could not run
+  latexmk" only when latexmk is missing.
+
+### Removed
+
+- `texmodel.ext.plates.is_single_plate`: `len(plates_of(colour)) <= 1`.
+- `texmodel.ext.recorded.reduce` and `Fold.kinds`: `fold.reduce(values)` and `fold.update`.
+- Plumbing that was public by name only moves to `texmodel._internal`: `spec_of`, `env_spec_of`, `value_spec_of`,
+  `call_line`, `emit` and `INDENT` (`texmodel.components`), `body_of`, `record_fields`, `field_info` and `FieldNotes`
+  (`texmodel.interface`), and `inline_text` and `text_of` (`texmodel.body`).
+- `texmodel.body.join`, which writes a body's pieces as TeX, moves to `texmodel._internal` with them.
+
 ## [0.9.0] - 2026-10-29
 
 ### Changed

@@ -21,7 +21,6 @@ class Ink(Value[Dual]):
 import dataclasses
 import enum
 import re
-import types
 import typing
 from typing import Annotated, Any
 
@@ -159,14 +158,7 @@ class ColourSpace:
             LIBRARY,
             fill={"p": Raw(package.prefix), "default": Raw("true" if self.default is Build.CMYK else "false")},
         )
-        flag = types.new_class(
-            "Cmyk",
-            (Value[bool],),
-            exec_body=lambda ns: ns.update(
-                __doc__="Whether the print build of the colours is in use.", __module__=package.name, defined_by=lib
-            ),
-        )
-        return package.value(flag)
+        return package.make_value("Cmyk", bool, "Whether the print build of the colours is in use.", defined_by=lib)
 
 
 __all__ = ["KIND", "Build", "ColourPair", "ColourSpace", "Dual", "colour_of"]

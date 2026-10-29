@@ -24,7 +24,9 @@ bin/test.sh                           # pytest, 100% coverage gate
   (the optional build side; only `_internal/spawn.py` may import `subprocess`). import-linter enforces both.
 - Public API is the top-level modules of each package; everything else lives in `_internal/` and may change freely, as in
   pydantic. A new module goes in `_internal` unless users should import it (then add it to `PUBLIC` in that package's
-  `test_public_api.py` and document it).
+  `test_public_api.py` and document it). `tests/fixtures/public_api.txt` is the API's snapshot (plan I2): every `__all__`
+  name with its signature. A change to it is reviewed and listed in the changelog; after an intended one,
+  `UPDATE_GOLDEN=1 pdm run pytest tests/test_api_snapshot.py`.
 - Only `cli.py` formats output; the library uses `logging` and `warnings` (plan E5).
 - New behaviour comes with a test; add a line under `## [Unreleased]` in `CHANGELOG.md` for anything user-visible.
 - Docs are `README.md` (front page) and `docs/` (MkDocs: `pdm install -G docs`, then `pdm run mkdocs serve`). Their `python` blocks run in the test suite; fence an example that only illustrates as `py`.

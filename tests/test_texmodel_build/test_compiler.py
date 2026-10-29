@@ -34,7 +34,8 @@ def test_local_compile_builds_a_safe_argv_in_the_source_dir(toolchain, src, tmp_
     assert result.ok and result.pages == 1 and result.passes == 1 and result.image is None
     argv = latexmk_call(toolchain)
     assert argv[0] == "latexmk" and argv[-1] == "a.tex"
-    assert "-pdflatex=lualatex --no-shell-escape %O %S" in argv
+    assert "-pdflatex=lualatex --no-shell-escape %O %P" in argv  # %P: the file marks, then \\input of the source
+    assert any(a.startswith("-pretex=\\directlua{") and "texmodel:open:<" in a for a in argv)
     assert f"-outdir={tmp_path / 'out'}" in argv and "$max_repeat=3;" in argv and "-file-line-error" in argv
     assert (result.engine, result.latexmk_version) == ("lualatex", "4.87")
     assert result.engine_version.startswith("This is LuaHBTeX")
@@ -98,7 +99,9 @@ def test_diagnostics_in_the_source_carry_the_path_of_the_plan_line_behind_them(t
         "./a.tex:3: Undefined control sequence.\nl.3 \\foo\n"
         "res/x.sty:2: Undefined control sequence.\nl.2 \\bar\n"
         "./a.tex:99: Undefined control sequence.\nl.99 \\far\n"
-        "Package pk Warning: Card 'X' does not fit.\n(pk)   More on input line 2.\n" + OK_LOG
+        "texmodel:open:<./a.tex>\n(./a.tex\n"
+        "Package pk Warning: Card 'X' does not fit.\n(pk)   More on input line 2.\n"
+        ")\ntexmodel:close\n" + OK_LOG
     )
     toolchain.returncode = 12
     paths = {
@@ -123,9 +126,39 @@ def test_plans_of_other_files_locate_the_diagnostics_in_them_by_file_name(toolch
     }
 
 
+def test_a_line_is_placed_in_the_file_open_where_the_log_reports_it(toolchain, src, tmp_path):
+    """`on input line N` names no file: the engine's file marks say which. A warning raised in an `\\input` part, or in
+    a package while it loads, is not placed on line N of the source; one the log places in no file is not placed."""
+    plan = Plan((Line("header", "%"), Line("Card[0]", "\\a"), Line("Card[1]", "\\b")))
+    toolchain.log = (
+        "Package pk Warning: before any file on input line 2.\n"
+        "texmodel:open:<./a.tex>\n(./a.tex\n"
+        "texmodel:open:<./pk.sty>\n(./pk.sty\nPackage pk Warning: loading on input line 2.\n)\ntexmodel:close\n"
+        "Package pk Warning: in the source on input line 3.\n"
+        "texmodel:open:<./part.tex>\n(./part.tex\nPackage pk Warning: in the part on input line 2.\n"
+        "Overfull \\hbox (1.0pt too wide) in paragraph at lines 2--2\n)\ntexmodel:close\n"
+        "Package pk Warning: back in the source on input line 2.\n"
+        ")\ntexmodel:close\n" + OK_LOG
+    )
+    found = {
+        x.message: (x.file, x.path) for x in Compiler().compile(src, tmp_path / "out", plan=plan).diagnostics if x.line
+    }
+    assert found == {
+        "before any file": (None, None),
+        "loading": ("./pk.sty", None),
+        "in the source": ("./a.tex", "Card[1]"),
+        "in the part": ("./part.tex", None),
+        "Overfull \\hbox (1.0pt too wide) in paragraph at lines 2--2": ("./part.tex", None),
+        "back in the source": ("./a.tex", "Card[0]"),
+    }
+
+
 def test_an_overset_carries_the_path_of_the_plan_line_behind_it(toolchain, src, tmp_path):
     plan = Plan((Line("header", "%"), Line("Card[0]", "\\a")))
-    toolchain.log = "Package pk Warning: Card 'X' does not fit 3pt 1pt on input line 2.\n" + OK_LOG
+    toolchain.log = (
+        "texmodel:open:<./a.tex>\nPackage pk Warning: Card 'X' does not fit 3pt 1pt on input line 2.\n"
+        "texmodel:close\n" + OK_LOG
+    )
     rule = d.Measure.declare("fit", "pk", r"Card '(?P<item>X)' does not fit (?P<needs>\S+) (?P<has>\S+)")
     result = Compiler(measures=(rule,)).compile(src, tmp_path / "out", plan=plan)
     (over,) = (x for x in result.diagnostics if isinstance(x, d.Overset))
@@ -186,12 +219,15 @@ def test_non_convergence_with_no_visible_aux_change(toolchain, src, tmp_path, mo
     assert "nothing in .aux" in next(x for x in result.diagnostics if isinstance(x, d.NotConverged)).message
 
 
-@pytest.mark.parametrize(("code", "image"), [(127, None), (127, "img"), (125, "img")])
-def test_a_missing_tool_is_a_toolchain_error(toolchain, src, tmp_path, code, image):
+@pytest.mark.parametrize(
+    ("code", "image", "who"),
+    [(127, None, "could not run latexmk"), (127, "img", "could not run latexmk"), (125, "img", "docker could not")],
+)
+def test_a_missing_tool_is_a_toolchain_error(toolchain, src, tmp_path, code, image, who):
     toolchain.returncode = code
     with pytest.raises(ToolchainError) as info:
         Compiler(image=image).compile(src, tmp_path / "out")
-    assert info.value.code == "TM-T004"
+    assert info.value.code == "TM-T004" and str(info.value).startswith(who)
 
 
 def test_missing_image_and_missing_latexmk_are_toolchain_errors(toolchain, src, tmp_path):

@@ -31,12 +31,12 @@ import pydantic
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode
 
 from ._internal.preamble_data import PreambleData, preamble_data
+from ._internal.values import plates_outside
 from .body import Comment
 from .components import AnyValue, Children, Command, Environment, Node, Value
 from .document import OPTION, Document
 from .errors import DeclarationError, Violation
 from .package import Package
-from .types import plates_of
 
 
 def _path(root: str, loc: Sequence[str | int]) -> str:
@@ -76,17 +76,13 @@ def _values(package: Package) -> dict[str, type[AnyValue]]:
 
 def _setting_type(cls: type[AnyValue]) -> Any:  # noqa: ANN401
     """What a setting's `value` is in data: the kind's type, and for a colour with `plates`, inside them."""
-    python: Any = cls.__tm_kind__.python
-    allowed = cls.plates
-    if allowed is None:
-        return python
 
     def inside(value: Any) -> Any:  # noqa: ANN401
-        if extra := plates_of(value) - allowed:
-            raise ValueError(f"inks {sorted(extra)}, outside {sorted(allowed)}")
+        if why := plates_outside(cls.plates, value):
+            raise ValueError(why)
         return value
 
-    return Annotated[python, pydantic.AfterValidator(inside)]
+    return Annotated[cls.__tm_kind__.python, pydantic.AfterValidator(inside)]
 
 
 def _document_model(package: Package) -> type[pydantic.BaseModel]:

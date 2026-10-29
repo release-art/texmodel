@@ -38,12 +38,6 @@ def test_only_the_public_modules_sit_at_the_top_level():
     )
 
 
-# public by name but not API: used across modules where a move would be a cycle
-NOT_API = {"inline_text", "text_of", "call_line", "spec_of", "env_spec_of", "value_spec_of"} | {
-    "field_info", "record_fields", "FieldNotes", "body_of", "Children", "emit", "INDENT", "control_name"
-}  # fmt: skip
-
-
 @pytest.mark.parametrize("name", sorted(PUBLIC - {"cli", "ext", "std"}))
 def test_all_lists_what_a_module_offers(name):
     mod = importlib.import_module(f"texmodel.{name}")
@@ -51,4 +45,4 @@ def test_all_lists_what_a_module_offers(name):
         n for n, o in vars(mod).items() if not n.startswith("_") and getattr(o, "__module__", None) == mod.__name__
     }
     assert all(hasattr(mod, n) for n in mod.__all__)
-    assert defined - set(mod.__all__) <= NOT_API, "a new public name goes in __all__, or moves to _internal"
+    assert defined <= set(mod.__all__), "a new public name goes in __all__, or moves to _internal"

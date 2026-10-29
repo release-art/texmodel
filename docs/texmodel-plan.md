@@ -277,7 +277,9 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
 - D1d **A print page** (`texmodel.ext.printpage`): trim, bleed, overflow and margin, each a `Length` or `Sides` (`all=`,
   `horizontal=`/`vertical=`, the four edges, with an edge replacing the base), written as numbers into `\geometry` and
   `\pdfvariable pageattr` (`TM-M051`, `TM-M052`). The type area is the same in `Sheet.FULL` and `Sheet.TRIM`; no
-  `showcrop`, whose own offset made a calibrated half-bleed necessary. Fixed at declaration, LuaTeX only.
+  `showcrop`, whose own offset made a calibrated half-bleed necessary. Fixed at declaration, LuaTeX only: a sheet, landscape
+  or page boxes chosen by a package option when TeX loads it is on the roadmap, open on how it shares `\ProcessOptions`
+  with `ColourSpace`.
 - D1e **An output intent** (`texmodel.ext.intent`): one `\DocumentMetadata` for every standard, `colorprofiles` as
   `subtype=path` pairs, the condition registered under both spellings of the profile (`TM-M048` to `TM-M050`); an ICC
   header check (`TM-C014`, `TM-C015`).
@@ -293,7 +295,8 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
 - D1h **Fitted text** (`texmodel.ext.fit`): a line fitted to a band at one main size, at most two shared reduced sizes and a
   floor, on the document's baseline; the per-title fits are rounded by the split that loses least size in total
   (`j * (o_j - o_n)` for two groups). The widths and the ascent and descent maxima are `Recorded` values (`LENGTHS` with
-  `APPEND`, and `MAX`). `choose_sizes` is the oracle for the expl3. No wrapping (`TM-M060` to `TM-M063`).
+  `APPEND`, and `MAX`). `choose_sizes` is the oracle for the expl3. No wrapping (`TM-M060` to `TM-M063`). The two public
+  lengths, `<Name>Size` and `<Name>LineSize`, are `\newlength` as any `Value[Length]` is, so the scanner reads them.
 - D1i **Print and screen colours** (`texmodel.ext.colourspace`): `ColourPair` states both builds, the colour kind `Dual`
   declares one name guarded by `\if<prefix>Cmyk`, and `ColourSpace` declares the options and the flag (`TM-M064` to
   `TM-M066`). A document picks the build with a class option. Not a conversion between models (T5). `colour_of(Value)` is the
@@ -993,7 +996,8 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | Documents are constructor trees (not `with` builders) | decided |
 | `children = [Fact.times(2, 3)]` multiplicity syntax (`times([from,] to)` with `to=None` for no limit, plus `times.any()` and `times.at_least_one()`; not operator overloading) | decided |
 | An adopted (declared-only) package is a flag on the package, `Package(..., adopted=True)`: no bodies, no `.sty`, `texmodel check` compares the declarations with `[tool.texmodel] sources` | decided |
-| The interface check compares the argument count and whether the first is optional of what the scan reads (§21a 8); a name defined another way is missing (`TM-C010`, `TM-C011`) | decided |
+| The interface check compares the argument count and whether the first is optional of what the scan reads (§21a 8); a name defined another way is missing (`TM-C010`, `TM-C011`); a public name the sources define that nothing declares is reported (`TM-C025`, K2) | decided |
+| A diagnostic's file (C11): `-file-line-error` gives an error's; a line with none (`on input line N`, a box, `! message`) is in the file open at that point of the log, from the `texmodel:open:<name>` and `texmodel:close` lines a LuaTeX `start_file`/`stop_file` callback writes, run before the document as latexmk's `-pretex` (`%P`). TeX's `(file` ... `)` is not followed: message and box text carry unbalanced parentheses (measured). The callback prints LuaTeX's own file text, so the log keeps `(file)` and the font listing, and the PDF is byte-identical. A line in no file is not mapped to a component | decided |
 | Document preamble: `PreambleSlots(before_class, before_package, after_package)`, each a tuple of `Raw` or a typed entry, a `Document`'s `preamble`; public names used there are linted (`TM-M015`) | decided |
 | The harness types any package warning (`PackageWarning`, `TM-X019`); `Overset` types a "does not fit" warning through a configured rule or a `fit.` probe | decided |
 | A source map is a `Plan`: output lines with the path that wrote each. Documents are checked against the model's render, with no baseline file (`[tool.texmodel.documents]`, like `terraform plan`); hand edit and config change are not told apart | decided |
@@ -1012,7 +1016,7 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | An optional argument's scalar default is TeX's default in the definition; a call inside a `Raw` argument is a `Ref` or `Seq`; counting rules in TeX are built from `StepCounter`, `IfNumGreater` and friends (cookbook), with no flag in the library | decided |
 | A shared base is `abstract=True` (fields, `body` or `begin`/`end`, `children` for its subclasses; no docstring or control-word name; never registered, `TM-M043`); a value has a control sequence (`control_name`) unless it is a colour (`TM-M042`) and a readable default (`Value.declared_default()`) | decided |
 | `InputIfExists(name)` is a typed preamble entry (`before_package` or `after_package`, `TM-M044`); `setting_line(value)` is the public line of a setting; settings land after `\usepackage` and before `after_package` (tested contract) | decided |
-| `Package.make_command` / `make_value` build and register a class from data; the same data under a name returns the first class, other data is `TM-M007` (no "ignore duplicates" mode: a written class has a body function that cannot be compared) | decided |
+| `Package.make_command` / `make_value` build and register a class from data; the same data under a name returns the first class, other data is `TM-M007` (no "ignore duplicates" mode: a written class has a body function that cannot be compared); `defined_by=` declares what a library block defines, as `ext` does | decided |
 | `describe(cls)` returns a frozen `Description` of a registered class (category, name, `cs`, doc, arguments as name/optional/doc, a value's Python type, default, `colour_name`, and the declared `body` / `end` text); fields are added in a minor release and never renamed without a `Changed` note | decided |
 | Python-only authoring; TOML/YAML frontend | parked, not planned |
 | Renames via `renamed_from` → pydantic aliases + release record | decided |
@@ -1046,8 +1050,7 @@ Each is a candidate, not a decision. `docs/briefs/roadmap.md` orders them.
 
 1. **`List[T]` fields.** Open: how a list renders (separator, per-item wrapper, empty list).
 2. **`Measure` beyond `fit`.** Other kinds than `fit`; a declared bound per item.
-3. **Diagnostic mapping.** A package warning's `input line N` has no file, so one raised inside another file is mislabelled (TeX
-   wraps log lines, so the file stack is not recoverable).
+3. **Diagnostic mapping.** Built (§21): the engine's file marks place a file-less line in its file.
 4. **Grammar.** Interleaving of two runs.
 5. **Hand edit vs config change.** Telling them apart needs the old render (a saved plan or git).
 6. **Hand-edit semantics.** (The field and typed value of an edit are built, §21.) The old regex tool matched cards by id, ignored a triage tool's marker comment, and produced the
@@ -1058,7 +1061,7 @@ Each is a candidate, not a decision. `docs/briefs/roadmap.md` orders them.
 8. **Adoption scanner reach (low priority).** Reads `\newcommand`, `\providecommand`, `\DeclareRobustCommand`,
    `\newenvironment`, the xparse family, `\newlength`, `\newtoggle`, `\newif`, `\definecolor`, `\colorlet`, `\newcounter`,
    `\newsavebox` and `\newfontfamily`; not `\def`, `\csname`, expl3 or renewals of declared names (M10). Names an external
-   source defines that the model does not declare (M9) are not reported (a library's are: `TM-C012`).
+   source defines that the model does not declare (M9) are reported (`TM-C025`, as a library's are `TM-C012`).
 9. **PDF strings.** Not verified: other engines, PDF/A validators.
 10. **Preamble.** Slots declared by the package (D3).
 11. **Declared-only variants.** If a consumer mixes generated and adopted components in one package, `adopted=True` on the package
