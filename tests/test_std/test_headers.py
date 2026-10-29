@@ -21,6 +21,7 @@ from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
 from texmodel.body import Hole
 from texmodel.components import Command, Passthrough
 from texmodel.document import Document
+from texmodel.interface import ColourName
 from texmodel.package import Package
 from texmodel.preamble import PreambleSlots
 from texmodel.std import MODULES, TEXLIVE
@@ -299,7 +300,12 @@ def tikz_samples():
         t.Tikzpicture(
             body_of(r"\draw (0,0) -- (1,1);"),
             options=t.TikzOptions(
-                scale=1, thick=True, draw="red", line_width=Length("1pt"), rounded_corners=True, extra=Raw("->")
+                scale=1,
+                thick=True,
+                draw=ColourName("red"),
+                line_width=Length("1pt"),
+                rounded_corners=True,
+                extra=Raw("->"),
             ),
         ),
         t.Tikzpicture(body_of(r"\node {x};")),
@@ -309,15 +315,22 @@ def tikz_samples():
 def tcolorbox_samples():
     from texmodel.std import tcolorbox as t
 
-    return [t.TcbUseLibrary(libraries=Raw("skins,fitting")), t.TcbSet(options=t.TcolorboxOptions(colback="white"))], [
+    return [
+        t.TcbUseLibrary(libraries=Raw("skins,fitting")),
+        t.TcbSet(options=t.TcolorboxOptions(colback=ColourName("white"))),
+    ], [
         t.Tcolorbox(
             body_of("x"),
             options=t.TcolorboxOptions(
-                colback="white", colframe="black", boxrule=Length("0.5pt"), arc=Length("1mm"), sharp_corners=True
+                colback=ColourName("white"),
+                colframe=ColourName("black"),
+                boxrule=Length("0.5pt"),
+                arc=Length("1mm"),
+                sharp_corners=True,
             ),
         ),
         t.Tcolorbox(body_of("x")),
-        t.Tcbox(text=Raw("x"), options=t.TcolorboxOptions(colback="white", opacityback=0.5)),
+        t.Tcbox(text=Raw("x"), options=t.TcolorboxOptions(colback=ColourName("white"), opacityback=0.5)),
         t.Tcbox(text=Raw("x")),
     ]
 

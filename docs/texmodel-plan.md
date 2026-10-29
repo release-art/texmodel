@@ -11,7 +11,7 @@ nothing about any brand, deck or business domain.
 
 **How to read this document.** It is the target specification plus the decisions log (§21). The guide and the cookbook
 describe what exists; §21 is the record of what was decided and built; §19 and §21a describe what is open; `docs/briefs/roadmap.md` is the order to do it in. Many ids below
-describe work that is *not built*. Checked against the code (v0.8.0), these are not built: scoped overrides `Set` (D4a),
+describe work that is *not built*. Checked against the code (v0.9.0), these are not built: scoped overrides `Set` (D4a),
 rules and `@rule` (D5), placement (M5), the `Namespace` policy (M6), `engine` and `kind` on `Package` and engine
 capabilities (M11, M13), `Markup`, `Path`, `Font`, `Snippet`, `PgfStyle`, `Cycle` and colour variants (T2, T5-T9), trust
 levels and limits (Z1), `texmodel explain` (E4), a `@covers` check (A2, V7), benchmarks (W2), `libcst` refactors and
@@ -268,6 +268,36 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
   `visible` (every class a document may name) and `value_named(name)` look in the base chain, and a name the package
   declares itself replaces the base's (no clash error: data names are looked up by class name, and control sequences of
   two prefixes cannot meet). Data, the schema and the slots' name check (`TM-M015`) use the same lookup.
+- D1c **Plates** (`texmodel.ext.plates`, `Value.plates`): a colour value declares the plates it may ink (`{Plate.K}` is K-only,
+  `{Plate.C, Plate.M}` a duotone; a spot is its own plate) and a default, a setting or data outside them is refused
+  (`TM-M069`, `TM-M070`). `plates_of` reads any colour (an `RGB` is all four, a `Gray` the K plate unless it is white);
+  `K(fraction)` is a `CMYK` on the black plate, bounded like every colour (`TM-M017`). A tint or a mix keeps the plates
+  only when both ends ink the same ones (D1j). Deriving a K from an sRGB colour needs an ICC profile and stays with the
+  consumer; a job-wide set of plates is the same primitive on the package, not built.
+- D1d **A print page** (`texmodel.ext.printpage`): trim, bleed, overflow and margin, each a `Length` or `Sides` (`all=`,
+  `horizontal=`/`vertical=`, the four edges, with an edge replacing the base), written as numbers into `\geometry` and
+  `\pdfvariable pageattr` (`TM-M051`, `TM-M052`). The type area is the same in `Sheet.FULL` and `Sheet.TRIM`; no
+  `showcrop`, whose own offset made a calibrated half-bleed necessary. Fixed at declaration, LuaTeX only.
+- D1e **An output intent** (`texmodel.ext.intent`): one `\DocumentMetadata` for every standard, `colorprofiles` as
+  `subtype=path` pairs, the condition registered under both spellings of the profile (`TM-M048` to `TM-M050`); an ICC
+  header check (`TM-C014`, `TM-C015`).
+- D1f **A spot colour** (`texmodel.ext.spot`): `Spot(plate, proxy=)` as the colour kind `SpotColour`
+  (`\definespotcolor`, `colorspace`), `tint` as xcolor's `name!pct` (`TM-M053` to `TM-M055`). A plate name is refused when
+  it holds a PDF delimiter or a TeX special; measured: spaces, non-ASCII and `_ ~ & $ ^ , : ; = @` write a clean PDF,
+  `/ ( ) < > [ ] { }` split the name without a TeX error. A document cannot set a spot: `colorspace` stops on a plate
+  defined twice.
+- D1g **Recorded values** (`texmodel.ext.recorded`): `Recorded(name, kind=Length|int, fold=MAX|MIN|SUM)` declares a library
+  block, a `Record<Name>` command and a `Value`, all `defined_by` the block. The record is `\global`, the `.aux` line is
+  guarded by `\providecommand`, and a run that ends with another value than it began with warns (`TM-M056` to `TM-M059`). An
+  idempotent fold folds the last run's value into this run's; a sum reports it alone. A fold is data with a Python `reduce`.
+- D1h **Fitted text** (`texmodel.ext.fit`): a line fitted to a band at one main size, at most two shared reduced sizes and a
+  floor, on the document's baseline; the per-title fits are rounded by the split that loses least size in total
+  (`j * (o_j - o_n)` for two groups). The widths and the ascent and descent maxima are `Recorded` values (`LENGTHS` with
+  `APPEND`, and `MAX`). `choose_sizes` is the oracle for the expl3. No wrapping (`TM-M060` to `TM-M063`).
+- D1i **Print and screen colours** (`texmodel.ext.colourspace`): `ColourPair` states both builds, the colour kind `Dual`
+  declares one name guarded by `\if<prefix>Cmyk`, and `ColourSpace` declares the options and the flag (`TM-M064` to
+  `TM-M066`). A document picks the build with a class option. Not a conversion between models (T5). `colour_of(Value)` is the
+  xcolor name of any colour value.
 - D2 `doc.violations()`, `doc.render()` (str, pure, deterministic, no I/O),
   `doc.to_dict()`, `Doc.from_dict()` (migrates then validates), `doc.plan()` (every
   output line with provenance: model | body:line | user value).

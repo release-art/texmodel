@@ -326,6 +326,20 @@ class LengthExpr(Length):
         raise DeclarationError(f"{self}: a TeX expression has no size in Python", code="TM-M016")
 
 
+@enum.unique
+class Plate(enum.StrEnum):
+    """The process plates: a plate is a string, and a spot's is its name."""
+
+    C = "C"
+    M = "M"
+    Y = "Y"
+    K = "K"
+
+
+PROCESS: Final = frozenset(Plate)
+"""The plates an ordinary colour may ink."""
+
+
 class _Colour:
     """Components in [0, 1], refused outside it; `str()` is what `\\definecolor` takes."""
 
@@ -350,6 +364,11 @@ class CMYK(_Colour):
     k: float
     model: ClassVar[str] = "cmyk"
 
+    @property
+    def plates(self) -> frozenset[str]:
+        """The process plates it inks: those with a component above zero."""
+        return frozenset(p for p, v in zip(Plate, (self.c, self.m, self.y, self.k), strict=True) if v > 0)
+
 
 @dataclasses.dataclass(frozen=True)
 class RGB(_Colour):
@@ -358,19 +377,40 @@ class RGB(_Colour):
     b: float
     model: ClassVar[str] = "rgb"
 
+    @property
+    def plates(self) -> frozenset[str]:
+        """All four: the output intent converts it, so any plate may carry it."""
+        return PROCESS
+
 
 @dataclasses.dataclass(frozen=True)
 class Gray(_Colour):
     g: float
     model: ClassVar[str] = "gray"
 
+    @property
+    def plates(self) -> frozenset[str]:
+        """The black plate, unless it is white."""
+        return frozenset({Plate.K}) if self.g < 1 else frozenset()
+
 
 Colour = CMYK | RGB | Gray
 """One colour model each; there is no conversion between them (T5)."""
 
 
+def plates_of(colour: object) -> frozenset[str]:
+    """The plates a colour inks: its `plates` (a `CMYK`, `RGB`, `Gray`, or a `Spot` or `ColourPair` of `ext`)."""
+    found = getattr(colour, "plates", None)
+    if found is None:
+        raise DeclarationError(f"{colour!r}: a colour has plates", code="TM-M071")
+    return frozenset(found)
+
+
 __all__ = [
     "CMYK",
+    "PROCESS",
+    "Plate",
+    "plates_of",
     "Choice",
     "Claim",
     "Colour",

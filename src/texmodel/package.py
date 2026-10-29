@@ -55,10 +55,11 @@ from .components import (
 from .document import OPTION, Document
 from .drift import stamp
 from .errors import DeclarationError, Violation
+from .interface import XCOLOR, colour_of, constraint_of
 from .plan import Line, Plan, Span
 from .preamble import Entry, PdfInfo, RequireMetadata
 from .testing import Component, stub_tex
-from .types import Raw, balanced
+from .types import PROCESS, Raw, balanced
 
 _NAME = re.compile(r"[a-z][a-z0-9-]*")
 _PREFIX = re.compile(r"[a-z]*")  # empty: the package of a standard TeX library, whose names carry none
@@ -447,6 +448,21 @@ class Package:
         """The value class called `name` that `visible` holds, or `None`."""
         found = next((c for c in self.visible if c.__name__ == name), None)
         return typing.cast("type[AnyValue]", found) if found and issubclass(found, Value) else None
+
+    def colour_constraints(self) -> dict[str, frozenset[str] | None]:
+        """Every colour name an argument may use here, with the plates it may ink: this package's colour values and its
+        base chain's, the colours its LaTeX libraries define (any process plate), and xcolor's base names. `None`
+        inks nothing (`white`)."""
+        found = dict(XCOLOR)
+        for p in self._lineage():
+            for cls in p.registered:
+                if issubclass(cls, Value) and cls.__tm_kind__.named:
+                    named = typing.cast("type[Value[Any]]", cls)
+                    found[colour_of(named)] = constraint_of(named)
+            for item in p._items:  # noqa: SLF001
+                if isinstance(item, Library) and item.syntax is Syntax.LATEX2E:
+                    found |= dict.fromkeys(scan_colours(item.text) - found.keys(), PROCESS)
+        return found
 
     def _lineage(self) -> list["Package"]:
         """The base chain, farthest base first, this package last."""

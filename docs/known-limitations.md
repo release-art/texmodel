@@ -21,6 +21,41 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 - `base=` does not check that a package's own value replacing a base value of the same name has a compatible type, and the
   comment classes of `Package(comments=)` are not inherited from the base.
 
+## Print output
+
+- `PrintPage` is written once, when the package is declared: a document cannot change the trim, the bleed or the margin, and
+  one package has one sheet. Boxes are the same on every page (no recto and verso with different inner margins), crop marks
+  are not drawn, and the engine must be LuaTeX.
+- A spot colour is declared once: a document cannot set it, and two values with the same plate name are a compile error
+  (`Duplicated spot name`), not a declaration error. Plate names are checked only for what breaks the PDF name or TeX.
+- `OutputIntent` knows PDF/X-4 and PDF/A-2b. It checks an ICC header, not that the profile is the one named by its
+  condition, and whether a file is where the compile will look is the compiler's roots.
+
+## Colours for print and screen
+
+- `ColourSpace` owns the package's options processing: a package that declares other options of its own must do so before
+  it, and may not process them twice. A `Dual` colour is not a spot (no screen build) and not checked for agreement between
+  its two builds: that is the consumer's colour conversion.
+
+## Plates
+
+- A colour is process (a subset of C, M, Y, K) or one spot: xcolor cannot mix a separation with CMYK, so `plates` sets that
+  mix a spot with process plates describe a job, not a colour, and are not accepted on a value. A colour a library defines
+  counts as a process colour in a mix, and the names of `dvipsnames` and the like are not known. `black` and the grays are the
+  K plate in the `cmyk` model only.
+
+## Recorded values
+
+- `Recorded` takes a length or an integer and the folds `MAX`, `MIN` and `SUM`; no flag, list or text. A value that depends on
+  its own measurement never settles: the run warns, and the author fixes it by measuring at a fixed size. Nothing stops a
+  document setting the recorded value as it would any `Value`; it is measured, not set, by convention.
+
+## Fitted text
+
+- `Fit` shrinks to the floor and stops: a title wider than the measure there overflows, and the log names it. There is no
+  wrapping. `reduced_sizes` is 0, 1 or 2 (a general N is a different algorithm). A size needs a scalable font (OpenType
+  under LuaTeX, or `anyfontsize`).
+
 ## Arguments and key lists
 
 - A definition needs LaTeX 2020-10 or later when its signature is not `\newcommand`-shaped (xparse is in the kernel from
@@ -29,7 +64,7 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   `Raw` pieces instead.
 - Verbatim and delimited-by-token arguments are not modelled. Neither is an optional braced group (xparse `g`).
 - A colour model (`CMYK`, `RGB`, `Gray`) writes its components, `0,0,0,1`, which suits `\definecolor` and
-  `\color[cmyk]{...}`; a macro that wants a name takes `ColourName`.
+  `\color[cmyk]{...}`; a macro that wants a name takes `ColourName`, which the package checks (`TM-C022`).
 - A `KeyVals` that fails its own checks (`exclusive`, `requires`, a wrong type) raises pydantic's `ValidationError` when it
   is built, not a `Violation` from `violations()`.
 - Key libraries differ in ways the presets only partly capture. `KeyRules` was measured against pgfkeys, xkeyval, keyval

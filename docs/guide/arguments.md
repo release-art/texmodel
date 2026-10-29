@@ -98,7 +98,8 @@ assert Put(text=Raw("x"), at=(1, 2)).render() == r"\put(1,2){x}"
 | `PdfString` | for the inside of a PDF literal string: [Values](values.md#pdf-strings) |
 | `Raw` | as it is |
 | `Length` | `Length("2mm")`, or `Length.expr(r"\linewidth")` for a TeX expression |
-| `CMYK`, `RGB`, `Gray`, `ColourName` | colour components in [0, 1], no conversion between models; `ColourName("blue!50")` |
+| `CMYK`, `RGB`, `Gray` | colour components in [0, 1], no conversion between models |
+| `ColourName` | an xcolor name or expression, checked against the package ([Colour names](values.md#colour-names)) |
 | `int`, `float` | the number; a float is rounded to five decimals |
 | `bool` | `true` / `false` |
 | `Choice` | the member's TeX |

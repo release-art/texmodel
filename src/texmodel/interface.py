@@ -24,6 +24,7 @@ arguments, other delimiters, tokens) is defined with `\NewDocumentCommand`.
 
 import dataclasses
 import enum
+import re
 import types
 import typing
 from collections.abc import Mapping
@@ -31,9 +32,10 @@ from typing import Annotated, Any, Final, Literal
 
 import pydantic
 from pydantic.fields import FieldInfo
+from pydantic_core import core_schema
 
 from .errors import DeclarationError
-from .types import CMYK, PDF, RGB, TEXT, Choice, Gray, Length, Raw
+from .types import CMYK, PDF, PROCESS, RGB, TEXT, Choice, Gray, Length, Plate, Raw, plain_number, plates_of
 
 
 @dataclasses.dataclass(frozen=True)
@@ -73,15 +75,129 @@ class _Marker:
 FLAG: Final = _Marker("Flag")
 SWITCH: Final = _Marker("Switch")
 ITEM: Final = _Marker("Item")
-COLOUR_NAME: Final = _Marker("ColourName")
 
 Flag = Annotated[bool, FLAG]
 """A key of a `KeyVals` written bare when set: `center`."""
 Switch = Annotated[bool, SWITCH]
 """A key of a `KeyVals` written with its boolean literal when set: `clip=true`. Declared `Switch | None = None`; `None`
 leaves it out."""
-ColourName = Annotated[str, COLOUR_NAME]
-"""The name of a colour or an xcolor expression (`red`, `blue!50!black`): letters, digits and `!-.+` only."""
+_NAME = re.compile(r"[A-Za-z][A-Za-z0-9.+-]*")
+_NUMBER = re.compile(r"[0-9]+(?:\.[0-9]+)?")
+_CHARS = re.compile(r"[A-Za-z][A-Za-z0-9!.+-]*")
+
+
+def colour_of(value: type[Any]) -> str:
+    """The xcolor name of a colour value: its `colour_name`, else `<prefix>-<kebab>`: `colour_of(Ink)` is `ap-ink`."""
+    kind = getattr(value, "__tm_kind__", None)
+    if kind is None or not kind.named or not hasattr(value, "__tm_prefix__"):
+        raise DeclarationError(
+            f"colour_of({value.__name__}): not a registered colour value",
+            code="TM-M066",
+            path=value.__name__,
+            hint="a Value[Colour], Value[Dual] or Value[SpotColour] registered with a package",
+        )
+    from ._internal.render import colour_name  # imports this module
+
+    return str(value.colour_name or colour_name(value.__tm_prefix__, value.__name__))
+
+
+XCOLOR: Final[Mapping[str, frozenset[str] | None]] = {
+    "white": None,  # inks nothing, so any colour may be mixed with it
+    "black": frozenset({Plate.K}),
+    "darkgray": frozenset({Plate.K}),
+    "gray": frozenset({Plate.K}),
+    "lightgray": frozenset({Plate.K}),
+    **dict.fromkeys(
+        "blue brown cyan green lime magenta olive orange pink purple red teal violet yellow".split(), PROCESS
+    ),
+}
+"""xcolor's base colours and the plates each inks in the `cmyk` model (`None`: none, `white`)."""
+
+
+def constraint_of(value: type[Any]) -> frozenset[str]:
+    """The plates a colour value may ink: its `plates`, else a spot's own plate, else the four process plates."""
+    if value.plates is not None:
+        return frozenset(value.plates)
+    default = value.declared_default()
+    inked: frozenset[str] = plates_of(default) if default is not None else frozenset[str]()
+    return inked if inked - PROCESS else PROCESS
+
+
+def _colour_ref(base: "str | type[Any]") -> str:
+    return base if isinstance(base, str) else colour_of(base)
+
+
+def _constraint(base: "str | type[Any]") -> frozenset[str] | None:
+    """What a mix compares: a colour value's plates, xcolor's for its own names; `None` for `white` and for a name
+    nothing here knows (a node checks that one against its package)."""
+    return XCOLOR.get(base) if isinstance(base, str) else constraint_of(base)
+
+
+class ColourName(str):
+    """The name of a colour or an xcolor expression: `ColourName("red")`, `ColourName(Ink, tint=0.7)` (a colour value,
+    tinted: `ap-ink!70`), `ColourName(Ink, tint=0.7, mix=Paper)` (`ap-ink!70!ap-paper`: 70% ink, 30% paper). A `str`, so
+    a plain string is as good in a field; `names` are the colours it uses, which a node checks against its package
+    (`TM-C022`). `tint` is a fraction, 0 to 1. Both ends of a mix may ink the same plates and no others (`TM-M068`,
+    and `TM-C024` for any expression), so K-only ink is not mixed with a CMYK colour, a duotone or a spot."""
+
+    __slots__ = ()
+
+    def __new__(
+        cls, base: "str | type[Any]", *, tint: float | None = None, mix: "str | type[Any] | None" = None
+    ) -> "ColourName":
+        text = _colour_ref(base)
+        if tint is not None:
+            if not 0 <= tint <= 1:
+                raise DeclarationError(f"ColourName: tint {tint!r} is in [0, 1]", code="TM-M017", path="tint")
+            text += f"!{plain_number(tint * 100)}"
+            if mix is not None:
+                text += f"!{_colour_ref(mix)}"
+                ends = (_constraint(base), _constraint(mix))
+                if None not in ends and ends[0] != ends[1]:
+                    raise DeclarationError(
+                        f"ColourName: {_colour_ref(base)} inks {sorted(ends[0] or ())} and {_colour_ref(mix)} "
+                        f"inks {sorted(ends[1] or ())}",
+                        code="TM-M068",
+                        path="mix",
+                        hint="both ends of a mix may ink the same plates and no others",
+                    )
+        elif mix is not None:
+            raise DeclarationError("ColourName: mix= needs a tint=", code="TM-M067", path="mix")
+        if not _CHARS.fullmatch(text):
+            raise DeclarationError(
+                f"ColourName({text!r}): letters, digits and `!-.+` only, a letter first", code="TM-M067"
+            )
+        return super().__new__(cls, text)
+
+    @property
+    def names(self) -> tuple[str, ...]:
+        """The colours the expression uses, in order; `TM-M067` if it is not `name(!number(!name)?)*`."""
+        parts = self.split("!")
+        names = parts[0::2]
+        numbers = parts[1::2]
+        if not all(_NAME.fullmatch(n) for n in names) or not all(
+            _NUMBER.fullmatch(n) and float(n) <= 100 for n in numbers
+        ):
+            raise DeclarationError(
+                f"ColourName({str(self)!r}): not `name`, `name!50` or `name!50!name`", code="TM-M067"
+            )
+        return tuple(names)
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source: object, handler: Any) -> core_schema.CoreSchema:  # noqa: ANN401
+        def make(value: str) -> "ColourName":
+            try:
+                found = cls(value)
+                found.names  # noqa: B018  # the grammar is checked here too
+            except DeclarationError as exc:
+                raise ValueError(str(exc)) from exc
+            return found
+
+        return core_schema.no_info_after_validator_function(
+            make, core_schema.str_schema(), serialization=core_schema.plain_serializer_function_ser_schema(str)
+        )
+
+
 type Item[T] = Annotated[T, ITEM]
 """A value of a `KeyVals` written without a key: `thick`, `->`, `(1,2)`."""
 type OptionalValue[T] = T | Literal[True]
@@ -254,7 +370,7 @@ def body_of(hint: Any) -> Body | None:  # noqa: ANN401, C901
     (h,) = members
     marks = typing.get_args(h)[1:] if typing.get_origin(h) is Annotated else ()
     inner = typing.get_args(h)[0] if marks else h
-    simple = {TEXT: BodyKind.TEXT, PDF: BodyKind.PDF, COLOUR_NAME: BodyKind.COLOUR_NAME}
+    simple = {TEXT: BodyKind.TEXT, PDF: BodyKind.PDF}
     for mark in marks:
         if mark in simple:
             return Body(simple[mark])
@@ -265,6 +381,8 @@ def body_of(hint: Any) -> Body | None:  # noqa: ANN401, C901
     origin = typing.get_origin(h)
     if origin is Item or origin is OptionalValue:
         return body_of(typing.get_args(h)[0])
+    if isinstance(h, type) and issubclass(h, ColourName):
+        return Body(BodyKind.COLOUR_NAME)
     if h is Raw:
         return RAW_BODY
     if isinstance(h, type) and issubclass(h, Raw):
@@ -317,8 +435,10 @@ __all__ = [
     "BRACE",
     "Body",
     "BodyKind",
-    "COLOUR_NAME",
     "ColourName",
+    "XCOLOR",
+    "colour_of",
+    "constraint_of",
     "Delimiter",
     "FLAG",
     "Flag",
