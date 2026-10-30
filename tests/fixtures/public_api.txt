@@ -121,14 +121,14 @@ texmodel.ext.table.Format.tex(self, value: object) -> str
 texmodel.ext.table.Highlight(where: Callable[[T], bool], columns: tuple[str, ...] | None = …, *, bg: ColourRef | None = …, fg: ColourRef | None = …, bold: bool = …, font: Raw | None = …) -> None
 texmodel.ext.table.Image(width: Length | None = …, *, missing: str = …) -> None
 texmodel.ext.table.Label(texts: Mapping[Any, str | Raw], *, missing: str = …) -> None
-texmodel.ext.table.Look(rules: Rules = …, heavy: Length = …, light: Length = …, rowsep: Length = …, colsep: Length = …, header_font: Raw | None = …, header_bg: ColourRef | None = …, header_fg: ColourRef | None = …, total_font: Raw | None = …, group_font: Raw | None = …, group_gap: Length = …, indent: Length = …) -> None
+texmodel.ext.table.Look(rules: Rules = …, heavy: Length = …, light: Length = …, rowsep: Length = …, colsep: Length = …, edge: Length | None = …, header_font: Raw | None = …, header_bg: ColourRef | None = …, header_fg: ColourRef | None = …, total_font: Raw | None = …, group_font: Raw | None = …, group_gap: Length = …, indent: Length = …) -> None
 texmodel.ext.table.Money(decimals: int = …, thousands: bool = …, point: str = …, separator: str = …, sign: bool = …, minus: str = …, *, missing: str = …, symbol: str = …, after: bool = …) -> None
 texmodel.ext.table.Note(text: str, tag: str = …) -> None
 texmodel.ext.table.Number(decimals: int = …, thousands: bool = …, point: str = …, separator: str = …, sign: bool = …, minus: str = …, *, missing: str = …) -> None
 texmodel.ext.table.Percent(decimals: int = …, thousands: bool = …, point: str = …, separator: str = …, sign: bool = …, minus: str = …, *, missing: str = …) -> None
 texmodel.ext.table.Rules(*values)
 texmodel.ext.table.Span(column: str, count: int = …, where: Callable[[T], bool] | None = …) -> None
-texmodel.ext.table.Table(model: type[T], rows: Iterable[T | Mapping[str, Any]], *, caption: str | None = …, label: str | None = …, group_by: str | None = …, subtotal: Total | None = …, totals: Sequence[Total] = …, notes: Sequence[Note] = …, highlights: Sequence[Highlight[T]] = …, spans: Sequence[Span[T]] = …, look: Look = …, long: bool = …, width: Length | None = …, blocks: bool = …, rules: Sequence[Entry] = …) -> None
+texmodel.ext.table.Table(model: type[T], rows: Iterable[T | Mapping[str, Any]], *, caption: str | None = …, label: str | None = …, group_by: str | None = …, subtotal: Total | None = …, totals: Sequence[Total] = …, notes: Sequence[Note] = …, highlights: Sequence[Highlight[T]] = …, spans: Sequence[Span[T]] = …, look: Look = …, header: bool = …, long: bool = …, width: Length | None = …, blocks: bool = …, rules: Sequence[Entry] = …) -> None
 texmodel.ext.table.Table.node(self) -> t.Tblr | t.Talltblr | t.Longtblr
 texmodel.ext.table.Table.render(self) -> str
 texmodel.ext.table.Text(*, missing: str = …) -> None
@@ -150,6 +150,7 @@ texmodel.interface.Body(kind: BodyKind, choice: type[Choice] | None = …, items
 texmodel.interface.Body.describe(self) -> str
 texmodel.interface.BodyKind(*values)
 texmodel.interface.ColourName(base: str | type[Any], *, tint: float | None = …, mix: str | type[Any] | None = …) -> ColourName
+texmodel.interface.ColourName.macro(cls, base: str | type[Any]) -> ColourName
 texmodel.interface.ColourName.names: property
 texmodel.interface.Delimiter(open: str, close: str) -> None
 texmodel.interface.FLAG: _Marker

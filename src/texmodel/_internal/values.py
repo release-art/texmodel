@@ -15,7 +15,7 @@ from ..interface import Body, BodyKind
 from ..types import CMYK, RGB, Gray, Length, Raw, pdf_escape, plain_number, plates_of
 from .inline import text_of
 
-_COLOUR_NAME = re.compile(r"[A-Za-z][A-Za-z0-9!.+-]*")
+_COLOUR_NAME = re.compile(r"[A-Za-z\\][A-Za-z0-9!.+@\\-]*")
 
 
 def plates_outside(allowed: AbstractSet[str] | None, colour: object) -> str | None:

@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `ext.table`: `Table(header=False)` writes no header row and no rule under it (`TM-M083` for a column with a `group`);
+  `Look(edge=)` is the padding at the first column's left edge and the last one's right edge, so any look may be flush; a guide
+  paragraph says that a project may subclass `Format`.
+- `ColourName.macro(r"\bbRowLabelColour")` (or a registered value that defines the macro): a colour read when the document is
+  typeset, left out of `names` and of the plate check.
+
+### Changed
+
+- `Look(rules=Rules.GRID)` and `Look(rules=Rules.NONE)` built by hand are flush at the edges, like the default; `Look.GRID` and
+  `Look.PLAIN` keep their padding (`edge=None`), so their output is the same.
+
+### Added
+
 - `Package(..., requires=[...])`: the packages an adopted package needs. They load before it wherever it is used: as
   `\RequirePackage` lines before it in a generated `.sty` that calls it (or `require()`s it), and as `\usepackage` lines before
   it in a document of its own; loading a package calls what it needs first, and a package needed twice loads once, at its

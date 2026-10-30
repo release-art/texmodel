@@ -370,14 +370,16 @@ class Rules(enum.Enum):
 @dataclasses.dataclass(frozen=True)
 class Look:
     """The typography of a table. The default is booktabs': no vertical rules, a heavy rule above and below, a light one
-    under the header, little padding at the edges, a bold header and totals. `header_bg` and `header_fg` take a colour
-    value. A row group's label is `group_font`, set `group_gap` below the group before; its rows are indented."""
+    under the header, no padding at the edges (`edge`; `None` keeps `colsep` there, as `GRID` and `PLAIN` do), a bold
+    header and totals. `header_bg` and `header_fg` take a colour value. A row group's label is `group_font`, set
+    `group_gap` below the group before; its rows are indented."""
 
     rules: Rules = Rules.BOOKTABS
     heavy: Length = Length("0.08em")
     light: Length = Length("0.05em")
     rowsep: Length = Length("0.5ex")
     colsep: Length = Length("6pt")
+    edge: Length | None = Length("0pt")
     header_font: Raw | None = Raw(r"\bfseries")
     header_bg: ColourRef | None = None
     header_fg: ColourRef | None = None
@@ -392,8 +394,8 @@ class Look:
 
 
 Look.BOOKTABS = Look()
-Look.GRID = Look(rules=Rules.GRID, rowsep=Length("2pt"))
-Look.PLAIN = Look(rules=Rules.NONE)
+Look.GRID = Look(rules=Rules.GRID, rowsep=Length("2pt"), edge=None)
+Look.PLAIN = Look(rules=Rules.NONE, edge=None)
 
 
 # --- the table -----------------------------------------------------------------------------------------------------
@@ -438,7 +440,8 @@ class Table[T: pydantic.BaseModel]:
     """A row model and its rows, with the parts of a table. `rows` are instances of the model, or mappings it validates;
     `node()` is the `tabularray` environment, `render()` its TeX. `group_by` names a field whose runs of equal values
     become row groups, each under a label row (the field is not a column), with a `subtotal` row if given. `blocks`
-    measures cells as boxes, which a list or display maths in a cell needs (`\\UseTblrLibrary{varwidth}`)."""
+    measures cells as boxes, which a list or display maths in a cell needs (`\\UseTblrLibrary{varwidth}`).
+    `header=False` writes no header row: a block of rows whose columns need no labels (a `group` is refused)."""
 
     model: type[T]
     rows: Iterable[T | Mapping[str, Any]]
@@ -452,6 +455,7 @@ class Table[T: pydantic.BaseModel]:
     highlights: Sequence[Highlight[T]] = ()
     spans: Sequence[Span[T]] = ()
     look: Look = Look.BOOKTABS
+    header: bool = True
     long: bool = False
     width: Length | None = None
     blocks: bool = False
@@ -490,6 +494,13 @@ class Table[T: pydantic.BaseModel]:
         """The parts name columns that are there and fit."""
         index = {c.name: i for i, c in enumerate(columns)}
         where = self.model.__name__
+        if not self.header and any(c.group for c in columns):
+            raise DeclarationError(
+                "Table: header groups need a header",
+                code="TM-M083",
+                path=where,
+                hint="drop the groups of the columns, or leave header=True",
+            )
         if self.subtotal is not None and self.group_by is None:
             raise DeclarationError("Table: a subtotal needs group_by", code="TM-M081", path=where)
         for total in [*self.totals, *([self.subtotal] if self.subtotal else [])]:
@@ -514,6 +525,8 @@ class Table[T: pydantic.BaseModel]:
     # The header: one row per level of group, then the labels.
     def _header(self) -> tuple[list[str], list[Entry], list[Entry]]:
         """The header lines, the entries that span and style them, and the light rules under them."""
+        if not self.header:
+            return [], [], []
         levels = max(len(c.group) for c in self.columns)
         lines: list[str] = []
         entries: list[Entry] = []
@@ -648,18 +661,18 @@ class Table[T: pydantic.BaseModel]:
         layout = self._layout(header)
         rules: list[Entry] = []
         if ruled:
-            rules += [t.hline(1, t.HlineSpec(wd=look.heavy)), *under, t.hline(h + 1, t.HlineSpec(wd=look.light))]
-        rules.append(
-            t.row(
-                t.selector(*_ranges(list(range(1, h + 1)))),
-                t.RowSpec(font=look.header_font, bg=look.header_bg, fg=look.header_fg),
+            rules += [t.hline(1, t.HlineSpec(wd=look.heavy)), *under]
+            if h:
+                rules.append(t.hline(h + 1, t.HlineSpec(wd=look.light)))
+        if h:
+            rules.append(
+                t.row(
+                    t.selector(*_ranges(list(range(1, h + 1)))),
+                    t.RowSpec(font=look.header_font, bg=look.header_bg, fg=look.header_fg),
+                )
             )
-        )
-        if ruled:
-            rules += [
-                t.column(1, t.ColumnSpec(leftsep=Length("0pt"))),
-                t.column(last, t.ColumnSpec(rightsep=Length("0pt"))),
-            ]
+        if look.edge is not None:
+            rules += [t.column(1, t.ColumnSpec(leftsep=look.edge)), t.column(last, t.ColumnSpec(rightsep=look.edge))]
         # The columns' entries come before the cells': a cell's own alignment wins.
         rules += [
             *self._column_entries(layout.position),
@@ -680,7 +693,7 @@ class Table[T: pydantic.BaseModel]:
             rowsep=look.rowsep,
             colsep=look.colsep,
             measure=t.Measure.VBOX if self.blocks else None,
-            rowhead=h if self.long else None,
+            rowhead=h if self.long and h else None,
             hlines=t.HlineSpec(wd=look.light) if grid else None,
             vlines=t.VlineSpec(wd=look.light) if grid else None,
             rules=[*rules, *self.rules],

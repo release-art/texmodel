@@ -163,6 +163,11 @@ Anything else is `TM-C022` at the field, and an expression that is not that gram
 `dvipsnames` or `svgnames` options are not known: declare the colour, or take a `Raw`. A node outside a package is not
 checked, and neither are the colour keys of a `KeyVals`.
 
+A colour that a macro names, read when the document is typeset, is `ColourName.macro(r"\bbRowLabelColour")` (a control word,
+with or without its backslash), or `ColourName.macro(Value)` for a registered value that defines the macro. The package cannot
+check a macro, so it is left out of `names`, and it is not part of a plate check; it takes a tint like a name
+(`ColourName(macro, tint=0.5)`). A bad macro is `TM-M067`.
+
 Both ends of a mix may ink the same plates and no others, so K-only ink is not mixed with a CMYK colour, a duotone or a
 spot. `ColourName(TextInk, tint=0.7, mix=Paper)` is fine when `Paper` declares `plates = {Plate.K}`; with a colour that
 inks other plates it is `TM-M068`, and the same expression written as a string is `TM-C024` when a node is checked, whoever

@@ -79,6 +79,7 @@ Switch = Annotated[bool, SWITCH]
 """A key of a `KeyVals` written with its boolean literal when set: `clip=true`. Declared `Switch | None = None`; `None`
 leaves it out."""
 _NAME = re.compile(r"[A-Za-z][A-Za-z0-9.+-]*")
+_MACRO = re.compile(r"\\[A-Za-z@]+")
 _NUMBER = re.compile(r"[0-9]+(?:\.[0-9]+)?")
 
 
@@ -160,16 +161,35 @@ class ColourName(str):
         elif mix is not None:
             raise DeclarationError("ColourName: mix= needs a tint=", code="TM-M067", path="mix")
         parts = text.split("!")
-        if not all(_NAME.fullmatch(n) for n in parts[0::2]) or not all(
+        if not all(_NAME.fullmatch(n) or _MACRO.fullmatch(n) for n in parts[0::2]) or not all(
             _NUMBER.fullmatch(n) and float(n) <= 100 for n in parts[1::2]
         ):
             raise DeclarationError(f"ColourName({text!r}): not `name`, `name!50` or `name!50!name`", code="TM-M067")
         return super().__new__(cls, text)
 
+    @classmethod
+    def macro(cls, base: "str | type[Any]") -> "ColourName":
+        r"""A colour a macro names, read when the document is typeset: `ColourName.macro(r"\bbRowLabelColour")` or a
+        registered value that defines the macro (`ColourName.macro(RowLabelColour)`). The package cannot check it, so it
+        is left out of `names`. Like a name, it takes a tint: `ColourName(ColourName.macro(M), tint=0.5)`."""
+        if isinstance(base, str):
+            text = base if base.startswith("\\") else f"\\{base}"
+        else:
+            from .components import control_name  # imports this module
+
+            if not hasattr(base, "__tm_cs__"):
+                raise DeclarationError(
+                    f"ColourName.macro({base.__name__}): not a registered value", code="TM-M067", path=base.__name__
+                )
+            text = f"\\{control_name(base)}"
+        if not _MACRO.fullmatch(text):
+            raise DeclarationError(f"ColourName.macro({base!r}): not a control word", code="TM-M067", path="macro")
+        return cls(text)
+
     @property
     def names(self) -> tuple[str, ...]:
-        """The colours the expression uses, in order."""
-        return tuple(self.split("!")[0::2])
+        """The colours the expression uses, in order; a macro is read at typesetting time, so it is not one."""
+        return tuple(n for n in self.split("!")[0::2] if not _MACRO.fullmatch(n))
 
     @classmethod
     def __get_pydantic_core_schema__(cls, source: object, handler: Any) -> core_schema.CoreSchema:  # noqa: ANN401

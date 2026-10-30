@@ -10,7 +10,7 @@ from typing import Annotated
 from pydantic import BaseModel
 
 from texmodel.document import Document
-from texmodel.ext.table import Col, Note, Number, Percent, Table, Total
+from texmodel.ext.table import Col, Format, Note, Number, Percent, Table, Total
 from texmodel.std import tabularray
 
 
@@ -138,6 +138,47 @@ from texmodel.types import Length
 striking = Table(Sale, rows, look=Look(heavy=Length("1pt")), rules=[row(2, RowSpec(font=None))])
 assert "hline{1}={wd=1pt}" in striking.render()
 ```
+
+`header=False` writes no header row and no rule under it: a block of rows whose columns need no labels (a column with a
+`group` is refused, `TM-M083`). An empty `Col` label is still a header row; the flag is the explicit way. `Look.edge` is the
+padding of the first column's left edge and the last one's right edge: `0pt` by default, so a table starts flush at the margin;
+`None` keeps `colsep` there, as `Look.GRID` and `Look.PLAIN` do. `rules=` entries are written last, so they win over either.
+
+## A format of your own
+
+`Format` is a frozen dataclass that a project may subclass, as `Block` and `Image` are: write `_tex(value)`, which returns
+escaped TeX, and set the class attributes `align`, `valign` and `numeric` for the column it writes. `missing` stands for
+`None`, as in the built-in formats. Nothing else writes a cell, so a format must escape what it takes.
+
+```python
+import dataclasses
+
+from texmodel.std.tabularray import HAlign
+from texmodel.types import escape
+
+
+@dataclasses.dataclass(frozen=True)
+class Glyph(Format):
+    """A glyph of the project's vocabulary, centred."""
+
+    align = HAlign.CENTRE
+
+    def _tex(self, value: object) -> str:
+        return rf"\textsf{{{escape(str(value))}}}"
+
+
+class Profile(BaseModel):
+    icon: Annotated[str, Col("", fmt=Glyph(), width=Length("6mm"))]
+    label: Annotated[str, Col("")]
+    value: Annotated[str, Col("", cells=CellSpec(font=Raw(r"\bfseries")))]
+
+
+block = Table(Profile, [Profile(icon="a", label="Sound", value="Loud")], header=False, look=Look.PLAIN)
+assert block.render().splitlines()[1] == r"\textsf{a} & Sound & Loud \\"
+```
+
+A colour that a macro names, read when the document is typeset, is `ColourName.macro(r"\bbRowLabelColour")`
+([Values](values.md#colour-names)): `Col(cells=CellSpec(fg=ColourName.macro(...)))` colours a column by it.
 
 A row that does not validate is an error naming its index (`TM-C026`); a group on separated columns, a second stub or a
 total over a column that is not a visible number is a `DeclarationError` when the table is built (`TM-M077` to `TM-M082`).
