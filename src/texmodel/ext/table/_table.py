@@ -2,6 +2,7 @@
 
 import dataclasses
 import itertools
+import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from decimal import Decimal
 from typing import Any
@@ -95,6 +96,7 @@ class Table[T: pydantic.BaseModel]:
                 body.append(self.model.model_validate(row))
             except pydantic.ValidationError as exc:
                 raise ValidationError(f"row {i}: {exc}", code="TM-C026", path=f"rows[{i}]") from exc
+        self._check_cells(body, len(columns))
         group_by = self.group_by
         key: Callable[[T], object] = (lambda r: getattr(r, group_by)) if group_by else (lambda _: None)
         groups = tuple((k, tuple(members)) for k, members in itertools.groupby(body, key=key))
@@ -108,6 +110,23 @@ class Table[T: pydantic.BaseModel]:
         object.__setattr__(self, "columns", columns)
         object.__setattr__(self, "data", tuple(body))
         object.__setattr__(self, "groups", groups)
+
+    def _check_cells(self, body: Sequence[T], count: int) -> None:
+        """A row command writes as many cells as the layout has columns: its body's `&`, counted as text."""
+        if not issubclass(self.model, t.TableRow):
+            return
+        for i, row in enumerate(body):
+            tex: list[dict[str, str]] = [vars(k).get("__tm_tex__", {}) for k in type(row).__mro__]
+            text = next((d["body"] for d in tex if "body" in d), "")
+            cells = len(re.findall(r"(?<!\\)&", text)) + 1
+            if text and cells != count:
+                raise DeclarationError(
+                    f"rows[{i}]: {type(row).__name__} writes {cells} cells, the layout {self.model.__name__} has "
+                    f"{count} columns",
+                    code="TM-M086",
+                    path=f"rows[{i}]",
+                    hint="write one cell per column in the body (an empty cell is `&` with nothing after it)",
+                )
 
     def _check_node_rows(self) -> None:
         """Rows that are nodes are written by their own command: what writes cells in a plain table has no part."""

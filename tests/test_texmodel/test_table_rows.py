@@ -325,3 +325,16 @@ def test_rows_of_any_node_class_share_the_columns_of_a_layout():
     )
     assert r"expand=\apProfileRow\apProfileRowRating" in mixed.render()
     assert r"\apProfileRowRating{b}{Taste}{4}{5}" in mixed.render()
+
+
+def test_a_row_with_fewer_cells_than_the_layout_has_columns_is_refused():
+    @pkg.command
+    class Short(t.TableRow):
+        """Two cells."""
+
+        icon: Raw
+        label: Text
+
+    with pytest.raises(DeclarationError, match="Short writes 2 cells, the layout ProfileColumns has 3") as raised:
+        Table(ProfileColumns, [Short(icon=Raw("a"), label="x")], header=False)
+    assert raised.value.code == "TM-M086"
