@@ -3,7 +3,7 @@
 import re
 
 import pytest
-from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
+from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.body import Comment
 from texmodel.components import Command, Environment, Passthrough
@@ -97,12 +97,12 @@ def test_spans_follow_the_prefix_so_a_hand_edit_still_names_the_field():
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_tex_reads_the_indented_document_as_the_flat_one(compiler):  # noqa: F811
+async def test_tex_reads_the_indented_document_as_the_flat_one(compiler):  # noqa: F811
     stubs = [Item, Inner, Outer]
     indented = pkg.test_document(Document(TREE), stub=stubs)
     flat = re.sub(r"(?m)^ +", "", indented)
     assert indented != flat
     files = {"indent-demo.sty": pkg.render()}
-    got = probed(compiler, indented, files)
-    assert got == probed(compiler, flat, files) == calls(expand(TREE, stubs))
+    got = await probed(compiler, indented, files)
+    assert got == await probed(compiler, flat, files) == calls(expand(TREE, stubs))
     assert isinstance(got[0], Call)

@@ -211,6 +211,30 @@ every value and `<Name>Setting` for the data of one setting. Use it
 for editor support and validators of the TOML or JSON that `from_dict` reads. It describes one package's data, so it needs a
 single `package` in the configuration.
 
+## Stored data that changed
+
+`texmodel.history` reads stored data against today's model, for whoever migrates it (texpkg runs the migrations).
+`problems` is everything that stops the data from loading, each a `Problem` with a data path, the reason, the stored
+value and the schema of the field there; `unplaced` is a stored field the model no longer has, which loading would drop
+without a word. `schema_changes` compares two schemas of one model and gives each change a `Level`: an optional field
+added is `COMPATIBLE`, a field removed or a bound tightened is `BREAKING`, a field renamed with `renamed_from` keeps old
+data loading.
+
+```python
+import copy
+
+from texmodel.history import Level, problems, schema_changes, unplaced, worst
+
+schema = json_schema(Card)
+stored = {"type": "Card", "content": [{"type": "Name", "text": "Fox", "colour": "red"}, {"type": "Fact"}]}
+assert [p.path for p in problems(Card, stored, schema)] == ["/content/1/text"]
+assert [p.path for p in unplaced(stored, schema)] == ["/content/0/colour"]
+
+shorter = copy.deepcopy(schema)
+shorter["$defs"]["Fact"]["properties"]["text"]["maxLength"] = 80
+assert worst(schema_changes(schema, shorter)) is Level.BREAKING
+```
+
 ## Where a line came from
 
 `pkg.plan(...)` takes the arguments of `pkg.document(...)` and returns a `Plan`: every output line with the path of what
@@ -227,8 +251,43 @@ assert plan.lines[0].path == "header"
   changed since. `plan.edits(text, ignore_comments=True)` skips lines that are comments on both sides.
 - A changed line says which argument: `edit.fields` is `(FieldEdit("text", "Friendly"),)` when the change is inside one
   argument's text, empty when it is over the command name, a delimiter or several arguments. A baseline saved without
-  `Line.spans` gives no fields. `texmodel_build.hand_edits.read_edits` reads the same edits with TeX, with typed values:
+  `Line.spans` gives no fields. `texmodel.run.hand_edits.read_edits` reads the same edits with TeX, with typed values:
   [Testing](testing.md#hand-edits-read-by-tex).
+- `edit.line` is where the edit is in the file, 1-based (`None` for a removed line), and `edit.file` the file, when
+  given: `plan.edits(text, file=path)`. `edit.plan_line` is the plan's line it is about (for an added line, the one it
+  follows).
+- `edit.data_path` is where the edited node is in the document's `to_dict` data: `Card[0]/Fact[1]` is
+  `PurePosixPath("/content/0/content/1")`, `settings[0]` is `/settings/0`; `None` for the header and the class line.
 - `plan.path_of(39)` names the component behind a log's `input line 39`.
-- `Compiler.compile(src, out, plan=plan)` does that for every diagnostic in the source: `diagnostic.path` is the component
+- `await Compiler().compile(src, out, plan=plan)` does that for every diagnostic in the source: `diagnostic.path` is the component
   behind its line. `plans={"deck.sty": pkg.render_plan()}` does the same for diagnostics in other files, by file name.
+
+## Restoring hand edits
+
+`restore(pkg, document, edits)` gives back the data that writes a hand-edited file: `document` is the one texmodel last
+wrote, exactly as `pkg.plan(document)` rendered it (everything merged in that the file shows, a profile already
+expanded), and `edits` are that plan's edits of the file (or `read_edits`'). An edit that does not match a line of that
+plan is refused (`TM-X034`). A changed argument restores as its field's new
+value; a node whose every line is deleted, or commented out as itself (`%`, then the line), is removed from its parent:
+a command, an environment or a `Passthrough`; a `Comment` never is.
+Regenerating writes no line in its place.
+
+```python
+from texmodel.restore import Reason, restore
+
+written = Document(Card(Name(text="Rex"), Fact(text="Friendly."), Fact(text="Loud.")))
+text = pkg.plan(written).text.replace(r"\dkFact{Friendly.}", r"\dkFact{Friendly \& calm.}")
+text = text.replace(r"  \dkFact{Loud.}", r"%  \dkFact{Loud.}").replace(r"\dkName{Rex}", r"\dkName{R&D}")
+restored = restore(pkg, written, pkg.plan(written).edits(text))
+assert to_dict(restored.document)["content"][0]["content"][1:] == [{"type": "Fact", "text": "Friendly & calm."}]
+(refused,) = restored.unapplied
+assert refused.reason is Reason.INVALID_VALUE and refused.violation.code == "TM-C021"  # `&` unescaped
+```
+
+Every edit comes back once: in `applied`, or in `unapplied` with a `Reason` (a stable `TM-R` code). An edit is applied
+only when the document with it writes the edited line exactly. One that writes another line is `MISMATCH`, with the line
+it writes in `writes`. A removal the grammar refuses is `GRAMMAR`, with the grammar's violation. Lines that are not
+data come back as `NO_DATA_CHANGE`, `NOT_DATA`, `SETTING` or `COMMENT` (a card's id is never restored), and an added
+line as `ADDED_LINE`, with the node it stands in (`parent`, `""` for the document) and the child it follows (`after`,
+`None` when first): the system that keeps the data decides what to do with them. Edits found against another
+document are refused (`TM-X034`).

@@ -16,9 +16,11 @@ from .errors import DeclarationError, TexmodelError, ValidationError
 from .package import Package, generator_version
 from .plan import Plan
 from .pointer import load_document, load_packages
+from .run import cli as run_cli
 from .spec import json_schema
 
 app = typer.Typer(pretty_exceptions_enable=False, help="Typed models for LaTeX.", no_args_is_help=True)
+app.add_typer(run_cli.app, name="run")
 
 
 @app.callback()

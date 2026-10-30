@@ -17,11 +17,11 @@ from texmodel.document import Document
 from texmodel.package import Package
 from texmodel.plan import Plan
 from texmodel.preamble import PdfInfo, PreambleSlots, RequireMetadata
+from texmodel.run.diagnostics import Measurement
+from texmodel.run.result import CompileResult
+from texmodel.run.testkit import check_library
 from texmodel.testing import check_exports, export_probes
 from texmodel.types import PdfString, Raw, Text, pdf_escape
-from texmodel_build.diagnostics import Measurement
-from texmodel_build.result import CompileResult
-from texmodel_build.testkit import check_library
 
 from .test_document import codes, refused
 
@@ -466,7 +466,7 @@ class FakeCompiler:
     def __init__(self, probes: dict[str, str]) -> None:
         self.probes, self.seen = probes, {}
 
-    def compile(self, source: pathlib.Path, outdir: pathlib.Path, *, plans: dict[str, Plan] | None = None):  # noqa: ANN201
+    async def compile(self, source: pathlib.Path, outdir: pathlib.Path, *, plans: dict[str, Plan] | None = None):  # noqa: ANN201
         self.seen = {"tex": source.read_text(), "sty": (source.parent / "expl-demo.sty").read_text(), "plans": plans}
         found = tuple(Measurement(message="", name=n, value=v) for n, v in self.probes.items())
         return CompileResult(
@@ -475,11 +475,11 @@ class FakeCompiler:
         )  # fmt: skip
 
 
-def test_check_library_compiles_the_package_with_the_export_probes_and_reads_them_back():
+async def test_check_library_compiles_the_package_with_the_export_probes_and_reads_them_back():
     pkg, _, _ = kit()
     good = FakeCompiler({"def.dmFit": "yes", "arity.dmFit": "2"})
-    assert check_library(good, pkg) == []  # type: ignore[arg-type]
+    assert await check_library(good, pkg) == []  # type: ignore[arg-type]
     assert "\\tmexport{dmFit}" in good.seen["tex"] and good.seen["sty"] == pkg.render()
     assert good.seen["plans"] == {"expl-demo.sty": pkg.render_plan()}
     bad = FakeCompiler({"def.dmFit": "yes", "arity.dmFit": "3"})
-    assert [v.code for v in check_library(bad, pkg, {"other.sty": "x"})] == ["TM-C011"]  # type: ignore[arg-type]
+    assert [v.code for v in await check_library(bad, pkg, {"other.sty": "x"})] == ["TM-C011"]  # type: ignore[arg-type]

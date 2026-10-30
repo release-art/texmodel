@@ -2,7 +2,7 @@
 
 import pikepdf
 import pytest
-from test_texmodel_build.test_compile_tex import compiler, fonts, require_files  # noqa: F401
+from test_texmodel_run.test_compile_tex import compiler, fonts, require_files  # noqa: F401
 
 from texmodel.components import Value
 from texmodel.document import Document
@@ -11,9 +11,9 @@ from texmodel.ext.plates import K, Plate
 from texmodel.ext.spot import Spot, SpotColour
 from texmodel.interface import ColourName, constraint_of
 from texmodel.package import Package
+from texmodel.run.compiler import Compiler
 from texmodel.spec import from_dict, json_schema, to_dict
 from texmodel.types import CMYK, Colour
-from texmodel_build.compiler import Compiler
 
 pkg = Package("acme-spot", prefix="ap")
 
@@ -126,15 +126,15 @@ def test_a_spot_inks_its_own_plate_and_a_tint_of_it_is_xcolors_percent():
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_the_separations_and_their_tints_reach_the_pdf(compiler, tmp_path):  # noqa: F811
-    require_files(compiler, "colorspace.sty")
+async def test_the_separations_and_their_tints_reach_the_pdf(compiler, tmp_path):  # noqa: F811
+    await require_files(compiler, "colorspace.sty")
     (tmp_path / "acme-spot.sty").write_text(pkg.render())
     tinted, full = ColourName(Pantone, tint=0.6), ColourName(Varnish, tint=1)
     body = rf"\textcolor{{{tinted}}}{{x}}\textcolor{{{full}}}{{y}}\textcolor{{ap-varnish}}{{z}}"
     src = tmp_path / "doc.tex"
     src.write_text(pkg.document().replace(r"\begin{document}", "\\begin{document}\n" + body))
     comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(tmp_path,))
-    result = comp.compile(src, tmp_path / "out")
+    result = await comp.compile(src, tmp_path / "out")
     assert result.ok and result.pdf, result.diagnostics
     with pikepdf.open(result.pdf) as pdf:
         assert pdf.check_pdf_syntax() == []

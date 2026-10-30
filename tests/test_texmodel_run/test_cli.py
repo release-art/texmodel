@@ -1,3 +1,4 @@
+import asyncio
 import json
 import shutil
 import sys
@@ -5,10 +6,13 @@ import sys
 import pytest
 from typer.testing import CliRunner
 
-from texmodel_build import cli
-from texmodel_build.compiler import Compiler
-from texmodel_build.config import Target
-from texmodel_build.targets import build_targets
+from texmodel.run import (
+    cli,
+    compiler as compiler_module,
+)
+from texmodel.run.compiler import Compiler
+from texmodel.run.config import Target
+from texmodel.run.targets import build_targets
 
 runner = CliRunner()
 
@@ -17,9 +21,9 @@ runner = CliRunner()
 def project(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "pyproject.toml").write_text(
-        '[tool.texmodel-build]\nimage = "img:1"\n'
-        '[tool.texmodel-build.targets.card]\nsource = "card.tex"\n'
-        '[tool.texmodel-build.targets.deck]\nsource = "deck.tex"\n'
+        '[tool.texmodel.run]\nimage = "img:1"\n'
+        '[tool.texmodel.run.targets.card]\nsource = "card.tex"\n'
+        '[tool.texmodel.run.targets.deck]\nsource = "deck.tex"\n'
     )
     for name in ("card", "deck", "other"):
         (tmp_path / f"{name}.tex").write_text("x")
@@ -76,7 +80,7 @@ def test_missing_tools_exit_3_with_a_hint(toolchain, project):
 
 
 def test_bad_config_exits_2(toolchain, project):
-    (project / "pyproject.toml").write_text("[tool.texmodel-build]\nbogus = 1\n")
+    (project / "pyproject.toml").write_text("[tool.texmodel.run]\nbogus = 1\n")
     result = runner.invoke(cli.app, ["compile", "card.tex"])
     assert result.exit_code == 2 and "TM-D002" in result.stderr
 
@@ -102,16 +106,38 @@ def test_build_runs_declared_targets(toolchain, project):
 def test_build_refuses_unknown_or_missing_targets(toolchain, project):
     unknown = runner.invoke(cli.app, ["build", "nope"])
     assert unknown.exit_code == 2 and "TM-D012" in unknown.stderr
-    (project / "pyproject.toml").write_text("[tool.texmodel-build]\n")
+    (project / "pyproject.toml").write_text("[tool.texmodel.run]\n")
     none = runner.invoke(cli.app, ["build"])
     assert none.exit_code == 2 and "TM-D011" in none.stderr
     (project / "pyproject.toml").unlink()
     assert runner.invoke(cli.app, ["build"]).exit_code == 2
 
 
-def test_build_targets_summary_lines(toolchain, project):
-    summary = build_targets([Target(name="a", source="card.tex")], Compiler(), root=project, outdir=project / "o")
+async def test_build_targets_summary_lines(toolchain, project):
+    summary = await build_targets([Target(name="a", source="card.tex")], Compiler(), root=project, outdir=project / "o")
     assert summary.ok and summary.lines()[0].startswith("ok     a: 0 error(s), 1 page(s)")
+
+
+@pytest.mark.parametrize("jobs", [1, 2])
+async def test_build_targets_compiles_up_to_jobs_at_once_and_keeps_declared_order(
+    toolchain, monkeypatch, project, jobs
+):
+    running, most = 0, 0
+
+    async def slow(argv, **kw):
+        nonlocal running, most
+        if "-interaction=nonstopmode" not in argv:
+            return await toolchain(argv, **kw)
+        running += 1
+        most = max(most, running)
+        await asyncio.sleep(0.05)
+        running -= 1
+        return await toolchain(argv, **kw)
+
+    monkeypatch.setattr(compiler_module, "spawn", slow)
+    targets = [Target(name=n, source=f"{n}.tex") for n in ("deck", "card", "other")]
+    summary = await build_targets(targets, Compiler(), root=project, outdir=project / "o", jobs=jobs)
+    assert list(summary.results) == ["deck", "card", "other"] and summary.ok and most == jobs
 
 
 def test_clean_command(toolchain, project):
@@ -172,22 +198,22 @@ def test_compile_with_a_plan_names_the_component_behind_a_diagnostic(toolchain, 
 
 def test_a_target_may_name_the_plan_behind_its_source(toolchain, planned):
     (planned / "pyproject.toml").write_text(
-        '[tool.texmodel-build]\n[tool.texmodel-build.targets.card]\nsource = "card.tex"\nplan = "cardplan:plan()"\n'
+        '[tool.texmodel.run]\n[tool.texmodel.run.targets.card]\nsource = "card.tex"\nplan = "cardplan:plan()"\n'
     )
     toolchain.log = (
         "./card.tex:2: Undefined control sequence.\nl.2 \\x\n(1 page)\nOutput written on card.pdf (1 page, 9 bytes).\n"
     )
-    assert runner.invoke(cli.app, ["build", "card", "--local"]).exit_code == 1
-    summary = build_targets(
-        [Target(name="card", source="card.tex", plan="cardplan:plan()")], Compiler(), root=planned, outdir=planned / "o"
-    )
+    built = runner.invoke(cli.app, ["build", "card", "--local"])  # the CLI runs its own event loop: a sync test
+    assert built.exit_code == 1 and "FAILED card" in built.stdout
+    target = Target(name="card", source="card.tex", plan="cardplan:plan()")
+    summary = asyncio.run(build_targets([target], Compiler(), root=planned, outdir=planned / "o"))
     assert summary.results["card"].diagnostics[0].path == "Card[0]/Name[0]"
 
 
 def test_a_configured_measure_types_the_warning_in_compile_output(toolchain, project):
     with (project / "pyproject.toml").open("a") as f:
         f.write(
-            '[tool.texmodel-build.measures.fit]\npackage = "pk"\n'
+            '[tool.texmodel.run.measures.fit]\npackage = "pk"\n'
             "pattern = \"Card '(?P<item>[^']+)' needs (?P<needs>\\\\S+) has (?P<has>\\\\S+)\"\n"
         )
     toolchain.log = (

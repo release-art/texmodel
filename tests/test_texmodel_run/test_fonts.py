@@ -5,8 +5,8 @@ import textwrap
 
 import pytest
 
-from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
-from texmodel_build.fonts import embedded, outside
+from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
+from texmodel.run.fonts import embedded, outside
 
 LOG = textwrap.dedent("""
     ...
@@ -46,14 +46,14 @@ def test_a_log_without_a_listing_embeds_nothing(tmp_path):
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_a_real_compile_lists_the_fonts_it_embedded(compiler, tmp_path):  # noqa: F811
+async def test_a_real_compile_lists_the_fonts_it_embedded(compiler, tmp_path):  # noqa: F811
     source = tmp_path / "f.tex"
     source.write_text(
         "\\documentclass{article}\\usepackage{fontspec}\\setmainfont{TeX Gyre Termes}\n"
         "\\begin{document}Hello\\end{document}\n",
         encoding="utf-8",
     )
-    result = compiler.compile(source, tmp_path / "out")
+    result = await compiler.compile(source, tmp_path / "out")
     assert result.ok and result.log
     log = result.log.read_text(encoding="utf-8", errors="replace")
     assert any("termes" in f.name.lower() for f in embedded(log, tmp_path))

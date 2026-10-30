@@ -1,4 +1,4 @@
-"""`texmodel-build doctor --sty` (D2): which files a package loads are missing from the toolchain."""
+"""`texmodel run doctor --sty` (D2): which files a package loads are missing from the toolchain."""
 
 import json
 import shutil
@@ -7,9 +7,9 @@ import pytest
 from typer.testing import CliRunner
 
 from texmodel.errors import DeclarationError
-from texmodel_build import cli
-from texmodel_build._internal.styscan import needed
-from texmodel_build.compiler import Compiler
+from texmodel.run import cli
+from texmodel.run._internal.styscan import needed
+from texmodel.run.compiler import Compiler
 
 runner = CliRunner()
 
@@ -50,7 +50,7 @@ def test_the_files_a_package_loads_are_read_in_order_once_and_names_from_macros_
 @pytest.fixture
 def project(tmp_path, monkeypatch, toolchain):
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "pyproject.toml").write_text('[tool.texmodel-build]\nimage = "img:1"\n')
+    (tmp_path / "pyproject.toml").write_text('[tool.texmodel.run]\nimage = "img:1"\n')
     (tmp_path / "res").mkdir()
     (tmp_path / "res" / "kit.sty").write_text(STY)
     (tmp_path / "res" / "kit-extra.sty").write_text(r"\RequirePackage{kit}\RequirePackage{xcolor}")
@@ -88,17 +88,17 @@ def test_no_matching_file_and_no_kpsewhich_are_refused(project, toolchain):
 
 
 def test_on_this_machine_without_an_image_and_with_a_broken_image_the_scan_is_skipped(project, toolchain, monkeypatch):
-    (project / "pyproject.toml").write_text("[tool.texmodel-build]\n")
+    (project / "pyproject.toml").write_text("[tool.texmodel.run]\n")
     monkeypatch.setattr(shutil, "which", lambda name: f"/bin/{name}")
     toolchain.missing_files = {"tikz.sty"}
     assert "missing tikz.sty" in runner.invoke(cli.app, ["doctor", "--sty", "res/*.sty"]).stdout
-    (project / "pyproject.toml").write_text('[tool.texmodel-build]\nimage = "img:1"\n')
+    (project / "pyproject.toml").write_text('[tool.texmodel.run]\nimage = "img:1"\n')
     toolchain.image_missing = True
     broken = runner.invoke(cli.app, ["doctor", "--sty", "res/*.sty"])
     assert broken.exit_code == 3 and "missing " not in broken.stdout.replace("missing  ", "")
 
 
-def test_a_file_name_that_is_not_plain_is_refused_before_it_reaches_a_shell():
+async def test_a_file_name_that_is_not_plain_is_refused_before_it_reaches_a_shell():
     with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-T006"):
-        Compiler().missing_files(["a.sty; rm -rf x"])
-    assert Compiler().missing_files([]) == ()
+        await Compiler().missing_files(["a.sty; rm -rf x"])
+    assert await Compiler().missing_files([]) == ()

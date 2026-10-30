@@ -1,5 +1,7 @@
 """Plans (B2, D2): lines with provenance, the baseline round trip, and edits by path."""
 
+import pathlib
+
 import pytest
 
 from texmodel.components import Command, Environment, Value
@@ -80,16 +82,22 @@ def test_edits_name_changed_removed_and_added_lines():
     plan = pkg.plan(box(item(text="a"), item(text="b")))
     lines = plan.text.splitlines()
     changed = plan.text.replace(r"\smItem{a}", r"\smItem{A}")
+    at = lines.index(r"  \smItem{a}") + 1  # 1-based, as editors and TeX count; here the file's line is the plan's
+    a = (FieldEdit("text", "A"),)
     assert plan.edits(changed) == [
-        Edit("Box[0]/Item[0]", r"  \smItem{a}", r"  \smItem{A}", EditKind.CHANGED, (FieldEdit("text", "A"),))
+        Edit("Box[0]/Item[0]", r"  \smItem{a}", r"  \smItem{A}", EditKind.CHANGED, a, at, plan_line=at)
     ]
     assert plan.edits("\n".join(x for x in lines if "{b}" not in x)) == [
-        Edit("Box[0]/Item[1]", r"  \smItem{b}", "", EditKind.REMOVED)
+        Edit("Box[0]/Item[1]", r"  \smItem{b}", "", EditKind.REMOVED, plan_line=at + 1)  # not in the file: no line
     ]
     assert plan.edits(plan.text.replace(r"\end{document}", "x\n\\end{document}")) == [
-        Edit("Box[0]", "", "x", EditKind.ADDED)
+        Edit("Box[0]", "", "x", EditKind.ADDED, line=len(lines), plan_line=len(lines) - 1)  # the line it follows
     ]
+    (first,) = plan.edits("x\n" + plan.text)
+    assert (first.kind, first.path, first.plan_line) == (EditKind.ADDED, "header", 0)  # before every line
     assert plan.edits(plan.text) == []
+    (named,) = plan.edits(changed, file=pathlib.Path("cards/deck.tex"))
+    assert (named.file, named.line) == (pathlib.Path("cards/deck.tex"), at)
 
 
 def test_an_invalid_document_has_no_plan():
@@ -215,3 +223,20 @@ def test_a_token_at_the_end_of_a_line_can_be_the_edited_argument():
     assert r"\spTail{t}*" in plan.text
     (edit,) = plan.edits(plan.text.replace(r"\spTail{t}*", r"\spTail{t}"))
     assert [(f.arg, f.found) for f in edit.fields] == [("starred", "")]
+
+
+def test_a_line_the_same_on_both_sides_of_a_replaced_block_is_no_edit():
+    """difflib skips a line that is in more than one in a hundred of a long file as an anchor (autojunk), so a block it
+    reports replaced can hold such a line unchanged: it is no edit."""
+    plan = Plan(tuple(Line("p", r"\end{x}") if i % 2 else Line("p", f"l{i}") for i in range(400)))
+    found = [x.tex for x in plan.lines]
+    found[10], found[12] = "A", "B"
+    assert [(e.expected, e.found) for e in plan.edits("\n".join(found) + "\n")] == [("l10", "A"), ("l12", "B")]
+
+
+def test_a_line_commented_out_pairs_with_itself_though_its_neighbour_is_gone():
+    plan = Plan(tuple(Line(f"N[{i}]", rf"  \x{{{i}}}") for i in range(4)))
+    found = [r"  \x{0}", r"%  \x{2}", r"  \x{3}"]  # the second line deleted, the third commented out
+    edits = plan.edits("\n".join(found) + "\n")
+    assert [(e.path, e.kind) for e in edits] == [("N[1]", EditKind.REMOVED), ("N[2]", EditKind.CHANGED)]
+    assert edits[1].found == r"%  \x{2}"

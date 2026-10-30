@@ -2,7 +2,7 @@
 
 import pikepdf
 import pytest
-from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
+from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.components import Value
 from texmodel.document import Document
@@ -10,9 +10,9 @@ from texmodel.errors import DeclarationError
 from texmodel.ext.plates import PROCESS, K, Plate, plates_of
 from texmodel.interface import ColourName, constraint_of
 from texmodel.package import Package
+from texmodel.run.compiler import Compiler
 from texmodel.spec import from_dict, json_schema, to_dict
 from texmodel.types import CMYK, RGB, Colour, Gray, Length
-from texmodel_build.compiler import Compiler
 
 pkg = Package("acme-ink", prefix="ac")
 
@@ -122,7 +122,7 @@ def test_a_tint_of_a_one_plate_colour_is_xcolors_percent_and_keeps_the_plate():
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_a_tint_of_a_k_value_reaches_the_pdf_on_the_black_plate_alone(compiler, tmp_path):  # noqa: F811
+async def test_a_tint_of_a_k_value_reaches_the_pdf_on_the_black_plate_alone(compiler, tmp_path):  # noqa: F811
     import re
 
     (tmp_path / "acme-ink.sty").write_text(pkg.render())
@@ -133,7 +133,7 @@ def test_a_tint_of_a_k_value_reaches_the_pdf_on_the_black_plate_alone(compiler, 
         )
     )
     comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(tmp_path,))
-    result = comp.compile(src, tmp_path / "out")
+    result = await comp.compile(src, tmp_path / "out")
     assert result.ok and result.pdf, result.diagnostics
     with pikepdf.open(result.pdf) as pdf:
         page = pdf.pages[0]
@@ -146,7 +146,7 @@ def test_a_tint_of_a_k_value_reaches_the_pdf_on_the_black_plate_alone(compiler, 
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_xcolors_black_and_grays_are_the_black_plate_in_the_cmyk_model(compiler, tmp_path):  # noqa: F811
+async def test_xcolors_black_and_grays_are_the_black_plate_in_the_cmyk_model(compiler, tmp_path):  # noqa: F811
     import re
 
     src = tmp_path / "base.tex"
@@ -155,7 +155,7 @@ def test_xcolors_black_and_grays_are_the_black_plate_in_the_cmyk_model(compiler,
         "\\textcolor{black}{a}\\textcolor{gray}{b}\\textcolor{darkgray}{c}\\textcolor{lightgray}{d}\\end{document}"
     )
     comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(tmp_path,))
-    result = comp.compile(src, tmp_path / "out")
+    result = await comp.compile(src, tmp_path / "out")
     assert result.ok and result.pdf, result.diagnostics
     with pikepdf.open(result.pdf) as pdf:
         page = pdf.pages[0]

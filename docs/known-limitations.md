@@ -10,7 +10,7 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   defined another way counts as missing, and a library written in expl3 is not read, and an xparse type it does not model (`v`, `u`, `g`, `e`) is reported as
   `?` and matches nothing.
 - Python 3.15 and LuaLaTeX only. Compiling needs the reference image (or a local TeX Live with `latexmk`).
-- Not built: release migrations, `Doc` trees from data with migrations, trust levels and the injection corpus, the
+- Not built here: releases and migrations, which are texpkg's (§13); trust levels and the injection corpus, the
   sandbox verification, `texmodel-print`, a rules layer, `List[T]` settings (`Value[...]` takes `Length`, `Colour`, `bool`,
   `Text`, `Raw`, and a package's own kinds such as etoolbox's `Toggle`).
 - No check of what TeX would do with a value: a `Length` key is checked to be a length, not to be sensible for the package.
@@ -23,10 +23,9 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 
 ## Print output
 
-- `PrintPage` is written once, when the package is declared: a document cannot change the trim, the bleed or the margin, and
-  one package has one sheet. No package option chooses the sheet (a crop build and a trim-only preview), landscape, or the
-  page boxes when TeX loads the package; such a page keeps its hand-written geometry. Boxes are the same on every page (no
-  recto and verso with different inner margins), crop marks are not drawn (`showcrop`), and the engine must be LuaTeX.
+- `PrintPage`'s trim, bleed and margin are declared once: a document chooses among the sheets the package's options
+  give (full or trim, portrait or landscape), not other sizes. A landscape sheet needs symmetric sides (`TM-M074`).
+  Boxes are the same on every page (no recto and verso with different inner margins), and the engine must be LuaTeX.
 - A spot colour is declared once: a document cannot set it, and two values with the same plate name are a compile error
   (`Duplicated spot name`), not a declaration error. Plate names are checked only for what breaks the PDF name or TeX.
 - `OutputIntent` knows PDF/X-4 and PDF/A-2b. It checks an ICC header, not that the profile is the one named by its
@@ -34,8 +33,8 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 
 ## Colours for print and screen
 
-- `ColourSpace` owns the package's options processing: a package that declares other options of its own must do so before
-  it, and may not process them twice. A `Dual` colour is not a spot (no screen build) and not checked for agreement between
+- A package option is a flag, a length or a choice; a text, a colour or a key list is a setting after `\usepackage`. A
+  class option that names a package's key is not checked. A `Dual` colour is not a spot (no screen build) and not checked for agreement between
   its two builds: that is the consumer's colour conversion.
 
 ## Plates
@@ -80,8 +79,10 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 
 ## Building
 
-- `texmodel_build.fonts` reads the font listing LuaTeX ends its log with; a compile that stopped early has none, and a font
+- `texmodel.run.fonts` reads the font listing LuaTeX ends its log with; a compile that stopped early has none, and a font
   inside an included PDF is never listed.
+- `texmodel.run` is async only. Synchronous code calls it through `asyncio.run(...)`, which cannot run inside an event
+  loop that is already running.
 - A copy of texmodel embedded where its installed metadata cannot be read must set `texmodel.package.GENERATOR_VERSION`,
   or the stamp of generated files is the version of whichever texmodel is installed (or `0.0.0`).
 
@@ -97,6 +98,11 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   calls have no identity: a deleted one is named by position. A move across environments reads as the close moved.
 - A key list, a PDF string, a `Raw` subclass and a colour in a `Value` are not read (no value, no violation); a record
   reads as a plain tuple; a length written `3 cm` is read, and `3mm` against `0.3 cm` are two values.
+- `restore` does not restore an added line, a setting, the preamble or a comment: they come back unapplied with their
+  `Reason`. A call over several lines and a change over a delimiter or the command name are `NOT_IN_ARGUMENT`. A field
+  these readers do not read (above) is `UNREADABLE`; a colour reads as its parts, not its model, so it is too.
+- A comment-out is only `%`, spaces and the line unchanged; a line commented and edited, or `%%`, is a `PARTIAL_REMOVAL`.
+- An optional argument restored to its default is stored as set (`"label": null` in `to_dict`), not left out.
 
 ## The standard headers
 

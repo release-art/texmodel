@@ -7,7 +7,7 @@ Guidance for AI coding agents working in this repository.
 `texmodel`: typed models of LaTeX document families, in Python 3.15. A package is declared as classes (`Command`,
 `Environment`, `Value[T]`) or as parts of hand-written TeX (`Package.library`), and rendered to a deterministic `.sty`; documents are
 trees of those classes; a JSON Schema, drift checks and typed compile diagnostics come from the same declarations.
-`src/texmodel` is the library (never spawns a process); `src/texmodel_build` is the optional `latexmk` driver and verifiers.
+`src/texmodel` is the library (its core never spawns a process); `src/texmodel/run` is the optional, async `latexmk` driver and verifiers.
 [README.md](README.md) is the short front page, the guide in [docs/](docs/index.md) (built with MkDocs, `mkdocs.yml`) the reference,
 [docs/cookbook.md](docs/cookbook.md) the worked examples (both run by the tests),
 [docs/texmodel-plan.md](docs/texmodel-plan.md) the target spec and decisions log (§21), [docs/known-limitations.md](docs/known-limitations.md)
@@ -15,6 +15,7 @@ what it does not do, [docs/briefs/roadmap.md](docs/briefs/roadmap.md) the ordere
 
 **Pre-1.0:** no backward compatibility for the Python API, the CLI, the configuration or the generated output: rename or remove
 directly. List every such change under `Changed` or `Removed` in `CHANGELOG.md`; a patch release never changes generated output (G7).
+A release that changes generated output also gets an `Output change: <what>.` line and an entry in `drift.OUTPUT_CHANGES`.
 
 ## Principles
 
@@ -64,11 +65,13 @@ TEXMODEL_REQUIRE_TEX=1 pdm run pytest -m tex --no-cov   # when output, the scan 
 
 ## Package layout (pydantic pattern)
 
-- Public modules sit at the top level of `texmodel/` and `texmodel_build/`; `_internal/` is what we deliberately hide
+- Public modules sit at the top level of `texmodel/` and `texmodel/run/`; `_internal/` is what we deliberately hide
   (scanning, rendering helpers, value text, process spawning). A new module goes in `_internal` unless users should import it;
-  then add it to `PUBLIC` in `tests/test_texmodel/test_public_api.py` and document it.
-- `texmodel` never imports `texmodel_build` or spawns a process; only `texmodel_build/_internal/spawn.py` imports `subprocess`;
-  only `cli.py` prints or formats output (the library uses `logging` and `warnings`). `lint-imports` enforces these.
+  then add it to `PUBLIC` in `tests/test_texmodel/test_public_api.py` and document it. A new core module is also listed in
+  the layers contract in `pyproject.toml` (it is exhaustive).
+- The core never imports `texmodel.run` (`lint-imports`: `cli` above `run` above the core); only
+  `texmodel/run/_internal/spawn.py` starts a process (a test); only `cli.py` prints or formats output (the library uses
+  `logging` and `warnings`). What starts a process is `async def`; tests of it are `async def` too (`pytest-asyncio`).
 - Keep the public surface small. Keep the version in the git tag only (the build reads it; the maintainer tags).
 
 ## Conventions

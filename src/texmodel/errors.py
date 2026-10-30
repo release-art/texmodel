@@ -4,7 +4,7 @@ import dataclasses
 
 
 class TexmodelError(Exception):
-    """Base of every error texmodel (and texmodel-build) raises."""
+    """Base of every error texmodel (and texmodel.run) raises."""
 
     def __init__(self, message: str, *, code: str = "TM-E000", path: str = "", hint: str = "") -> None:
         super().__init__(message)

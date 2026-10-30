@@ -68,14 +68,47 @@ assert r"\setlength{\vlGap}{3mm}" in tex
 assert r"\renewcommand{\vlDeckName}{R\&D}" in tex
 ```
 
-Every setting, of any type, is written right after `\usepackage`, in the order given, before the `after_package` entries
-and `\begin{document}`. What the package computes in the preamble therefore already sees it. This order is tested.
+Every setting that is not a package option is written right after `\usepackage`, in the order given, before the
+`after_package` entries and `\begin{document}`. What the package computes in the preamble therefore already sees it. This
+order is tested. A package option's setting goes into `\usepackage[...]` instead (below).
 
 `setting_line(value)` is the line written for one setting:
 
 ```python
 assert setting_line(Gap(Length("3mm"))) == r"\setlength{\vlGap}{3mm}"
 ```
+
+## Package options
+
+A value a package reads while it loads (which sheet, a bleed) is a package option. `pkg.option(name, ...)` declares it,
+of one of three kinds, and returns the value it sets; a document sets it as it sets any value, and it is written where it
+takes effect, in `\usepackage[...]`:
+
+```python
+opt_pkg = Package("acme-options", prefix="ao")
+crop = opt_pkg.option("crop", flag=True, inverse="nocrop", doc="The print build.")
+bleed = opt_pkg.option("bleed", length=Length("3mm"), doc="The bleed past the trim.")
+assert opt_pkg.option("crop", flag=True, inverse="nocrop", doc="Said again.") is crop   # one option, shared
+assert r"\ProcessKeyOptions [ acme-options ]" in opt_pkg.render()
+tex = opt_pkg.document(Document(settings=[crop(False), bleed(Length("2mm"))]))
+assert r"\usepackage[crop=false,bleed=2mm]{acme-options}" in tex
+```
+
+- A `flag` (`crop`, `crop=false`, and its `inverse` key `nocrop`), a `length` (`bleed=2mm`) or a `choice` (`accent=moss`:
+  a `Choice` member's name in lowercase, `-` for `_`); the argument given is the default. A text, a colour or a key list
+  is a setting, not an option: a comma or a brace in it would be mangled in an option list.
+- Every option is a key of the l3keys family named after the package, all processed once by `\ProcessKeyOptions`, each
+  set only while the package loads (TeX refuses it after). The `.sty` declares them in an options section right after its
+  `\RequirePackage` lines, so everything below may read them. The register a key sets is LaTeX2e's (`\newif`,
+  `\newlength`, `\newcommand`): hand-written TeX reads `\ifaoCrop` and `\the\aoBleed` as usual.
+- The value's class is the name in CamelCase (`show-crop` is `ShowCrop`), its control sequence `<prefix><Class>` unless
+  `cs=` names it. `pkg.options` lists the values a package's options set.
+- A module declares the options it needs when it is added to a package. The same name declared again the same way is the
+  option declared first; another default, kind, inverse or `cs`, or a key another option already has, is `TM-M073`. A
+  name that is not lowercase letters with `-` between words, no kind or two, an inverse on a non-flag, or a package with
+  no prefix and no `cs` (or no `\usepackage` of its own) is `TM-M072`.
+- An option of a package's base is passed to it first (`\PassOptionsToPackage`). A class option
+  (`Document(options=["nocrop"])`) reaches every package that declares the key too, unchecked.
 
 ## Plates
 
@@ -148,7 +181,7 @@ from texmodel.interface import ColourName
 from texmodel.package import Package
 
 print_pkg = Package("acme-print-colours", prefix="pc")
-ColourSpace().declare(print_pkg)                  # first: the cmyk and rgb options, and the flag
+build = ColourSpace().declare(print_pkg)          # the option `cmyk` (inverse `rgb`), and its flag
 
 
 @print_pkg.value
@@ -163,14 +196,14 @@ assert r"\definecolor{pc-ink}{HTML}{2D2C2B}" in print_pkg.render()
 ```
 
 A body or a field uses the name as any xcolor name: `\textcolor{pc-ink}{...}`, `fill=pc-ink!70`. A document picks the build
-with a class option, `Document(options=["rgb"])`, which LaTeX gives to every package that declares it; CMYK is the default
-(`ColourSpace(Build.RGB)` changes it). `colour_of(Ink)` is the name of any colour value (`Value[Colour]`, `Dual`,
+with the flag, `Document(settings=[build(False)])` (written `\usepackage[cmyk=false]`), or the class option `rgb`; CMYK
+is the default (`ColourSpace(Build.RGB)` changes it). `colour_of(Ink)` is the name of any colour value (`Value[Colour]`, `Dual`,
 `SpotColour`); a tint of it is xcolor's, in whichever build is in use.
 
 - `rgb` is six hex digits, or an `RGB` rounded to 8 bits. Either side may be `None` (`TM-M064` if both are): a colour with
   no print build is undefined in print, which is xcolor's error and not a silent conversion.
-- `ColourSpace` processes the package's options (`\ProcessOptions`, once per package), so it is declared before the colours
-  and before any other options the package declares (`TM-M065`).
+- `ColourSpace` declares a package option, so it may come anywhere in the package; a package without a prefix is
+  `TM-M065`.
 - A value that is not a registered colour is `TM-M066` in `colour_of`.
 
 ## Values only the whole document knows

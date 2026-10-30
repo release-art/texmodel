@@ -7,7 +7,7 @@ from hypothesis import (
     given,
     strategies as st,
 )
-from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
+from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel._internal.inline import inline_text
 from texmodel.body import Cs, Group, Hole, Lit, Seq, Whitespace
@@ -155,7 +155,7 @@ def test_a_choice_loop_emits_one_branch_per_member():
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_the_branch_of_the_chosen_member_runs_when_tex_expands_it(compiler, tmp_path):  # noqa: F811
+async def test_the_branch_of_the_chosen_member_runs_when_tex_expands_it(compiler, tmp_path):  # noqa: F811
     pkg, rating = level_package()
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "level-demo.sty").write_text(pkg.render(), encoding="utf-8")
@@ -163,6 +163,6 @@ def test_the_branch_of_the_chosen_member_runs_when_tex_expands_it(compiler, tmp_
         r"\begin{document}", "\\def\\lvLow{L}\\def\\lvHigh{H}\n\\begin{document}.\n"
     )
     (tmp_path / "src" / "d.tex").write_text(tex, encoding="utf-8")
-    result = compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out")
+    result = await compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out")
     assert result.ok, [(x.message, x.code) for x in result.diagnostics]
     assert result.probes == {"r": "HIGH"}

@@ -1,12 +1,12 @@
-"""A fake toolchain behind `driver._spawn`, so the driver's branches run without Docker or TeX."""
+"""A fake toolchain behind `compiler.spawn`, so the driver's branches run without Docker or TeX."""
 
 import pathlib
 import re
 
 import pytest
 
-from texmodel_build import compiler
-from texmodel_build._internal.spawn import Proc
+from texmodel.run import compiler
+from texmodel.run._internal.spawn import Proc
 
 driver_proc = Proc
 
@@ -34,7 +34,7 @@ class FakeToolchain:
         self.no_kpsewhich = False
         self.up_to_date = False  # when set, like latexmk: outputs already current in the outdir mean no pass runs
 
-    def __call__(self, argv, *, cwd, env, timeout):  # noqa: ANN001, ANN204
+    async def __call__(self, argv, *, cwd, env, timeout):  # noqa: ANN001, ANN204
         argv = list(argv)
         self.calls.append(argv)
         if argv[:3] == ["docker", "image", "inspect"]:

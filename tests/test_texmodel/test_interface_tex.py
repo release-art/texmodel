@@ -5,7 +5,7 @@ import enum
 import re
 
 import pytest
-from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
+from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.components import Command
 from texmodel.document import Document
@@ -14,9 +14,9 @@ from texmodel.keys import KEYVAL, L3KEYS, PGFKEYS, XKEYVAL
 from texmodel.keyvals import KeyVals, key
 from texmodel.package import Package
 from texmodel.preamble import PreambleSlots
+from texmodel.run.testkit import run_probes
 from texmodel.testing import Call, expand
 from texmodel.types import Choice, Length, Raw, Text
-from texmodel_build.testkit import run_probes
 
 pytestmark = [pytest.mark.tex, pytest.mark.timeout(300)]
 
@@ -75,7 +75,7 @@ def test_xparse_definitions_receive_the_arguments_texmodel_writes():
     assert r"\NewDocumentCommand{\xpPut}{r()m}" in sty
 
 
-def test_real_xparse_bodies_read_what_the_calls_say(compiler):  # noqa: F811
+async def test_real_xparse_bodies_read_what_the_calls_say(compiler):  # noqa: F811
     pkg, two, heading, put = demo()
     nodes = [
         two(c="x"),
@@ -88,7 +88,7 @@ def test_real_xparse_bodies_read_what_the_calls_say(compiler):  # noqa: F811
         put(at=(1, 2), text="t"),
     ]
     tex = pkg.test_document(Document(*nodes, preamble=COUNTER))
-    got = numbered(run_probes(compiler, tex, {"xp-demo.sty": pkg.render()}))
+    got = numbered(await run_probes(compiler, tex, {"xp-demo.sty": pkg.render()}))
     assert got == [
         "<||x>",
         "<|y|x>",
@@ -101,7 +101,7 @@ def test_real_xparse_bodies_read_what_the_calls_say(compiler):  # noqa: F811
     ]
 
 
-def test_stubs_log_xparse_calls_as_the_fast_tier_says(compiler):  # noqa: F811
+async def test_stubs_log_xparse_calls_as_the_fast_tier_says(compiler):  # noqa: F811
     pkg, two, heading, put = demo()
     nodes = [
         two(c="x", b="y"),
@@ -111,7 +111,7 @@ def test_stubs_log_xparse_calls_as_the_fast_tier_says(compiler):  # noqa: F811
     ]
     stubs = [two, heading, put]
     tex = pkg.test_document(*nodes, stub=stubs)
-    found = run_probes(compiler, tex, {"xp-demo.sty": pkg.render()})
+    found = await run_probes(compiler, tex, {"xp-demo.sty": pkg.render()})
     got = [
         Call.parse(v)
         for _, v in sorted((int(m.name.removeprefix("call")), m.value) for m in found if m.name.startswith("call"))
@@ -150,7 +150,7 @@ CORPUS = ["plain", "a,b", "a=b", "x]y", " lead", "trail ", "", "a b c", "[x]", "
     ],
     ids=["pgfkeys", "xkeyval", "keyval", "l3keys"],
 )
-def test_a_value_survives_the_library_as_one_value(compiler, rules, preamble, define, setter):  # noqa: F811
+async def test_a_value_survives_the_library_as_one_value(compiler, rules, preamble, define, setter):  # noqa: F811
     class Titled(KeyVals, rules=rules):
         title: Text | None = None
 
@@ -159,7 +159,7 @@ def test_a_value_survives_the_library_as_one_value(compiler, rules, preamble, de
         setter.replace("LIST", r) + f"\\typeout{{texmodel:probe:v{i}=[\\tmtitle]}}" for i, r in enumerate(rendered)
     )
     tex = f"\\documentclass{{article}}\n{preamble}\n\\begin{{document}}\n{define}\n{body}\n\\null\n\\end{{document}}\n"
-    found = {m.name: m.value for m in run_probes(compiler, tex)}
+    found = {m.name: m.value for m in await run_probes(compiler, tex)}
     got = [found[f"v{i}"] for i in range(len(CORPUS))]
     kept = (lambda v: v) if rules.edge_spaces else (lambda v: v.strip())  # l3keys trims however a value is braced
     assert got == [f"[{kept(v)}]" for v in CORPUS]
@@ -171,7 +171,7 @@ class Align(Choice):
     BOTTOM = "b"
 
 
-def test_flags_switches_choices_and_optional_values_through_pgfkeys(compiler):  # noqa: F811
+async def test_flags_switches_choices_and_optional_values_through_pgfkeys(compiler):  # noqa: F811
     class Opts(KeyVals, rules=PGFKEYS):
         max_width: Length | None = key("max width")
         center: Flag = False
@@ -197,7 +197,7 @@ def test_flags_switches_choices_and_optional_values_through_pgfkeys(compiler):  
     )
     head = "\\documentclass{article}\n\\usepackage{pgfkeys}\n\\begin{document}\n"
     tex = head + define + "\n" + body + "\n\\null\n\\end{document}\n"
-    found = {m.name: m.value for m in run_probes(compiler, tex)}
+    found = {m.name: m.value for m in await run_probes(compiler, tex)}
     assert found == {
         "o0": r"<0.5\linewidth |yes|false|t|2pt>",
         "o1": "<-|no|true|b|->",

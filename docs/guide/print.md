@@ -33,8 +33,32 @@ edge after `all=` or `horizontal=` and `vertical=` replaces that one. An edge le
 overflow smaller than the bleed on any edge is `TM-M052`.
 
 `sheet=Sheet.TRIM` is a review copy: the sheet is the trim alone and the type area is the same as in `Sheet.FULL`.
-`/MediaBox` is the engine's, and is not written (a second one is a duplicate key in every page dictionary). The page is
-written once, at declaration: a document does not change it, and the engine must be LuaTeX. Crop marks are not drawn.
+`/MediaBox` is the engine's, and is not written (a second one is a duplicate key in every page dictionary). The engine must
+be LuaTeX. `marks=True` draws crop marks on the full sheet (geometry's `showcrop`); measured, they do not move the type
+area.
+
+The sheet can be chosen when the package loads, by flag options ([package options](values.md#package-options)): `full=`
+chooses the full sheet or the trim alone, `landscape=` turns the trim 90° and its margins with it. Every sheet they choose
+is computed here and written as numbers in `\if` branches:
+
+```python
+cards = Package("acme-switched", prefix="aw")
+crop = cards.option("crop", flag=True, inverse="nocrop", doc="The print build: bleed, crop margin, crop marks.")
+landscape = cards.option("landscape", flag=False, doc="The card turned.")
+card = PrintPage(
+    width=Length("105mm"), height=Length("148mm"), bleed=Length("3mm"), overflow=Length("7mm"),
+    margin=Sides(horizontal=Length("7mm"), vertical=Length("6.5mm")), marks=True,
+)
+card.declare(cards, full=crop, landscape=landscape)
+assert cards.render().count(r"\geometry{") == 4
+assert r"\usepackage[crop=false,landscape=true]{acme-switched}" in cards.document(
+    Document(settings=[crop(False), landscape(True)])
+)
+```
+
+- A landscape sheet turns its bleed, overflow and margin, so each must be symmetric (`TM-M074`): top equal to bottom,
+  left equal to right, and the turned type area is the portrait one turned.
+- A switch must be a flag option of the package, and `sheet=` and `full=` do not both choose the sheet (`TM-M075`).
 
 ## A spot colour
 

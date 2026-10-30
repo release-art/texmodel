@@ -14,23 +14,23 @@ objects, a JSON Schema for their data, checks that the committed files are curre
   A bad document reports everything wrong at once, each with a path such as `Card/CardBack[1]/Fact[2].text`.
 - **Checked against TeX.** `texmodel check` fails when a committed file is stale. For hand-written TeX it compares what you
   declared with what the file defines.
-- **No TeX needed to run.** The library never starts a process. `texmodel-build` is the optional `latexmk` driver.
+- **No TeX needed to run.** The library never starts a process. `texmodel.run` is the optional `latexmk` driver.
 
 ## Install
 
 ```zsh
-pip install texmodel                 # the library and the texmodel-build command
+pip install texmodel                 # the library and the texmodel command
 pip install 'texmodel[proof-pdf]'    # plus the proof-pdf verifier
 ```
 
 Python 3.15 and LuaLaTeX only.
 
-## Two packages
+## The core and `texmodel.run`
 
 | Package | What it is |
 |---|---|
-| `texmodel` | The library: declare components, render TeX, check committed output. |
-| `texmodel_build` | Optional: a `latexmk` driver with typed log diagnostics, and verifier plugins for built PDFs. |
+| `texmodel` | The library: declare components, render TeX, check committed output. Starts no process. |
+| `texmodel.run` | Optional: a `latexmk` driver with typed log diagnostics, and verifier plugins for built PDFs. Async: what starts a process is awaited. |
 
 ## Where to go
 

@@ -4,8 +4,16 @@ A printer trims to `/TrimBox` and lets artwork run to `/BleedBox`; PDF/X require
 file can be valid and trimmed to the wrong size. `PrintPage` derives both from the trim, the bleed and the margin
 around the trim, edge by edge. All of it is numbers in the generated `.sty`: nothing is computed by TeX.
 
-The page is fixed when the package is generated: one sheet, which no package option switches (a crop build and a
-preview build, or landscape), and no crop marks. A page chosen when TeX loads the package keeps its own geometry.
+The sheet may be chosen when TeX loads the package: `declare(pkg, full=, landscape=)` takes flag options
+(`Package.option`), and every sheet they choose is computed here and written as numbers in `\if` branches. `full`
+chooses the full sheet or the trim alone (`Sheet.TRIM`, the same type area); `landscape` turns the trim 90° and its
+margins with it, so the bleed, the overflow and the margin must be symmetric (`TM-M074`). `marks=True` draws crop marks
+on the full sheet (geometry's `showcrop`).
+
+```py
+crop = pkg.option("crop", flag=True, inverse="nocrop", doc="The print build.")
+page.declare(pkg, full=crop, landscape=pkg.option("landscape", flag=False, doc="The card turned."))
+```
 
 ```python
 page = PrintPage(
@@ -21,8 +29,9 @@ page.declare(pkg)
 import dataclasses
 import enum
 from fractions import Fraction
-from typing import overload
+from typing import Any, overload
 
+from ..components import Value
 from ..errors import DeclarationError
 from ..package import Package
 from ..types import Length, Raw, plain_number
@@ -33,8 +42,7 @@ LIBRARY = r"""
         {The page boxes are written with luaTeX's \string\pdfvariable\space pageattr.}%
     \fi
     \RequirePackage{geometry}
-    \geometry{<<geometry>>}
-    \pdfvariable pageattr{<<boxes>>}
+    <<page>>
 """
 
 _SIDES = ("top", "right", "bottom", "left")
@@ -122,6 +130,16 @@ class Sheet(enum.Enum):
     TRIM = "trim"
 
 
+def _symmetric(sides: Sides) -> bool:
+    top, right, bottom, left = sides.inches()
+    return top == bottom and left == right
+
+
+def _turned(sides: Sides) -> Sides:
+    """The edges a quarter turn clockwise: the left becomes the top. For symmetric sides the direction is moot."""
+    return Sides(top=sides.left, right=sides.top, bottom=sides.right, left=sides.bottom)
+
+
 def _sides(value: "Length | Sides") -> Sides:
     return value if isinstance(value, Sides) else Sides(all=value)
 
@@ -138,7 +156,7 @@ def _bp(inches: Fraction) -> str:
 class PrintPage:
     """A print page: the trim `width` by `height`, `bleed` past it, `overflow` (at least the bleed) of sheet around it
     for marks, and `margin` from the trim to the type area. Each of the three is a `Length` for every edge or `Sides`.
-    The geometry and the page boxes are written for `sheet`."""
+    The geometry and the page boxes are written for `sheet`; `marks` draws crop marks on the full sheet."""
 
     width: Length
     height: Length
@@ -146,6 +164,7 @@ class PrintPage:
     overflow: Sides
     margin: Sides
     sheet: Sheet
+    marks: bool
 
     def __init__(
         self,
@@ -156,6 +175,7 @@ class PrintPage:
         overflow: Length | Sides | None = None,
         margin: Length | Sides | None = None,
         sheet: Sheet = Sheet.FULL,
+        marks: bool = False,
     ) -> None:
         bleeds = _sides(bleed)
         overflows = bleeds if overflow is None else _sides(overflow)
@@ -173,6 +193,18 @@ class PrintPage:
         object.__setattr__(self, "overflow", overflows)
         object.__setattr__(self, "margin", _sides(Length("0mm")) if margin is None else _sides(margin))
         object.__setattr__(self, "sheet", sheet)
+        object.__setattr__(self, "marks", marks)
+
+    def _as(self, sheet: Sheet, *, turned: bool) -> "PrintPage":
+        """This page on `sheet`, turned a quarter or not."""
+        if not turned:
+            width, height, bleed, overflow, margin = self.width, self.height, self.bleed, self.overflow, self.margin
+        else:
+            width, height = self.height, self.width
+            bleed, overflow, margin = _turned(self.bleed), _turned(self.overflow), _turned(self.margin)
+        return PrintPage(
+            width=width, height=height, bleed=bleed, overflow=overflow, margin=margin, sheet=sheet, marks=self.marks
+        )
 
     def _extent(self) -> tuple[Fraction, Fraction, Fraction, Fraction, Fraction, Fraction]:
         """The trim size, then each edge's overflow (none for `TRIM`): `(w, h, top, right, bottom, left)` in inches."""
@@ -189,7 +221,8 @@ class PrintPage:
         if self.sheet is Sheet.FULL:
             keys += [f"layoutsize={{{_mm(w)},{_mm(h)}}}", f"layoutoffset={{{_mm(left)},{_mm(top)}}}"]
         keys += [f"left={ml}", f"right={mr}", f"top={mt}", f"bottom={mb}"]
-        return ",".join([*keys, "nohead", "nofoot", "headheight=0pt", "headsep=0pt", "footskip=0pt"])
+        marks = ["showcrop"] if self.marks and self.sheet is Sheet.FULL else []
+        return ",".join([*keys, "nohead", "nofoot", "headheight=0pt", "headsep=0pt", "footskip=0pt", *marks])
 
     def boxes(self) -> str:
         """The page boxes in bp, from the lower left of the media; `/MediaBox` is the engine's own, and a second one
@@ -201,13 +234,57 @@ class PrintPage:
         trim = f"[{_bp(left)} {_bp(bottom)} {_bp(left + w)} {_bp(bottom + h)}]"
         return f"/CropBox {media}/BleedBox {bleed}/TrimBox {trim}"
 
-    def declare(self, package: Package) -> None:
-        """The geometry and the page boxes, as a block of the package's `.sty`, `print-page`."""
+    def declare(
+        self, package: Package, *, full: type[Value[Any]] | None = None, landscape: type[Value[Any]] | None = None
+    ) -> None:
+        """The geometry and the page boxes, as a block of the package's `.sty`, `print-page`. `full` and `landscape`
+        are flag options of the package that choose the sheet when it loads; without them the sheet is fixed."""
+        for name, flag in (("full", full), ("landscape", landscape)):
+            if flag is not None and (flag not in package.options or flag.__tm_kind__.python is not bool):
+                raise DeclarationError(
+                    f"PrintPage.declare({name}=): {flag.__name__} is not a flag option of {package.name}",
+                    code="TM-M075",
+                    path=name,
+                    hint='declare it with package.option("...", flag=...)',
+                )
+        if full is not None and self.sheet is not Sheet.FULL:
+            raise DeclarationError(
+                "PrintPage: sheet= and full= both choose the sheet", code="TM-M075", path="sheet", hint="give one"
+            )
+        if landscape is not None and not all(_symmetric(s) for s in (self.bleed, self.overflow, self.margin)):
+            raise DeclarationError(
+                "PrintPage: a landscape sheet turns its bleed, overflow and margin, so each is symmetric",
+                code="TM-M074",
+                path="landscape",
+                hint="top equal to bottom and left equal to right",
+            )
+
+        def chosen(*, turned: bool) -> list[str]:
+            if full is None:
+                return _page(self._as(self.sheet, turned=turned))
+            return _branches(
+                full, _page(self._as(Sheet.FULL, turned=turned)), _page(self._as(Sheet.TRIM, turned=turned))
+            )
+
+        lines = (
+            chosen(turned=False)
+            if landscape is None
+            else _branches(landscape, chosen(turned=True), chosen(turned=False))
+        )
         package.library(
             "print-page",
             LIBRARY,
-            fill={"package": Raw(package.name), "geometry": Raw(self.geometry()), "boxes": Raw(self.boxes())},
+            fill={"package": Raw(package.name), "page": Raw("\n".join(lines))},
         )
+
+
+def _page(page: PrintPage) -> list[str]:
+    return [f"\\geometry{{{page.geometry()}}}", f"\\pdfvariable pageattr{{{page.boxes()}}}"]
+
+
+def _branches(flag: type[Value[Any]], yes: list[str], no: list[str]) -> list[str]:
+    """`\\if<flag>` ... `\\else` ... `\\fi`, each branch indented."""
+    return [f"\\if{flag.__tm_cs__}", *(f"  {line}" for line in yes), "\\else", *(f"  {line}" for line in no), "\\fi"]
 
 
 __all__ = ["LIBRARY", "PrintPage", "Sheet", "Sides"]

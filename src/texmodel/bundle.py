@@ -3,7 +3,7 @@
 An `Item` is one file: where it comes from, where it goes (relative to the destination), and why. Where things go is
 the caller's policy (a typeface must sit at a document's root because luaotfload reads no search path; a package can
 sit anywhere kpathsea looks), so this module decides nothing about layout. To prove a bundle self-contained, compile it
-with no asset roots and no font directories (texmodel-build can).
+with no asset roots and no font directories (texmodel.run can).
 """
 
 import dataclasses

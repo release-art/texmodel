@@ -4,15 +4,15 @@ import re
 
 import pikepdf
 import pytest
-from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
+from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.document import Document
 from texmodel.errors import DeclarationError
 from texmodel.ext.printpage import PrintPage, Sheet, Sides
 from texmodel.package import Package
+from texmodel.run.compiler import Compiler
+from texmodel.run.testkit import run_probes
 from texmodel.types import Length
-from texmodel_build.compiler import Compiler
-from texmodel_build.testkit import run_probes
 
 mm = Length
 
@@ -114,7 +114,7 @@ def pdf_box(pdf, name):
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_the_boxes_land_edge_by_edge_and_both_sheets_have_one_type_area(compiler, tmp_path):  # noqa: F811
+async def test_the_boxes_land_edge_by_edge_and_both_sheets_have_one_type_area(compiler, tmp_path):  # noqa: F811
     page = card(
         bleed=Sides(all=mm("3mm"), left=mm("0mm")),
         overflow=Sides(top=mm("8mm"), right=mm("6mm"), bottom=mm("7mm"), left=mm("5mm")),
@@ -125,14 +125,14 @@ def test_the_boxes_land_edge_by_edge_and_both_sheets_have_one_type_area(compiler
         PrintPage(**{**page.__dict__, "sheet": sheet}).declare(pkg)
         probe = "\\typeout{texmodel:probe:tw=\\the\\textwidth}\\typeout{texmodel:probe:th=\\the\\textheight}"
         tex = pkg.document(Document()).replace(r"\begin{document}", "\\begin{document}\n" + probe + "x")
-        found = run_probes(compiler, tex, {f"{pkg.name}.sty": pkg.render()})
+        found = await run_probes(compiler, tex, {f"{pkg.name}.sty": pkg.render()})
         areas[sheet] = {m.name: m.value for m in found}
         comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(tmp_path / sheet.value,))
         (tmp_path / sheet.value).mkdir()
         (tmp_path / sheet.value / f"{pkg.name}.sty").write_text(pkg.render())
         src = tmp_path / sheet.value / "doc.tex"
         src.write_text(tex)
-        result = comp.compile(src, tmp_path / f"out-{sheet.value}")
+        result = await comp.compile(src, tmp_path / f"out-{sheet.value}")
         assert result.ok and result.pdf, result.diagnostics
         with pikepdf.open(result.pdf) as pdf:
             if sheet is Sheet.FULL:
@@ -150,3 +150,106 @@ def test_the_boxes_land_edge_by_edge_and_both_sheets_have_one_type_area(compiler
     assert re.fullmatch(r"258\.92\d*pt", areas[Sheet.FULL]["tw"]) and re.fullmatch(
         r"384\.11\d*pt", areas[Sheet.FULL]["th"]
     )
+
+
+def switched(**more):
+    pkg = Package("acme-switched", prefix="aw")
+    crop = pkg.option("crop", flag=True, inverse="nocrop", doc="The print build.", cs="awshowcrop")
+    landscape = pkg.option("landscape", flag=False, doc="The card turned.")
+    page = card(height=mm("148mm"), margin=Sides(horizontal=mm("7mm"), vertical=mm("6.5mm")), marks=True, **more)
+    return pkg, page, crop, landscape
+
+
+def test_switches_write_every_sheet_they_choose_as_numbers_in_branches():
+    pkg, page, crop, landscape = switched()
+    page.declare(pkg, full=crop, landscape=landscape)
+    sty = pkg.render()
+    block = sty[sty.index(r"\RequirePackage{geometry}") :]
+    assert [line.strip() for line in block.splitlines() if line.strip().startswith(("\\if", "\\else", "\\fi"))] == [
+        r"\ifawLandscape", r"\ifawshowcrop", r"\else", r"\fi", r"\else", r"\ifawshowcrop", r"\else", r"\fi", r"\fi",
+    ]  # fmt: skip
+    turned = "papersize={162mm,119mm},layoutsize={148mm,105mm},layoutoffset={7mm,7mm},left=6.5mm,right=6.5mm,top=7mm"
+    assert turned in block and "papersize={148mm,105mm},left=6.5mm" in block  # the margins turn with the sheet
+    assert block.count("showcrop}") == 2 and block.count(r"\pdfvariable pageattr") == 4  # marks on the full sheets only
+    pkg_one, page_one, crop_one, _ = switched()
+    page_one.declare(pkg_one, full=crop_one)
+    one = pkg_one.render()[pkg_one.render().index(r"\RequirePackage{geometry}") :]
+    assert r"\ifawLandscape" not in one and one.count(r"\geometry{") == 2
+
+
+def test_without_switches_the_page_is_written_as_before():
+    plain = Package("acme-plain", prefix="ap")
+    card().declare(plain)
+    sty = plain.render()
+    assert "\\RequirePackage{geometry}\n\\geometry{" in sty and "\\if" not in sty.split("\\RequirePackage{geometry}")[1]
+    assert "showcrop" not in card().geometry() and card(marks=True).geometry().endswith(",showcrop")
+    assert "showcrop" not in card(marks=True, sheet=Sheet.TRIM).geometry()
+
+
+def test_a_switch_must_be_a_flag_option_of_the_package_and_the_sheet_is_chosen_once():
+    pkg, page, crop, _ = switched()
+    other = Package("acme-other", prefix="ao").option("crop", flag=True, doc="Not this package's.")
+    bleed = pkg.option("bleed", length=mm("3mm"), doc="Not a flag.")
+    for given in ({"full": other}, {"full": bleed}, {"landscape": other}):
+        with pytest.raises(DeclarationError) as raised:
+            page.declare(pkg, **given)
+        assert raised.value.code == "TM-M075"
+    with pytest.raises(DeclarationError) as raised:
+        card(sheet=Sheet.TRIM).declare(pkg, full=crop)
+    assert raised.value.code == "TM-M075"
+
+
+@pytest.mark.parametrize(
+    "asymmetric",
+    [
+        {"margin": Sides(top=mm("3mm"), right=mm("7mm"), bottom=mm("10mm"), left=mm("7mm"))},
+        {"bleed": Sides(all=mm("3mm"), left=mm("0mm"))},
+        {"overflow": Sides(top=mm("8mm"), right=mm("7mm"), bottom=mm("7mm"), left=mm("7mm"))},
+    ],
+)
+def test_a_landscape_sheet_needs_symmetric_sides(asymmetric):
+    pkg, _, crop, landscape = switched()
+    with pytest.raises(DeclarationError) as raised:
+        card(**asymmetric).declare(pkg, full=crop, landscape=landscape)
+    assert raised.value.code == "TM-M074"
+
+
+@pytest.mark.tex
+@pytest.mark.timeout(300)
+async def test_four_builds_land_their_boxes_and_one_type_area_turned_or_not(compiler, tmp_path):  # noqa: F811
+    """Measured: `showcrop` with `layoutoffset` does not move the type area: it stands at the overflow plus the margin
+    on the full sheet, at the margin on the trim, and turns with a landscape sheet."""
+    pkg, page, crop, landscape = switched()
+    page.declare(pkg, full=crop, landscape=landscape)
+    probe = (
+        r"\typeout{texmodel:probe:text=\the\textwidth x\the\textheight}"
+        r"\typeout{texmodel:probe:left=\the\dimexpr1in+\hoffset+\oddsidemargin\relax}"
+        r"\typeout{texmodel:probe:top=\the\dimexpr1in+\voffset+\topmargin+\headheight+\headsep\relax}"
+    )
+    builds = {
+        "full": ([], [0, 0, 337.32, 459.21], [19.84, 19.84, 317.48, 439.37]),
+        "trim": ([crop(False)], [0, 0, 297.64, 419.53], [0, 0, 297.64, 419.53]),
+        "full-landscape": ([landscape(True)], [0, 0, 459.21, 337.32], [19.84, 19.84, 439.37, 317.48]),
+        "trim-landscape": ([crop(False), landscape(True)], [0, 0, 419.53, 297.64], [0, 0, 419.53, 297.64]),
+    }
+    found, sizes = {}, {}
+    for name, (settings, media, trim) in builds.items():
+        tex = pkg.document(Document(settings=settings)).replace(
+            r"\begin{document}", "\\begin{document}\n" + probe + "x"
+        )
+        found[name] = {m.name: m.value for m in await run_probes(compiler, tex, {f"{pkg.name}.sty": pkg.render()})}
+        (tmp_path / name).mkdir()
+        (tmp_path / name / f"{pkg.name}.sty").write_text(pkg.render())
+        (tmp_path / name / "doc.tex").write_text(tex)
+        comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(tmp_path / name,))
+        result = await comp.compile(tmp_path / name / "doc.tex", tmp_path / f"out-{name}")
+        assert result.ok and result.pdf, result.diagnostics
+        with pikepdf.open(result.pdf) as pdf:
+            assert (pdf_box(pdf, "/MediaBox"), pdf_box(pdf, "/TrimBox")) == (media, trim), name
+            sizes[name] = len(pdf.pages[0].Contents.read_bytes())
+    portrait, turned = "258.9201ptx384.11223pt", "384.11223ptx258.9201pt"
+    assert found["full"] == {"text": portrait, "left": "39.83383pt", "top": "38.4112pt"}  # 14mm, 13.5mm
+    assert found["trim"] == {"text": portrait, "left": "19.91692pt", "top": "18.49428pt"}  # 7mm, 6.5mm
+    assert found["full-landscape"] == {"text": turned, "left": "38.4112pt", "top": "39.83383pt"}
+    assert found["trim-landscape"] == {"text": turned, "left": "18.49428pt", "top": "19.91692pt"}
+    assert sizes["full"] > sizes["trim"] + 300 and sizes["full-landscape"] > sizes["trim-landscape"] + 300  # the marks

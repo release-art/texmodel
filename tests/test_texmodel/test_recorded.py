@@ -7,16 +7,16 @@ from hypothesis import (
     given,
     strategies as st,
 )
-from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
+from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.document import Document
 from texmodel.errors import DeclarationError
 from texmodel.ext.recorded import APPEND, LENGTHS, MAX, MIN, SUM, Fold, Recorded
 from texmodel.package import Package
+from texmodel.run.compiler import Compiler
+from texmodel.run.diagnostics import Measurement
+from texmodel.run.testkit import check_library
 from texmodel.types import Length, Raw
-from texmodel_build.compiler import Compiler
-from texmodel_build.diagnostics import Measurement
-from texmodel_build.testkit import check_library
 
 pkg = Package("acme-rec", prefix="ar")
 LABEL = Recorded("LabelWidth")
@@ -140,12 +140,12 @@ def document_tex(package):
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_the_value_settles_over_two_runs_and_the_tex_agrees_with_python(compiler, tmp_path):  # noqa: F811
+async def test_the_value_settles_over_two_runs_and_the_tex_agrees_with_python(compiler, tmp_path):  # noqa: F811
     (tmp_path / "acme-rec.sty").write_text(pkg.render())
     src = tmp_path / "doc.tex"
     src.write_text(document_tex(pkg))
     comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(tmp_path,))
-    result = comp.compile(src, tmp_path / "out")
+    result = await comp.compile(src, tmp_path / "out")
     assert result.ok and result.passes >= 1, result.diagnostics
     found = {m.name: m.value for m in result.diagnostics if isinstance(m, Measurement)}
     fold_of = {"LabelWidth": MAX, "Cards": SUM, "Fewest": MIN, "Widths": APPEND}
@@ -163,20 +163,20 @@ def test_the_value_settles_over_two_runs_and_the_tex_agrees_with_python(compiler
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_the_library_defines_what_it_declares(compiler):  # noqa: F811
-    assert check_library(compiler, pkg) == []
+async def test_the_library_defines_what_it_declares(compiler):  # noqa: F811
+    assert await check_library(compiler, pkg) == []
 
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_an_aux_line_the_installed_package_does_not_know_is_swallowed(compiler, tmp_path):  # noqa: F811
+async def test_an_aux_line_the_installed_package_does_not_know_is_swallowed(compiler, tmp_path):  # noqa: F811
     (tmp_path / "acme-rec.sty").write_text(pkg.render())
     src = tmp_path / "doc.tex"
     src.write_text(document_tex(pkg))
     comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(tmp_path,))
-    assert comp.compile(src, tmp_path / "out").ok  # writes the .aux
+    assert (await comp.compile(src, tmp_path / "out")).ok  # writes the .aux
     bare = Package("acme-rec", prefix="ar")
     (tmp_path / "acme-rec.sty").write_text(bare.render())
     src.write_text(bare.document(Document()).replace(r"\end{document}", "x\n\\end{document}"))  # a page
-    again = comp.compile(src, tmp_path / "out")  # the .aux still has the lines, the package has not the macros
+    again = await comp.compile(src, tmp_path / "out")  # the .aux still has the lines, the package has not the macros
     assert again.ok, again.diagnostics

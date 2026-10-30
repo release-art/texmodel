@@ -10,16 +10,16 @@ from hypothesis import (
     given,
     strategies as st,
 )
-from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
+from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.body import Comment, Cs, Group, Hole, Lit, RefKind, Seq
 from texmodel.components import Command, Environment, Passthrough
 from texmodel.document import Document
 from texmodel.package import Package
+from texmodel.run.errors import CompileError
+from texmodel.run.testkit import run_probes
 from texmodel.testing import Call, detokenized, expand, stub_tex
 from texmodel.types import Raw, Text
-from texmodel_build.errors import CompileError
-from texmodel_build.testkit import run_probes
 
 from .test_document import refused
 
@@ -133,27 +133,27 @@ def test_optional_arguments_comments_passthrough_and_adopted_components():
 # --- the TeX tier agrees -----------------------------------------------------------------------------------------
 
 
-def probed(comp, tex, files):  # noqa: ANN001
-    found = run_probes(comp, tex, files)
+async def probed(comp, tex, files):  # noqa: ANN001
+    found = await run_probes(comp, tex, files)
     numbered = sorted((int(m.name.removeprefix("call")), m.value) for m in found if re.fullmatch(r"call\d+", m.name))
     return [Call.parse(value) for _, value in numbered]
 
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_the_tex_tier_gives_the_fast_tiers_calls_across_two_packages(compiler, composed):  # noqa: F811
+async def test_the_tex_tier_gives_the_fast_tiers_calls_across_two_packages(compiler, composed):  # noqa: F811
     section = composed.Section(composed.Entry(text="First"), composed.Entry(text="R&D 50%"), title="Notes")
     stubs = [composed.Fact, composed.Panel]
     tex = composed.pkg.test_document(section, stub=stubs)
     files = {f"{p.name}.sty": p.render() for p in (composed.base, composed.pkg)}
-    assert probed(compiler, tex, files) == calls(expand(section, stubs))
+    assert await probed(compiler, tex, files) == calls(expand(section, stubs))
     only_fact = composed.pkg.test_document(section, stub=[composed.Fact])  # the real panel runs, the facts are stubbed
-    assert probed(compiler, only_fact, files) == calls(expand(section, [composed.Fact]))
+    assert await probed(compiler, only_fact, files) == calls(expand(section, [composed.Fact]))
 
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_a_stubs_arguments_with_every_special_survive(compiler):  # noqa: F811
+async def test_a_stubs_arguments_with_every_special_survive(compiler):  # noqa: F811
     pkg = Package("special-demo", prefix="sp")
 
     @pkg.command
@@ -168,7 +168,7 @@ def test_a_stubs_arguments_with_every_special_survive(compiler):  # noqa: F811
     nodes = [Fact(text=text), Fact(text="x", note=text)]
     tex = pkg.test_document(*nodes, stub=[Fact])
     expected = [c for n in nodes for c in calls(expand(n, [Fact]))]
-    assert probed(compiler, tex, {"special-demo.sty": pkg.render()}) == expected
+    assert await probed(compiler, tex, {"special-demo.sty": pkg.render()}) == expected
     assert (
         "A\\&E" in expected[0].args[1]
         and "\\textasciitilde {}b" in expected[0].args[1]
@@ -179,7 +179,7 @@ def test_a_stubs_arguments_with_every_special_survive(compiler):  # noqa: F811
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_the_tex_tier_agrees_on_the_card_deck_consumer(compiler):  # noqa: F811
+async def test_the_tex_tier_agrees_on_the_card_deck_consumer(compiler):  # noqa: F811
     project = convert.load()[0]
     card = convert.nodes()[0]
     stubs = [
@@ -201,7 +201,7 @@ def test_the_tex_tier_agrees_on_the_card_deck_consumer(compiler):  # noqa: F811
         stub=stubs,
     )
     files = {"res/card-deck.sty": (convert.HERE / "res" / "card-deck.sty").read_text(encoding="utf-8")}
-    got = probed(compiler, tex, files)
+    got = await probed(compiler, tex, files)
     assert got == calls(expand(card, stubs))
     assert got[0] == Call("cdCard", (), RefKind.OPEN) and got[-1] == Call("cdCard", (), RefKind.CLOSE)
     labels = {c.args[0] for c in got if c.name == "cdLabelledSlot"}
@@ -214,9 +214,9 @@ def test_the_tex_tier_agrees_on_the_card_deck_consumer(compiler):  # noqa: F811
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_a_broken_document_raises_instead_of_returning_probes(compiler, tmp_path):  # noqa: F811
+async def test_a_broken_document_raises_instead_of_returning_probes(compiler, tmp_path):  # noqa: F811
     with pytest.raises(CompileError):
-        run_probes(compiler, "\\documentclass{article}\\begin{document}\\nonexistent\\end{document}")
+        await run_probes(compiler, "\\documentclass{article}\\begin{document}\\nonexistent\\end{document}")
 
 
 def test_constructive_pieces_comments_and_a_stub_inside_a_group_are_walked():

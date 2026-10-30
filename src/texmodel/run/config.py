@@ -1,4 +1,4 @@
-"""`[tool.texmodel-build]` in pyproject.toml: how to compile and verify (the harness's own table)."""
+"""`[tool.texmodel.run]` in pyproject.toml: how to compile and verify (the harness's own table)."""
 
 import dataclasses
 import pathlib
@@ -13,7 +13,7 @@ from .verify import Profile
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Target:
-    """A named build (C10): `[tool.texmodel-build.targets.<name>]`."""
+    """A named build (C10): `[tool.texmodel.run.targets.<name>]`."""
 
     name: str
     source: str
@@ -32,18 +32,18 @@ class BuildConfig:
 
 
 def load_build_config(pyproject: pathlib.Path) -> BuildConfig:
-    """Read and strictly validate `[tool.texmodel-build]`; unknown keys are refused."""
+    """Read and strictly validate `[tool.texmodel.run]`; unknown keys are refused."""
     table: dict[str, Any] | None = (
-        tomllib.loads(pyproject.read_text(encoding="utf-8")).get("tool", {}).get("texmodel-build")
+        tomllib.loads(pyproject.read_text(encoding="utf-8")).get("tool", {}).get("texmodel", {}).get("run")
     )
     if table is None:
         raise DeclarationError(
-            f"{pyproject}: no [tool.texmodel-build] table", code="TM-D001", hint="add [tool.texmodel-build]"
+            f"{pyproject}: no [tool.texmodel.run] table", code="TM-D001", hint="add [tool.texmodel.run]"
         )
     known = {f.name for f in dataclasses.fields(BuildConfig)}
     if unknown := sorted(set(table) - known):
         raise DeclarationError(
-            f"unknown [tool.texmodel-build] keys: {unknown}", code="TM-D002", hint=f"known: {sorted(known)}"
+            f"unknown [tool.texmodel.run] keys: {unknown}", code="TM-D002", hint=f"known: {sorted(known)}"
         )
     try:
         targets = {name: Target(name=name, **body) for name, body in table.pop("targets", {}).items()}
@@ -51,7 +51,7 @@ def load_build_config(pyproject: pathlib.Path) -> BuildConfig:
         measures = {name: Measure.declare(name, **body) for name, body in table.pop("measures", {}).items()}
         return BuildConfig(**table, targets=targets, profiles=profiles, measures=measures)
     except TypeError as exc:
-        raise DeclarationError(f"[tool.texmodel-build]: {exc}", code="TM-D003") from exc
+        raise DeclarationError(f"[tool.texmodel.run]: {exc}", code="TM-D003") from exc
 
 
 def _profile(name: str, body: dict[str, Any]) -> Profile:

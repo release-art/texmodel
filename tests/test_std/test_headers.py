@@ -16,7 +16,7 @@ import struct
 import zlib
 
 import pytest
-from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
+from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.body import Hole
 from texmodel.components import Command, Passthrough
@@ -24,10 +24,10 @@ from texmodel.document import Document
 from texmodel.interface import ColourName
 from texmodel.package import Package
 from texmodel.preamble import PreambleSlots
+from texmodel.run.compiler import Compiler
+from texmodel.run.diagnostics import PackageError, Severity
 from texmodel.std import MODULES, TEXLIVE
 from texmodel.types import Length, Raw, Text
-from texmodel_build.compiler import Compiler
-from texmodel_build.diagnostics import PackageError, Severity
 
 
 def header(name: str):  # noqa: ANN201
@@ -426,12 +426,12 @@ def host_compiler() -> Compiler | None:
     return None
 
 
-def compile_sample(comp: Compiler, plan, tmp_path: pathlib.Path):  # noqa: ANN001, ANN201
+async def compile_sample(comp: Compiler, plan, tmp_path: pathlib.Path):  # noqa: ANN001, ANN201
     src = tmp_path / "src"
     src.mkdir(parents=True, exist_ok=True)
     (src / "d.tex").write_text(plan.text, encoding="utf-8")
     (src / "tm-pic.png").write_bytes(png())
-    result = comp.compile(src / "d.tex", tmp_path / "out", plan=plan)
+    result = await comp.compile(src / "d.tex", tmp_path / "out", plan=plan)
     errors = [d for d in result.diagnostics if d.severity is Severity.ERROR]
     return result, errors, [d for d in errors if d.code == GAP[0] or GAP[1] in d.message]
 
@@ -439,7 +439,7 @@ def compile_sample(comp: Compiler, plan, tmp_path: pathlib.Path):  # noqa: ANN00
 @pytest.mark.tex
 @pytest.mark.timeout(900)
 @pytest.mark.parametrize("name", MODULES)
-def test_real_tex_accepts_a_call_of_every_declared_name(name, compiler, tmp_path):  # noqa: F811
+async def test_real_tex_accepts_a_call_of_every_declared_name(name, compiler, tmp_path):  # noqa: F811
     """In the reference image. If the image lacks a file the sample needs, the run is skipped with what is missing, or
     repeated on this machine's TeX when TEXMODEL_STD_ON_HOST=1; any other error fails with the plan path of the call."""
     from texmodel.std import latex
@@ -448,25 +448,25 @@ def test_real_tex_accepts_a_call_of_every_declared_name(name, compiler, tmp_path
     pre, nodes = SAMPLES[name]()
     slots = PreambleSlots(after_package=tuple(n if isinstance(n, Raw) else Raw(n.render()) for n in pre))
     plan = package.plan(Document(*nodes, latex.Null(), preamble=slots))
-    result, errors, gaps = compile_sample(compiler, plan, tmp_path)
+    result, errors, gaps = await compile_sample(compiler, plan, tmp_path)
     if gaps and len(gaps) == len(errors):
         host = host_compiler() if os.environ.get("TEXMODEL_STD_ON_HOST") else None
         if host is None:
             pytest.skip(f"the reference image lacks: {sorted({d.message for d in gaps})}")
-        result, errors, gaps = compile_sample(host, plan, tmp_path / "host")
+        result, errors, gaps = await compile_sample(host, plan, tmp_path / "host")
     assert result.ok and not errors, [(d.path, d.code, d.message) for d in errors]
 
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_package_error_is_the_error_it_says(compiler, tmp_path):  # noqa: F811
+async def test_package_error_is_the_error_it_says(compiler, tmp_path):  # noqa: F811
     from texmodel.std import latex
 
     node = latex.PackageError(package=Raw("tmpkg"), message=Raw("it broke"), help=Raw("press return"))
     plan = latex.package.plan(node)
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "d.tex").write_text(plan.text, encoding="utf-8")
-    result = compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out", plan=plan)
+    result = await compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out", plan=plan)
     (found,) = (d for d in result.diagnostics if isinstance(d, PackageError))
     assert (found.package, found.message, found.path) == ("tmpkg", "it broke.", "PackageError[0]")
 

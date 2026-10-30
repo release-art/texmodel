@@ -1,4 +1,5 @@
 import pathlib
+import re
 
 import pytest
 
@@ -62,8 +63,46 @@ def test_drift_reports_stale_missing_orphaned_and_old_versions(tmp_path):
     expected = {"gen/ok.sty": "same", "gen/edited.sty": f"% {drift.stamp('0.2.0')}\nfresh", "gen/gone.sty": b"x"}
     d = drift.check_drift(expected, tmp_path, owned=("gen/*",), version="0.2.0")
     assert (d.stale, d.missing, d.orphaned) == (("gen/edited.sty",), ("gen/gone.sty",), ("gen/extra.sty",))
-    assert d.notes == ("gen/edited.sty: generated with texmodel 0.1.0, current is 0.2.0: run `texmodel build`",)
+    (note,) = d.notes
+    assert note.startswith("gen/edited.sty: generated with texmodel 0.1.0, current is 0.2.0; no release since 0.1.0")
     assert not d.ok
+
+
+@pytest.mark.parametrize(
+    ("written", "current", "body", "why"),
+    [
+        ("0.9.0", "0.10.0", "same", "only the version line differs"),
+        (
+            "0.9.0",
+            "0.10.0",
+            "old",
+            r"output changed in 0.10.0 (`ext.fit` declares its two public lengths with `\newlength`)",
+        ),
+        ("0.7.0", "0.10.0", "old", "output changed in 0.8.0 (a document's"),
+        ("0.10.0", "0.10.1", "old", "no release since 0.10.0 changed generated output"),
+        ("dev", "0.10.0", "old", "its version cannot be compared"),
+    ],
+)
+def test_a_note_says_what_the_upgrade_explains_of_a_stale_file(tmp_path, written, current, body, why):
+    """K3, G7: the releases between the two versions that changed output, or that none did, so a hand edit or a change
+    to the declarations is not taken for the upgrade."""
+    (tmp_path / "a.sty").write_text(f"% {drift.stamp(written)}\n{body}")
+    (note,) = drift.check_drift({"a.sty": f"% {drift.stamp(current)}\nsame"}, tmp_path, version=current).notes
+    assert note.startswith(f"a.sty: generated with texmodel {written}, current is {current}; {why}")
+    assert note.endswith(": run `texmodel build`")
+
+
+def test_every_output_change_is_marked_in_the_changelog_and_listed_in_the_table():
+    """A release that changes output says so on one line of its changelog section, `Output change: <text>.`, and
+    `OUTPUT_CHANGES` carries the same text, so the installed `check` can name it (G7, K3)."""
+    changelog = (pathlib.Path(__file__).parents[2] / "CHANGELOG.md").read_text(encoding="utf-8")
+    marked: dict[str, str] = {}
+    for section in re.split(r"^## ", changelog, flags=re.MULTILINE):
+        release = re.match(r"\[(\d+\.\d+\.\d+)\]", section)
+        line = re.search(r"^Output change: (.+)\.$", section, flags=re.MULTILINE)
+        if release and line:
+            marked[release[1]] = line[1]
+    assert marked == dict(drift.OUTPUT_CHANGES)
 
 
 def test_drift_ok_when_everything_matches(tmp_path):

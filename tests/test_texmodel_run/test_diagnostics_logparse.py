@@ -3,9 +3,9 @@ from typing import Any
 
 import pytest
 
-from texmodel_build import diagnostics as d
-from texmodel_build._internal.converge import aux_diff
-from texmodel_build._internal.logparse import page_count, parse_log
+from texmodel.run import diagnostics as d
+from texmodel.run._internal.converge import aux_diff
+from texmodel.run._internal.logparse import page_count, parse_log
 
 LOGS = pathlib.Path(__file__).parent.parent / "fixtures" / "logs"
 

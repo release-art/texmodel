@@ -4,8 +4,9 @@ expression with the real package and comparing with arithmetic done in Python (t
 import re
 
 import pytest
-from test_texmodel_build.test_compile_tex import compiler, fonts  # noqa: F401
+from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 
+from texmodel.run.testkit import run_probes
 from texmodel.spec import from_dict, json_schema, to_dict
 from texmodel.std.calc import (
     AddToCounter,
@@ -32,7 +33,6 @@ from texmodel.std.calc import (
     widthof,
 )
 from texmodel.types import Length, LengthExpr, Raw
-from texmodel_build.testkit import run_probes
 
 PT = 72.27
 
@@ -269,8 +269,8 @@ def probe_document():
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-def test_every_expression_means_in_tex_what_the_arithmetic_says(compiler):  # noqa: F811
-    found = {m.name: m.value for m in run_probes(compiler, probe_document())}
+async def test_every_expression_means_in_tex_what_the_arithmetic_says(compiler):  # noqa: F811
+    found = {m.name: m.value for m in await run_probes(compiler, probe_document())}
 
     def number(value: str) -> float:
         return float(re.fullmatch(r"<(-?[\d.]+)pt>", value)[1])  # pyright: ignore[reportOptionalSubscript]

@@ -14,14 +14,16 @@ bin/test.sh                           # pytest, 100% coverage gate
   `docker/test/Dockerfile`: the published reference image plus the few TeX packages the suite needs that it does not carry yet
   (`TEXMODEL_TEST_IMAGE=texmodel-test pdm run pytest -m tex`); CI uses it.
 - Generated output is a contract (plan G7). `tests/fixtures/acme_cards/generated/acme-cards.sty` is the golden; if you change
-  rendering on purpose, regenerate it and say so in the changelog:
+  rendering on purpose, regenerate it and say so in the changelog: an `Output change: <what>.` line at the top of the
+  release's section, with the same text in `texmodel.drift.OUTPUT_CHANGES` (a test keeps them in step). Only a minor
+  release changes output:
   `pdm run python -c "import sys, pathlib; sys.path.insert(0, 'tests/fixtures'); import acme_cards as a; [pathlib.Path('tests/fixtures/acme_cards/generated', k).write_text(v) for k, v in a.pkg.files(version='0.1.0').items()]"`
 - `tests/examples/` holds complete example packages with committed output (`expected/`); they double as documentation.
   After an intended output change: `UPDATE_GOLDEN=1 pdm run pytest tests/test_texmodel/test_examples.py`, review the diff.
 - Every `enum.Enum` (and `StrEnum`) is decorated with `@enum.unique`.
 - Code is formatted and linted with ruff, type-checked with pyright (strict on `src`, 0 errors), runs on Python 3.15.
-- Two packages: `src/texmodel` (the library; never imports `texmodel_build` or spawns a process) and `src/texmodel_build`
-  (the optional build side; only `_internal/spawn.py` may import `subprocess`). import-linter enforces both.
+- One package: the core of `src/texmodel` (never imports `texmodel.run` or starts a process) and `src/texmodel/run` (the
+  optional, async compile side; only `_internal/spawn.py` starts a process). import-linter and a test enforce both.
 - Public API is the top-level modules of each package; everything else lives in `_internal/` and may change freely, as in
   pydantic. A new module goes in `_internal` unless users should import it (then add it to `PUBLIC` in that package's
   `test_public_api.py` and document it). `tests/fixtures/public_api.txt` is the API's snapshot (plan I2): every `__all__`

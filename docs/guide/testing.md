@@ -56,17 +56,17 @@ assert calls == [Call("bkFact", ("First",)), Call("bkFact", (r"R\&D 50\%",))]
 
 The compile tier checks that the real macros do the same. `pkg.test_document(section, stub=[Fact])` loads the real packages
 and replaces each stub with a macro that writes `texmodel:probe:callN=bkFact{...}` to the log.
-`texmodel_build.testkit.run_probes(compiler, tex, files={"base-kit.sty": ...})` compiles it and returns the probes, which
+`await texmodel.run.testkit.run_probes(compiler, tex, files={"base-kit.sty": ...})` compiles it and returns the probes, which
 `Call.parse` reads. Arguments are shown as `\detokenize` shows them (a space after each control word), so both tiers agree.
 
 ## Hand edits, read by TeX
 
-`Plan.edits(text)` finds a hand edit by line. `texmodel_build.hand_edits.read_edits(compiler, plan, text, pkg)` asks TeX
+`Plan.edits(text)` finds a hand edit by line. `await texmodel.run.hand_edits.read_edits(compiler, plan, text, pkg)` asks TeX
 instead: it stubs every command and environment of the packages, compiles the plan's own text and the edited text, and
 compares the calls.
 
 ```py
-edits = read_edits(compiler, plan, hand_edited_text, pkg)
+edits = await read_edits(compiler, plan, hand_edited_text, pkg)
 for e in edits:
     e.path, e.kind                    # "Box[0]/Item[1]", CHANGED
     e.fields[0].arg, e.fields[0].value  # "count", 3: the typed value the argument now holds
@@ -79,10 +79,10 @@ is `UNREAD`; a call TeX does not run (`\iffalse`, `%`) is `REMOVED`. A document 
 
 ## Checking a library block
 
-`texmodel_build.testkit.check_library(compiler, pkg)` compiles a document that asks TeX whether each name a library block
+`await texmodel.run.testkit.check_library(compiler, pkg)` compiles a document that asks TeX whether each name a library block
 should define is defined, and with how many arguments: see [TeX you already have](adopting.md#what-check-reports).
 
 ## Compile as data
 
-`Compiler.compile(src, out, plan=plan)` gives typed diagnostics. With a `Plan` each names the component behind its line. See
-[Building and compiling](build.md).
+`await Compiler().compile(src, out, plan=plan)` gives typed diagnostics. With a `Plan` each names the component behind its
+line. See [Building and compiling](build.md).

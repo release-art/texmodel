@@ -22,10 +22,9 @@ proof-pdf = ["proof-pdf>=0.3.3"]
 
 [project.scripts]
 texmodel = "texmodel.cli:app"
-texmodel-build = "texmodel_build.cli:app"
 
-[project.entry-points."texmodel_build.verifiers"]
-proof-pdf = "texmodel_build._internal.proofpdf:ProofPdf"
+[project.entry-points."texmodel.run.verifiers"]
+proof-pdf = "texmodel.run._internal.proofpdf:ProofPdf"
 
 [project.urls]
 Homepage = "https://github.com/release-art/texmodel"
@@ -47,7 +46,7 @@ line-ending = "lf"
 order-by-type = true
 combine-as-imports = true
 force-wrap-aliases = true
-known-first-party = ["texmodel", "texmodel_build"]
+known-first-party = ["texmodel"]
 forced-separate = ["tests"]
 
 [tool.pyright]
@@ -59,11 +58,11 @@ pythonVersion = "3.15"
 [tool.texmodel]
 prefix = "tm"
 
-[tool.texmodel-build]
+[tool.texmodel.run]
 image = "releaseart/lualatex-python:latest"
 
 [tool.importlinter]
-root_packages = ["texmodel", "texmodel_build"]
+root_packages = ["texmodel"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -73,18 +72,25 @@ source_modules = ["texmodel.errors", "texmodel.config"]
 forbidden_modules = ["typer", "texmodel.cli"]
 
 [[tool.importlinter.contracts]]
-name = "only texmodel_build._internal.spawn starts processes"
-type = "forbidden"
-source_modules = ["texmodel", "texmodel_build"]
-forbidden_modules = ["subprocess"]
-allow_indirect_imports = true
-ignore_imports = ["texmodel_build._internal.spawn -> subprocess"]
-
-[[tool.importlinter.contracts]]
-name = "the core does not know the harness"
+# `spawn` starts processes through asyncio; a test keeps `create_subprocess_*` there (import-linter cannot see a call)
+name = "no module imports subprocess"
 type = "forbidden"
 source_modules = ["texmodel"]
-forbidden_modules = ["texmodel_build"]
+forbidden_modules = ["subprocess"]
+allow_indirect_imports = true
+
+# The core never knows the toolchain: `run` sits above every core module, and the command line above both. Exhaustive,
+# so a new module of the core fails here until it is listed.
+[[tool.importlinter.contracts]]
+name = "the core does not know texmodel.run"
+type = "layers"
+containers = ["texmodel"]
+exhaustive = true
+layers = [
+    "cli",
+    "run",
+    "_internal : body : bundle : components : config : document : drift : errors : ext : history : interface : keys : keyvals : package : plan : pointer : preamble : restore : spec : std : testing : types",
+]
 
 [tool.towncrier]
 package = "texmodel"
@@ -95,7 +101,7 @@ issue_format = ""
 start_string = "## [Unreleased]\n"
 
 [tool.mutmut]
-paths_to_mutate = ["src/texmodel/", "src/texmodel_build/"]
+paths_to_mutate = ["src/texmodel/"]
 tests_dir = ["tests/"]
 pytest_add_cli_args = ["--no-cov"]
 
@@ -110,15 +116,19 @@ fallback_version = "0.0.0"
 
 [tool.pdm.build]
 package-dir = "src"
-includes = ["src/texmodel", "src/texmodel_build"]
+includes = ["src/texmodel"]
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
 [tool.pytest.ini_options]
-addopts = "-v -l --color=yes --cov=texmodel --cov=texmodel_build --cov-report term-missing --cov-fail-under=100 --no-cov-on-fail"
+addopts = "-v -l --color=yes --cov=texmodel --cov-report term-missing --cov-fail-under=100 --no-cov-on-fail"
 pythonpath = ["src", "tests/consumers"]
 testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+# a coroutine never awaited is a test that checked nothing (`assert not compile(...)` holds for a coroutine)
+filterwarnings = ["error::pytest.PytestUnraisableExceptionWarning"]
 timeout = 15
 markers = [
     "tex: needs the reference image with latexmk (skipped without it; TEXMODEL_REQUIRE_TEX=1 makes that a failure)",
@@ -139,6 +149,7 @@ dev = [
     "proof-pdf>=0.3.3",
     "hypothesis>=6",
     "jsonschema>=4",
+    "pytest-asyncio>=1.4.1",
 ]
 docs = [
     "mkdocs-material>=9.7.7",

@@ -7,7 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-30
+
+Output change: a package with a `ColourSpace` declares `cmyk` and `rgb` as l3keys options in an options section.
+
+### Added
+
+- `texmodel check` says what an upgrade explains of a stale generated file written by another version: only its version
+  line, the releases in between that changed generated output and how, or none, so the rest is a hand edit or a change to
+  the declarations. `texmodel.drift.OUTPUT_CHANGES` lists those releases (0.3.0, 0.3.2, 0.8.0, 0.10.0 and 0.11.0); each changelog
+  section that changes output starts with an `Output change:` line.
+- `texmodel.history`, one model's history (plan §13), moved from texpkg: `problems(model, data, schema)` (what stops stored
+  data from being a valid tree: pydantic's errors with the field's schema, then the grammar's violations) and
+  `unplaced(data, schema)` (stored fields the model no longer has), each a `Problem(path, reason, value, schema)` with a
+  data path; `schema_changes(old, new)`, two JSON Schemas of one model as `Change`s with a `Level` (`NONE`, `REVISION`,
+  `COMPATIBLE`, `BREAKING`, by Avro-style rules), and `worst`. Releases and migrations stay in texpkg, which imports these.
+- Package options: `Package.option(name, flag= | length= | choice=, inverse=, doc=, cs=)` declares one and returns the
+  value it sets; `Package.options` lists them. Every option is a key of the l3keys family named after the package, set
+  only while it loads and processed once by `\ProcessKeyOptions`, in an options section right after the `\RequirePackage`
+  lines; the register it sets is LaTeX2e's (`\newif`, `\newlength`, `\newcommand`). The same declaration again is the
+  same option, so modules share one; another is `TM-M073`; a name or a kind that cannot work is `TM-M072`. A document
+  sets an option as any value, and it is written in `\usepackage[crop=false,bleed=2mm]{...}` (a base's option is passed
+  to the base first).
+- `PrintPage.declare(pkg, full=, landscape=)`: flag options choose the full sheet or the trim alone, and a landscape sheet
+  (the trim and its sides turned 90°, `TM-M074` unless they are symmetric), when the package loads; every sheet is written
+  as numbers in `\if` branches (`TM-M075` for a switch that is not a flag option). `PrintPage(marks=True)` draws crop
+  marks on the full sheet (`showcrop`).
+- `texmodel.restore.restore(pkg, document, edits)`: the document that writes a hand-edited file, from the document
+  texmodel last wrote and its plan's edits (or `read_edits`'). A changed argument restores as its field's new value; a
+  node deleted, or commented out as itself, is removed when its parent's grammar allows. Each edit is applied only when
+  the document with it writes the edited line exactly; every other comes back in `unapplied` with a `Reason`, one
+  registry of stable `TM-R001`-`TM-R011` codes. Edits of another document are refused (`TM-X034`).
+- `Edit.line` (1-based, in the edited file; `None` for a removed line or an edit only TeX saw) and `Edit.file`, given as
+  `Plan.edits(text, file=path)` or `read_edits(..., file=path)`; `Edit.plan_line`, the plan line an edit is about (for
+  an added line, the one it follows), which `restore` reads instead of matching text.
+- An added line's `Unapplied` names the node it stands in (`parent`) and the child it follows (`after`).
+- `plan.BEGIN_DOCUMENT`, the plan's `\begin{document}` line.
+- `plan.data_path(path)` and `Edit.data_path`: where a plan line's writer is in the document's `to_dict` data, a
+  `PurePosixPath` (`/content/1/content/0`, `/settings/2`, `/preamble/after_package/0`).
+
+### Changed
+
+- `ColourSpace` declares the package option `cmyk`, with its inverse `rgb`, through `Package.option`: it may be declared
+  anywhere in the package, twice the same way is one option, and a document may set its flag (`\usepackage[cmyk=false]`)
+  as well as pass the class option `rgb`.
+- `texmodel_build` is `texmodel.run`, a subpackage of `texmodel` (`from texmodel.run.compiler import Compiler`). The
+  core never imports it: an exhaustive import-linter layers contract (`cli` above `run` above every core module).
+- One command: `texmodel-build <command>` is `texmodel run <command>` (`compile`, `build`, `clean`, `verify`,
+  `doctor`); `texmodel -v` sets the logging for both.
+- The configuration table `[tool.texmodel-build]` is `[tool.texmodel.run]` (`.targets`, `.profiles`, `.measures`,
+  `.exempt` under it); the verifier entry-point group `texmodel_build.verifiers` is `texmodel.run.verifiers`.
+- Async: `Compiler.compile`, `clean`, `check_ready`, `missing_files`, `versions()` and `image_info()` (methods, no
+  longer properties), `build_targets`, `run_probes`, `check_library`, `check_verifier_contract`, `read_edits`,
+  `verify_file`, `verify_files` and `Verifier.verify` are coroutines. A compile that times out or is cancelled kills
+  its process group (`latexmk` and the engine it started) and, in the image, its container.
+  `build_targets` and `verify_files` run `jobs` in a `TaskGroup`.
+
+### Removed
+
+- `texmodel.ext.colourspace.LIBRARY`, and the rule that `ColourSpace` comes before the colours (`TM-M065` now means only a
+  package without a prefix): its option is in the options section, before every colour.
+
+### Fixed
+
+- `Plan.edits` pairs a line with itself commented out or re-spaced inside a replaced block, so deleting one line and
+  commenting out the next names each by its own path; a line the same on both sides of a block (difflib's autojunk on a
+  long file) is no longer an edit.
+- `read_edits` reports a call commented out on its line as one `REMOVED` edit, not `UNREAD` and `REMOVED`.
+
 ## [0.10.0] - 2026-10-29
+
+Output change: `ext.fit` declares its two public lengths with `\newlength`.
 
 ### Added
 
@@ -82,6 +152,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `OutputCondition.check_profile` reads an ICC header.
 
 ## [0.8.0] - 2026-10-28
+
+Output change: a document's body is indented two spaces per level of environment.
 
 ### Changed
 
@@ -203,7 +275,7 @@ Components are frozen pydantic models. A hand edit is named by argument and read
 
 ## [0.3.2] - 2026-10-23
 
-Generated output changes only for a value written from a float (a long tail of digits becomes five decimals).
+Output change: a value written from a float has five decimals.
 
 ### Changed
 
@@ -220,6 +292,8 @@ Generated output changes only for a value written from a float (a long tail of d
   (`TM-M042`).
 
 ## [0.3.0] - 2026-10-22
+
+Output change: defaults in definitions, dateless `\ProvidesPackage`, settings after `\usepackage`, 5-decimal colours.
 
 Parts and models: a package can be a list of TeX parts filled from typed models, checked against the components that call
 them. Value kinds are data, so a package adds its own.
@@ -295,7 +369,9 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/release-art/texmodel/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/release-art/texmodel/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/release-art/texmodel/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/release-art/texmodel/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/release-art/texmodel/compare/v0.6.0...v0.7.0

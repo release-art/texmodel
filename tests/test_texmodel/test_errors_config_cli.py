@@ -20,6 +20,8 @@ def test_load_config(tmp_path):
     f = tmp_path / "pyproject.toml"
     f.write_text("[tool.texmodel]\n")
     assert load_config(f) == Config()
+    f.write_text('[tool.texmodel.run]\nimage = "img:1"\n')  # texmodel.run's own table, not a key of the core's
+    assert load_config(f) == Config()
 
 
 @pytest.mark.parametrize(

@@ -1,8 +1,8 @@
-"""The `texmodel-build` command line: compile, build targets, clean, verify, doctor. Only this module prints."""
+"""The `texmodel run` commands: compile, build targets, clean, verify, doctor. Only this module prints."""
 
+import asyncio
 import dataclasses
 import functools
-import importlib.metadata
 import json
 import logging
 import pathlib
@@ -75,7 +75,7 @@ def _config() -> BuildConfig | None:
     try:
         return load_build_config(path)
     except DeclarationError as exc:
-        if exc.code == "TM-D001":  # a pyproject without a [tool.texmodel-build] table is simply not configured
+        if exc.code == "TM-D001":  # a pyproject without a [tool.texmodel.run] table is simply not configured
             return None
         raise
 
@@ -102,7 +102,7 @@ def _show(result: CompileResult) -> None:
     typer.echo(f"{state} {result.pdf or '(no pdf)'} ({result.pages} pages, {result.passes} passes, {result.seconds}s)")
 
 
-Image = Annotated[str | None, typer.Option(help="Reference image tag (default: [tool.texmodel-build] image).")]
+Image = Annotated[str | None, typer.Option(help="Reference image tag (default: [tool.texmodel.run] image).")]
 Local = Annotated[bool, typer.Option("--local", help="Run on this machine instead of in the image.")]
 Roots = Annotated[list[pathlib.Path], typer.Option("--root", help="Asset root, earlier wins. Repeatable.")]
 Epoch = Annotated[int | None, typer.Option(help="Reproducible mode: pin SOURCE_DATE_EPOCH to this value.")]
@@ -110,30 +110,12 @@ Passes = Annotated[int, typer.Option(help="Maximum latexmk runs.")]
 AsJson = Annotated[bool, typer.Option("--json", help="Machine-readable output.")]
 
 
-@app.callback()
-def main(verbose: int = typer.Option(0, "--verbose", "-v", count=True, help="-v info, -vv debug (to stderr).")) -> None:
-    """Compile and verify LaTeX built from texmodel."""
-    if verbose:
-        handler = logging.StreamHandler()  # stderr; stdout carries results only
-        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
-        for name in ("texmodel", "texmodel_build"):
-            log = logging.getLogger(name)
-            log.addHandler(handler)
-            log.setLevel(logging.DEBUG if verbose > 1 else logging.INFO)
-
-
-@app.command()
-def version() -> None:
-    """Print the installed version."""
-    typer.echo(importlib.metadata.version("texmodel"))
-
-
-def _image_status(tag: str) -> dict[str, Any]:
+async def _image_status(tag: str) -> dict[str, Any]:
     """What the configured image can do, or why it cannot be used."""
     try:
         comp = Compiler(image=tag)
-        v = comp.check_ready()
-        info = comp.image_info
+        v = await comp.check_ready()
+        info = await comp.image_info()
         return {
             "image": tag,
             "ok": True,
@@ -147,7 +129,7 @@ def _image_status(tag: str) -> dict[str, Any]:
         return {"image": tag, "ok": False, "error": str(exc), "hint": exc.hint}
 
 
-def _sty_report(globs: list[str], image: str) -> dict[str, Any]:
+async def _sty_report(globs: list[str], image: str) -> dict[str, Any]:
     """What the files matching `globs` load (D2) and which of it the toolchain, here or in `image`, cannot find."""
     paths = sorted({p for g in globs for p in pathlib.Path().glob(g) if p.is_file()})
     if not paths:
@@ -155,7 +137,7 @@ def _sty_report(globs: list[str], image: str) -> dict[str, Any]:
     own = {p.stem for p in paths}  # a package may load its siblings
     files, unchecked = needed(p.read_text(encoding="utf-8", errors="replace") for p in paths)
     files = [f for f in files if f.partition(".")[0] not in own]
-    missing = Compiler(image=image or None).missing_files(files)
+    missing = await Compiler(image=image or None).missing_files(files)
     return {"scanned": [str(p) for p in paths], "checked": len(files), "missing": list(missing), "unchecked": unchecked}
 
 
@@ -189,9 +171,9 @@ def doctor(
     for t in tools:
         logger.debug("probe %s -> %s", t.name, t.path)
     config = _config()
-    image = _image_status(config.image) if config and config.image else None
+    image = asyncio.run(_image_status(config.image)) if config and config.image else None
     ready = image["ok"] if image else all(t.path for t in tools if t.name in REQUIRED)
-    report = _sty_report(sty, config.image if config else "") if sty and ready else None
+    report = asyncio.run(_sty_report(sty, config.image if config else "")) if sty and ready else None
     if as_json:
         shown = {"tools": [dataclasses.asdict(t) for t in tools], "image": image, "sty": report}
         typer.echo(json.dumps(shown, indent=2))
@@ -230,7 +212,7 @@ def compile_(
     """Compile SOURCE with latexmk. Exit 0 ok, 1 errors in the document, 3 tool or image missing."""
     comp = _compiler(image, local, root, epoch, passes)
     found = load_plan(plan, pathlib.Path.cwd()) if plan else None
-    result = comp.compile(source, outdir or BUILD_DIR / "build" / source.stem, plan=found)
+    result = asyncio.run(comp.compile(source, outdir or BUILD_DIR / "build" / source.stem, plan=found))
     if as_json:
         typer.echo(json.dumps(result.to_dict(), indent=2))
     else:
@@ -250,20 +232,17 @@ def build(
     epoch: Epoch = None,
     passes: Passes = 5,
 ) -> None:
-    """Build the targets declared in [tool.texmodel-build.targets]."""
+    """Build the targets declared in [tool.texmodel.run.targets]."""
     config = _config()
     if config is None or not config.targets:
-        raise DeclarationError("no targets declared", code="TM-D011", hint="add [tool.texmodel-build.targets.<name>]")
+        raise DeclarationError("no targets declared", code="TM-D011", hint="add [tool.texmodel.run.targets.<name>]")
     unknown = [n for n in names or [] if n not in config.targets]
     if unknown:
         raise DeclarationError(f"unknown targets {unknown}", code="TM-D012", hint=f"declared: {sorted(config.targets)}")
     chosen = [config.targets[n] for n in names or config.targets]
-    summary = build_targets(
-        chosen,
-        _compiler(image, local, root, epoch, passes),
-        root=pathlib.Path.cwd(),
-        outdir=BUILD_DIR / "build",
-        jobs=jobs,
+    compiler = _compiler(image, local, root, epoch, passes)
+    summary = asyncio.run(
+        build_targets(chosen, compiler, root=pathlib.Path.cwd(), outdir=BUILD_DIR / "build", jobs=jobs)
     )
     for line in summary.lines():
         typer.echo(line)
@@ -288,7 +267,7 @@ def verify(
     check: Annotated[
         list[str] | None, typer.Option(help="Verifier to run. Repeatable. Default: the profile's, else all.")
     ] = None,
-    profile: Annotated[str | None, typer.Option(help="A [tool.texmodel-build.profiles.<name>] table.")] = None,
+    profile: Annotated[str | None, typer.Option(help="A [tool.texmodel.run.profiles.<name>] table.")] = None,
     exempt: Annotated[
         list[str] | None, typer.Option(help="GLOB=reason: out of scope, listed with the reason, never fails.")
     ] = None,
@@ -303,7 +282,7 @@ def verify(
     if profile:
         if config is None or profile not in config.profiles:
             raise DeclarationError(
-                f"unknown profile {profile!r}", code="TM-D013", hint="add [tool.texmodel-build.profiles.<name>]"
+                f"unknown profile {profile!r}", code="TM-D013", hint="add [tool.texmodel.run.profiles.<name>]"
             )
         chosen = config.profiles[profile]
     else:
@@ -311,7 +290,8 @@ def verify(
     if check:
         chosen = dataclasses.replace(chosen, checks=tuple(check))
     exemptions = {**(config.exempt if config else {}), **dict(e.split("=", 1) for e in exempt or [])}
-    reports = verify_files(expand_targets(paths, exclude or []), chosen, registered(), exemptions, jobs=jobs)
+    found = expand_targets(paths, exclude or [])
+    reports = asyncio.run(verify_files(found, chosen, registered(), exemptions, jobs=jobs))
     if as_json:
         typer.echo(
             json.dumps(
@@ -344,6 +324,5 @@ def clean(
     local: Local = False,
 ) -> None:
     """Remove build output for SOURCE."""
-    _compiler(image, local, [], None, 5).clean(
-        source, outdir or BUILD_DIR / "build" / source.stem, everything=everything
-    )
+    compiler = _compiler(image, local, [], None, 5)
+    asyncio.run(compiler.clean(source, outdir or BUILD_DIR / "build" / source.stem, everything=everything))

@@ -3,7 +3,7 @@
 Two tiers. The fast tier needs no TeX: `expand(node, stubs=[Fact])` walks the bodies the generator wrote, with the
 node's field values, and returns the text and the `Call` of every stubbed component, in order. The TeX tier is
 `Package.test_document(node, stub=[Fact])`: the real packages, each stub replaced by a macro that writes
-`texmodel:probe:callN=<call>` to the log, which `texmodel_build.testkit.run_probes` reads back as `Call`s. Both give the
+`texmodel:probe:callN=<call>` to the log, which `texmodel.run.testkit.run_probes` reads back as `Call`s. Both give the
 same `Call`s for the same node, so a test asserts what a component passes on, not a PDF. Layout is not covered.
 
 ```python
@@ -21,7 +21,7 @@ from collections.abc import Mapping, Sequence
 
 from ._internal.read import (
     detokenized as detokenized,
-    read_value,
+    read_field,
 )
 from ._internal.render import Arg, argument_text, newcommand_fits, signature, tex_arguments, xparse_spec
 from .body import HOLE, Comment, Cs, Group, Hole, Library, Lit, Ref, RefKind, Seq, TexRaw
@@ -87,19 +87,7 @@ def read_call(cls: Component, call: Call) -> tuple[FieldEdit, ...]:
     neither value nor violation. A closing call has no arguments."""
     if call.kind is RefKind.CLOSE:
         return ()
-    out: list[FieldEdit] = []
-    for a, text in zip(tex_arguments(_args(cls)), call.args, strict=True):
-        if a.optional and not a.token and not text:
-            out.append(FieldEdit(a.name, text))
-            continue
-        try:
-            out.append(FieldEdit(a.name, text, read_value(a.body, text, booleans=a.booleans, sep=a.sep)))
-        except NotImplementedError:
-            out.append(FieldEdit(a.name, text))
-        except ValueError as exc:
-            hint = f"expected {a.body.describe()}"
-            out.append(FieldEdit(a.name, text, violation=Violation("TM-C021", a.name, f"{a.name}: {exc}", hint=hint)))
-    return tuple(out)
+    return tuple(read_field(a, text) for a, text in zip(tex_arguments(_args(cls)), call.args, strict=True))
 
 
 def _text(a: Arg, value: object) -> str:
