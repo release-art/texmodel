@@ -33,8 +33,8 @@ result = await Compiler(image="releaseart/lualatex-python:latest").compile(src, 
 summary = await build_targets(targets, compiler, root=root, outdir=out, jobs=4)  # up to 4 compiles at once
 ```
 
-A compile past its `timeout`, or cancelled (`task.cancel()`, a `TaskGroup` that fails), kills its process, and in the
-image its container, before it returns or re-raises. From synchronous code, `asyncio.run(...)`.
+A compile past its `timeout`, or cancelled (`task.cancel()`, a `TaskGroup` that fails), kills its process group
+(`latexmk` and the engine it started), and in the image its container, before it returns or re-raises. From synchronous code, `asyncio.run(...)`.
 
 ## Diagnostics
 

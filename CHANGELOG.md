@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Async: `Compiler.compile`, `clean`, `check_ready`, `missing_files`, `versions()` and `image_info()` (methods, no
   longer properties), `build_targets`, `run_probes`, `check_library`, `check_verifier_contract`, `read_edits`,
   `verify_file`, `verify_files` and `Verifier.verify` are coroutines. A compile that times out or is cancelled kills
-  its process and, in the image, its container. `build_targets` and `verify_files` run `jobs` in a `TaskGroup`.
+  its process group (`latexmk` and the engine it started) and, in the image, its container. `build_targets` and `verify_files` run `jobs` in a `TaskGroup`.
 
 ## [0.11.0] - 2026-10-29
 

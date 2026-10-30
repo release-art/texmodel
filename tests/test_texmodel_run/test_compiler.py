@@ -2,6 +2,8 @@ import asyncio
 import json
 import os
 import pathlib
+import subprocess
+import time
 
 import pytest
 
@@ -316,6 +318,44 @@ async def test_a_cancelled_spawn_kills_its_process_before_it_re_raises(tmp_path)
         await task
     with pytest.raises(ProcessLookupError):  # killed and reaped: no such process any more
         os.kill(int(pid_file.read_text()), 0)
+
+
+def gone(pid: int) -> bool:
+    """No such process, or one already dead and waiting to be reaped by init (a zombie)."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    state = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True, check=False).stdout
+    return state.strip().startswith("Z")
+
+
+@pytest.mark.parametrize("stop", ["cancel", "timeout"])
+async def test_a_stopped_spawn_kills_what_its_process_started(tmp_path, stop):
+    """latexmk starts the engine: stopping the spawn stops both, and does not wait for the engine to end."""
+    pid_file = tmp_path / "pid"
+    script = f"sleep 30 & echo $! > {pid_file}; wait"
+    started = time.monotonic()
+    task = asyncio.create_task(
+        spawn_module.spawn(
+            ["sh", "-c", script], cwd=None, env={"PATH": "/usr/bin:/bin"}, timeout=1 if stop == "timeout" else 60
+        )
+    )
+    while not pid_file.is_file() or not pid_file.read_text().strip():
+        await asyncio.sleep(0.05)
+    if stop == "cancel":
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    else:
+        assert (await task).timed_out
+    assert time.monotonic() - started < 10
+    child = int(pid_file.read_text())
+    for _ in range(50):  # an orphan is reaped by init, not by us
+        if gone(child):
+            break
+        await asyncio.sleep(0.05)
+    assert gone(child)
 
 
 async def test_a_cancelled_or_timed_out_run_in_the_image_kills_its_container(toolchain, monkeypatch, src, tmp_path):

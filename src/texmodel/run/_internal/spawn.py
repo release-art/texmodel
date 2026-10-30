@@ -6,7 +6,9 @@ import-linter forbids importing `subprocess` anywhere, and a test forbids `creat
 import asyncio
 import contextlib
 import dataclasses
+import os
 import pathlib
+import signal
 from collections.abc import Sequence
 
 from ..errors import ToolchainError
@@ -25,11 +27,16 @@ def text(data: bytes) -> str:
 
 
 async def spawn(argv: Sequence[str], *, cwd: pathlib.Path | None, env: dict[str, str], timeout: float | None) -> Proc:
-    """The one place a process starts. Past `timeout`, or when the caller is cancelled, the process is killed and
-    reaped before this returns or re-raises: nothing outlives the call."""
+    """The one place a process starts. Past `timeout`, or when the caller is cancelled, its process group (it and
+    everything it started) is killed and it is reaped before this returns or re-raises: nothing outlives the call."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            *argv, cwd=cwd, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            *argv,
+            cwd=cwd,
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            start_new_session=True,  # its own process group: latexmk and the engine it starts are stopped together
         )
     except FileNotFoundError as exc:
         raise ToolchainError(f"{argv[0]}: not found", code="TM-T001", hint="run `texmodel run doctor`") from exc
@@ -45,13 +52,14 @@ async def spawn(argv: Sequence[str], *, cwd: pathlib.Path | None, env: dict[str,
         returncode, timed_out = -1, True
     except asyncio.CancelledError:
         await _kill(proc)
-        reads.cancel()
+        await reads  # the group is gone, so its pipes are closed
         raise
     out, err = await reads
     return Proc(returncode, text(out), text(err), timed_out=timed_out)
 
 
 async def _kill(proc: asyncio.subprocess.Process) -> None:
+    """The whole process group: killing the process alone leaves what it started running and holding the pipes."""
     with contextlib.suppress(ProcessLookupError):  # it ended on its own meanwhile
-        proc.kill()
+        os.killpg(proc.pid, signal.SIGKILL)
     await proc.wait()

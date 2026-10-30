@@ -81,8 +81,6 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 
 - `texmodel.run.fonts` reads the font listing LuaTeX ends its log with; a compile that stopped early has none, and a font
   inside an included PDF is never listed.
-- A timed-out or cancelled compile on this machine (no `image`) kills `latexmk`, not the engine it started: that
-  `lualatex` runs to its end. In the image, `docker kill` stops the whole container.
 - `texmodel.run` is async only. Synchronous code calls it through `asyncio.run(...)`, which cannot run inside an event
   loop that is already running.
 - A copy of texmodel embedded where its installed metadata cannot be read must set `texmodel.package.GENERATOR_VERSION`,
