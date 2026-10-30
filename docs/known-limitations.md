@@ -117,6 +117,8 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   classes, hooks, public variables) and the `functional` library's functions are not typed, and the `amsmath` library's
   `+matrix`, `+array` and `+cases` environments are not declared: an environment name has letters only (`TM-M027`). The
   reference image lacks `tabularray`, so its compile test runs on the host's TeX (`TEXMODEL_STD_ON_HOST=1`).
+- `ext.table` (phase 1): no row groups or subtotals, per-cell highlights, body spans, footnote marks in cells, money or date
+  formats; a `Table` is a builder, not a component, so it is not in a document's data or schema.
 - `tests/test_std` proves a call is accepted by TeX, not that it does what the name suggests. A library the reference image
   lacks makes its test skip (a failure under `TEXMODEL_REQUIRE_TEX=1`).
 - TikZ paths (`\draw`, `\node`) are written as `Passthrough` or `Raw`.

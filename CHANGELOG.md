@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `texmodel.ext.table`, a table from a row model (a pydantic model whose fields are the columns): `Col` on a field (label, format, alignment,
+  width, unit, header group, stub, hide), the formats `Text`, `Number` and `Percent`, `Table` with a caption, notes, totals and
+  `long=True`, and `Look` for the rules and header; it writes a `tabularray` environment of `texmodel.std.tabularray`
+  (`TM-M077` to `TM-M080`, `TM-C026`).
 - `texmodel.std.tabularray`, the whole of the `tabularray` package and its `booktabs`, `diagbox` and `tikz` libraries: `Tblr`,
   `Longtblr`, `Talltblr`, `Booktabs`, `Longtabs` and `Talltabs`; the inner and outer key lists (`TblrInner`, `TblrOuter`)
   and the key lists of rules, cells, rows, columns and borders; the commands inside a table (`Hline`, `SetCell`, `Toprule`,

@@ -26,7 +26,7 @@ Not started on purpose; each needs a design or a real workflow first.
 - **`List[T]` fields** (X4, §21a 1): separator, per-item wrapper, empty list.
 - **A counter as a `ValueKind`** (K1): claims a counter namespace.
 - **Reports from a pipeline** (§21a 20): a typed table model over `tabularray`, charts embedded as PDF, data binding;
-  the reference image needs `tabularray` first.
+  the reference image needs `tabularray` first. The `std` header is built; the table model is drafted in `docs/briefs/tables.md`.
 - **Smaller ideas** (§21a 2, 4, 9 to 13, 16, 17, 19): `Measure` beyond `fit`, grammar interleaving, PDF strings and PDF/A, declared preamble slots, declared-only variants, consumer policies, the reference image's PDF/X and ICC gaps, constructive-body whitespace, stubs for settings, expl3 as its own `.sty`.
 - **Gate B and Stage C** (plan §19): a timed first-time author and a second consumer with an escaping bug and an over-set card; then adoption beyond the minimal check, equivalence tests, `texmodel-print`, performance budgets and 1.0.
 - **Trust levels, the injection corpus and the sandbox** (plan Z1 to Z3): needed before untrusted data may reach a `Raw` field.
