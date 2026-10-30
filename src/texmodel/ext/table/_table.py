@@ -88,8 +88,8 @@ class Table[T: pydantic.BaseModel]:
         self._check(columns)
         body: list[T] = []
         for i, row in enumerate(self.rows):
-            if isinstance(row, self.model):
-                body.append(row)
+            if isinstance(row, t.TableRow if issubclass(self.model, t.TableRow) else self.model):
+                body.append(row)  # a node row of any class: its command writes the cells, the model only the columns
                 continue
             try:
                 body.append(self.model.model_validate(row))

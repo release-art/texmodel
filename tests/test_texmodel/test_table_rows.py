@@ -294,22 +294,34 @@ async def test_real_tex_sets_a_table_made_from_a_row_class(compiler, tmp_path): 
     assert result.ok and not errors, [(d.path, d.code, d.message) for d in errors]
 
 
+class ProfileColumns(t.TableRow, abstract=True):
+    """The columns of a profile table; its row commands need not inherit them."""
+
+    icon: Annotated[Raw, Col("", width=Length("6mm"))]
+    label: Annotated[Text, Col("")]
+    value: Annotated[Text, Col("", cells=t.CellSpec(font=Raw(r"\bfseries")))]
+
+
 @pkg.command
-class ProfileRowRating(ProfileRow):
-    """A subclass keeps the columns of its base and sets its own body; its extra fields are not columns."""
+class ProfileRowRating(t.TableRow):
+    """A row with its own fields: the table takes only its columns from the layout."""
 
+    icon: Raw
+    label: Text
     score: int
-    body = r"#icon & #label & \SetCell{l} #value #score \\"
+    scale: int
+    body = r"#icon & #label & \SetCell{l} #score / #scale \\"
 
 
-def test_rows_of_a_subclass_share_the_columns_of_the_base():
+def test_rows_of_any_node_class_share_the_columns_of_a_layout():
     mixed = Table(
-        ProfileRow,
+        ProfileColumns,
         [
             ProfileRow(icon=Raw("a"), label="Sound", value="Loud"),
-            ProfileRowRating(icon=Raw("b"), label="Taste", value="", score=4),
+            ProfileRowRating(icon=Raw("b"), label="Taste", score=4, scale=5),
         ],
         header=False,
         look=Look.PLAIN,
     )
     assert r"expand=\apProfileRow\apProfileRowRating" in mixed.render()
+    assert r"\apProfileRowRating{b}{Taste}{4}{5}" in mixed.render()
