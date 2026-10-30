@@ -1,5 +1,6 @@
 """`ext.table`: formats, columns from a row model, the parts of a table and the TeX they come to."""
 
+import datetime
 import decimal
 import os
 import re
@@ -19,7 +20,26 @@ from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 from texmodel.components import Passthrough
 from texmodel.document import Document
 from texmodel.errors import DeclarationError, ValidationError
-from texmodel.ext.table import Col, Flex, Format, Look, Note, Number, Percent, Table, Text, Total
+from texmodel.ext.table import (
+    Col,
+    Date,
+    Flex,
+    Format,
+    Highlight,
+    Label,
+    Look,
+    Money,
+    Note,
+    Number,
+    Percent,
+    Rules,
+    Span,
+    Table,
+    Text,
+    Total,
+)
+from texmodel.interface import ColourName
+from texmodel.preamble import PreambleSlots
 from texmodel.std import (
     latex,
     tabularray as t,
@@ -67,6 +87,15 @@ ROWS = [
         (Text(), "a & b_c\n d", r"a \& b\_c d"),
         (Text(), Raw(r"\textbf{x}"), r"\textbf{x}"),
         (Text(), None, "\u2013"),
+        (Money(symbol="€"), 1234.5, "€1\\,234.50"),
+        (Money(symbol="€"), -5, "\u2212€5.00"),
+        (Money(0, symbol="kr", after=True), 1500, "1\\,500\\,kr"),
+        (Money(), 3, "3.00"),
+        (Date(), datetime.date(2025, 3, 9), "2025-03-09"),
+        (Date("%d %b %Y"), datetime.datetime(2025, 3, 9, 12), "09 Mar 2025"),
+        (Label({True: "Yes", False: "No"}), False, "No"),
+        (Label({"a": Raw(r"\emph{A}"), "b": "B & C"}), "a", r"\emph{A}"),
+        (Label({"b": "B & C"}), "b", r"B \& C"),
     ],
 )
 def test_a_format_writes_a_value_as_escaped_tex(fmt, value, tex):
@@ -77,6 +106,13 @@ def test_a_format_is_one_that_says_how_it_writes():
     assert Format().tex(None) == "\u2013"
     with pytest.raises(NotImplementedError):
         Format().tex(1)
+
+
+def test_a_date_and_a_label_refuse_what_they_do_not_know():
+    with pytest.raises(TypeError):
+        Date().tex("2025-03-09")
+    with pytest.raises(ValueError):
+        Label({"a": "A"}).tex("b")
 
 
 @pytest.mark.parametrize("value", [True, "3", float("nan"), float("inf")])
@@ -275,3 +311,154 @@ async def test_real_tex_sets_the_tables(compiler, tmp_path):  # noqa: F811
         result, errors, gaps = await compile_sample(host, plan, tmp_path / "host")
     assert result.ok and not errors, [(d.path, d.code, d.message) for d in errors]
     assert Passthrough and re.search(r"\\begin\{longtblr\}", plan.text)
+
+
+# --- phase 2: groups, highlights, spans, looks ----------------------------------------------------------------------
+
+
+class Stock(pydantic.BaseModel):
+    region: str
+    city: Annotated[str, Col("City", stub=True)]
+    amount: Annotated[float, Col("Amount", fmt=Money(symbol="€"))]
+    ok: Annotated[bool, Col("OK", fmt=Label({True: "Yes", False: "No"}))]
+
+
+STOCK = [
+    Stock(region="North", city="A", amount=1000, ok=True),
+    Stock(region="North", city="B", amount=-5.5, ok=False),
+    Stock(region="South", city="C", amount=7, ok=True),
+]
+
+
+def test_rows_group_under_labels_with_subtotals_and_the_group_is_not_a_column():
+    table = Table(Stock, STOCK, group_by="region", subtotal=Total("Subtotal", sum=("amount",)))
+    text = table.render()
+    assert [c.name for c in table.columns] == ["city", "amount", "ok"]
+    assert (
+        "\n".join(
+            [
+                "City & Amount & OK \\\\",
+                "North &  &  \\\\",
+                "A & €1\\,000.00 & Yes \\\\",
+                "B & \u2212€5.50 & No \\\\",
+                "Subtotal & €994.50 &  \\\\",
+                "South &  &  \\\\",
+                "C & €7.00 & Yes \\\\",
+                "Subtotal & €7.00 &  \\\\",
+            ]
+        )
+        in text
+    )
+    assert r"cell{2}{1}={c=3}{halign=l,font=\itshape}" in text and r"cell{6}{1}={c=3}{halign=l,font=\itshape}" in text
+    assert "hborder{6}={abovespace=1ex}" in text and "hborder{2}" not in text
+    assert r"cell{3-4}{1}={preto=\hspace{1em}}" in text and r"cell{7}{1}={preto=\hspace{1em}}" in text
+    assert "row{5}={font=\\bfseries},hline{5}={wd=0.05em}" in text
+
+
+def test_a_group_label_is_written_by_its_fields_format_and_a_hidden_field_can_group():
+    class Hidden(pydantic.BaseModel):
+        kind: Annotated[bool, Col(hide=True)]
+        name: str
+
+    text = Table(Hidden, [Hidden(kind=True, name="x")], group_by="kind").render()
+    assert text.splitlines()[2] == r"True \\"
+    ordered: list[Stock] = sorted(STOCK, key=lambda r: not r.ok)
+    labelled = Table(Stock, ordered, group_by="ok")
+    assert labelled.node().content[0].tex.tex.splitlines()[1].startswith("Yes")  # pyright: ignore[reportAttributeAccessIssue]
+
+
+def test_the_rows_of_a_group_must_be_together_and_a_subtotal_needs_a_group():
+    with pytest.raises(DeclarationError) as raised:
+        Table(Stock, [STOCK[0], STOCK[2], STOCK[1]], group_by="region")
+    assert raised.value.code == "TM-M081"
+    for build in (
+        lambda: Table(Stock, STOCK, group_by="nope"),
+        lambda: Table(Stock, STOCK, subtotal=Total("S", sum=("amount",))),
+    ):
+        with pytest.raises(DeclarationError) as raised:
+            build()
+        assert raised.value.code == "TM-M081"
+    with pytest.raises(DeclarationError) as raised:
+        Table(Stock, STOCK, group_by="region", subtotal=Total("S", sum=("city",)))
+    assert raised.value.code == "TM-M080"
+
+
+def test_a_highlight_styles_the_rows_or_cells_where_its_predicate_holds():
+    table = Table(
+        Stock,
+        STOCK,
+        highlights=[
+            Highlight(lambda r: r.amount < 0, columns=("amount", "ok"), fg=ColourName("red"), bold=True),
+            Highlight(lambda r: r.city in ("A", "C"), bg=ColourName("yellow"), font=Raw(r"\small")),
+            Highlight(lambda r: False, bold=True),
+        ],
+    )
+    text = table.render()
+    assert r"cell{3}{3-4}={fg=red,font=\bfseries}" in text
+    assert r"row{2,4}={bg=yellow,font=\small}" in text and "font=\\bfseries}" in text
+    assert text.count("row{") == 2  # the header's and the yellow ones: none for a predicate that never holds
+
+
+def test_a_span_merges_cells_across_columns_where_its_predicate_holds():
+    text = Table(
+        Stock, STOCK, spans=[Span("amount", 2, where=lambda r: r.city == "C"), Span("city", 3, where=lambda r: False)]
+    ).render()
+    assert "cell{4}{3}={c=2}{}" in text and "South & C & €7.00 &  \\\\" in text
+    assert text.count("cell{") == 1
+    assert "cell{2-4}{2}={c=3}{}" in Table(Stock, STOCK, spans=[Span("city", 3)]).render()
+
+
+def test_a_highlight_or_span_names_visible_columns_that_fit():
+    for build in (
+        lambda: Table(Stock, STOCK, group_by="region", highlights=[Highlight(lambda r: True, columns=("region",))]),
+        lambda: Table(Stock, STOCK, group_by="region", spans=[Span("nope")]),
+        lambda: Table(Stock, STOCK, group_by="region", spans=[Span("ok", 2)]),
+        lambda: Table(Stock, STOCK, group_by="region", spans=[Span("city", 1)]),
+    ):
+        with pytest.raises(DeclarationError) as raised:
+            build()
+        assert raised.value.code == "TM-M082"
+
+
+def test_a_look_may_be_a_grid_or_have_no_rules():
+    grid, plain = Table(Stock, STOCK, look=Look.GRID).render(), Table(Stock, STOCK, look=Look.PLAIN).render()
+    assert "hlines={wd=0.05em},vlines={wd=0.05em}" in grid and "hline{1}" not in grid and "leftsep" not in grid
+    assert "hline" not in plain and "vline" not in plain and "leftsep" not in plain
+    assert Look.GRID.rules is Rules.GRID and Look.PLAIN.rules is Rules.NONE
+    assert "hline{" not in Table(Stock, STOCK, look=Look.PLAIN, totals=[Total("T", sum=("amount",))]).render()
+
+
+@pytest.mark.tex
+@pytest.mark.timeout(900)
+async def test_real_tex_sets_groups_highlights_spans_and_grids(compiler, tmp_path):  # noqa: F811
+    spans: list[Span[Stock]] = [Span("amount", 2, where=lambda r: r.city == "C")]
+    marks: list[Highlight[Stock]] = [
+        Highlight(lambda r: r.amount < 0, columns=("amount",), fg=ColourName("red"), bold=True)
+    ]
+    tables = [
+        Table(
+            Stock,
+            STOCK,
+            group_by="region",
+            subtotal=Total("Subtotal", sum=("amount",)),
+            totals=[Total("Total", sum=("amount",))],
+            highlights=marks,
+            spans=spans,
+            caption="Stock",
+        ),
+        Table(Stock, STOCK, look=Look.GRID, highlights=marks),
+        Table(
+            Stock, STOCK, look=Look.PLAIN, long=True, highlights=[Highlight(lambda r: True, bg=ColourName("yellow"))]
+        ),
+    ]
+    colours = PreambleSlots(
+        after_package=(Raw(r"\usepackage{xcolor}"),)
+    )  # a colour key needs xcolor, as tabularray says
+    plan = t.package.plan(Document(*(x.node() for x in tables), latex.Null(), preamble=colours))
+    result, errors, gaps = await compile_sample(compiler, plan, tmp_path)
+    if gaps and len(gaps) == len(errors):
+        host = host_compiler() if os.environ.get("TEXMODEL_STD_ON_HOST") else None
+        if host is None:
+            pytest.skip(f"the reference image lacks: {sorted({d.message for d in gaps})}")
+        result, errors, gaps = await compile_sample(host, plan, tmp_path / "host")
+    assert result.ok and not errors, [(d.path, d.code, d.message) for d in errors]

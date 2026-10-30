@@ -49,6 +49,9 @@ A format turns a value into escaped TeX; nothing else writes a cell, so no `&` o
 | `Text()` | text, escaped; a `Raw` as written; `None` as `–` |
 | `Number(decimals, thousands=True, point=".", separator=r"\,", sign=False, minus="−")` | `1 234.50`, rounded half up, a true minus |
 | `Percent(decimals)` | a fraction as a percentage, `12.3 %` |
+| `Money(decimals=2, symbol="€", after=False)` | an amount with its currency symbol, before or after |
+| `Date("%d %b %Y")` | a `date` or `datetime` by a `strftime` pattern (English names) |
+| `Label({True: "Yes", False: "No"})` | the text for each value of an enum, a boolean or a code |
 
 Numbers are right-aligned at one number of decimals per column, which puts the points in line; a column that needs
 mixed precision is `Text` with the digits written by the program.
@@ -59,12 +62,48 @@ assert Percent(0).tex(0.5) == r"50\,\%"
 assert Number(0).tex(None) == "–"
 ```
 
+## Row groups, highlights and spans
+
+`group_by="region"` sets runs of equal values under a label row, in the field's format, with the rows indented; the field is
+not a column, and equal values must be next to each other (`TM-M081`). `subtotal=Total(...)` adds a row of sums under each
+group. `Highlight(where, columns=, bg=, fg=, bold=, font=)` styles the rows where a predicate holds, or only the cells of
+`columns`, and `Span("amount", 2, where=)` merges a cell with the one after it, writing the covered cells empty. A colour is
+a `ColourName` or a colour value (`bg=Ink`); `tabularray` needs `xcolor` loaded to draw it.
+
+```python
+from texmodel.ext.table import Highlight, Label, Money, Span
+
+
+class Stock(BaseModel):
+    region: str
+    city: Annotated[str, Col("City", stub=True)]
+    amount: Annotated[float, Col("Amount", fmt=Money(symbol="€"))]
+    ok: Annotated[bool, Col("OK", fmt=Label({True: "Yes", False: "No"}))]
+
+
+stock = [
+    Stock(region="North", city="A", amount=1000, ok=True),
+    Stock(region="North", city="B", amount=-5.5, ok=False),
+    Stock(region="South", city="C", amount=7, ok=True),
+]
+grouped = Table(
+    Stock,
+    stock,
+    group_by="region",
+    subtotal=Total("Subtotal", sum=("amount",)),
+    highlights=[Highlight(lambda r: r.amount < 0, columns=("amount",), bold=True)],
+    spans=[Span("amount", 2, where=lambda r: r.city == "C")],
+)
+assert r"Subtotal & €994.50 &  \\" in grouped.render()
+```
+
 ## The parts
 
 `caption` and `notes` make a `Talltblr` (it can sit in a float); `long=True` makes a `Longtblr` that repeats the header on
 every page; otherwise a `Tblr`. `Total("Total", sum=("q1", "q2"))` adds a row of sums in the columns' formats under a
-rule. `Look` sets the typography: rule weights, padding and the header font; the default is booktabs'. `rules=` takes
-more `tabularray` entries, written last, so they win.
+rule. `Look` sets the typography: rule weights, padding and the fonts of the header, totals and group labels. The default
+`Look.BOOKTABS` has no vertical rules; `Look.GRID` is a grid of light rules and `Look.PLAIN` has none. `rules=` takes more
+`tabularray` entries, written last, so they win.
 
 ```python
 from texmodel.ext.table import Look
@@ -76,4 +115,4 @@ assert "hline{1}={wd=1pt}" in striking.render()
 ```
 
 A row that does not validate is an error naming its index (`TM-C026`); a group on separated columns, a second stub or a
-total over a column that is not a visible number is a `DeclarationError` when the table is built (`TM-M077` to `TM-M080`).
+total over a column that is not a visible number is a `DeclarationError` when the table is built (`TM-M077` to `TM-M082`).

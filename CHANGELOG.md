@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `ext.table` row groups (`group_by`, `subtotal`), `Highlight` and `Span` by predicate, the formats `Money`, `Date` and `Label`,
+  and `Look.GRID` and `Look.PLAIN` (`Rules`); `TM-M081` and `TM-M082`.
 - `texmodel.ext.table`, a table from a row model (a pydantic model whose fields are the columns): `Col` on a field (label, format, alignment,
   width, unit, header group, stub, hide), the formats `Text`, `Number` and `Percent`, `Table` with a caption, notes, totals and
   `long=True`, and `Look` for the rules and header; it writes a `tabularray` environment of `texmodel.std.tabularray`

@@ -1,6 +1,6 @@
 # Draft: tables from a row model (`texmodel.ext.table`)
 
-Roadmap §3, "Reports from a pipeline" (plan §21a 20), piece 1. Status: **phase 1 built** (`texmodel/ext/table.py`, guide page `docs/guide/tables.md`); phases 2 to 4 are open. The typed `tabularray`
+Roadmap §3, "Reports from a pipeline" (plan §21a 20), piece 1. Status: **phases 1 and 2 built** (`texmodel/ext/table.py`, guide page `docs/guide/tables.md`); phases 3 and 4 are open. The typed `tabularray`
 header (`texmodel.std.tabularray`) is the layer underneath; this is the layer a report author writes against.
 
 ## What the survey says
@@ -45,8 +45,9 @@ Document(table.node())                                # a Tblr / Longtblr of std
   negative, missing)`, `Percent`, `Money(currency)`, `Date(pattern)`, `Label({value: text})` for enums and booleans, and
   `Text` (the default for `str`, escaped). A field typed `Raw` passes as written. The default is by type; a format that does
   not fit the type (`Number` on a `str`) is refused when the table is built.
-- **`Table(model, rows, *, caption, label, totals, notes, look, long, width, rules)`** keeps the parts (built; `group_by`
-  and `highlights` are phase 2, `unit` is `Col(unit=)` in the header only, `inner=` is `rules=`); `node()` is the std tree, `render()` its TeX.
+- **`Table(model, rows, *, caption, label, totals, notes, look, long, width, rules)`** keeps the parts (`group_by`,
+  `subtotal`, `highlights` and `spans` are phase 2; `unit` is `Col(unit=)` in the header only; `inner=` is `rules=`);
+  `node()` is the std tree, `render()` its TeX.
 
 ## Decisions
 
@@ -66,8 +67,11 @@ Document(table.node())                                # a Tblr / Longtblr of std
    string in any cell) proves the output balances and compiles.
 6. **Minus sign and missing values**: a negative number uses U+2212 (`−`), a `None` is `–` (both overridable on
    `Number`). Thousands are a thin space `\,`, the point `.`, and a locale is just those settings.
-7. **Row groups** (`group_by="region"`): a spanning label row, or a stub label on the first row of the group, with the
-   rows indented under it, and an optional subtotal. Phase 2.
+7. **Row groups** (`group_by="region"`), built: a spanning label row in italics with the rows indented under it, a gap
+   before each group but the first, and an optional subtotal row under each. A body span is `Span(column, count, where=)`
+   and a highlight `Highlight(where, columns=)`, both by predicate on the row: no `Cell(colspan=)` value wrapper, since a
+   row field is typed by the model. `Look.GRID` and `Look.PLAIN` are `Rules.GRID` and `Rules.NONE`. (The draft: a spanning label row, or a stub label on the first row of the group, with the
+   rows indented under it, and an optional subtotal.)
 
 ## Errors (new codes at the time of building)
 
@@ -88,7 +92,7 @@ non-numeric column; two stubs; a `fmt` that does not fit its field's type; a tab
 ## Phases
 
 1. `Col`, `Text`, `Number`, `Percent`, `Table`, header groups, totals, notes, caption, `Look.BOOKTABS`, `Tblr` / `Longtblr`.
-2. Row groups and subtotals, `Highlight`, body `Cell(colspan=)`, `Look.GRID` / `PLAIN`, `Money`, `Date`, `Label`.
+2. Row groups and subtotals, `Highlight`, body `Span`, `Look.GRID` / `PLAIN`, `Money`, `Date`, `Label`. Built.
 3. The reference image gets `tabularray`; the guide page and a cookbook example.
 4. Data binding (§21a 15) and a second consumer, which decide what `Table` still gets wrong.
 
@@ -97,4 +101,4 @@ non-numeric column; two stubs; a `fmt` that does not fit its field's type; a tab
 - Whether a column's `Col` may also be given beside the model (`Table(Sale, rows, columns={"q1": Col(...)})`) for a model
   one does not own; the annotation is the first choice.
 - A table-wide `unit` (decided for phase 1: `Col(unit=)`, in the header, only).
-- Footnote marks inside cells (`Note` tied to a cell, `\TblrNote{a}`) in phase 1 or 2.
+- Footnote marks inside cells (`Note` tied to a cell, `\TblrNote{a}`) not built in phase 2.
