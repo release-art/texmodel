@@ -21,11 +21,13 @@ from texmodel.components import Passthrough
 from texmodel.document import Document
 from texmodel.errors import DeclarationError, ValidationError
 from texmodel.ext.table import (
+    Block,
     Col,
     Date,
     Flex,
     Format,
     Highlight,
+    Image,
     Label,
     Look,
     Money,
@@ -39,6 +41,7 @@ from texmodel.ext.table import (
     Total,
 )
 from texmodel.interface import ColourName
+from texmodel.preamble import PreambleSlots
 from texmodel.std import (
     latex,
     tabularray as t,
@@ -451,6 +454,66 @@ async def test_real_tex_sets_groups_highlights_spans_and_grids(compiler, tmp_pat
         ),
     ]
     plan = t.package.plan(Document(*(x.node() for x in tables), latex.Null()))
+    result, errors, gaps = await compile_sample(compiler, plan, tmp_path)
+    if gaps and len(gaps) == len(errors):
+        host = host_compiler() if os.environ.get("TEXMODEL_STD_ON_HOST") else None
+        if host is None:
+            pytest.skip(f"the reference image lacks: {sorted({d.message for d in gaps})}")
+        result, errors, gaps = await compile_sample(host, plan, tmp_path / "host")
+    assert result.ok and not errors, [(d.path, d.code, d.message) for d in errors]
+
+
+# --- rich cells ------------------------------------------------------------------------------------------------------
+
+
+class Rich(pydantic.BaseModel):
+    name: Annotated[str, Col("Name", cells=t.CellSpec(font=Raw(r"\ttfamily")))]
+    pic: Annotated[str, Col("Picture", fmt=Image(Length("1cm")), width=Length("1.2cm"))]
+    note: Annotated[Raw, Col("Note", fmt=Block(), width=Length("4cm"))]
+
+
+def test_a_block_is_a_group_that_keeps_ampersands_and_breaks_in_it():
+    assert Block().tex(Raw(r"\begin{tabular}{ll}a&b\\\end{tabular}")) == r"{\begin{tabular}{ll}a&b\\\end{tabular}}"
+    assert Block().tex("a & b") == r"{a \& b}"
+    assert Block.valign is t.VAlign.HEAD
+
+
+def test_an_image_is_includegraphics_and_refuses_a_path_that_would_break_it():
+    assert Image(Length("2cm")).tex("a_b.png") == r"{\includegraphics[width=2cm]{a_b.png}}"
+    assert Image().tex("a.png") == r"{\includegraphics{a.png}}"
+    with pytest.raises(ValueError, match="path"):
+        Image().tex("a}.png")
+
+
+def test_a_column_has_cell_styles_for_the_body_only_and_a_vertical_alignment():
+    rows = [Rich(name="a", pic="tm-pic.png", note=Raw("x")), Rich(name="b", pic="tm-pic.png", note=Raw("y"))]
+    text = Table(Rich, rows, blocks=True).render()
+    assert r"cell{2-3}{1}={font=\ttfamily}" in text  # the body rows (the header is row 1)
+    assert "cell{1}{1}" not in text
+    assert text.count("valign=h") == 2  # the picture and the note
+    assert "measure=vbox" in text
+    assert "measure" not in Table(Rich, rows).render()
+    assert Table(Rich, [], blocks=True).render()  # no body rows: no cell entry
+
+
+def test_a_column_may_choose_its_vertical_alignment():
+    class One(pydantic.BaseModel):
+        a: Annotated[str, Col(valign=t.VAlign.BOTTOM)]
+
+    assert "valign=b" in Table(One, [One(a="x")]).render()
+
+
+@pytest.mark.tex
+@pytest.mark.timeout(900)
+async def test_real_tex_sets_blocks_images_nested_tables_and_column_cell_styles(compiler, tmp_path):  # noqa: F811
+    inner = Raw(Table(Wild, [Wild(text="in", amount=1)]).render())
+    note = Raw(r"\begin{itemize}\item one\item two\end{itemize}")
+    rows = [Rich(name="a & b", pic="tm-pic.png", note=note), Rich(name="c", pic="tm-pic.png", note=inner)]
+    table = Table(Rich, rows, blocks=True, long=True, caption="Rich")
+    pre = (r"\usepackage{graphicx}", r"\UseTblrLibrary{varwidth}")
+    plan = t.package.plan(
+        Document(table.node(), latex.Null(), preamble=PreambleSlots(after_package=tuple(Raw(x) for x in pre)))
+    )
     result, errors, gaps = await compile_sample(compiler, plan, tmp_path)
     if gaps and len(gaps) == len(errors):
         host = host_compiler() if os.environ.get("TEXMODEL_STD_ON_HOST") else None

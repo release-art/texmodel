@@ -11,7 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Package(..., requires=[...])`: the packages an adopted package needs. They load before it wherever it is used: as
   `\RequirePackage` lines before it in a generated `.sty` that calls it (or `require()`s it), and as `\usepackage` lines before
-  it in a document of its own. `texmodel.std.tabularray` requires `xcolor`, for its colour keys.
+  it in a document of its own; loading a package calls what it needs first, and a package needed twice loads once, at its
+  first call. Two packages that need one package with different options are `TM-P013`, resolved by requiring it with the
+  options you want at the top level (`pkg.require(...)`). `Package.requirements` lists what a package requires.
+  `texmodel.std.tabularray` requires `xcolor`, for its colour keys.
+- `ext.table` rich cells: the formats `Block` (a group: a minipage, a list, a nested table) and `Image`, `Col.cells` (a
+  `CellSpec` for the body rows only), `Col.valign` (a block or image aligns at the head of the row) and
+  `Table(blocks=True)` (`measure=vbox`, for lists and display maths in cells).
 - `ext.table` row groups (`group_by`, `subtotal`), `Highlight` and `Span` by predicate, the formats `Money`, `Date` and `Label`,
   and `Look.GRID` and `Look.PLAIN` (`Rules`); `TM-M081` and `TM-M082`.
 - `texmodel.ext.table`, a table from a row model (a pydantic model whose fields are the columns): `Col` on a field (label, format, alignment,

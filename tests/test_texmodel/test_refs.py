@@ -350,3 +350,27 @@ def test_a_package_asked_for_with_different_options_is_an_error_the_top_level_re
     user.require(two)
     user.require(agreeing)  # the same set of options, in any order, is not a conflict
     assert user.require_entries() == [("hand-shared", ("b", "a")), ("hand-two", ()), ("hand-agree", ())]
+
+
+def test_a_package_a_value_needs_by_name_is_loaded_once_when_another_call_brought_it_first():
+    from texmodel.components import Value
+    from texmodel.std import tabularray
+    from texmodel.types import CMYK, Colour
+
+    pkg = Package("user-needs", prefix="un")
+
+    @pkg.value
+    class Ink(Value[Colour]):
+        """Ink."""
+
+        needs_packages = ("xcolor",)
+        default = CMYK(0, 0, 0, 1)
+
+    @pkg.command
+    class Rule(Command):
+        """A rule."""
+
+        def body(self):
+            return [tabularray.Hline.call()]
+
+    assert pkg.require_entries() == [("xcolor", ()), ("tabularray", ())]

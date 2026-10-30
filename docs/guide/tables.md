@@ -34,11 +34,12 @@ assert r"North \& Central & 1\,201 & 1\,340 & +12.3\,\% \\" in plan.text
 
 ## The columns
 
-`Col(label, fmt=, align=, width=, unit=, group=, stub=, hide=, style=)` on a field says how its column reads. `label`
+`Col(label, fmt=, align=, valign=, width=, unit=, group=, stub=, hide=, style=, cells=)` on a field says how its column reads. `label`
 defaults to the field's name, spaced. A field of type `str`, `Raw` or `int` has a default format; any other type needs
 `fmt=` (`TM-M078`), so a number is never written at a precision nobody chose. `group` names a header group: consecutive
 columns with the same name share a spanner, and a tuple nests them (`("2025", "H1")`). `width` is a `Length`, or
-`Flex(n)` for a share of the table's `width`. `style` is a `tabularray` `ColumnSpec`, the escape hatch for one column.
+`Flex(n)` for a share of the table's `width`. `style` is a `tabularray` `ColumnSpec`, the escape hatch for one column; `cells` is a `CellSpec` for its body rows only
+(`cells=CellSpec(font=Raw(r"\ttfamily"))` sets the data in mono and leaves the header alone), and a `Highlight` wins over it.
 
 ## Formats
 
@@ -60,6 +61,30 @@ mixed precision is `Text` with the digits written by the program.
 assert Number(2, point="{,}").tex(1234.5) == r"1\,234{,}50"
 assert Percent(0).tex(0.5) == r"50\,\%"
 assert Number(0).tex(None) == "–"
+```
+
+## Blocks, pictures and tables in cells
+
+`Block()` writes a cell in a group of its own: a minipage, a list, a paragraph in a column with a `width`, or another
+table (`Raw(inner.render())`). The group keeps an `&` or `\\` inside it from ending the cell. `Image(width)` writes a
+picture from its path. Both align at the head of the row (`valign=h`), the one alignment that keeps a picture and its
+neighbours' text on the same top line; `Col(valign=)` chooses another. A list or display maths in a cell needs
+`Table(blocks=True)` (`measure=vbox`) and `\UseTblrLibrary{varwidth}` in the preamble, a picture needs `graphicx`: the
+document's package requires them, as the table writes only the table.
+
+```python
+from texmodel.ext.table import Block, Image
+from texmodel.std.tabularray import CellSpec
+from texmodel.types import Length, Raw
+
+class Item(BaseModel):
+    name: Annotated[str, Col("Name", cells=CellSpec(font=Raw(r"\ttfamily")))]
+    logo: Annotated[str, Col("Logo", fmt=Image(Length("1cm")), width=Length("1.2cm"))]
+    about: Annotated[Raw, Col("About", fmt=Block(), width=Length("4cm"))]
+
+items = [Item(name="a", logo="a.png", about=Raw(r"\begin{itemize}\item one\item two\end{itemize}"))]
+cell = Table(Item, items, blocks=True).render()
+assert r"{\includegraphics[width=1cm]{a.png}}" in cell and "measure=vbox" in cell
 ```
 
 ## Row groups, highlights and spans

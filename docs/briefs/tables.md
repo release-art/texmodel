@@ -93,6 +93,7 @@ non-numeric column; two stubs; a `fmt` that does not fit its field's type; a tab
 
 1. `Col`, `Text`, `Number`, `Percent`, `Table`, header groups, totals, notes, caption, `Look.BOOKTABS`, `Tblr` / `Longtblr`.
 2. Row groups and subtotals, `Highlight`, body `Span`, `Look.GRID` / `PLAIN`, `Money`, `Date`, `Label`. Built.
+2b. Rich cells: `Block`, `Image`, `Col.cells`, `Col.valign`, `Table(blocks=True)`. Built (a footnote mark in a cell, `\\verb` in one and loading the libraries from the table stay open).
 3. The reference image gets `tabularray` (`docker/test/Dockerfile`: `tabularray`, `ninecolors`, `diagbox`, `pict2e`, `varwidth`); the guide page and a cookbook example. Built.
 4. Data binding (§21a 15) and a second consumer, which decide what `Table` still gets wrong.
 

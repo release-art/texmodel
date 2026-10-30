@@ -39,6 +39,7 @@ from ..components import ColourRef, Passthrough
 from ..errors import DeclarationError, ValidationError
 from ..keyvals import Entry
 from ..std import tabularray as t
+from ..std.graphicx import IncludeGraphics, IncludeGraphicsOptions
 from ..types import Length, Raw, escape
 
 _NUMBERS: Final = (int, float, Decimal)
@@ -54,6 +55,7 @@ class Format:
 
     missing: str = dataclasses.field(default="–", kw_only=True)
     align: ClassVar[t.HAlign] = t.HAlign.LEFT
+    valign: ClassVar[t.VAlign | None] = None
     numeric: ClassVar[bool] = False
 
     def tex(self, value: object) -> str:
@@ -165,6 +167,32 @@ class Label(Format):
         return text.tex if isinstance(text, Raw) else escape(text)
 
 
+@dataclasses.dataclass(frozen=True)
+class Block(Format):
+    r"""A cell of its own typesetting, in a group: a minipage, a list, a nested table (`Raw(inner.render())`) or a
+    paragraph in a column with a `width`. A `Raw` passes as written, text is escaped; the group keeps an `&` or `\\`
+    inside it from ending the cell. Aligned at the head (first baseline) of the row, which holds with images."""
+
+    valign: ClassVar[t.VAlign | None] = t.VAlign.HEAD
+
+    def _tex(self, value: object) -> str:
+        return "{" + (value.tex if isinstance(value, Raw) else escape(str(value))) + "}"
+
+
+@dataclasses.dataclass(frozen=True)
+class Image(Block):
+    """A picture by its path, `width` wide. The document's package needs `graphicx` (`std.graphicx`)."""
+
+    width: Length | None = None
+
+    def _tex(self, value: object) -> str:
+        path = str(value)
+        if set(path) & set("{}\\%#"):
+            raise ValueError(f"Image: {path!r} has a character a path cannot")
+        options = IncludeGraphicsOptions(width=self.width) if self.width else None
+        return "{" + IncludeGraphics(path=Raw(path), options=options).render() + "}"
+
+
 # --- columns -------------------------------------------------------------------------------------------------------
 
 
@@ -179,7 +207,9 @@ class Flex:
 class Col:
     """How a field is a column. `label` defaults to the field's name; `group` is a header group, or nested groups outer
     first (`("2025", "H1")`): consecutive columns with the same group share a spanner. `unit` follows the label in
-    brackets. `stub` marks the row-label column. `style` is a `ColumnSpec`, the `tabularray` escape hatch."""
+    brackets. `stub` marks the row-label column. `valign` is the vertical alignment (a block's default is the head of
+    the row). `style` is a `ColumnSpec` for the whole column, `cells` a `CellSpec` for the body rows only: the header
+    keeps its own look. Both are the `tabularray` escape hatch."""
 
     label: str | None = None
     _: dataclasses.KW_ONLY
@@ -190,7 +220,9 @@ class Col:
     group: str | tuple[str, ...] | None = None
     stub: bool = False
     hide: bool = False
+    valign: t.VAlign | None = None
     style: t.ColumnSpec | None = None
+    cells: t.CellSpec | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -199,10 +231,12 @@ class _Column:
     label: str
     fmt: Format
     align: t.HAlign
+    valign: t.VAlign | None
     width: Length | Flex | None
     group: tuple[str, ...]
     stub: bool
     style: t.ColumnSpec | None
+    cells: t.CellSpec | None
 
 
 def _kinds(hint: Any) -> set[Any]:  # noqa: ANN401
@@ -259,7 +293,8 @@ def _column(model: type[pydantic.BaseModel], name: str) -> _Column | None:
     label = col.label if col.label is not None else name.replace("_", " ").capitalize()
     group = (col.group,) if isinstance(col.group, str) else col.group or ()
     shown = f"{label} ({col.unit})" if col.unit else label
-    return _Column(name, shown, fmt, col.align or fmt.align, col.width, group, col.stub, col.style)
+    valign = col.valign or fmt.valign
+    return _Column(name, shown, fmt, col.align or fmt.align, valign, col.width, group, col.stub, col.style, col.cells)
 
 
 def _columns(model: object, group_by: str | None) -> tuple[_Column, ...]:
@@ -402,7 +437,8 @@ def _line(cells: list[str]) -> str:
 class Table[T: pydantic.BaseModel]:
     """A row model and its rows, with the parts of a table. `rows` are instances of the model, or mappings it validates;
     `node()` is the `tabularray` environment, `render()` its TeX. `group_by` names a field whose runs of equal values
-    become row groups, each under a label row (the field is not a column), with a `subtotal` row if given."""
+    become row groups, each under a label row (the field is not a column), with a `subtotal` row if given. `blocks`
+    measures cells as boxes, which a list or display maths in a cell needs (`\\UseTblrLibrary{varwidth}`)."""
 
     model: type[T]
     rows: Iterable[T | Mapping[str, Any]]
@@ -418,6 +454,7 @@ class Table[T: pydantic.BaseModel]:
     look: Look = Look.BOOKTABS
     long: bool = False
     width: Length | None = None
+    blocks: bool = False
     rules: Sequence[Entry] = ()
     columns: tuple[_Column, ...] = dataclasses.field(init=False, repr=False)
     data: tuple[T, ...] = dataclasses.field(init=False, repr=False)
@@ -546,16 +583,19 @@ class Table[T: pydantic.BaseModel]:
                 out.subtotals.append(len(out.lines))
         return out
 
-    def _column_entries(self) -> list[Entry]:
+    def _column_entries(self, position: Sequence[int]) -> list[Entry]:
         found: list[Entry] = []
         for i, c in enumerate(self.columns, start=1):
             width = c.width
             spec = t.ColumnSpec(
                 halign=c.align,
+                valign=c.valign,
                 wd=width if isinstance(width, Length) else None,
                 co=width.n if isinstance(width, Flex) else None,
             )
             found += [t.column(i, spec), *([t.column(i, c.style)] if c.style is not None else [])]
+            if c.cells is not None and position:
+                found.append(t.cell(t.selector(*_ranges(position)), i, c.cells))
         return found
 
     def _structure_entries(self, layout: _Layout) -> list[Entry]:
@@ -621,7 +661,12 @@ class Table[T: pydantic.BaseModel]:
                 t.column(last, t.ColumnSpec(rightsep=Length("0pt"))),
             ]
         # The columns' entries come before the cells': a cell's own alignment wins.
-        rules += [*self._column_entries(), *spans, *self._structure_entries(layout), *self._styled(layout.position)]
+        rules += [
+            *self._column_entries(layout.position),
+            *spans,
+            *self._structure_entries(layout),
+            *self._styled(layout.position),
+        ]
         for k, total in enumerate(self.totals):
             layout.lines.append(_line(self._total(total, self.data)))
             rules.append(t.row(len(layout.lines), t.RowSpec(font=look.total_font)))
@@ -634,6 +679,7 @@ class Table[T: pydantic.BaseModel]:
             width=self.width,
             rowsep=look.rowsep,
             colsep=look.colsep,
+            measure=t.Measure.VBOX if self.blocks else None,
             rowhead=h if self.long else None,
             hlines=t.HlineSpec(wd=look.light) if grid else None,
             vlines=t.VlineSpec(wd=look.light) if grid else None,
@@ -653,11 +699,13 @@ class Table[T: pydantic.BaseModel]:
 
 
 __all__ = [
+    "Block",
     "Col",
     "Date",
     "Flex",
     "Format",
     "Highlight",
+    "Image",
     "Label",
     "Look",
     "Money",
