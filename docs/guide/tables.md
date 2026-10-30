@@ -68,7 +68,7 @@ assert Number(0).tex(None) == "–"
 not a column, and equal values must be next to each other (`TM-M081`). `subtotal=Total(...)` adds a row of sums under each
 group. `Highlight(where, columns=, bg=, fg=, bold=, font=)` styles the rows where a predicate holds, or only the cells of
 `columns`, and `Span("amount", 2, where=)` merges a cell with the one after it, writing the covered cells empty. A colour is
-a `ColourName` or a colour value (`bg=Ink`); `tabularray` needs `xcolor` loaded to draw it.
+a `ColourName` or a colour value (`bg=Ink`); the `tabularray` header requires `xcolor`, so it is loaded with it.
 
 ```python
 from texmodel.ext.table import Highlight, Label, Money, Span

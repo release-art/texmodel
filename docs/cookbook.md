@@ -368,6 +368,68 @@ bindings (`NewToggle`, `ToggleTrue`), names the package it needs (`needs=(packag
 - **Add a kind only when a value needs its own declaration.** A call (`Command`) is enough to *use* something; a kind
   is for a setting the package declares and a document sets.
 
+## A report table from a row model
+
+A table is a pydantic model (its fields are the columns) and its rows. A `Col` on a field says how the column reads, a
+format writes every cell escaped, and a brand colour is given by its class. The table is a typed `tabularray` environment, so
+it goes in any `Document`; the brand package requires `tabularray`, which brings `xcolor` before it.
+
+```python
+from typing import Annotated
+
+from pydantic import BaseModel
+
+from texmodel.components import Value
+from texmodel.document import Document
+from texmodel.ext.table import Col, Highlight, Look, Note, Number, Percent, Table, Total
+from texmodel.package import Package
+from texmodel.std import tabularray
+from texmodel.types import RGB, Colour
+
+report = Package("acme-report", prefix="ar")
+report.require(tabularray.package)
+
+
+@report.value
+class Ink(Value[Colour]):
+    """The report's ink."""
+
+    default = RGB(0.1, 0.2, 0.5)
+
+
+class Sale(BaseModel):
+    region: Annotated[str, Col("Region", stub=True)]
+    q1: Annotated[float, Col("Q1", group="2025", fmt=Number(0))]
+    q2: Annotated[float, Col("Q2", group="2025", fmt=Number(0))]
+    growth: Annotated[float, Col("Growth", fmt=Percent(1, sign=True))]
+
+
+rows = [
+    Sale(region="North & Central", q1=1200, q2=1340, growth=0.117),
+    Sale(region="East", q1=980, q2=905, growth=-0.077),
+]
+table = Table(
+    Sale,
+    rows,
+    caption="Revenue by region",
+    totals=[Total("Total", sum=("q1", "q2"))],
+    notes=[Note("EUR thousands.")],
+    look=Look(header_bg=Ink),
+    highlights=[Highlight(lambda r: r.growth < 0, columns=("growth",), fg=Ink, bold=True)],
+)
+
+assert r"\RequirePackage{xcolor}" in report.render() and "bg=ar-ink" in table.render()
+plan = report.plan(Document(table.node()))
+assert r"North \& Central & 1\,200 & 1\,340 & +11.7\,\% \\" in plan.text
+```
+
+- **A format owns the escaping.** `North & Central` is written `North \& Central`; no cell is ever TeX you assembled.
+- **Precision is chosen, not guessed.** A `float` field needs a `fmt`; a number is right-aligned at the decimals you gave,
+  which puts the points in line.
+- **A colour is a class.** `fg=Ink` is the colour value, stored as its xcolor name (`ar-ink`) and checked against the package.
+- **The rules are the table's.** The default `Look` is booktabs': a heavy rule above and below, a light one under the header
+  and above the total, no vertical rules.
+
 ## A family of packages
 
 A core package, a base, and one package per series are separate `.sty` files that require each other. Declare them in one

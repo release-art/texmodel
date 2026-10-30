@@ -1,6 +1,6 @@
 # Draft: tables from a row model (`texmodel.ext.table`)
 
-Roadmap §3, "Reports from a pipeline" (plan §21a 20), piece 1. Status: **phases 1 and 2 built** (`texmodel/ext/table.py`, guide page `docs/guide/tables.md`); phases 3 and 4 are open. The typed `tabularray`
+Roadmap §3, "Reports from a pipeline" (plan §21a 20), piece 1. Status: **phases 1 to 3 built** (`texmodel/ext/table.py`, guide page `docs/guide/tables.md`); phase 4 is open. The typed `tabularray`
 header (`texmodel.std.tabularray`) is the layer underneath; this is the layer a report author writes against.
 
 ## What the survey says
@@ -93,7 +93,7 @@ non-numeric column; two stubs; a `fmt` that does not fit its field's type; a tab
 
 1. `Col`, `Text`, `Number`, `Percent`, `Table`, header groups, totals, notes, caption, `Look.BOOKTABS`, `Tblr` / `Longtblr`.
 2. Row groups and subtotals, `Highlight`, body `Span`, `Look.GRID` / `PLAIN`, `Money`, `Date`, `Label`. Built.
-3. The reference image gets `tabularray`; the guide page and a cookbook example.
+3. The reference image gets `tabularray` (`docker/test/Dockerfile`: `tabularray`, `ninecolors`, `diagbox`, `pict2e`, `varwidth`); the guide page and a cookbook example. Built.
 4. Data binding (§21a 15) and a second consumer, which decide what `Table` still gets wrong.
 
 ## Open

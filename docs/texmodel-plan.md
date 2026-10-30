@@ -169,7 +169,7 @@ Doc; migrations ↔ chain; reflection ↔ schema/docs; EXPLAIN ↔ `show` (plan)
 ### 3.5 Packages and classes
 
 - M11 `Package(name, prefix=, version=, date=, description=, header=, document_class=, adopted=, builtin=,
-  whitespace=, comments=, base=)` is built (`base`: D1b). Planned: `engine`, and `kind="package"|"class"`; `kind="class"`
+  whitespace=, comments=, base=, requires=)` is built (`base`: D1b; `requires`: the packages an adopted package needs, loaded before it wherever it is used). Planned: `engine`, and `kind="package"|"class"`; `kind="class"`
   adds class options and `\LoadClass`. Document shape is not assumed: prose, fixed
   canvas slides and small bleeding pieces must all be expressible.
 - M12 Layering is a DAG (`requires`/`layer`); cycles are errors. `graphlib` orders it.
@@ -1103,7 +1103,7 @@ Each is a candidate, not a decision. `docs/briefs/roadmap.md` orders them.
     writes "(Continued)" captions and "Continued on next page" footers, and needs no rerun for column widths; a row is
     never split across pages. An engine of texmodel's own (cells boxed and measured in expl3) is weeks of work, and
     multi-page with repeated headers its hardest part; worth it only for what `tabularray` cannot do (splitting a tall
-    row). Out of scope: a visual designer, data connectors, scheduling. The reference image lacks `tabularray`.
+    row). Out of scope: a visual designer, data connectors, scheduling. The test image (`docker/test/Dockerfile`) carries `tabularray`.
 
 ---
 

@@ -39,7 +39,6 @@ from texmodel.ext.table import (
     Total,
 )
 from texmodel.interface import ColourName
-from texmodel.preamble import PreambleSlots
 from texmodel.std import (
     latex,
     tabularray as t,
@@ -451,10 +450,7 @@ async def test_real_tex_sets_groups_highlights_spans_and_grids(compiler, tmp_pat
             Stock, STOCK, look=Look.PLAIN, long=True, highlights=[Highlight(lambda r: True, bg=ColourName("yellow"))]
         ),
     ]
-    colours = PreambleSlots(
-        after_package=(Raw(r"\usepackage{xcolor}"),)
-    )  # a colour key needs xcolor, as tabularray says
-    plan = t.package.plan(Document(*(x.node() for x in tables), latex.Null(), preamble=colours))
+    plan = t.package.plan(Document(*(x.node() for x in tables), latex.Null()))
     result, errors, gaps = await compile_sample(compiler, plan, tmp_path)
     if gaps and len(gaps) == len(errors):
         host = host_compiler() if os.environ.get("TEXMODEL_STD_ON_HOST") else None

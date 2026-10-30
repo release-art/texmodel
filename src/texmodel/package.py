@@ -210,6 +210,7 @@ class Package:
         whitespace: Whitespace = Whitespace.KEEP,
         comments: Sequence[type[Comment]] = (),
         base: "Package | None" = None,
+        requires: "Sequence[Package]" = (),
     ) -> None:
         if not _NAME.fullmatch(name):
             raise DeclarationError(f"package name {name!r} must match [a-z][a-z0-9-]*", code="TM-P001")
@@ -237,6 +238,8 @@ class Package:
         self._options: dict[str, Option] = {}  # package options by name, in registration order (§21)
         if base is not None:
             self.require(base)
+        for dependency in requires:
+            self.require(dependency)
 
     def _add(
         self, spec: Spec | EnvSpec | ValueSpec, *claims: tuple[dict[str, str], str, str], rendered: bool = True
@@ -609,13 +612,31 @@ class Package:
         found = (*(p for p, _ in self._requires), *called, *needed)
         return tuple(dict.fromkeys(p for p in found if p is not self and not p.builtin))
 
+    def _load(self, seen: set[str], options: tuple[str, ...] = ()) -> list[tuple[str, tuple[str, ...]]]:
+        """The call that loads this package: what an adopted one declares it needs (its hand-written `.sty` does not
+        load them) is called first, then it loads itself with `options`. `seen` holds every package already called, so
+        each is loaded once, by its first call."""
+        if self.name in seen:
+            return []
+        seen.add(self.name)
+        needed = [e for p, o in self._requires for e in p._load(seen, o)] if self.adopted else []  # noqa: SLF001
+        return [*needed, (self.name, options)]
+
     def require_entries(self) -> list[tuple[str, tuple[str, ...]]]:
         """What the `.sty` loads: `require()`d packages in order with their options, then, sorted, the packages the
-        values need (M14) and the components call that are not already loaded; computed, never collected by mutation."""
-        explicit = [(p.name, o) for p, o in self._requires]
+        values need (M14) and the components call that are not already loaded; computed, never collected by mutation.
+        Each is a call that first calls what it needs, so a package is loaded once, before what needs it."""
+        seen: set[str] = set()
+        entries = [e for p, o in self._requires for e in p._load(seen, o)]  # noqa: SLF001
         needs = {p for s in self._items if isinstance(s, ValueSpec) for p in s.needs if isinstance(p, str)}
-        rest = sorted({*needs, *(p.name for p in self.depends_on)} - {n for n, _ in explicit})
-        return [*explicit, *((n, ()) for n in rest)]
+        called = {p.name: p for p in self.depends_on}
+        for name in sorted({*needs, *called} - seen):
+            if name in called:
+                entries += called[name]._load(seen)  # noqa: SLF001
+            elif name not in seen:
+                seen.add(name)
+                entries.append((name, ()))
+        return entries
 
     @property
     def required_packages(self) -> tuple[str, ...]:
@@ -859,7 +880,10 @@ class Package:
             for i, v, found in routed
             if found and found[0] is not self
         ]
-        use = f"\\usepackage[{','.join(own)}]{{{self.name}}}" if own else f"\\usepackage{{{self.name}}}"
+        uses = [
+            Line("document", f"\\usepackage[{','.join(o)}]{{{n}}}" if o else f"\\usepackage{{{n}}}")
+            for n, o in self._load(set(), tuple(own))
+        ]
 
         def values() -> list[Line]:
             return [Line(f"settings[{i}]", setting_line(v)) for i, v, found in routed if not found]
@@ -871,7 +895,7 @@ class Package:
                 Line("document", f"\\documentclass{opts}{{{self.document_class}}}"),
                 *slot("before_package"),
                 *passed,
-                *([] if self.builtin else [Line("document", use)]),
+                *([] if self.builtin else uses),
                 *values(),
                 *slot("after_package"),
                 BEGIN_DOCUMENT,

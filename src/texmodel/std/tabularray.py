@@ -28,9 +28,10 @@ from texmodel.interface import SQUARE, Flag, Item, OptionalValue, arg
 from texmodel.keys import L3KEYS
 from texmodel.keyvals import Entry, KeyVals, key
 from texmodel.package import Package
+from texmodel.std import xcolor
 from texmodel.types import Choice, Length, Raw, Text
 
-package = Package("tabularray", prefix="", adopted=True)
+package = Package("tabularray", prefix="", adopted=True, requires=[xcolor.package])  # a colour key needs xcolor
 
 
 # --- selectors: which rows, columns, lines ------------------------------------------------------------------------

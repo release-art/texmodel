@@ -55,6 +55,13 @@ assert r"\dkFact{Friendly \& loyal.}" in tex
 `Text` fields are escaped; a `Raw` field passes TeX through. `card.violations()` lists every broken rule at once, each with a
 code and a path such as `Card/Fact[2].text`; `pkg.document` raises the same list as an `ExceptionGroup` of `ValidationError`.
 
+## Packages that need packages
+
+`Package(..., requires=[xcolor.package])` (or `pkg.require(...)`, which also takes options) loads other packages first. A
+package whose `.sty` is hand-written (`adopted=True`) cannot load them itself, so what it declares is loaded wherever it is
+used: before it in a generated `.sty` that calls it, and as a `\usepackage` line before it in a document of its own. A
+`std` header does this where the real package needs another to do its work (`tabularray` needs `xcolor` for its colours).
+
 ## A package built on another
 
 `Package("acme-series", prefix="as", base=brand)` specializes `brand`: its `.sty` loads the base first, and a document of

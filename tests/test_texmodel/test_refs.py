@@ -1,7 +1,11 @@
 """Typed references in bodies: `call`, `open`, `close`, holes, packages that follow."""
 
+import pytest
+
 from texmodel.body import Hole, RefKind, TexRaw, Whitespace
 from texmodel.components import Command, Environment
+from texmodel.document import Document
+from texmodel.errors import DeclarationError
 from texmodel.package import Package
 from texmodel.types import Choice, Raw, Text
 
@@ -253,3 +257,64 @@ def test_packages_that_require_each_other_are_refused_when_rendered():
         a.render()
     with refused("TM-P007"):
         b.render()
+
+
+def test_an_adopted_package_declares_what_it_needs_and_those_load_before_it():
+    colours = Package("hand-colours", prefix="", adopted=True)
+    tables = Package("hand-tables", prefix="", adopted=True, requires=[colours])
+    grids = Package("hand-grids", prefix="", adopted=True, requires=[tables])
+
+    @grids.command
+    class Cell(Command):
+        """A cell."""
+
+        cs = "gridcell"
+        text: Text
+
+    pkg = Package("user-grid", prefix="ug")
+
+    @pkg.command
+    class Wrap(Command):
+        """Calls a cell."""
+
+        text: Text
+
+        def body(self):  # noqa: ARG002
+            return [Cell.call(Hole("text"))]
+
+    out = pkg.render()
+    order = [out.index(rf"\RequirePackage{{{n}}}") for n in ("hand-colours", "hand-tables", "hand-grids")]
+    assert order == sorted(order) and out.count("hand-colours") == 1
+    assert [n for n, _ in grids._load(set(), ("opt",))] == ["hand-colours", "hand-tables", "hand-grids"]  # noqa: SLF001
+    lines = grids.plan(Cell(text="x")).text.splitlines()
+    assert lines[2:5] == [r"\usepackage{hand-colours}", r"\usepackage{hand-tables}", r"\usepackage{hand-grids}"]
+
+
+def test_a_required_adopted_package_keeps_its_options_and_a_repeat_of_a_need_is_loaded_once():
+    colours = Package("hand-colours", prefix="", adopted=True)
+    tables = Package("hand-tables", prefix="", adopted=True, requires=[colours])
+    pkg = Package("user-table", prefix="ut")
+    pkg.require(colours, options=["table"])
+    pkg.require(tables, options=["x"])
+    assert pkg.require_entries() == [("hand-colours", ("table",)), ("hand-tables", ("x",))]
+    for bad, code in ((lambda: Package("a", prefix="", requires=[Package("k", prefix="", builtin=True)]), "TM-P008"),):
+        with pytest.raises(DeclarationError) as raised:
+            bad()
+        assert raised.value.code == code
+    with pytest.raises(DeclarationError) as raised:
+        Package("b", prefix="", requires=[colours, colours])
+    assert raised.value.code == "TM-P010"
+
+
+def test_a_package_two_others_need_is_loaded_once_by_the_first_call():
+    shared = Package("hand-shared", prefix="", adopted=True)
+    left = Package("hand-left", prefix="", adopted=True, requires=[shared])
+    right = Package("hand-right", prefix="", adopted=True, requires=[shared])
+    top = Package("hand-top", prefix="", adopted=True, requires=[left, right])
+    assert [n for n, _ in top._load(set())] == ["hand-shared", "hand-left", "hand-right", "hand-top"]  # noqa: SLF001
+    assert top.plan(Document()).text.count(r"\usepackage{hand-shared}") == 1
+
+    pkg = Package("user-diamond", prefix="ud")
+    pkg.require(left)
+    pkg.require(right)
+    assert [n for n, _ in pkg.require_entries()] == ["hand-shared", "hand-left", "hand-right"]

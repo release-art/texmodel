@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `Package(..., requires=[...])`: the packages an adopted package needs. They load before it wherever it is used: as
+  `\RequirePackage` lines before it in a generated `.sty` that calls it (or `require()`s it), and as `\usepackage` lines before
+  it in a document of its own. `texmodel.std.tabularray` requires `xcolor`, for its colour keys.
 - `ext.table` row groups (`group_by`, `subtotal`), `Highlight` and `Span` by predicate, the formats `Money`, `Date` and `Label`,
   and `Look.GRID` and `Look.PLAIN` (`Rules`); `TM-M081` and `TM-M082`.
 - `texmodel.ext.table`, a table from a row model (a pydantic model whose fields are the columns): `Col` on a field (label, format, alignment,

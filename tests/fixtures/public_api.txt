@@ -183,7 +183,7 @@ texmodel.keyvals.KeyVals()
 texmodel.keyvals.KeyVals.render(self) -> str
 texmodel.keyvals.key(spelling: str | None = …, *, default: Any = …) -> Any
 texmodel.package.GENERATOR_VERSION: NoneType
-texmodel.package.Package(name: str, *, prefix: str, version: str = …, date: str | None = …, description: str = …, header: str = …, document_class: str = …, adopted: bool = …, builtin: bool = …, whitespace: Whitespace = …, comments: Sequence[type[Comment]] = …, base: Package | None = …) -> None
+texmodel.package.Package(name: str, *, prefix: str, version: str = …, date: str | None = …, description: str = …, header: str = …, document_class: str = …, adopted: bool = …, builtin: bool = …, whitespace: Whitespace = …, comments: Sequence[type[Comment]] = …, base: Package | None = …, requires: Sequence[Package] = …) -> None
 texmodel.package.Package.check_interface(self, *sources: str) -> list[Violation]
 texmodel.package.Package.check_parts(self) -> list[Violation]
 texmodel.package.Package.colour_constraints(self) -> dict[str, frozenset[str] | None]
