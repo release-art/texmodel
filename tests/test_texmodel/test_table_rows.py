@@ -292,3 +292,24 @@ async def test_real_tex_sets_a_table_made_from_a_row_class(compiler, tmp_path): 
     block = Table(Labelled, [Labelled(a=Raw("a"), b=f"row {i}") for i in range(130)], long=True)
     result, errors, _ = await compile_rows(compiler, block.node(), tmp_path)
     assert result.ok and not errors, [(d.path, d.code, d.message) for d in errors]
+
+
+@pkg.command
+class ProfileRowRating(ProfileRow):
+    """A subclass keeps the columns of its base and sets its own body; its extra fields are not columns."""
+
+    score: int
+    body = r"#icon & #label & \SetCell{l} #value #score \\"
+
+
+def test_rows_of_a_subclass_share_the_columns_of_the_base():
+    mixed = Table(
+        ProfileRow,
+        [
+            ProfileRow(icon=Raw("a"), label="Sound", value="Loud"),
+            ProfileRowRating(icon=Raw("b"), label="Taste", value="", score=4),
+        ],
+        header=False,
+        look=Look.PLAIN,
+    )
+    assert r"expand=\apProfileRow\apProfileRowRating" in mixed.render()
