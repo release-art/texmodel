@@ -33,5 +33,6 @@ MODULES = (
     "adjustbox",
     "tikz",
     "tcolorbox",
+    "tabularray",
     "fontspec",
 )

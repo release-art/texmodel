@@ -362,6 +362,185 @@ def calc_samples():
     ]
 
 
+def tabularray_samples():
+    from texmodel.std import tabularray as t
+
+    def rows(*lines: str) -> Passthrough:
+        return body_of(*(f"{line} \\\\" for line in lines))
+
+    pre = [
+        t.UseTblrLibrary(libraries=Raw("booktabs,diagbox,tikz")),
+        t.NewTblrColumnType(name=Raw("Y"), count=1, default=Raw("2cm"), definition=Raw("Q[l,wd=#1]")),
+        t.NewTblrRowType(name=Raw("Y"), count=1, definition=Raw("Q[t,ht=#1]")),
+        t.NewTblrColumnRowType(name=Raw("Z"), definition=Raw("Q[c]")),
+        t.NewTblrEnviron(name=Raw("tmtblr")),
+        t.NewTblrTableCommand(name=Raw(r"\tmrule"), definition=Raw(r"\hline[red]")),
+        t.NewTblrContentCommand(name=Raw(r"\tmcell"), definition=Raw("x")),
+        t.NewTblrDashStyle(name=Raw("tmdash"), definition=Raw("on 2pt off 1pt")),
+        t.NewTblrTheme(name=Raw("tmtheme"), code=Raw(r"\SetTblrStyle{firsthead}{font=\bfseries}")),
+        t.DeclareTblrTemplate(element=Raw("conthead-text"), name=Raw("tmt"), code=Raw("(more)")),
+        t.DeclareTblrTemplate(
+            element=Raw("caption"),
+            name=Raw("tmt"),
+            code=Raw(
+                t.UseTblrTemplate(element=Raw("caption-tag"), name=Raw("default")).render()
+                + t.ExpTblrTemplate(element=Raw("caption-text"), name=Raw("default")).render()
+            ),
+        ),
+        t.SetTblrTemplate(element=Raw("conthead-text"), name=Raw("normal")),
+        t.SetTblrStyle(element=Raw("caption-tag"), style=Raw(r"font=\bfseries")),
+        t.SetTblrInner(spec=t.TblrInner(rowsep=Length("1pt"))),
+        t.SetTblrInner(environments=Raw("longtblr"), spec=t.TblrInner(rowsep=Length("1pt"))),
+        t.SetTblrOuter(spec=t.TblrOuter(baseline=t.Baseline.TOP)),
+        t.SetTblrTracing(what=Raw("none")),
+    ]
+    cell = t.CellSpec(
+        halign=t.HAlign.CENTRE,
+        valign=t.VAlign.MIDDLE,
+        wd=Length("2cm"),
+        bg=ColourName("red"),
+        fg=ColourName("blue"),
+        font=Raw(r"\bfseries"),
+        mode=t.Mode.TEXT,
+        cmd=Raw(r"\relax"),
+        preto=Raw("x"),
+        appto=Raw("y"),
+    )
+    row = t.RowSpec(
+        halign=t.HAlign.LEFT,
+        ht=Length("5mm"),
+        bg=ColourName("red"),
+        math=True,
+        abovesep=Length("1pt"),
+        belowsep_plus=Length("1pt"),
+        rowsep=Length("1pt"),
+    )
+    column = t.ColumnSpec(
+        valign=t.VAlign.TOP,
+        wd=Length("2cm"),
+        co=1.5,
+        dmath=True,
+        leftsep=Length("1pt"),
+        rightsep_plus=Length("1pt"),
+        colsep=Length("1pt"),
+    )
+    hline = t.HlineSpec(dash=t.Dash.DASHED, wd=Length("1pt"), fg=ColourName("red"), leftpos=-1, l=True, endpos=True)
+    vline = t.VlineSpec(dash=t.Dash.DOTTED, wd=Length("1pt"), fg=ColourName("red"), abovepos=1, belowpos=1)
+    inner = t.TblrInner(
+        colspec=Raw("llll"),
+        width=Length("8cm"),
+        hlines=t.HlineSpec(),
+        vlines=vline,
+        cells=t.CellSpec(halign=t.HAlign.LEFT),
+        rows=t.RowSpec(abovesep=Length("1pt")),
+        columns=t.ColumnSpec(colsep=Length("2pt")),
+        rulesep=Length("2pt"),
+        stretch=1.2,
+        abovesep=Length("1pt"),
+        belowsep=Length("1pt"),
+        leftsep=Length("1pt"),
+        rightsep=Length("1pt"),
+        hspan=t.Span.EVEN,
+        vspan=t.Span.EVEN,
+        baseline=t.Baseline.BOTTOM,
+        measure=t.Measure.VBOX,
+        rules=[
+            t.cell(1, 2, cell, span=t.CellSpan(c=2)),
+            t.cells(t.CellSpec(halign=t.HAlign.LEFT), span=t.CellSpan()),
+            t.row("odd", row),
+            t.column("1-Z", column),
+            t.hline(t.selector(1, "Z"), hline),
+            t.hline(2, hline, "1-2"),
+            t.vline("Y[2]", vline, "every{1}{-1}"),
+            t.hlines(hline, 1),
+            t.vlines(vline, "odd"),
+            t.hborder(
+                2, t.HborderSpec(pagebreak=t.PageBreak.NO, abovespace=Length("1pt"), belowspace_plus=Length("1pt"))
+            ),
+            t.vborder(2, t.VborderSpec(leftspace=Length("1pt"), rightspace_plus=Length("1pt"))),
+        ],
+        extra=Raw("rowhead=0"),
+    )
+    long = t.TblrInner(colspec=Raw("ll"), rowhead=1, rowfoot=1, rowspec=Raw("Q[t]Q[t]Q[t]"))
+    outer = t.TblrOuter(
+        baseline=t.Baseline.TOP,
+        expand=Raw(r"\tmcell"),
+        expand_plus=Raw(r"\tmcell"),
+        headsep=Length("3pt"),
+        footsep=Length("3pt"),
+        presep=Length("3pt"),
+        postsep=Length("3pt"),
+        theme=Raw("tmtheme"),
+        caption="A & B",
+        entry="AB",
+        label=Raw("tm:long"),
+        rules=[t.note(Raw("a"), Raw("It is a note.")), t.remark(Raw("Source"), Raw("Made up."))],
+    )
+    nodes = [
+        t.TblrTikzBelow(body_of(r"\path (table.north west) rectangle (table.south east);")),
+        t.TblrTikzAbove(body_of(r"\draw (1-1.north west) -- (1-1.south east);")),
+        t.Tblr(
+            t.Toprule(options=t.HlineSpec(wd=Length("1pt"))),
+            t.Diagbox(lower=Raw("Aa"), upper=Raw("Pp")),
+            rows("& B & C & D"),
+            t.Midrule(),
+            t.Hline(options=hline),
+            t.Hline(),
+            t.Cline(columns=t.selector("1-2"), options=hline),
+            t.Cmidrule(columns=t.selector("2-3"), options=t.HlineSpec(l=-0.4)),
+            t.Cmidrulemore(columns=t.selector("1-2")),
+            t.Morecmidrules(),
+            t.Cmidrule(columns=t.selector("1-2")),
+            t.Hborder(spec=t.HborderSpec(abovespace=Length("1pt"))),
+            t.SetHline(index=t.selector(1), columns=t.selector("2-3"), spec=hline),
+            t.SetHlines(columns=t.selector("1"), spec=hline),
+            t.SetCell(span=t.CellSpan(c=2), spec=cell),
+            rows("x &  & C & D"),
+            t.SetRow(spec=row),
+            t.SetRows(spec=row),
+            t.SetCells(span=t.CellSpan(), spec=cell),
+            t.Vborder(spec=t.VborderSpec(leftspace=Length("1pt"))),
+            t.SetColumn(spec=column),
+            t.SetColumns(spec=column),
+            t.Vline(options=vline),
+            t.SetVline(index=t.selector(1), rows=t.selector("1-2"), spec=vline),
+            t.SetVlines(rows=t.selector("1"), spec=vline),
+            t.Rline(rows=t.selector("1-2"), options=vline),
+            rows("A & B & C \\TblrNote{a}  & D"),
+            t.Specialrule(spec=t.HlineSpec(wd=Length("0.5pt")), below=Length("2pt"), above=Length("3pt")),
+            rows("A & B & C & D"),
+            t.Addlinespace(space=Length("1em")),
+            t.Addlinespace(),
+            t.Addrowspace(space=Length("1em")),
+            rows("A & B & C & D"),
+            t.Bottomrule(options=t.HlineSpec(wd=Length("1pt"))),
+            outer=t.TblrOuter(baseline=t.Baseline.TOP),
+            inner=inner,
+        ),
+        t.Tblr(rows("a & b"), inner=t.TblrInner(colspec=Raw("ll"))),
+        t.Tblr(
+            t.Diagboxthree(lower=Raw("A"), middle=Raw("B"), upper=Raw("C")),
+            rows("& D & E"),
+            inner=t.TblrInner(colspec=Raw("lll"), hlines=t.HlineSpec(), vlines=t.VlineSpec()),
+        ),
+        t.Longtblr(
+            t.Hline(),
+            rows("a & b", "c & d", "e & f"),
+            outer=outer,
+            inner=long,
+        ),
+        t.Talltblr(
+            rows("a & b"),
+            outer=t.TblrOuter(caption="T", rules=[t.note(Raw("a"), Raw("n"))]),
+            inner=t.TblrInner(colspec=Raw("ll")),
+        ),
+        t.Booktabs(t.Toprule(), rows("a & b"), t.Bottomrule(), inner=t.TblrInner(colspec=Raw("ll"))),
+        t.Longtabs(t.Toprule(), rows("a & b"), t.Bottomrule(), inner=t.TblrInner(colspec=Raw("ll"))),
+        t.Talltabs(t.Toprule(), rows("a & b"), t.Bottomrule(), inner=t.TblrInner(colspec=Raw("ll"))),
+    ]
+    return pre, nodes
+
+
 SAMPLES = {
     "latex": latex_samples,
     "graphicx": graphicx_samples,
@@ -379,6 +558,7 @@ SAMPLES = {
     "tikz": tikz_samples,
     "tcolorbox": tcolorbox_samples,
     "fontspec": fontspec_samples,
+    "tabularray": tabularray_samples,
 }
 ERRORS = {"PackageError"}  # declared and called in `test_package_error`: it stops the run on purpose
 

@@ -14,6 +14,7 @@ class AdjustOptions(KeyVals, rules=PGFKEYS):
     rounded: OptionalValue[Length] | None = None   # rounded corners  /  rounded corners=2pt
     style: Inner | None = None                     # style={draw=red}  (another KeyVals)
     extra: Item[Raw] | None = None                 # anything else, as written
+    rules: list[Item[Entry]] | None = None         # cell{1}{2}={bg=red}  (a key spelled by the value)
 ```
 
 Items are written in declaration order and an unset one is left out. A `list[...]` field repeats its item.
@@ -32,6 +33,7 @@ from ._internal.values import unprotected, value_text
 from .errors import DeclarationError
 from .interface import FLAG, SWITCH, Body, BodyKind, Item, OptionalValue
 from .keys import KeyRules
+from .types import Raw
 
 
 @enum.unique
@@ -51,6 +53,18 @@ class KeyItem:
     kind: ItemKind
     body: Body | None
     repeated: bool = False
+
+
+@dataclasses.dataclass(frozen=True)
+class Entry(Raw):
+    r"""An item that spells its own key, for a library whose keys carry arguments (`cell{1}{2}={bg=red}`,
+    `hline{1,Z}={1pt}`): `Entry.of("cell{1}{2}", CellSpec(bg=...))`. Declare the field `list[Item[Entry]]`. Each group
+    is a key list or `Raw`, written in braces after `=`; the assign sign is `=`."""
+
+    @classmethod
+    def of(cls, key: str, *groups: "KeyVals | Raw") -> "Entry":
+        text = "".join(f"{{{g.render() if isinstance(g, KeyVals) else g.tex}}}" for g in groups)
+        return cls(f"{key}={text}")
 
 
 def key(spelling: str | None = None, *, default: Any = None) -> Any:  # noqa: ANN401  # as pydantic.Field
@@ -232,4 +246,4 @@ def _parts(item: KeyItem, value: Any, rules: KeyRules) -> list[str]:  # noqa: AN
     return out
 
 
-__all__ = ["ItemKind", "KeyItem", "KeyVals", "key"]
+__all__ = ["Entry", "ItemKind", "KeyItem", "KeyVals", "key"]

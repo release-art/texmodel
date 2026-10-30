@@ -155,6 +155,8 @@ texmodel.keys.KeyRules(assign: str = …, separator: str = …, booleans: tuple[
 texmodel.keys.L3KEYS: KeyRules
 texmodel.keys.PGFKEYS: KeyRules
 texmodel.keys.XKEYVAL: KeyRules
+texmodel.keyvals.Entry(tex: str) -> None
+texmodel.keyvals.Entry.of(cls, key: str, *groups: KeyVals | Raw) -> Entry
 texmodel.keyvals.ItemKind(*values)
 texmodel.keyvals.KeyItem(name: str, key: str, kind: ItemKind, body: Body | None, repeated: bool = …) -> None
 texmodel.keyvals.KeyVals()

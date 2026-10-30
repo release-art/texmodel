@@ -113,6 +113,10 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   `\relax` scan stops are not modelled. A `DimenExpr` fits the commands that read lengths through `\setlength` (checked for
   `\makebox`, `\raisebox`, `\parbox`, `\hspace`, `\vspace`, `\rule`, `minipage`, `p{}`); `\fontsize` and `\hskip` take
   primitives and refuse it, and nothing stops you passing one to a `Length` field of such a command.
+- `tabularray`: `colspec` and `rowspec` are `Raw` (their language is not modelled), the experimental interfaces (child ids and
+  classes, hooks, public variables) and the `functional` library's functions are not typed, and the `amsmath` library's
+  `+matrix`, `+array` and `+cases` environments are not declared: an environment name has letters only (`TM-M027`). The
+  reference image lacks `tabularray`, so its compile test runs on the host's TeX (`TEXMODEL_STD_ON_HOST=1`).
 - `tests/test_std` proves a call is accepted by TeX, not that it does what the name suggests. A library the reference image
   lacks makes its test skip (a failure under `TEXMODEL_REQUIRE_TEX=1`).
 - TikZ paths (`\draw`, `\node`) are written as `Passthrough` or `Raw`.

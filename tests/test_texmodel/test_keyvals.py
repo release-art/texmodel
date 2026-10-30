@@ -15,7 +15,7 @@ from texmodel.components import Command, Environment
 from texmodel.errors import DeclarationError
 from texmodel.interface import PAREN, Flag, Item, OptionalValue, Star, Switch, arg
 from texmodel.keys import KEYVAL, KVOPTIONS, L3KEYS, PGFKEYS, XKEYVAL
-from texmodel.keyvals import KeyVals, key
+from texmodel.keyvals import Entry, KeyVals, key
 from texmodel.package import Package
 from texmodel.spec import from_dict, json_schema, to_dict
 from texmodel.types import RGB, Choice, Colour, Length, Raw, Text
@@ -344,3 +344,15 @@ def test_a_library_that_trims_whatever_it_is_given_gets_the_value_as_it_is():
         title: Text | None = None
 
     assert Trims(title=" a").render() == "title= a" and Trims(title="a,b").render() == "title={a,b}"
+
+
+def test_an_entry_spells_its_own_key_and_a_list_of_them_repeats():
+    class Rules(KeyVals, rules=L3KEYS):
+        thick: Flag = False
+        rules: list[Item[Entry]] | None = None
+
+    inner = Inner(dashed=True)
+    entries = [Entry.of("cell{1}{2}", inner), Entry.of("hline{1}", Raw("1"), inner), Entry.of("x")]
+    assert Rules(thick=True, rules=entries).render() == "thick,cell{1}{2}={dashed},hline{1}={1}{dashed},x="
+    with pytest.raises(pydantic.ValidationError):
+        Rules(rules=[Raw("not an entry")])  # pyright: ignore[reportArgumentType]

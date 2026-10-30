@@ -2,7 +2,7 @@
 
 `texmodel.std` has a typed header for each TeX package a deck loads: `latex` (the kernel), `graphicx`, `xcolor`, `geometry`,
 `etoolbox`, `eso_pic`, `microtype`, `hyphenat`, `anyfontsize`, `calc`, `pdfrender`, `enumitem`, `adjustbox`, `tikz`,
-`tcolorbox` and `fontspec`. The blocks on this page run in order, as one module.
+`tcolorbox`, `fontspec` and `tabularray`. The blocks on this page run in order, as one module.
 
 A header is an adopted package with no prefix, whose components name their TeX command with `cs`:
 
@@ -57,9 +57,13 @@ assert r"\RequirePackage[protrusion=true]{microtype}" in pkg.render()
 
 ## What is typed
 
-`adjustbox`, `graphicx`, `geometry`, `tcolorbox` and `tikz` type their key lists. `calc` is a typed expression language:
+`adjustbox`, `graphicx`, `geometry`, `tcolorbox`, `tikz` and `tabularray` type their key lists. `calc` is a typed expression language:
 `dimen(Length("2cm")) * real(0.5) + widthof("abc")`, with `maxof`, `minof`, `ratio`, `glue`, `integer` and `counter_value`.
-The kernel types `\vspace*`, `\makebox`, `\raisebox` and the sectioning commands. A library's own syntax (TikZ paths such
+The kernel types `\vspace*`, `\makebox`, `\raisebox` and the sectioning commands. `tabularray` types the whole of the package and its `booktabs`, `diagbox` and `tikz` libraries: the inner and outer key lists,
+the commands inside a table and the definers. A key that carries arguments (`cell{1}{2}`, `hline{1,Z}`, `note{a}`) is an
+`Entry` built by `cell(1, 2, CellSpec(...))`, `hline(selector(1, "Z"), HlineSpec(...))`, `note(...)`; `selector` checks
+an index, a range or `odd`/`even`/`every`. `colspec` and `rowspec` stay `Raw`, and cells are TeX between `Passthrough`s.
+A library's own syntax (TikZ paths such
 as `\draw (0,0) -- (1,1);`) is written as `Passthrough` or `Raw`.
 
 `tests/test_std` compiles a call of every declared name against the reference image, so a header that names a command TeX

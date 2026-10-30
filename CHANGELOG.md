@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `texmodel.std.tabularray`, the whole of the `tabularray` package and its `booktabs`, `diagbox` and `tikz` libraries: `Tblr`,
+  `Longtblr`, `Talltblr`, `Booktabs`, `Longtabs` and `Talltabs`; the inner and outer key lists (`TblrInner`, `TblrOuter`)
+  and the key lists of rules, cells, rows, columns and borders; the commands inside a table (`Hline`, `SetCell`, `Toprule`,
+  `Diagbox`, ...); the definers (`NewTblrColumnType`, `NewTblrTheme`, `DeclareTblrTemplate`, ...). `selector` checks a child
+  selector (`TM-M076`).
+- `texmodel.keyvals.Entry`: an item that spells its own key (`cell{1}{2}={bg=red}`); declare the field `list[Item[Entry]]`.
+
 ## [0.11.0] - 2026-10-30
 
 Output change: a package with a `ColourSpace` declares `cmyk` and `rgb` as l3keys options in an options section.

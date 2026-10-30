@@ -116,7 +116,7 @@ each item is written, and its `KeyRules` say how the library reads it.
 ```python
 from texmodel.interface import Flag, Item, OptionalValue, Switch
 from texmodel.keys import PGFKEYS
-from texmodel.keyvals import KeyVals, key
+from texmodel.keyvals import Entry, KeyVals, key
 
 
 class AdjustOptions(KeyVals, rules=PGFKEYS):
@@ -126,6 +126,7 @@ class AdjustOptions(KeyVals, rules=PGFKEYS):
     rounded: OptionalValue[Length] | None = key("rounded corners")    # rounded corners  /  rounded corners=2pt
     tags: list[Text] | None = None                                    # tags=a,tags=b   (a list repeats the key)
     extra: Item[Raw] | None = None                                    # anything else, as written
+    rules: list[Item[Entry]] | None = None                            # cell{1}{2}={bg=red}  (an item that spells its own key)
 
 
 @pkg.command
