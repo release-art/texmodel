@@ -52,7 +52,7 @@ from .components import (
 from .document import OPTION, Document
 from .drift import stamp
 from .errors import DeclarationError, Violation
-from .interface import XCOLOR, colour_of, constraint_of
+from .interface import XCOLOR, ColourName, colour_of, constraint_of
 from .plan import BEGIN_DOCUMENT, Line, Plan, Span
 from .preamble import Entry, PdfInfo, RequireMetadata
 from .testing import Component, stub_tex
@@ -358,6 +358,8 @@ class Package:
         if not spec.kind.named:  # a colour is not a control sequence
             cls.__tm_cs__ = "".join(addressed(self.prefix, spec.name, spec.cs))
         cls.__tm_prefix__ = self.prefix
+        if spec.kind.named:
+            cls.xcolor_name = ColourName(cls)
         self._classes.append(cls)
         return cls
 

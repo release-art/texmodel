@@ -857,6 +857,9 @@ class Value[T]:
     default: T  # not ClassVar[T]: pyright refuses type variables in ClassVar; subclasses assign it in the class body
     needs_packages: ClassVar[tuple["str | Package", ...]] = ()  # data, not mutation: the package takes the union (M14)
     colour_name: ClassVar[str | None] = None  # a `Value[Colour]`'s name when it is not `<prefix>-<kebab>` (`"acInk"`)
+    xcolor_name: ClassVar[
+        ColourName
+    ]  # a colour's resolved xcolor name, once registered: `colour_name` or `<prefix>-<kebab>`
     cs: ClassVar[str | None] = None  # the whole control sequence, when it is not prefix + class name (`"acshowcrop"`)
     defined_by: ClassVar[Library | None] = None  # the library block that defines it, so it renders no definition
     plates: ClassVar[AbstractSet[str] | None] = None  # a colour's plates: the set it may ink, `{Plate.K}` is K-only

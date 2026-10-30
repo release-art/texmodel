@@ -213,3 +213,16 @@ def test_an_expression_that_mixes_different_plates_is_a_violation_whoever_wrote_
     (found,) = Label(text="x", colour=ColourName("ab-ink!70!red")).violations()
     assert "ab-ink K" in found.message and "red C+M+Y+K" in found.message
     assert violations(colour="ab-ink!70!nonsense") == [("TM-C022", "Label.colour")]  # an unknown name has no plates yet
+
+
+def test_a_registered_colour_carries_its_resolved_name_for_a_field():
+    @brand.value
+    class Foil(Value[Colour]):
+        """Foil."""
+
+        colour_name = "abFoilRed"
+        default = CMYK(0, 0.2, 1, 0)
+
+    assert Ink.xcolor_name == "ab-ink" and isinstance(Ink.xcolor_name, ColourName)
+    assert Foil.xcolor_name == "abFoilRed" == ColourName(Foil)
+    assert Label(text="x", colour=Ink.xcolor_name).violations() == []

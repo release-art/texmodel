@@ -150,6 +150,7 @@ from texmodel.interface import ColourName
 assert ColourName("red") == "red" and ColourName("red", tint=0.5, mix="blue") == "red!50!blue"
 ```
 
+A registered colour value carries its name as `Ink.xcolor_name` (a `ColourName`, `vl-ink`), the name for a field: `bg=Ink.xcolor_name`.
 `ColourName(Ink)` is `vl-ink`, `ColourName(Ink, tint=0.7)` is `vl-ink!70` and `ColourName(Ink, tint=0.7, mix=Paper)` is
 `vl-ink!70!vl-paper`: 70% ink, 30% paper. `ColourName("red!50!blue")` takes an expression as written, `name`, `name!50` or `name!50!name`,
 with numbers up to 100 (`TM-M067`); a tint outside 0 to 1 is `TM-M017`.

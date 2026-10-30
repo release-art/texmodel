@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the key lists of rules, cells, rows, columns and borders; the commands inside a table (`Hline`, `SetCell`, `Toprule`,
   `Diagbox`, ...); the definers (`NewTblrColumnType`, `NewTblrTheme`, `DeclareTblrTemplate`, ...). `selector` checks a child
   selector (`TM-M076`).
+- `Value.xcolor_name`: a registered colour value's resolved xcolor name, a `ColourName` (`Ink.xcolor_name` is `ap-ink`), to give a
+  `ColourName` field: `bg=Ink.xcolor_name`.
 - `texmodel.keyvals.Entry`: an item that spells its own key (`cell{1}{2}={bg=red}`); declare the field `list[Item[Entry]]`.
 
 ## [0.11.0] - 2026-10-30
