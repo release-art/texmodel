@@ -9,15 +9,19 @@ import pytest
 from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 from texmodel.body import RefKind
 from texmodel.components import Command, Environment, Passthrough
+from texmodel.document import Document
 from texmodel.errors import TexmodelError
 from texmodel.package import Package
-from texmodel.plan import BEGIN_DOCUMENT, EditKind
+from texmodel.plan import BEGIN_DOCUMENT, EditKind, Plan
+from texmodel.preamble import PreambleSlots
 from texmodel.run import hand_edits
 from texmodel.run.compiler import Compiler
 from texmodel.run.diagnostics import Measurement
+from texmodel.run.errors import CompileError
 from texmodel.run.hand_edits import read_edits
+from texmodel.std import tabularray as t
 from texmodel.testing import Call, expand
-from texmodel.types import Length, Text
+from texmodel.types import Length, Raw, Text
 
 pkg = Package("hands", prefix="hd")
 
@@ -229,3 +233,66 @@ async def test_tex_reads_a_hand_edited_document(compiler):  # noqa: F811
     }
     assert [e.fields[0].violation.code for e in edits if e.path == "Meter[1]" and e.fields[0].violation] == ["TM-C021"]
     assert not re.search("Raw", repr(edits)) and RefKind.CALL
+
+
+rows_pkg = Package("hand-rows", prefix="hr")
+
+
+@rows_pkg.command
+class Entry(t.TableRow):
+    """A row of two cells."""
+
+    key: Text
+    value: Text
+
+
+def entries() -> t.Tblr:
+    rows = [Entry(key="a", value="1"), Entry(key="b", value="2")]
+    return t.Tblr(*rows, outer=t.TblrOuter(expand=t.expand_of(rows)), inner=t.TblrInner(colspec=Raw("QQ")))
+
+
+class SeenError(Exception):
+    pass
+
+
+async def stubbed_by(
+    monkeypatch: pytest.MonkeyPatch, plan: Plan, *packages: Package, **kwargs: typing.Any
+) -> list[str]:
+
+    async def calls_of(_: object, __: str, stubs: list[typing.Any], ___: object) -> list[Call]:
+        raise SeenError([c.__name__ for c in stubs])
+
+    monkeypatch.setattr(hand_edits, "_calls", calls_of)
+    with pytest.raises(SeenError) as seen:
+        await read_edits(NO_COMPILER, plan, plan.text, *packages, **kwargs)
+    return seen.value.args[0]
+
+
+async def test_a_table_is_stubbed_whenever_a_row_is(monkeypatch):
+    names = await stubbed_by(monkeypatch, rows_pkg.plan(entries()), rows_pkg)
+    assert set(names) == {"Entry", "Tblr", "Talltblr", "Longtblr"}
+
+
+async def test_no_table_is_stubbed_when_no_row_is(monkeypatch):
+    assert "Tblr" not in await stubbed_by(monkeypatch, PLAN, pkg)
+
+
+async def test_stub_adds_components_of_other_packages(monkeypatch):
+    names = await stubbed_by(monkeypatch, PLAN, pkg, stub=[Entry])
+    assert "Entry" in names and "Para" in names
+
+
+@pytest.mark.tex
+@pytest.mark.timeout(300)
+async def test_tex_reads_a_hand_edited_cell_of_a_row(compiler):  # noqa: F811
+    slots = PreambleSlots(after_package=(Raw(r"\usepackage{xcolor}\usepackage{tabularray}"),))
+    plan = rows_pkg.plan(Document(entries(), preamble=slots))
+    try:
+        edits = await read_edits(compiler, plan, plan.text.replace("{2}", "{two}"), rows_pkg)
+    except CompileError as exc:
+        if exc.code == "TM-X013":
+            pytest.skip(str(exc))
+        raise
+    (edit,) = edits
+    assert (edit.path, edit.kind) == ("Tblr[0]/Entry[1]", EditKind.CHANGED)
+    assert [(f.arg, f.value) for f in edit.fields] == [("value", "two")]

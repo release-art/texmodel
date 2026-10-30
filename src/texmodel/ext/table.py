@@ -279,11 +279,19 @@ def _column(model: type[pydantic.BaseModel], name: str) -> _Column | None:
     """The column of one field, or `None` when the field is hidden."""
     info = model.model_fields[name]
     where = f"{model.__name__}.{name}"
+    node_rows = issubclass(model, t.TableRow)
     col = next((m for m in info.metadata if isinstance(m, Col)), Col())
     if col.hide:
         return None
     kinds = _kinds(info.annotation)
-    fmt = col.fmt or _default_format(where, kinds)
+    if node_rows and col.fmt is not None:
+        raise DeclarationError(
+            f"{where}: the row command writes its cells, so a format has nothing to do",
+            code="TM-M085",
+            path=where,
+            hint="drop fmt=, or build the table from a plain row model",
+        )
+    fmt = col.fmt or (Text() if node_rows else _default_format(where, kinds))
     if fmt.numeric and not kinds <= set(_NUMBERS):
         raise DeclarationError(
             f"{where}: {type(fmt).__name__} formats numbers, the field is {sorted(map(str, kinds))}",
@@ -490,10 +498,30 @@ class Table[T: pydantic.BaseModel]:
         object.__setattr__(self, "data", tuple(body))
         object.__setattr__(self, "groups", groups)
 
+    def _check_node_rows(self) -> None:
+        """Rows that are nodes are written by their own command: what writes cells in a plain table has no part."""
+        where = self.model.__name__
+        for part, used in (("totals", self.totals), ("subtotal", self.subtotal), ("group_by", self.group_by)):
+            if used:
+                raise DeclarationError(
+                    f"Table: {part} is not set from rows that are nodes: the row command writes the cells",
+                    code="TM-M085",
+                    path=where,
+                    hint="compute the row in the program, or use a plain row model",
+                )
+        if self.spans:
+            raise DeclarationError(
+                "Table: spans are not set from rows that are nodes: use \\SetCell in the row's body",
+                code="TM-M085",
+                path=where,
+            )
+
     def _check(self, columns: tuple[_Column, ...]) -> None:
         """The parts name columns that are there and fit."""
         index = {c.name: i for i, c in enumerate(columns)}
         where = self.model.__name__
+        if issubclass(self.model, t.TableRow):
+            self._check_node_rows()
         if not self.header and any(c.group for c in columns):
             raise DeclarationError(
                 "Table: header groups need a header",
@@ -586,7 +614,11 @@ class Table[T: pydantic.BaseModel]:
                 out.labels.append(len(out.lines))
             first = len(out.lines) + 1
             for row in members:
-                cells = [c.fmt.tex(getattr(row, c.name)) for c in self.columns]
+                cells = (
+                    [""] * len(names)  # the row command writes them
+                    if issubclass(self.model, t.TableRow)
+                    else [c.fmt.tex(getattr(row, c.name)) for c in self.columns]
+                )
                 out.lines.append(_line(["" if j in covered.get(done, ()) else x for j, x in enumerate(cells)]))
                 out.position.append(len(out.lines))
                 done += 1
@@ -698,12 +730,17 @@ class Table[T: pydantic.BaseModel]:
             vlines=t.VlineSpec(wd=look.light) if grid else None,
             rules=[*rules, *self.rules],
         )
+        nodes = [r for r in self.data if isinstance(r, t.TableRow)]  # the rows of a table of nodes
         outer = t.TblrOuter(
             caption=self.caption,
             label=Raw(self.label) if self.label else None,
+            expand=t.expand_of(nodes) if nodes else None,
             rules=[t.remark(Raw(escape(n.tag)), Raw(escape(n.text))) for n in self.notes] or None,
         )
         env = t.Longtblr if self.long else t.Talltblr if self.caption or self.notes else t.Tblr
+        if issubclass(self.model, t.TableRow):
+            head = [Passthrough(Raw("\n".join(layout.lines[:h])))] if h else []
+            return env(*head, *nodes, outer=outer, inner=inner)
         content = Passthrough(Raw("\n".join(layout.lines)))
         return env(content, outer=outer if self.caption or self.notes or self.label else None, inner=inner)
 

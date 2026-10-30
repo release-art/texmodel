@@ -59,7 +59,7 @@ assert r"\RequirePackage[protrusion=true]{microtype}" in pkg.render()
 
 `adjustbox`, `graphicx`, `geometry`, `tcolorbox`, `tikz` and `tabularray` type their key lists. `calc` is a typed expression language:
 `dimen(Length("2cm")) * real(0.5) + widthof("abc")`, with `maxof`, `minof`, `ratio`, `glue`, `integer` and `counter_value`.
-The kernel types `\vspace*`, `\makebox`, `\raisebox` and the sectioning commands. `tabularray` types the whole of the package and its `booktabs`, `diagbox` and `tikz` libraries: the inner and outer key lists,
+The kernel types `\vspace*`, `\makebox`, `\raisebox` and the sectioning commands. `tabularray` types the whole of the package and its `booktabs`, `diagbox` and `tikz` libraries, and `TableRow`, the base of a package's own rows ([Tables](tables.md#rows-that-are-nodes)): the inner and outer key lists,
 the commands inside a table and the definers. A key that carries arguments (`cell{1}{2}`, `hline{1,Z}`, `note{a}`) is an
 `Entry` built by `cell(1, 2, CellSpec(...))`, `hline(selector(1, "Z"), HlineSpec(...))`, `note(...)`; `selector` checks
 an index, a range or `odd`/`even`/`every`. `colspec` and `rowspec` stay `Raw`, and cells are TeX between `Passthrough`s.

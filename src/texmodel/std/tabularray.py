@@ -21,9 +21,12 @@ experimental interfaces (child ids and classes, hooks, public variables) and the
 import dataclasses
 import enum
 import re
+from collections.abc import Iterable
+from typing import Any
 
-from texmodel.components import Anywhere, ColourRef, Command, Environment, Passthrough
-from texmodel.errors import DeclarationError
+from texmodel._internal.render import newcommand_fits
+from texmodel.components import Anywhere, ColourRef, Command, Environment, Node, Passthrough, control_name
+from texmodel.errors import DeclarationError, Violation
 from texmodel.interface import SQUARE, Flag, Item, OptionalValue, arg
 from texmodel.keys import L3KEYS
 from texmodel.keyvals import Entry, KeyVals, key
@@ -647,8 +650,57 @@ class Diagboxthree(Command):
 
 # --- the environments ------------------------------------------------------------------------------------------------
 
+
+class TableRow(Command, abstract=True):
+    r"""A row a package writes as a command, cells separated by `&` and ended by `\\`: the table expands it before it
+    splits the body, so the table lists its commands in `expand` (`expand_of`; a `Table` does it). A subclass has
+    mandatory arguments only; without a `body`, each field is one cell, in order (`#icon & #label & #value \\`).
+    A row command that calls another lists both."""
+
+    @classmethod
+    def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
+        if not kwargs.get("abstract") and not any("body" in k.__dict__.get("__tm_tex__", {}) for k in cls.__mro__):
+            cls.__tm_tex__["body"] = " & ".join(f"#{n}" for n in cls.model_fields) + r" \\"
+        super().__pydantic_init_subclass__(**kwargs)
+        if not kwargs.get("abstract") and (
+            any(a.optional for a in cls.__tm_args__) or not newcommand_fits(cls.__tm_args__)
+        ):
+            raise DeclarationError(
+                f"{cls.__qualname__}: a row command takes mandatory arguments in braces only",
+                code="TM-M084",
+                path=cls.__name__,
+                hint="tabularray expands a plain \\newcommand: an optional or token argument is not expanded",
+            )
+
+
+def expand_of(rows: Iterable[Node]) -> Raw | None:
+    r"""The `expand` key for these table children: the commands of the `TableRow`s among them, in order of first use."""
+    names = dict.fromkeys(rf"\{control_name(type(r))}" for r in rows if isinstance(r, TableRow))
+    return Raw("".join(names)) if names else None
+
+
+def _expanded(table: Environment, path: str) -> list[Violation]:
+    """Every row command of a table is in its `expand` (`TM-C027`): otherwise tabularray splits the body at the `&`
+    inside the command and fails with a misplaced alignment tab."""
+    outer = getattr(table, "outer", None)
+    listed = set(
+        re.findall(r"\\[A-Za-z@]+", " ".join(str(getattr(outer, k, None) or "") for k in ("expand", "expand_plus")))
+    )
+    return [
+        Violation(
+            "TM-C027",
+            f"{path}/{type(row).__name__}[{i}]",
+            f"{type(row).__name__}: \\{control_name(type(row))} is not in the table's expand",
+            hint="TblrOuter(expand=expand_of(rows))",
+        )
+        for i, row in enumerate(table.content)
+        if isinstance(row, TableRow) and rf"\{control_name(type(row))}" not in listed
+    ]
+
+
 TABLE_BODY = [
     Anywhere(Passthrough),
+    Anywhere(TableRow),
     *map(
         Anywhere,
         (
@@ -691,6 +743,7 @@ class Tblr(Environment):
 
     cs = "tblr"
     children = TABLE_BODY
+    checks = [_expanded]
     outer: TblrOuter | None = None
     inner: TblrInner
 
@@ -701,6 +754,7 @@ class Longtblr(Environment):
 
     cs = "longtblr"
     children = TABLE_BODY
+    checks = [_expanded]
     outer: TblrOuter | None = None
     inner: TblrInner
 
@@ -711,6 +765,7 @@ class Talltblr(Environment):
 
     cs = "talltblr"
     children = TABLE_BODY
+    checks = [_expanded]
     outer: TblrOuter | None = None
     inner: TblrInner
 
@@ -721,6 +776,7 @@ class Booktabs(Environment):
 
     cs = "booktabs"
     children = TABLE_BODY
+    checks = [_expanded]
     outer: TblrOuter | None = None
     inner: TblrInner
 
@@ -731,6 +787,7 @@ class Longtabs(Environment):
 
     cs = "longtabs"
     children = TABLE_BODY
+    checks = [_expanded]
     outer: TblrOuter | None = None
     inner: TblrInner
 
@@ -741,6 +798,7 @@ class Talltabs(Environment):
 
     cs = "talltabs"
     children = TABLE_BODY
+    checks = [_expanded]
     outer: TblrOuter | None = None
     inner: TblrInner
 

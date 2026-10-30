@@ -84,6 +84,7 @@ import inspect
 import types
 import typing
 from collections.abc import (
+    Callable,
     Mapping,
     Sequence,
     Set as AbstractSet,
@@ -335,6 +336,7 @@ class _Node(pydantic.BaseModel, metaclass=_Meta):
         bool
     ]  # a shared base (`abstract=True`): fields and a body for subclasses, never registered
     __tm_unused__: ClassVar[tuple[str, ...]]
+    __tm_tex__: ClassVar[dict[str, Any]]  # the class's own `body`, `begin` and `end`, read from the namespace
     __tm_kw_only__: ClassVar[bool] = (
         True  # fields are passed by keyword; `kw_only=False` on a class lets them be positional
     )
@@ -452,6 +454,7 @@ class Environment(_Node):
     __tm_node__ = NodeKind.ENVIRONMENT
     content: tuple[Node, ...]
     children: ClassVar[Sequence[type | Repeat | Anywhere]] = ()  # the grammar: components in order, with counts (M4)
+    checks: ClassVar[Sequence[Callable[[Any, str], list[Violation]]]] = ()  # more checks of a node, given its path
     __tm_inline__: ClassVar[tuple[Source | None, Source | None]]
     __tm_grammar__: ClassVar[tuple[Repeat | Anywhere, ...]]
 
@@ -516,6 +519,19 @@ def _comment_fields(comment: Comment) -> dict[str, str]:
     return {f: getattr(comment, f) for f in comment.__tm_fields__}
 
 
+def concrete_kinds(kind: type) -> list[type]:
+    """A kind, or for an abstract base the registered classes under it (a package's own rows of a table)."""
+    if not getattr(kind, "__tm_abstract__", False):
+        return [kind]
+    found: list[type] = []
+    for sub in kind.__subclasses__():
+        if getattr(sub, "__tm_abstract__", False):
+            found += concrete_kinds(sub)
+        elif hasattr(sub, "__tm_package__"):
+            found.append(sub)
+    return found
+
+
 @dataclasses.dataclass(frozen=True)
 class Children:
     """The schema of a list of nodes in data: a union, told apart by `"type"`, of the components an environment's
@@ -527,7 +543,7 @@ class Children:
     def __get_pydantic_core_schema__(self, source: object, handler: pydantic.GetCoreSchemaHandler) -> CoreSchema:
         if isinstance(self.owner, type):
             package = typing.cast("Package | None", getattr(self.owner, "__tm_package__", None))
-            kinds = [t.kind for t in self.owner.__tm_grammar__]
+            kinds = [k for t in self.owner.__tm_grammar__ for k in concrete_kinds(t.kind)]
         else:
             package = self.owner
             kinds = [c for c in package.visible if issubclass(c, Command | Environment)] + [Passthrough]
@@ -728,6 +744,8 @@ def _violations(node: Command | Environment | Passthrough, path: str) -> list[Vi
     out += _colour_violations(node, path)
     if isinstance(node, Environment):
         out += _grammar_violations(node, path)
+        for check in type(node).checks:
+            out += check(node, path)
         for i, child in enumerate(node.content):
             if isinstance(child, Command | Environment | Passthrough):  # pyright: ignore[reportUnnecessaryIsInstance]
                 out += _violations(child, f"{path}/{type(child).__name__}[{i}]")
@@ -815,7 +833,12 @@ def _grammar_violations(node: Environment, path: str) -> list[Violation]:
     grammar = type(node).__tm_grammar__
     floating = {t.kind for t in grammar if isinstance(t, Anywhere)}
     ordered = [t for t in grammar if isinstance(t, Repeat)]
-    content = [(j, c) for j, c in enumerate(node.content) if not isinstance(c, Comment) and type(c) not in floating]
+    abstract = tuple(k for k in floating if getattr(k, "__tm_abstract__", False))
+    content = [
+        (j, c)
+        for j, c in enumerate(node.content)
+        if not isinstance(c, Comment) and type(c) not in floating and not isinstance(c, abstract)
+    ]
     allowed = ", ".join(map(str, grammar)) or "nothing"
     out: list[Violation] = []
     i = 0
@@ -1044,6 +1067,7 @@ __all__ = [
     "Resolved",
     "Source",
     "Value",
+    "concrete_kinds",
     "control_name",
     "describe",
     "field",

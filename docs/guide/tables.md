@@ -180,5 +180,42 @@ assert block.render().splitlines()[1] == r"\textsf{a} & Sound & Loud \\"
 A colour that a macro names, read when the document is typeset, is `ColourName.macro(r"\bbRowLabelColour")`
 ([Values](values.md#colour-names)): `Col(cells=CellSpec(fg=ColourName.macro(...)))` colours a column by it.
 
+## Rows that are nodes
+
+A block of rows that a document edits cell by cell, in the tree, the schema and `Plan.edits`, is set from row commands: a
+`std.tabularray.TableRow` of the project's package, one cell per field in order (write a `body` to say otherwise:
+`\SetCell`, a cell of your own). `Table(RowClass, rows)` builds it, with the header as one `Passthrough` and the row
+commands as typed children; `Col` still sets the width, alignment and style of each column, and the table lists the commands
+in tabularray's `expand` key, which makes it expand them before it splits the body at `&`.
+
+```python
+from texmodel.package import Package
+from texmodel.types import Text
+
+pkg = Package("acme-profile", prefix="ap")
+
+
+@pkg.command
+class ProfileRow(tabularray.TableRow):
+    """An icon, a label and a value."""
+
+    icon: Annotated[Raw, Col("", width=Length("6mm"))]
+    label: Annotated[Text, Col("")]
+    value: Annotated[Text, Col("", cells=CellSpec(font=Raw(r"\bfseries")))]
+
+
+profile = Table(ProfileRow, [ProfileRow(icon=Raw("a"), label="Sound", value="Loud")], header=False, look=Look.PLAIN)
+shown = profile.render()
+assert shown.startswith(r"\begin{tblr}[expand=\apProfileRow]") and r"  \apProfileRow{a}{Sound}{Loud}" in shown
+```
+
+A row command is a plain `\newcommand` with mandatory arguments only (`TM-M084`), because that is what tabularray expands;
+a row command that calls another lists both in `expand`. A table written by hand lists them with `expand_of(rows)`, and a
+row whose command is missing from it is `TM-C027` before TeX fails. The cells are written by the row, so `fmt=`, `totals`,
+`subtotal`, `group_by` and `spans` are refused (`TM-M085`); `highlights`, `look`, `caption`, `notes`, `long` and the column
+keys work. `read_edits` stubs the `tblr` environments too whenever a row is stubbed (a table processes its body four times);
+`stub=` adds other components. Reordering rows or adding a row line is not restorable (`TM-R006`, `TM-R005`), as for any
+container.
+
 A row that does not validate is an error naming its index (`TM-C026`); a group on separated columns, a second stub or a
 total over a column that is not a visible number is a `DeclarationError` when the table is built (`TM-M077` to `TM-M082`).

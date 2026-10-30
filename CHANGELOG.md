@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ext.table`: `Table(header=False)` writes no header row and no rule under it (`TM-M083` for a column with a `group`);
   `Look(edge=)` is the padding at the first column's left edge and the last one's right edge, so any look may be flush; a guide
   paragraph says that a project may subclass `Format`.
+- `std.tabularray.TableRow`: a row a package writes as a command (one cell per field when it has no `body`), allowed in any
+  `tabularray` table; `expand_of(rows)` is the table's `expand` key, and a row command missing from it is `TM-C027` (before,
+  TeX failed with a misplaced alignment tab). `TM-M084`: a row command takes mandatory arguments only. A child that is an
+  instance of an abstract `Anywhere` kind floats like the kind, and the schema lists its registered subclasses;
+  `Environment.checks` takes further checks of a node.
+- `ext.table`: `Table(RowClass, rows)` for a `TableRow` writes the rows as typed nodes (the header one `Passthrough`);
+  `TM-M085` refuses `fmt=`, `totals`, `subtotal`, `group_by` and `spans` there, since the row writes its cells.
+- `run.hand_edits.read_edits(stub=)` stubs more components; it stubs `tblr`, `longtblr` and `talltblr` itself when a row is.
 - `ColourName.macro(r"\bbRowLabelColour")` (or a registered value that defines the macro): a colour read when the document is
   typeset, left out of `names` and of the plate check.
 

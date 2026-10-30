@@ -43,6 +43,7 @@ texmodel.components.Resolved: Union
 texmodel.components.Source: GenericAlias
 texmodel.components.Value(value: T) -> None
 texmodel.components.Value.declared_default(cls) -> T | None
+texmodel.components.concrete_kinds(kind: type) -> list[type]
 texmodel.components.control_name(cls: type) -> str
 texmodel.components.describe(cls: type) -> Description
 texmodel.components.field(*, renamed_from: str | None = …, doc: str | None = …, meta: Mapping[str, object] | None = …, default: Any = …) -> Any
@@ -298,7 +299,7 @@ texmodel.run.errors.CompileError(message: str, *, diagnostics: tuple[Diagnostic,
 texmodel.run.errors.ToolchainError(message: str, *, code: str = …, path: str = …, hint: str = …) -> None
 texmodel.run.fonts.embedded(log: str, cwd: pathlib.Path) -> list[pathlib.Path]
 texmodel.run.fonts.outside(log: str, allowed: Sequence[pathlib.Path], cwd: pathlib.Path) -> list[pathlib.Path]
-async texmodel.run.hand_edits.read_edits(compiler: Compiler, plan: Plan, text: str, *packages: Package, files: Mapping[str, str] | None = …, file: pathlib.Path | None = …) -> list[Edit]
+async texmodel.run.hand_edits.read_edits(compiler: Compiler, plan: Plan, text: str, *packages: Package, files: Mapping[str, str] | None = …, file: pathlib.Path | None = …, stub: Sequence[Component] = …) -> list[Edit]
 texmodel.run.result.CompileResult(*, pdf: pathlib.Path | None, log: pathlib.Path | None, passes: int, pages: int | None, diagnostics: tuple[Diagnostic, ...], seconds: float, engine: str, engine_version: str, latexmk_version: str, image: str | None = …, image_digest: str | None = …, image_revision: str | None = …) -> None
 texmodel.run.result.CompileResult.errors: property
 texmodel.run.result.CompileResult.from_dict(cls, data: dict[str, Any], **override: Any) -> Self
