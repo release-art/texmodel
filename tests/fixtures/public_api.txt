@@ -190,13 +190,14 @@ texmodel.package.Package.visible: property
 texmodel.package.declared(text: str) -> frozenset[str]
 texmodel.package.generator_version() -> str
 texmodel.package.setting_line(value: AnyValue) -> str
-texmodel.plan.Edit(path: str, expected: str, found: str, kind: EditKind, fields: tuple[FieldEdit, ...] = …) -> None
+texmodel.plan.BEGIN_DOCUMENT: Line
+texmodel.plan.Edit(path: str, expected: str, found: str, kind: EditKind, fields: tuple[FieldEdit, ...] = …, line: int | None = …, file: pathlib.Path | None = …, plan_line: int | None = …) -> None
 texmodel.plan.Edit.data_path: property
 texmodel.plan.EditKind(*values)
 texmodel.plan.FieldEdit(arg: str, found: str, value: object = …, violation: Violation | None = …) -> None
 texmodel.plan.Line(path: str, tex: str, spans: tuple[Span, ...] = …) -> None
 texmodel.plan.Plan(lines: tuple[Line, ...]) -> None
-texmodel.plan.Plan.edits(self, text: str, *, ignore_comments: bool = …) -> list[Edit]
+texmodel.plan.Plan.edits(self, text: str, *, ignore_comments: bool = …, file: pathlib.Path | None = …) -> list[Edit]
 texmodel.plan.Plan.from_json(cls, text: str) -> Plan
 texmodel.plan.Plan.path_of(self, number: int) -> str
 texmodel.plan.Plan.text: property
@@ -223,7 +224,7 @@ texmodel.preamble.RequireMetadata(**entries: str) -> None
 texmodel.preamble.RequireMetadata.raw(self) -> Raw
 texmodel.restore.Reason(*values)
 texmodel.restore.Restored(document: Document, applied: tuple[Edit, ...], unapplied: tuple[Unapplied, ...]) -> None
-texmodel.restore.Unapplied(edit: Edit, reason: Reason, violation: Violation | None = …, writes: str | None = …) -> None
+texmodel.restore.Unapplied(edit: Edit, reason: Reason, violation: Violation | None = …, writes: str | None = …, parent: str | None = …, after: str | None = …) -> None
 texmodel.restore.restore(pkg: Package, document: Document, edits: Sequence[Edit]) -> Restored
 texmodel.run.CompileResult(*, pdf: pathlib.Path | None, log: pathlib.Path | None, passes: int, pages: int | None, diagnostics: tuple[Diagnostic, ...], seconds: float, engine: str, engine_version: str, latexmk_version: str, image: str | None = …, image_digest: str | None = …, image_revision: str | None = …) -> None
 texmodel.run.Compiler(*, engine: Engine = …, image: str | None = …, roots: tuple[pathlib.Path, ...] = …, font_dirs: tuple[pathlib.Path, ...] = …, halt_on_error: bool = …, font_cache: pathlib.Path | None = …, max_passes: int = …, epoch: int | None = …, measures: tuple[Measure, ...] = …, timeout: float = …) -> None
@@ -271,7 +272,7 @@ texmodel.run.errors.CompileError(message: str, *, diagnostics: tuple[Diagnostic,
 texmodel.run.errors.ToolchainError(message: str, *, code: str = …, path: str = …, hint: str = …) -> None
 texmodel.run.fonts.embedded(log: str, cwd: pathlib.Path) -> list[pathlib.Path]
 texmodel.run.fonts.outside(log: str, allowed: Sequence[pathlib.Path], cwd: pathlib.Path) -> list[pathlib.Path]
-async texmodel.run.hand_edits.read_edits(compiler: Compiler, plan: Plan, text: str, *packages: Package, files: Mapping[str, str] | None = …) -> list[Edit]
+async texmodel.run.hand_edits.read_edits(compiler: Compiler, plan: Plan, text: str, *packages: Package, files: Mapping[str, str] | None = …, file: pathlib.Path | None = …) -> list[Edit]
 texmodel.run.result.CompileResult(*, pdf: pathlib.Path | None, log: pathlib.Path | None, passes: int, pages: int | None, diagnostics: tuple[Diagnostic, ...], seconds: float, engine: str, engine_version: str, latexmk_version: str, image: str | None = …, image_digest: str | None = …, image_revision: str | None = …) -> None
 texmodel.run.result.CompileResult.errors: property
 texmodel.run.result.CompileResult.from_dict(cls, data: dict[str, Any], **override: Any) -> Self

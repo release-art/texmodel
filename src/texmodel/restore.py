@@ -25,7 +25,7 @@ from .body import Comment
 from .components import Command, Environment, Node
 from .document import Document
 from .errors import DeclarationError, Violation
-from .plan import Edit, EditKind, Plan, data_path
+from .plan import BEGIN_DOCUMENT, Edit, EditKind, Plan, data_path
 
 if TYPE_CHECKING:
     from .package import Package
@@ -54,6 +54,10 @@ class Unapplied:
     reason: Reason
     violation: Violation | None = None  # what the check below said: `TM-C021`, the grammar's rule
     writes: str | None = None  # for `MISMATCH`: the line the restored data writes instead
+    # for `ADDED_LINE`: the plan path of the node the line stands in (`""`: the document) and of the child it follows
+    # (`None`: it is the first); both `None` for a line outside the content
+    parent: str | None = None
+    after: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -86,23 +90,40 @@ def _node_at(document: Document, where: pathlib.PurePosixPath | None) -> Node | 
 
 
 def _lines_of(plan: Plan, edits: Sequence[Edit]) -> list[int | None]:
-    """The plan line each edit stands for (`None` for an added line), or a refusal of edits of another plan."""
-    free: dict[tuple[str, str], list[int]] = {}
-    for i, line in enumerate(plan.lines):
-        free.setdefault((line.path, line.tex), []).append(i)
-    paths = {line.path for line in plan.lines}
+    """The plan line each edit stands for, by its `plan_line` (`None` for an added line), or a refusal of an edit that
+    is not of this plan: its line is not there, or holds another path or text."""
     out: list[int | None] = []
     for edit in edits:
-        lines = free.get((edit.path, edit.expected), [])
-        if (edit.kind is EditKind.ADDED and edit.path not in paths) or (edit.kind is not EditKind.ADDED and not lines):
+        n = edit.plan_line
+        line = plan.lines[n - 1] if n is not None and 0 < n <= len(plan.lines) else None
+        if edit.kind is EditKind.ADDED:
+            ok = n == 0 or (line is not None and line.path == edit.path)
+        else:
+            ok = line is not None and (line.path, line.tex) == (edit.path, edit.expected)
+        if not ok:
             raise DeclarationError(
                 f"{edit.path}: {edit.expected or edit.found!r} is not a line of this document's plan",
                 code="TM-X034",
                 path=edit.path,
-                hint="restore the edits of the document they were found against",
+                hint="restore the edits found against this document's plan (`plan.edits`, `read_edits`)",
             )
-        out.append(None if edit.kind is EditKind.ADDED else lines.pop(0))
+        out.append(None if edit.kind is EditKind.ADDED or n is None else n - 1)
     return out
+
+
+def _placed(document: Document, plan: Plan, follows: int) -> tuple[str | None, str | None]:
+    """Where a line added after plan line `follows` (1-based) stands among the nodes: its parent (`""`, the document)
+    and the child it follows (`None`: first). `(None, None)` outside the content: the header, the preamble."""
+    before = plan.lines[follows - 1] if follows else None
+    if before is None or before.path == "document":
+        return ("", None) if before == BEGIN_DOCUMENT else (None, None)
+    node = _node_at(document, data_path(before.path))
+    if node is None:
+        return None, None
+    first = next(i for i, x in enumerate(plan.lines) if x.path == before.path)
+    if isinstance(node, Environment) and follows - 1 == first:  # right after its \\begin: its first child
+        return before.path, None
+    return before.path.rpartition("/")[0], before.path
 
 
 def _commented_out(edit: Edit) -> bool:
@@ -220,7 +241,8 @@ def restore(pkg: "Package", document: Document, edits: Sequence[Edit]) -> Restor
     for k, (edit, line) in enumerate(zip(edits, _lines_of(base, edits), strict=True)):
         node = _node_at(document, edit.data_path)
         if reason := _reason(edit, line, node):
-            outcome[k] = Unapplied(edit, reason)
+            where = _placed(document, base, edit.plan_line or 0) if reason is Reason.ADDED_LINE else (None, None)
+            outcome[k] = Unapplied(edit, reason, parent=where[0], after=where[1])
         elif edit.kind is EditKind.REMOVED or _commented_out(edit):
             removed[typing.cast("int", line)] = k
         elif isinstance(update := _update(typing.cast("Command | Environment", node), edit), Unapplied):

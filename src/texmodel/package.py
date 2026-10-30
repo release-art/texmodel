@@ -53,7 +53,7 @@ from .document import OPTION, Document
 from .drift import stamp
 from .errors import DeclarationError, Violation
 from .interface import XCOLOR, colour_of, constraint_of
-from .plan import Line, Plan, Span
+from .plan import BEGIN_DOCUMENT, Line, Plan, Span
 from .preamble import Entry, PdfInfo, RequireMetadata
 from .testing import Component, stub_tex
 from .types import PROCESS, Choice, Length, Raw, balanced
@@ -872,7 +872,7 @@ class Package:
                 *([] if self.builtin else [Line("document", use)]),
                 *values(),
                 *slot("after_package"),
-                Line("document", "\\begin{document}"),
+                BEGIN_DOCUMENT,
                 *(
                     line
                     for i, node in enumerate(document.content)

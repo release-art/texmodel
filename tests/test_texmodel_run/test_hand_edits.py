@@ -1,5 +1,6 @@
 """Hand edits read by TeX: the merge of calls and lines without TeX, and one compile."""
 
+import pathlib
 import re
 import typing
 
@@ -10,7 +11,7 @@ from texmodel.body import RefKind
 from texmodel.components import Command, Environment, Passthrough
 from texmodel.errors import TexmodelError
 from texmodel.package import Package
-from texmodel.plan import EditKind
+from texmodel.plan import BEGIN_DOCUMENT, EditKind
 from texmodel.run import hand_edits
 from texmodel.run.compiler import Compiler
 from texmodel.run.diagnostics import Measurement
@@ -127,6 +128,22 @@ async def test_an_added_call_belongs_to_the_call_before_it(monkeypatch):
     assert [(e.path, e.kind) for e in await read(monkeypatch, edited, got)] == [("Para[2]", EditKind.ADDED)]
     (first,) = await read(monkeypatch, PLAN.text, [extra, *BASE])  # no line shows it: kept from the probe
     assert (first.path, first.kind, first.found) == ("document", EditKind.ADDED, "hdPara{y}")
+
+
+async def test_every_edit_carries_the_file_and_a_line_edit_its_line(monkeypatch):
+    answers = iter([BASE, [Call("hdPara", ("y",)), *with_args(BASE, 0, "TT")]])
+
+    async def calls_of(*_: object) -> list[Call]:
+        return next(answers)
+
+    monkeypatch.setattr(hand_edits, "_calls", calls_of)
+    edited = PLAN.text.replace(r"\begin{hdInner}{T}", r"\begin{hdInner}{TT}")
+    deck = pathlib.Path("decks/a.tex")
+    changed, probed = await read_edits(NO_COMPILER, PLAN, edited, pkg, file=deck)
+    assert (changed.file, changed.line) == (deck, edited.splitlines().index(r"\begin{hdInner}{TT}") + 1)
+    assert (probed.kind, probed.file, probed.line) == (EditKind.ADDED, deck, None)  # only TeX saw it: no line
+    assert probed.plan_line == PLAN.lines.index(BEGIN_DOCUMENT) + 1  # before every call: it follows \begin{document}
+    assert changed.plan_line == next(i for i, x in enumerate(PLAN.lines, 1) if x.tex == r"\begin{hdInner}{T}")
 
 
 async def test_equal_calls_are_named_once_though_the_two_diffs_name_different_ones(monkeypatch):

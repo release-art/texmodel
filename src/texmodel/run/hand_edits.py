@@ -4,6 +4,7 @@ reads: the argument that changed and the typed value it now holds."""
 
 import dataclasses
 import difflib
+import pathlib
 import re
 from collections.abc import Mapping, Sequence
 from itertools import zip_longest
@@ -12,7 +13,7 @@ from texmodel.body import RefKind
 from texmodel.components import Command, Environment, control_name
 from texmodel.errors import TexmodelError
 from texmodel.package import Package
-from texmodel.plan import Edit, EditKind, FieldEdit, Line, Plan
+from texmodel.plan import BEGIN_DOCUMENT, Edit, EditKind, FieldEdit, Line, Plan
 from texmodel.testing import Call, Component, read_call, stub_tex
 
 from .compiler import Compiler
@@ -50,23 +51,25 @@ def _changed(line: Line, old: Call, new: Call, classes: Mapping[str, Component])
 type _Probed = list[tuple[Edit, tuple[RefKind, str]]]  # an edit and the kind and name of the call it is about
 
 
-def _probed(base: list[Call], got: list[Call], lines: list[Line], classes: Mapping[str, Component]) -> _Probed:
-    """What the calls say changed: `lines` are the plan lines of `base`, one each."""
+def _probed(base: list[Call], got: list[Call], plan: Plan, at: list[int], classes: Mapping[str, Component]) -> _Probed:
+    """What the calls say changed: `at` are the indices of the plan lines of `base`, one each."""
     probed: _Probed = []
     ops = difflib.SequenceMatcher(None, [_key(c) for c in base], [_key(c) for c in got], autojunk=False).get_opcodes()
     for tag, a1, a2, b1, b2 in ops:
         if tag == "equal":
             continue
         for k, (old, new) in enumerate(zip_longest(base[a1:a2], got[b1:b2])):
-            line = lines[a1 + k] if old else None
+            line = plan.lines[at[a1 + k]] if old else None
             if line and old and new:
                 edit = _changed(line, old, new, classes)
             elif line:
                 edit = Edit(line.path, line.tex, "", EditKind.REMOVED)
             else:
                 assert new is not None
-                edit = Edit(lines[a1 - 1].path if a1 else "document", "", new.probe_value(), EditKind.ADDED)
+                edit = Edit(plan.lines[at[a1 - 1]].path if a1 else "document", "", new.probe_value(), EditKind.ADDED)
             if edit and (call := old or new):
+                follows = at[a1 - 1] + 1 if a1 else plan.lines.index(BEGIN_DOCUMENT) + 1
+                edit = dataclasses.replace(edit, plan_line=at[a1 + k] + 1 if old else follows)
                 probed.append((edit, (call.kind, call.name)))
     return probed
 
@@ -99,7 +102,12 @@ def _merged(line_edits: list[Edit], probed: _Probed, is_call: re.Pattern[str]) -
 
 
 async def read_edits(
-    compiler: Compiler, plan: Plan, text: str, *packages: Package, files: Mapping[str, str] | None = None
+    compiler: Compiler,
+    plan: Plan,
+    text: str,
+    *packages: Package,
+    files: Mapping[str, str] | None = None,
+    file: pathlib.Path | None = None,
 ) -> list[Edit]:
     """What `text` changed against `plan`, read by TeX: `Plan.edits` with each `CHANGED` line's `fields` carrying the
     typed value the argument now holds (or the `Violation` saying it holds none), a line TeX reads as the plan's own
@@ -107,7 +115,8 @@ async def read_edits(
     lines do not show (`\\iffalse`, `%`).
 
     `packages` are the ones the document loads: every command and environment of them is stubbed, and their generated
-    `.sty` is written beside the document; `files` are others it loads (path -> text). The plan's own text is compiled
+    `.sty` is written beside the document; `files` are others it loads (path -> text); `file` is the file `text` was
+    read from, which every edit carries (an edit only TeX saw has no `line`). The plan's own text is compiled
     too, as the baseline. A document that does not compile raises `CompileError`, so nothing is read from a broken one.
     A stubbed macro redefined in `text` is not noticed: its calls vanish."""
     classes = {control_name(c): c for p in packages for c in p.registered if issubclass(c, Command | Environment)}
@@ -117,7 +126,8 @@ async def read_edits(
         )
     names = "|".join(sorted(map(re.escape, classes), key=len, reverse=True))
     is_call = re.compile(rf"\s*\\(?:(begin|end)\{{({names})\}}|({names})(?![A-Za-z@]))")
-    lines = [x for x in plan.lines if is_call.match(x.tex)]
+    at = [i for i, x in enumerate(plan.lines) if is_call.match(x.tex)]
+    lines = [plan.lines[i] for i in at]
     sheets = {path: tex for p in packages for path, tex in p.files().items()} | dict(files or {})
     stubs = list(classes.values())
     base = await _calls(compiler, plan.text, stubs, sheets)
@@ -127,8 +137,8 @@ async def read_edits(
             code="TM-X032",
             hint="a macro of the hand-written TeX in the plan calls a component; give a `Package` it was written with",
         )
-    probed = _probed(base, await _calls(compiler, text, stubs, sheets), lines, classes)
-    return _merged(plan.edits(text), probed, is_call)
+    probed = _probed(base, await _calls(compiler, text, stubs, sheets), plan, at, classes)
+    return [dataclasses.replace(e, file=file) for e in _merged(plan.edits(text), probed, is_call)]
 
 
 __all__ = ["read_edits"]

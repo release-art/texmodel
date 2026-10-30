@@ -121,7 +121,7 @@ in the same parent, the system finds its record without counting.
    from "nothing seen", and decides itself what `save()` overwrites. A card's id is never restored. Settings are not
    restored in the first version (layout is not edited); one more row in "What restores" when a consumer needs it.
 5. **Added lines** (decided 2026-10-29). Unapplied in the first version, `Reason.ADDED_LINE`, with the line's text and
-   where it was added (the parent's plan and data path, the line it follows); the system acts on it. The next step, once the consumer
+   where it was added (`parent`, `after`: plan paths; `data_path` of each); the system acts on it. The next step, once the consumer
    needs it, is pure: a one-line call of a known command, its arguments read by `read_call`, inserted where the grammar
    allows and checked by the gate. An added environment or card stays unapplied.
 6. **`data_path` moves from texpkg** (decided, 2026-10-29), with this item, so every edit carries both paths. A data path

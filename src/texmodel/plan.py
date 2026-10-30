@@ -23,7 +23,10 @@ _COMMENTED = re.compile(r"^\s*%?\s*")
 def data_path(path: str) -> pathlib.PurePosixPath | None:
     """Where the writer of a plan line is in the document's data (`spec.to_dict`): `Card[1]/CardBack[1]/Name[0]` is
     `/content/1/content/1/content/0`, `settings[2]` is `/settings/2`, `preamble.after_package[0]` is
-    `/preamble/after_package/0`. `None` for a line no value wrote (`header`, `document`, `options`)."""
+    `/preamble/after_package/0`, and `""` (the document) is `/`. `None` for a line no value wrote (`header`,
+    `document`, `options`)."""
+    if not path:  # the document itself: the parent of its top-level nodes
+        return pathlib.PurePosixPath("/")
     if found := _SETTING.fullmatch(path):
         return pathlib.PurePosixPath("/settings", found[1])
     if found := _ENTRY.fullmatch(path):
@@ -50,6 +53,9 @@ class Line:
     spans: tuple[Span, ...] = ()  # a command's call or an environment's begin line; empty for any other line
 
 
+BEGIN_DOCUMENT = Line("document", "\\begin{document}")  # every plan has it: the content's lines follow it
+
+
 @enum.unique
 class EditKind(enum.Enum):
     ADDED = "added"  # in the file, not in the plan
@@ -73,13 +79,19 @@ class FieldEdit:
 class Edit:
     """One difference. `kind` says which side lacks the line: a blank line has no text to tell by. `fields` are the
     arguments a `CHANGED` line changes, when every change lies inside one argument's text; else empty (the command
-    name, a delimiter or a line without spans changed: the line text says what)."""
+    name, a delimiter or a line without spans changed: the line text says what). `file` is the file the text was
+    read from, when the caller named it; `line` is where `found` is in it, 1-based (`None` for a `REMOVED` line, which
+    is not in the file, and for an edit only TeX saw). `plan_line` is the plan line it is about, 1-based: the one
+    `expected` is, or for an `ADDED` line the one it follows (0: none)."""
 
     path: str
     expected: str
     found: str
     kind: EditKind
     fields: tuple[FieldEdit, ...] = ()
+    line: int | None = None
+    file: pathlib.Path | None = None
+    plan_line: int | None = None
 
     @property
     def data_path(self) -> pathlib.PurePosixPath | None:
@@ -147,10 +159,11 @@ class Plan:
         """The path that wrote line `number` (1-based, as TeX counts), e.g. from a log's `input line 39`."""
         return self.lines[number - 1].path
 
-    def edits(self, text: str, *, ignore_comments: bool = False) -> list[Edit]:
-        """What `text` changed against this plan; each difference carries the path of the line it replaced. With
-        `ignore_comments`, a line that is a comment (starts with `%`) in both is not compared, so a changed audit block
-        is no edit; a comment turned into text, or text into a comment, still is."""
+    def edits(self, text: str, *, ignore_comments: bool = False, file: pathlib.Path | None = None) -> list[Edit]:
+        """What `text` changed against this plan; each difference carries the path of the line it replaced, the
+        number of its line in `text`, and `file`, the file `text` was read from. With `ignore_comments`, a line that
+        is a comment (starts with `%`) in both is not compared, so a changed audit block is no edit; a comment turned
+        into text, or text into a comment, still is."""
         found = text.splitlines()
         a = [_compared(x.tex, ignore_comments) for x in self.lines]
         b = [_compared(x, ignore_comments) for x in found]
@@ -164,7 +177,7 @@ class Plan:
             )
             for _, p1, p2, q1, q2 in keys.get_opcodes():
                 out += self._paired(found, a, b, (i1 + p1, i1 + p2), (j1 + q1, j1 + q2))
-        return out
+        return [dataclasses.replace(e, file=file) for e in out]
 
     def _paired(
         self, found: list[str], a: list[str], b: list[str], old: tuple[int, int], new: tuple[int, int]
@@ -176,11 +189,12 @@ class Plan:
             was = self.lines[i1 + k] if i1 + k < i2 else None
             if was and j1 + k < j2 and a[i1 + k] == b[j1 + k]:
                 continue
-            path = was.path if was else self.lines[i2 - 1].path  # an added line belongs to the line before it
+            # an added line belongs to the line before it (the first line, for a line added before any)
+            path = was.path if was else self.lines[max(i2 - 1, 0)].path
             kind = EditKind.CHANGED if was and j1 + k < j2 else EditKind.REMOVED if was else EditKind.ADDED
-            now = found[j1 + k] if j1 + k < j2 else ""
+            now, line = (found[j1 + k], j1 + k + 1) if j1 + k < j2 else ("", None)
             fields = _fields(was, now) if was and kind is EditKind.CHANGED else ()
-            out.append(Edit(path, was.tex if was else "", now, kind, fields))
+            out.append(Edit(path, was.tex if was else "", now, kind, fields, line, plan_line=i1 + k + 1 if was else i2))
         return out
 
     def to_json(self) -> str:
@@ -200,4 +214,4 @@ class Plan:
         )
 
 
-__all__ = ["Edit", "EditKind", "FieldEdit", "Line", "Plan", "Span", "data_path"]
+__all__ = ["BEGIN_DOCUMENT", "Edit", "EditKind", "FieldEdit", "Line", "Plan", "Span", "data_path"]

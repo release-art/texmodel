@@ -1,5 +1,7 @@
 """Plans (B2, D2): lines with provenance, the baseline round trip, and edits by path."""
 
+import pathlib
+
 import pytest
 
 from texmodel.components import Command, Environment, Value
@@ -80,16 +82,22 @@ def test_edits_name_changed_removed_and_added_lines():
     plan = pkg.plan(box(item(text="a"), item(text="b")))
     lines = plan.text.splitlines()
     changed = plan.text.replace(r"\smItem{a}", r"\smItem{A}")
+    at = lines.index(r"  \smItem{a}") + 1  # 1-based, as editors and TeX count; here the file's line is the plan's
+    a = (FieldEdit("text", "A"),)
     assert plan.edits(changed) == [
-        Edit("Box[0]/Item[0]", r"  \smItem{a}", r"  \smItem{A}", EditKind.CHANGED, (FieldEdit("text", "A"),))
+        Edit("Box[0]/Item[0]", r"  \smItem{a}", r"  \smItem{A}", EditKind.CHANGED, a, at, plan_line=at)
     ]
     assert plan.edits("\n".join(x for x in lines if "{b}" not in x)) == [
-        Edit("Box[0]/Item[1]", r"  \smItem{b}", "", EditKind.REMOVED)
+        Edit("Box[0]/Item[1]", r"  \smItem{b}", "", EditKind.REMOVED, plan_line=at + 1)  # not in the file: no line
     ]
     assert plan.edits(plan.text.replace(r"\end{document}", "x\n\\end{document}")) == [
-        Edit("Box[0]", "", "x", EditKind.ADDED)
+        Edit("Box[0]", "", "x", EditKind.ADDED, line=len(lines), plan_line=len(lines) - 1)  # the line it follows
     ]
+    (first,) = plan.edits("x\n" + plan.text)
+    assert (first.kind, first.path, first.plan_line) == (EditKind.ADDED, "header", 0)  # before every line
     assert plan.edits(plan.text) == []
+    (named,) = plan.edits(changed, file=pathlib.Path("cards/deck.tex"))
+    assert (named.file, named.line) == (pathlib.Path("cards/deck.tex"), at)
 
 
 def test_an_invalid_document_has_no_plan():

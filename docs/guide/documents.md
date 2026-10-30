@@ -253,6 +253,9 @@ assert plan.lines[0].path == "header"
   argument's text, empty when it is over the command name, a delimiter or several arguments. A baseline saved without
   `Line.spans` gives no fields. `texmodel.run.hand_edits.read_edits` reads the same edits with TeX, with typed values:
   [Testing](testing.md#hand-edits-read-by-tex).
+- `edit.line` is where the edit is in the file, 1-based (`None` for a removed line), and `edit.file` the file, when
+  given: `plan.edits(text, file=path)`. `edit.plan_line` is the plan's line it is about (for an added line, the one it
+  follows).
 - `edit.data_path` is where the edited node is in the document's `to_dict` data: `Card[0]/Fact[1]` is
   `PurePosixPath("/content/0/content/1")`, `settings[0]` is `/settings/0`; `None` for the header and the class line.
 - `plan.path_of(39)` names the component behind a log's `input line 39`.
@@ -262,7 +265,9 @@ assert plan.lines[0].path == "header"
 ## Restoring hand edits
 
 `restore(pkg, document, edits)` gives back the data that writes a hand-edited file: `document` is the one texmodel last
-wrote, `edits` are its plan's edits of the file (or `read_edits`'). A changed argument restores as its field's new
+wrote, exactly as `pkg.plan(document)` rendered it (everything merged in that the file shows, a profile already
+expanded), and `edits` are that plan's edits of the file (or `read_edits`'). An edit that does not match a line of that
+plan is refused (`TM-X034`). A changed argument restores as its field's new
 value; a node whose every line is deleted, or commented out as itself (`%`, then the line), is removed from its parent.
 Regenerating writes no line in its place.
 
@@ -282,5 +287,6 @@ Every edit comes back once: in `applied`, or in `unapplied` with a `Reason` (a s
 only when the document with it writes the edited line exactly. One that writes another line is `MISMATCH`, with the line
 it writes in `writes`. A removal the grammar refuses is `GRAMMAR`, with the grammar's violation. Lines that are not
 data come back as `NO_DATA_CHANGE`, `NOT_DATA`, `SETTING` or `COMMENT` (a card's id is never restored), and an added
-line as `ADDED_LINE`: the system that keeps the data decides what to do with them. Edits found against another
+line as `ADDED_LINE`, with the node it stands in (`parent`, `""` for the document) and the child it follows (`after`,
+`None` when first): the system that keeps the data decides what to do with them. Edits found against another
 document are refused (`TM-X034`).

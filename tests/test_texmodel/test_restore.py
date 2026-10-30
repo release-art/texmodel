@@ -123,6 +123,32 @@ def test_part_of_a_node_removed_is_a_partial_removal():
     assert reasons(edited) == [("Card[1]/CardBack[1]", Reason.PARTIAL_REMOVAL)]
 
 
+CARD_BACK = "  \\begin{cdCardBack}"
+
+
+@pytest.mark.parametrize(
+    ("before", "parent", "after"),
+    [
+        (FOX_FACT, "Card[1]/CardBack[1]", "Card[1]/CardBack[1]/LeadFact[2]"),  # among the children
+        (CARD_BACK, "Card[1]/CardBack[1]", None),  # right after a \begin: the first child
+        ("\\end{cdCard}", "", "Card[1]"),  # after a card: at the top level
+        ("\\begin{document}", "", None),
+        ("%   id: 11111111-aaaa", "", "CardHeader[0]"),
+        ("\\documentclass{article}", None, None),  # outside the content
+        ("\\def\\deckBeforeClass{yes}", None, None),  # after a preamble entry
+    ],
+)
+def test_an_added_line_says_the_node_it_stands_in_and_the_child_it_follows(before, parent, after):
+    edited = TEXT.replace(before + "\n", before + "\n    \\cdLeadFact{New.}\n", 1)
+    (added,) = restored(edited).unapplied
+    assert (added.reason, added.parent, added.after) == (Reason.ADDED_LINE, parent, after)
+
+
+def test_a_line_added_before_every_line_is_outside_the_content():
+    (added,) = restored("% a note\n" + TEXT).unapplied
+    assert (added.reason, added.parent, added.after) == (Reason.ADDED_LINE, None, None)
+
+
 def test_a_mismatch_says_what_the_restored_data_writes():
     (mismatch,) = restored(TEXT.replace(FOX_FACT, FOX_FACT.replace("help it", "help  it"))).unapplied
     assert mismatch.writes == FOX_FACT
@@ -136,8 +162,8 @@ def test_one_edit_that_does_not_restore_holds_back_no_other():
 
 
 def test_unread_edits_have_no_data_change_and_every_edit_comes_back_in_the_order_given():
-    line = next(x for x in PLAN.lines if x.tex == FOX_WHERE)
-    unread = Edit(line.path, line.tex, line.tex + " % a note", EditKind.UNREAD)
+    n = next(i for i, x in enumerate(PLAN.lines, 1) if x.tex == FOX_WHERE)
+    unread = Edit(PLAN.lines[n - 1].path, FOX_WHERE, FOX_WHERE + " % a note", EditKind.UNREAD, plan_line=n)
     changed = PLAN.edits(TEXT.replace(FOX_FACT, FOX_FACT.replace("dark", "night")))
     found = restore(model.pkg, DECK, [unread, *changed])
     assert [u.reason for u in found.unapplied] == [Reason.NO_DATA_CHANGE] and list(found.applied) == changed
@@ -151,9 +177,11 @@ def test_a_value_read_by_tex_that_failed_comes_back_with_its_violation():
 
 
 def test_edits_of_another_document_are_refused():
-    other = Edit("Card[1]/CardBack[1]/Name[0]", r"    \cdName{Grey Fox}", r"    \cdName{Fox}", EditKind.CHANGED)
-    added = Edit("Card[9]", "", r"\cdName{Fox}", EditKind.ADDED)
-    for edit in (other, added):
+    (name,) = PLAN.edits(TEXT.replace(r"\cdName{Red Fox}", r"\cdName{Fox}"))
+    other = dataclasses.replace(name, expected=r"    \cdName{Grey Fox}")  # another document wrote another line there
+    unplaced = dataclasses.replace(name, plan_line=None)  # not found against a plan
+    added = Edit("Card[9]", "", r"\cdName{Fox}", EditKind.ADDED, plan_line=3)
+    for edit in (other, unplaced, added, dataclasses.replace(name, plan_line=len(PLAN.lines) + 1)):
         with pytest.raises(DeclarationError) as raised:
             restore(model.pkg, DECK, [edit])
         assert raised.value.code == "TM-X034"
@@ -192,10 +220,10 @@ def test_a_field_whose_type_is_not_read_back_from_text_is_unreadable():
 def test_an_optional_argument_left_out_restores_as_its_default():
     document = Document(Note(text="n", label="L"))
     plan = small.plan(document)
-    line = next(x for x in plan.lines if x.path == "Note[0]")
+    n = next(i for i, x in enumerate(plan.lines, 1) if x.path == "Note[0]")
     plain = Note(text="n").render()
     # as `read_edits` reports it: TeX sees the optional argument empty
-    edit = Edit("Note[0]", line.tex, plain, EditKind.CHANGED, (FieldEdit("label", ""),))
+    edit = Edit("Note[0]", plan.lines[n - 1].tex, plain, EditKind.CHANGED, (FieldEdit("label", ""),), plan_line=n)
     found = restore(small, document, [edit])
     assert found.applied == (edit,) and data(found.document)["content"][0] == {
         "type": "Note",
@@ -218,6 +246,7 @@ def test_a_plan_path_has_the_data_path_of_its_writer():
     assert data_path("settings[2]") == pathlib.PurePosixPath("/settings/2")
     assert data_path("preamble.after_package[0]") == pathlib.PurePosixPath("/preamble/after_package/0")
     assert data_path("header") is None and data_path("document") is None
+    assert data_path("") == pathlib.PurePosixPath("/")  # the document: the parent of its top-level nodes
 
 
 WORDS = st.text(alphabet=string.ascii_letters + string.digits + "&%$#_.,'", min_size=1, max_size=8)

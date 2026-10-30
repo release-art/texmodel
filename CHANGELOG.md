@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   node deleted, or commented out as itself, is removed when its parent's grammar allows. Each edit is applied only when
   the document with it writes the edited line exactly; every other comes back in `unapplied` with a `Reason`, one
   registry of stable `TM-R001`-`TM-R011` codes. Edits of another document are refused (`TM-X034`).
+- `Edit.line` (1-based, in the edited file; `None` for a removed line or an edit only TeX saw) and `Edit.file`, given as
+  `Plan.edits(text, file=path)` or `read_edits(..., file=path)`; `Edit.plan_line`, the plan line an edit is about (for
+  an added line, the one it follows), which `restore` reads instead of matching text.
+- An added line's `Unapplied` names the node it stands in (`parent`) and the child it follows (`after`).
+- `plan.BEGIN_DOCUMENT`, the plan's `\begin{document}` line.
 - `plan.data_path(path)` and `Edit.data_path`: where a plan line's writer is in the document's `to_dict` data, a
   `PurePosixPath` (`/content/1/content/0`, `/settings/2`, `/preamble/after_package/0`).
 
