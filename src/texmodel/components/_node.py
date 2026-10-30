@@ -1,82 +1,4 @@
-r"""Components (M1): a `Command` is declared as a class; its fields are its arguments, its docstring its documentation.
-
-```python
-pkg = Package("acme-cards", prefix="ac")
-
-@pkg.command
-class Slot(Command):
-    '''A labelled paragraph; the label prints as its heading.'''
-    text: Text
-    label: Text | None = None      # optional: keyword-only, rendered as TeX's one optional argument
-```
-
-An optional field's `Text`, `Raw`, number, flag or `Choice` default is TeX's too: `label: Text | None = "Note"` is
-`\newcommand{\acSlot}[2][Note]{...}`; with no default it is `[]`.
-
-`field(doc=..., meta={...})` and a class-level `meta = {...}` put a description and `x-` keys in the JSON Schema.
-
-A `Value[T]` is a typed setting; its `default` is an instance of `T` and its type decides the TeX (M1a, T4, T5):
-
-```python
-@pkg.value
-class FactGap(Value[Length]):
-    '''Space under each fact.'''
-    default = Length("2mm")
-```
-
-A `Value[Length]` may leave `default` out (a bare `\newlength`, set later); a `Value[Colour]` may rename itself
-(`colour_name = "acInk"`). A package adds its own kinds with a `ValueKind` (`texmodel.types`): what it holds, the names
-it claims, the TeX that declares and sets it, the packages it needs (a name, or a `Package` of this project). `Toggle`
-in `texmodel.std.etoolbox` is one, built from etoolbox's own bindings:
-
-```python
-@pkg.value
-class Draft(Value[Toggle]):
-    '''Print the draft banner.'''
-    default = False          # \newtoggle{acDraft} \togglefalse{acDraft}
-```
-
-An `Environment` also holds children, whose order and counts are its grammar (M4); a Doc is plain Python (D1):
-
-```python
-@pkg.environment
-class CardBack(Environment):
-    '''The back face of a card.'''
-    children = [Name, Fact.times(2, 3), Slot.times(3)]     # Name: one; Fact: 2 to 3; Slot: 0 to 3
-    # also `X.times.any()` (0 or more) and `X.times.at_least_one()` (1 or more)
-    begin = r'\begin{minipage}{\linewidth}'
-    end = r'\end{minipage}'
-
-pkg.document(CardBack(Name(text="Rex"), Fact(text="Friendly & loyal."), Fact(text="50% of $5")))
-```
-
-`Text` fields are escaped on render (T3); a `Raw` field passes TeX through.
-
-A body is TeX, given explicitly: a `body` method returning it (a plain `body = r"..."` string works too), or a
-`TemplateRef` to a file. Indentation is removed, so a triple-quoted raw string reads as it will render:
-
-```python
-class Title(Command):
-    '''A job title.'''
-    text: Text
-
-    def body(self):
-        return r'''
-            \par\noindent{\color{bc-accent}#text}\par
-        '''
-
-class Slot(Command):
-    '''A labelled paragraph.'''
-    text: Text
-
-    def body(self):
-        return TemplateRef("slot.tex")      # relative to this module; nothing is looked up by name
-```
-
-An environment has `begin` and `end` in the same way. The method is read once, when the class is defined, with no
-instance: keep it to constant TeX. Inside a body `#text` is the argument named `text`. A bad declaration is refused when
-the class is defined.
-"""
+"""Commands, environments and the metaclass that builds a node."""
 
 import annotationlib
 import dataclasses
@@ -87,33 +9,23 @@ from collections.abc import (
     Callable,
     Mapping,
     Sequence,
-    Set as AbstractSet,
 )
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, dataclass_transform, overload
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, dataclass_transform
 
 import pydantic
 from pydantic.fields import FieldInfo
 from pydantic_core import CoreSchema, core_schema
 
-from ._internal.bodies import body_of
-from ._internal.emit import NodeKind, emit
-from ._internal.fields import FieldNotes, field_info
-from ._internal.pieces import pieces_of, template_text
-from ._internal.render import (
-    BOOL,
-    COLOUR,
-    LENGTH,
-    RAW_KIND,
-    TEXT_KIND,
+from .._internal.bodies import body_of
+from .._internal.emit import NodeKind
+from .._internal.fields import FieldNotes, field_info
+from .._internal.pieces import pieces_of, template_text
+from .._internal.render import (
     Arg,
-    argument_violations,
-    check_name,
     tex_arguments,
-    written,
 )
-from ._internal.specs import control_name, env_spec_of, spec_of
-from ._internal.values import plates_outside, value_ok
-from .body import (
+from .._internal.values import value_ok
+from ..body import (
     Comment,
     Cs,
     Group,
@@ -127,92 +39,30 @@ from .body import (
     TemplateRef,
     TexRaw,
 )
-from .errors import DeclarationError, Violation
-from .interface import (
+from ..errors import DeclarationError, Violation
+from ..interface import (
     BRACE,
     RAW_BODY,
     SQUARE,
     ArgOptions,
     BodyKind,
-    ColourName,
     Gap,
     arg,
 )
-from .types import TEXT, Choice, Colour, Length, Plate, Raw, ValueKind
+from ..types import Choice, Raw
 
 if TYPE_CHECKING:
-    from .package import Package
+    from ..package import Package
+
+from ._terms import Anywhere, Repeat, Times
+from ._values import colour_named, document_of
+from ._violations import render_of, violations_of
 
 type Node = Command | Environment | Passthrough | Comment
 
 
-def _colour_named(value: object) -> object:
-    """A colour value class as its xcolor name (`ColourName(Ink)`); anything else as it is."""
-    return ColourName(value) if isinstance(value, type) else value
-
-
-if TYPE_CHECKING:  # a type checker sees the class too; at run time the field holds the name
-    type ColourRef = ColourName | type[Value[Any]]
-else:
-    ColourRef = Annotated[ColourName, pydantic.BeforeValidator(_colour_named)]
-"""A colour argument: a `ColourName`, or a registered colour value (`bg=Ink`), which is stored as its name."""
 Resolved = TexRaw | Ref | Comment | Group | Seq | Cs | Lit | Hole
 Source = tuple[tuple[Resolved, ...], str]  # a body's pieces and where they came from
-
-
-@dataclasses.dataclass(frozen=True)
-class Repeat:
-    """How many of one component a grammar allows in a row (M4): `Fact.times(2, 3)`; a bare `Name` is exactly one."""
-
-    kind: type
-    lo: int
-    hi: int | None
-
-    def __str__(self) -> str:
-        return f"{self.lo}-{'any' if self.hi is None else self.hi} {self.kind.__name__}"
-
-
-@dataclasses.dataclass(frozen=True)
-class Anywhere:
-    """A grammar term (B3): zero or more `kind` between any two other terms and at both ends, in any number of
-    places: `children = [Name, Anywhere(Heading), Fact.times(2, 3)]`. The kind may not also be an ordered term."""
-
-    kind: type
-
-    def __str__(self) -> str:
-        return f"{self.kind.__name__} anywhere"
-
-
-class _Times:
-    """`Fact.times(2, 3)`, `Fact.times(3)` (0 to 3), `Fact.times(2, None)` (2 or more), `.any()`, `.at_least_one()`."""
-
-    def __init__(self, kind: type) -> None:
-        self.kind = kind
-
-    @overload
-    def __call__(self, to: int | None, /) -> Repeat: ...
-    @overload
-    def __call__(self, from_: int, to: int | None, /) -> Repeat: ...
-    def __call__(self, *bounds: int | None) -> Repeat:
-        """`times(to)` allows 0 to `to`; `times(from_, to)` allows `from_` to `to`; `to=None` has no upper limit."""
-        lo, hi = (0, bounds[0]) if len(bounds) == 1 else bounds if len(bounds) == 2 else (None, None)
-        # `type(...) is int` also turns away floats and bools, which slip past the annotations at runtime.
-        if type(lo) is not int or lo < 0 or not (hi is None or type(hi) is int and hi >= max(lo, 1)):
-            raise DeclarationError(
-                f"{self.kind.__name__}.times{bounds}: use (to) or (from, to), ints with 0 <= from <= to and 1 <= to; "
-                "to=None means no limit",
-                code="TM-M020",
-                path=self.kind.__name__,
-            )
-        return Repeat(self.kind, lo, hi)
-
-    def any(self) -> Repeat:
-        """Zero or more."""
-        return Repeat(self.kind, 0, None)
-
-    def at_least_one(self) -> Repeat:
-        """One or more."""
-        return Repeat(self.kind, 1, None)
 
 
 class _Meta(type(pydantic.BaseModel)):
@@ -234,8 +84,8 @@ class _Meta(type(pydantic.BaseModel)):
         return super().__new__(mcs, name, bases, namespace, **kwargs)
 
     @property
-    def times(cls) -> _Times:
-        return _Times(cls)
+    def times(cls) -> Times:
+        return Times(cls)
 
     def __call__(cls, *positional: object, **given: object):  # noqa: ANN204  # unannotated: a type checker reads __init__
         """The node, not validated (`violations()` checks it, E2); `model_fields_set` is what was passed."""
@@ -270,17 +120,8 @@ class _Meta(type(pydantic.BaseModel)):
             raise TypeError(f"{cls.__name__}() missing arguments {missing}")
         for a in node.__tm_args__:  # a colour value class given for a colour name is that name
             if a.body.kind is BodyKind.COLOUR_NAME and a.name in given:
-                given[a.name] = _colour_named(given[a.name])
+                given[a.name] = colour_named(given[a.name])
         return node.model_construct(set(given), **given)
-
-
-def _document(cls: type) -> str:
-    """The docstring of a component, which must be documented and named as a TeX control word would be."""
-    check_name(cls.__name__, "component")
-    doc = (cls.__dict__.get("__doc__") or "").strip()
-    if not doc:
-        raise DeclarationError(f"{cls.__qualname__}: document the component in its docstring", code="TM-M002")
-    return doc
 
 
 def _source(cls: type, name: str) -> Source | None:
@@ -391,12 +232,12 @@ class _Node(pydantic.BaseModel, metaclass=_Meta):
     def violations(self) -> list[Violation]:
         """Every broken rule at once (E2), with its path into the tree: argument types and, for an environment, the
         children against the grammar (M4)."""
-        return _violations(self, type(self).__name__)  # pyright: ignore[reportArgumentType]
+        return violations_of(self, type(self).__name__)  # pyright: ignore[reportArgumentType]
 
     def render(self) -> str:
         """The TeX for this node (`\\acFact{...}`, or `\\begin{acCardBack}` ... `\\end{acCardBack}`): pure and
         deterministic (D2). Raises an `ExceptionGroup` if the node is invalid."""
-        return _render(self)  # pyright: ignore[reportArgumentType]
+        return render_of(self)  # pyright: ignore[reportArgumentType]
 
 
 def _build(cls: type[_Node], unused: Sequence[str], *, abstract: bool, kw_only: bool | None) -> None:
@@ -404,7 +245,7 @@ def _build(cls: type[_Node], unused: Sequence[str], *, abstract: bool, kw_only: 
     and no docstring: it is never registered."""
     cls.__tm_abstract__ = abstract
     cls.__tm_kw_only__ = cls.__tm_kw_only__ if kw_only is None else kw_only
-    cls.__tm_doc__ = doc = "" if abstract else _document(cls)
+    cls.__tm_doc__ = doc = "" if abstract else document_of(cls)
     cls.__tm_unused__ = tuple(unused)
     if "cs" in cls.__dict__:
         Cs(cls.__dict__["cs"], cls.syntax)  # a control word of the class's syntax (TM-M027)
@@ -732,343 +573,3 @@ def _choice(cls: type, field: str, kind: type[Choice]) -> type[Choice]:
             hint="give each member its TeX as a Raw (passes through) or a str (escaped)",
         )
     return kind
-
-
-def _violations(node: Command | Environment | Passthrough, path: str) -> list[Violation]:
-    cls = type(node)
-    out: list[Violation] = []
-    for a in cls.__tm_args__:
-        if why := argument_violations(a, getattr(node, a.name)):
-            out.append(Violation("TM-C003", f"{path}.{a.name}", f"{a.name}: {why}"))
-    out += _slot_violations(node, path)
-    out += _colour_violations(node, path)
-    if isinstance(node, Environment):
-        out += _grammar_violations(node, path)
-        for check in type(node).checks:
-            out += check(node, path)
-        for i, child in enumerate(node.content):
-            if isinstance(child, Command | Environment | Passthrough):  # pyright: ignore[reportUnnecessaryIsInstance]
-                out += _violations(child, f"{path}/{type(child).__name__}[{i}]")
-    return out
-
-
-def _plates_shown(plates: AbstractSet[str]) -> str:
-    """`CMYK`, `K`, `Scodix`: the process plates in press order, then the spots."""
-    return "+".join([*(p for p in Plate if p in plates), *sorted(plates - set(Plate))]) if plates else "none"
-
-
-def _colour_violations(node: Command | Environment | Passthrough, path: str) -> list[Violation]:
-    """A colour argument names colours its package declares (`TM-C022`) and mixes only colours that ink the same plates
-    (`TM-C024`); an expression that is not `name!50!name` is `TM-C023`. A node outside a package is not checked."""
-    package = typing.cast("Package | None", getattr(type(node), "__tm_package__", None))
-    if package is None:
-        return []
-    known = package.colour_constraints()
-    out: list[Violation] = []
-    for a in type(node).__tm_args__:
-        value = getattr(node, a.name)
-        if a.body.kind is not BodyKind.COLOUR_NAME or not isinstance(value, str) or value == "":
-            continue
-        where = f"{path}.{a.name}"
-        try:
-            names = ColourName(value).names
-        except DeclarationError as exc:
-            out.append(Violation("TM-C023", where, str(exc), hint="name, name!50 or name!50!name"))
-            continue
-        out += [
-            Violation(
-                "TM-C022",
-                where,
-                f"{a.name}: colour {n!r} is not declared by package {package.name}",
-                hint="declare a colour value, define it in a library, or use an xcolor base name",
-            )
-            for n in names
-            if n not in known
-        ]
-        mixed = {n: known[n] for n in dict.fromkeys(names) if known.get(n) is not None}
-        if len({known[n] for n in mixed}) > 1:
-            shown = ", ".join(f"{n} {_plates_shown(mixed[n] or frozenset())}" for n in mixed)
-            out.append(
-                Violation(
-                    "TM-C024",
-                    where,
-                    f"{a.name}: {value!r} mixes colours that ink different plates ({shown})",
-                    hint="both ends of a mix may ink the same plates and no others",
-                )
-            )
-    return out
-
-
-def _slot_violations(node: Command | Environment | Passthrough, path: str) -> list[Violation]:
-    """Slots that are written together or not at all (`TM-C004`), and a skipped slot that is refused (`TM-C005`)."""
-    out: list[Violation] = []
-    ordered = tex_arguments(type(node).__tm_args__)
-    shown = [written(a, getattr(node, a.name)) for a in ordered]
-    for group in dict.fromkeys(a.group for a in ordered if a.group is not None):
-        members = [(a, s) for a, s in zip(ordered, shown, strict=True) if a.group is group]
-        if 0 < sum(s for _, s in members) < len(members):
-            unset = [a.name for a, s in members if not s]
-            out.append(
-                Violation(
-                    "TM-C004", path, f"group {group.name!r}: {unset} not set, the others are", hint="set all or none"
-                )
-            )
-    for i, a in enumerate(ordered):
-        if (
-            not shown[i]
-            and a.optional
-            and not a.token
-            and a.fill is Gap.REFUSE
-            and any(s and b.optional and not b.token for s, b in zip(shown[i + 1 :], ordered[i + 1 :], strict=True))
-        ):
-            out.append(
-                Violation("TM-C005", f"{path}.{a.name}", f"{a.name} is left out but a later optional argument is set")
-            )
-    return out
-
-
-def _grammar_violations(node: Environment, path: str) -> list[Violation]:
-    """Match the children against the grammar: each term takes its run of that component, in order. A `Comment` and
-    a child of an `Anywhere` kind are skipped (B3), and every path keeps the child's real position."""
-    grammar = type(node).__tm_grammar__
-    floating = {t.kind for t in grammar if isinstance(t, Anywhere)}
-    ordered = [t for t in grammar if isinstance(t, Repeat)]
-    abstract = tuple(k for k in floating if getattr(k, "__tm_abstract__", False))
-    content = [
-        (j, c)
-        for j, c in enumerate(node.content)
-        if not isinstance(c, Comment) and type(c) not in floating and not isinstance(c, abstract)
-    ]
-    allowed = ", ".join(map(str, grammar)) or "nothing"
-    out: list[Violation] = []
-    i = 0
-    for term in ordered:
-        n = 0
-        while i < len(content) and (term.hi is None or n < term.hi) and type(content[i][1]) is term.kind:
-            i, n = i + 1, n + 1
-        if n < term.lo:
-            out.append(
-                Violation(
-                    "TM-C002", path, f"{type(node).__name__}: expected {term}, found {n}", hint=f"allowed: {allowed}"
-                )
-            )
-    for j, child in content[i:]:
-        found = type(child).__name__
-        out.append(
-            Violation(
-                "TM-C001",
-                f"{path}/{found}[{j}]",
-                f"{type(node).__name__}: {found} is not allowed here",
-                hint=f"allowed, in order: {allowed}",
-            )
-        )
-    return out
-
-
-def _render(node: Command | Environment | Passthrough) -> str:
-    if violations := _violations(node, type(node).__name__):
-        raise ExceptionGroup(f"invalid {type(node).__name__}", [v.error() for v in violations])
-    return emit(node)
-
-
-_KINDS: dict[object, ValueKind] = {Length: LENGTH, Colour: COLOUR, bool: BOOL, str: TEXT_KIND, Raw: RAW_KIND}
-
-
-def _check_plates(cls: "type[Value[Any]]", kind: ValueKind, default: object) -> None:
-    """A colour value's `plates`: only a colour has them, and its default stays inside them (`TM-M069`, `TM-M070`)."""
-    if (declared := cls.__dict__.get("plates")) is None:
-        return
-    if not kind.named:
-        raise DeclarationError(
-            f"{cls.__qualname__}: plates belongs to a colour value", code="TM-M069", path=cls.__name__
-        )
-    cls.plates = frozenset(declared)
-    if default is not None and (why := plates_outside(cls.plates, default)):
-        raise DeclarationError(f"{cls.__qualname__}: the default {why}", code="TM-M070", path=cls.__name__)
-
-
-class Value[T]:
-    """A typed setting: `\\newlength`, `\\definecolor`, `\\newif`, `\\newcommand` or a package's own (`Toggle`), chosen
-    by `T`; `default` is an instance of `T`. A `Value[Text]` of an adopted package may leave `default` out: the
-    hand-written package has it; so may a `Value[Length]` the package computes later. `colour_name` renames a colour."""
-
-    default: T  # not ClassVar[T]: pyright refuses type variables in ClassVar; subclasses assign it in the class body
-    needs_packages: ClassVar[tuple["str | Package", ...]] = ()  # data, not mutation: the package takes the union (M14)
-    colour_name: ClassVar[str | None] = None  # a `Value[Colour]`'s name when it is not `<prefix>-<kebab>` (`"acInk"`)
-    xcolor_name: ClassVar[
-        ColourName
-    ]  # a colour's resolved xcolor name, once registered: `colour_name` or `<prefix>-<kebab>`
-    cs: ClassVar[str | None] = None  # the whole control sequence, when it is not prefix + class name (`"acshowcrop"`)
-    defined_by: ClassVar[Library | None] = None  # the library block that defines it, so it renders no definition
-    plates: ClassVar[AbstractSet[str] | None] = None  # a colour's plates: the set it may ink, `{Plate.K}` is K-only
-    meta: ClassVar[Mapping[str, object]] = {}  # the schema's `x-` keys on this value
-    __tm_doc__: ClassVar[str]
-    __tm_kind__: ClassVar[ValueKind]
-    __tm_prefix__: ClassVar[str]
-    __tm_cs__: ClassVar[str]  # the control sequence, once registered (not for a colour); see `control_name`
-
-    @classmethod
-    def declared_default(cls) -> T | None:
-        """The class's `default` (None when it has none): reading `default` through a class is ambiguous to a type
-        checker, this is not."""
-        return getattr(cls, "default", None)
-
-    def __init__(self, value: T) -> None:
-        """A document's setting for this value (D1a): `FactGap(Length("3mm"))`, checked against the declared type."""
-        if not isinstance(value, kind := type(self).__tm_kind__.python):
-            raise DeclarationError(f"{type(self).__name__}({value!r}): expected a {kind}", code="TM-M014")
-        if why := plates_outside(type(self).plates, value):
-            raise DeclarationError(f"{type(self).__name__}: {value!r} {why}", code="TM-M070")
-        self.value = value
-
-    def __repr__(self) -> str:
-        return f"{type(self).__name__}({self.value!r})"
-
-    def __init_subclass__(cls, **kwargs: Any) -> None:
-        super().__init_subclass__(**kwargs)
-        doc = _document(cls)
-        arg = next(
-            (typing.get_args(b)[0] for b in cls.__dict__.get("__orig_bases__", ()) if typing.get_origin(b) is Value),
-            None,
-        )
-        marks = typing.get_args(arg)[1:] if typing.get_origin(arg) is typing.Annotated else ()
-        kind = next((m for m in marks if isinstance(m, ValueKind)), TEXT_KIND if TEXT in marks else _KINDS.get(arg))
-        if kind is None:
-            raise DeclarationError(
-                f"{cls.__qualname__}: base must be Value of Length, Colour, Bool, Text or Raw, or of a package's own "
-                f"kind (etoolbox's Toggle), not {arg!r}",
-                code="TM-M012",
-                path=cls.__name__,
-            )
-        defined = cls.defined_by is not None
-        if "default" not in cls.__dict__ and not kind.may_omit and not defined:
-            raise DeclarationError(f"{cls.__qualname__}: no default", code="TM-M013", path=cls.__name__)
-        if defined and "default" in cls.__dict__:
-            raise DeclarationError(
-                f"{cls.__qualname__}: has a default, but a library block defines it",
-                code="TM-M032",
-                path=cls.__name__,
-                hint="remove the default: the block is the definition",
-            )
-        if "cs" in cls.__dict__:
-            if kind.named:
-                raise DeclarationError(
-                    f"{cls.__qualname__}: a colour is named with colour_name, not cs", code="TM-M012", path=cls.__name__
-                )
-            Cs(cls.__dict__["cs"], Syntax.LATEX2E)  # a control word (TM-M027)
-        if cls.colour_name is not None and not kind.named:
-            raise DeclarationError(
-                f"{cls.__qualname__}: colour_name belongs to a Value[Colour]", code="TM-M012", path=cls.__name__
-            )
-        default = cls.__dict__.get("default")
-        if default is not None and not isinstance(default, kind.python):
-            raise DeclarationError(
-                f"{cls.__qualname__}: default {default!r} is not a {kind.name}", code="TM-M014", path=cls.__name__
-            )
-        _check_plates(cls, kind, default)
-        cls.__tm_doc__, cls.__tm_kind__ = doc, kind
-        cls.needs_packages = tuple(
-            sorted({*cls.needs_packages, *kind.needs}, key=lambda p: p if isinstance(p, str) else p.name)
-        )
-
-
-type AnyValue = Value[Any]  # the kind, not the type, decides what `T` may be: a package adds its own (`Dual`)
-
-
-@dataclasses.dataclass(frozen=True)
-class ArgumentInfo:
-    """One argument of a registered command or environment."""
-
-    name: str = dataclasses.field(metadata={"doc": "the field's name"})
-    optional: bool = dataclasses.field(metadata={"doc": "it may be left out"})
-    doc: str | None = dataclasses.field(metadata={"doc": "its `field(doc=)`, if it has one"})
-
-
-@dataclasses.dataclass(frozen=True)
-class Description:
-    """What `describe` reports about a registered component or value."""
-
-    category: Literal["command", "environment", "value"] = dataclasses.field(metadata={"doc": "what it is"})
-    name: str = dataclasses.field(metadata={"doc": "the class name"})
-    cs: str | None = dataclasses.field(
-        metadata={"doc": "the control sequence without the backslash; None for a colour"}
-    )
-    doc: str = dataclasses.field(metadata={"doc": "the class's docstring"})
-    arguments: tuple[ArgumentInfo, ...] = dataclasses.field(metadata={"doc": "in TeX order; empty for a value"})
-    python: object | None = dataclasses.field(
-        metadata={"doc": "a value's Python type (bool, Length, str, Raw, Colour); None otherwise"}
-    )
-    default: object | None = dataclasses.field(metadata={"doc": "a value's default; None otherwise"})
-    colour_name: str | None = dataclasses.field(metadata={"doc": "a colour's name; None otherwise"})
-    body: str | None = dataclasses.field(
-        metadata={
-            "doc": "a command's body or an environment's `begin`, with `#name` holes; None for a value or adopted"
-        }
-    )
-    end: str | None = dataclasses.field(metadata={"doc": "an environment's `end`; None otherwise"})
-
-
-def describe(cls: type) -> Description:
-    """A registered command, environment or value class as data, so a program need not read its `__tm_*` attributes.
-    An unregistered class is `TM-M019`."""
-    if not hasattr(cls, "__tm_prefix__"):
-        raise DeclarationError(
-            f"{cls.__qualname__}: not registered with a package", code="TM-M019", hint="decorate it with @pkg.command"
-        )
-    if issubclass(cls, Value):
-        kind: ValueKind = cls.__tm_kind__
-        return Description(
-            "value",
-            cls.__name__,
-            None if kind.named else cls.__tm_cs__,
-            cls.__tm_doc__,
-            (),
-            kind.python,
-            typing.cast("object | None", cls.declared_default()),
-            cls.colour_name,
-            None,
-            None,
-        )
-    if not issubclass(cls, Command | Environment):
-        raise DeclarationError(f"{cls.__qualname__}: not a command, environment or value", code="TM-M019")
-    body = end = None
-    if cls.defined_by is None and issubclass(cls, Command) and cls.__tm_inline__:
-        body = spec_of(cls).body
-    elif cls.defined_by is None and issubclass(cls, Environment) and cls.__tm_inline__[0]:
-        spec = env_spec_of(cls)
-        body, end = spec.begin, spec.end
-    return Description(
-        "command" if issubclass(cls, Command) else "environment",
-        cls.__name__,
-        cls.__tm_cs__,
-        cls.__tm_doc__,
-        tuple(ArgumentInfo(a.name, a.optional, a.doc) for a in cls.__tm_args__),
-        None,
-        None,
-        None,
-        body,
-        end,
-    )
-
-
-__all__ = [
-    "AnyValue",
-    "Anywhere",
-    "ArgValue",
-    "ArgumentInfo",
-    "Children",
-    "ColourRef",
-    "Command",
-    "Description",
-    "Environment",
-    "Node",
-    "Passthrough",
-    "Repeat",
-    "Resolved",
-    "Source",
-    "Value",
-    "concrete_kinds",
-    "control_name",
-    "describe",
-    "field",
-]

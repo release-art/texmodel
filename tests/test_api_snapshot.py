@@ -57,13 +57,19 @@ def _line(name: str, obj: object) -> str:
     return f"{name}: {type(obj).__name__}"
 
 
+def _private_submodules(module: types.ModuleType) -> list[str]:
+    return [
+        f"{module.__name__}.{i.name}" for i in pkgutil.iter_modules(getattr(module, "__path__", ())) if i.name[0] == "_"
+    ]
+
+
 def snapshot() -> str:
     lines: list[str] = []
     for module in sorted(_modules(texmodel), key=lambda m: m.__name__):
         for name in sorted(getattr(module, "__all__", ())):
             obj = getattr(module, name)
             lines.append(_line(f"{module.__name__}.{name}", obj))
-            if not isinstance(obj, type) or obj.__module__ != module.__name__:
+            if not isinstance(obj, type) or obj.__module__ not in (module.__name__, *_private_submodules(module)):
                 continue  # a re-export's members are listed where it is defined
             for member, value in sorted(vars(obj).items()):
                 if member.startswith("_"):

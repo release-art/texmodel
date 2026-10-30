@@ -10,6 +10,7 @@ header.
 import importlib
 import os
 import pathlib
+import pkgutil
 import re
 import shutil
 import struct
@@ -42,8 +43,8 @@ def body_of(*lines: str) -> Passthrough:
 
 
 def test_the_modules_listed_are_the_modules_there_are():
-    folder = pathlib.Path(importlib.import_module("texmodel.std").__file__ or "").parent
-    assert sorted(p.stem for p in folder.glob("*.py") if p.stem != "__init__") == sorted(MODULES)
+    std = importlib.import_module("texmodel.std")
+    assert sorted(m.name for m in pkgutil.iter_modules(std.__path__)) == sorted(MODULES)
     assert TEXLIVE.isdigit()
 
 

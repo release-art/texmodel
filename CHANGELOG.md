@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Look(rules=Rules.GRID)` and `Look(rules=Rules.NONE)` built by hand are flush at the edges, like the default; `Look.GRID` and
   `Look.PLAIN` keep their padding (`edge=None`), so their output is the same.
+- `components`, `package`, `std.tabularray` and `ext.table` are subpackages with private submodules; every public name is
+  imported from the same path as before, but a class's `__module__` is now the submodule (`texmodel.components._node`).
 
 ### Added
 
