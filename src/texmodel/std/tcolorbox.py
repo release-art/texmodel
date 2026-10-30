@@ -2,8 +2,8 @@ r"""tcolorbox: Coloured boxes.
 
 A header (the package is adopted): it declares the interface, `texmodel` writes calls and never the package."""
 
-from texmodel.components import Anywhere, Command, Environment, Passthrough
-from texmodel.interface import ColourName, Flag, Item
+from texmodel.components import Anywhere, ColourRef, Command, Environment, Passthrough
+from texmodel.interface import Flag, Item
 from texmodel.keys import PGFKEYS
 from texmodel.keyvals import KeyVals, key
 from texmodel.package import Package
@@ -16,9 +16,9 @@ class TcolorboxOptions(KeyVals, rules=PGFKEYS):
     """Common tcolorbox keys (it reads them with `pgfkeys`); `extra` takes the rest, as written. Keys of a library
     (`enhanced`, `breakable`) need it loaded with `TcbUseLibrary`."""
 
-    colback: ColourName | None = None
-    colframe: ColourName | None = None
-    coltext: ColourName | None = None
+    colback: ColourRef | None = None
+    colframe: ColourRef | None = None
+    coltext: ColourRef | None = None
     boxrule: Length | None = None
     arc: Length | None = None
     left: Length | None = None

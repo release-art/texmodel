@@ -4,8 +4,8 @@ and are written as `Passthrough` or `Raw`.
 
 A header (the package is adopted): it declares the interface, `texmodel` writes calls and never the package."""
 
-from texmodel.components import Anywhere, Command, Environment, Passthrough
-from texmodel.interface import ColourName, Flag, Item, OptionalValue
+from texmodel.components import Anywhere, ColourRef, Command, Environment, Passthrough
+from texmodel.interface import Flag, Item, OptionalValue
 from texmodel.keys import PGFKEYS
 from texmodel.keyvals import KeyVals, key
 from texmodel.package import Package
@@ -24,9 +24,9 @@ class TikzOptions(KeyVals, rules=PGFKEYS):
     xshift: Length | None = None
     yshift: Length | None = None
     line_width: Length | None = key("line width")
-    draw: ColourName | None = None
-    fill: ColourName | None = None
-    text: ColourName | None = None
+    draw: ColourRef | None = None
+    fill: ColourRef | None = None
+    text: ColourRef | None = None
     opacity: float | None = None
     thin: Flag = False
     thick: Flag = False

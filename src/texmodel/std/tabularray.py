@@ -22,9 +22,9 @@ import dataclasses
 import enum
 import re
 
-from texmodel.components import Anywhere, Command, Environment, Passthrough
+from texmodel.components import Anywhere, ColourRef, Command, Environment, Passthrough
 from texmodel.errors import DeclarationError
-from texmodel.interface import SQUARE, ColourName, Flag, Item, OptionalValue, arg
+from texmodel.interface import SQUARE, Flag, Item, OptionalValue, arg
 from texmodel.keys import L3KEYS
 from texmodel.keyvals import Entry, KeyVals, key
 from texmodel.package import Package
@@ -159,7 +159,7 @@ class HlineSpec(KeyVals, rules=L3KEYS):
     dash: Dash | None = None
     text: Raw | None = None
     wd: Length | None = None
-    fg: ColourName | None = None
+    fg: ColourRef | None = None
     leftpos: float | None = None
     rightpos: float | None = None
     l: OptionalValue[float] | None = None  # noqa: E741  # the library's own key
@@ -174,7 +174,7 @@ class VlineSpec(KeyVals, rules=L3KEYS):
     dash: Dash | None = None
     text: Raw | None = None
     wd: Length | None = None
-    fg: ColourName | None = None
+    fg: ColourRef | None = None
     abovepos: float | None = None
     belowpos: float | None = None
 
@@ -192,8 +192,8 @@ class CellSpec(KeyVals, rules=L3KEYS):
     halign: HAlign | None = None
     valign: VAlign | None = None
     wd: Length | None = None
-    bg: ColourName | None = None
-    fg: ColourName | None = None
+    bg: ColourRef | None = None
+    fg: ColourRef | None = None
     font: Raw | None = None
     mode: Mode | None = None
     math: Flag = key("$", default=False)
@@ -210,8 +210,8 @@ class RowSpec(KeyVals, rules=L3KEYS):
     halign: HAlign | None = None
     valign: VAlign | None = None
     ht: Length | None = None
-    bg: ColourName | None = None
-    fg: ColourName | None = None
+    bg: ColourRef | None = None
+    fg: ColourRef | None = None
     font: Raw | None = None
     mode: Mode | None = None
     math: Flag = key("$", default=False)
@@ -235,8 +235,8 @@ class ColumnSpec(KeyVals, rules=L3KEYS):
     valign: VAlign | None = None
     wd: Length | None = None
     co: float | None = None
-    bg: ColourName | None = None
-    fg: ColourName | None = None
+    bg: ColourRef | None = None
+    fg: ColourRef | None = None
     font: Raw | None = None
     mode: Mode | None = None
     math: Flag = key("$", default=False)

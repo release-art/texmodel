@@ -29,6 +29,7 @@ texmodel.components.Anywhere(kind: type) -> None
 texmodel.components.ArgValue: TypeAliasType
 texmodel.components.ArgumentInfo(name: str, optional: bool, doc: str | None) -> None
 texmodel.components.Children(owner: type[Environment] | Package) -> None
+texmodel.components.ColourRef: _AnnotatedAlias
 texmodel.components.Command()
 texmodel.components.Command.call(cls, *required: ArgValue, **optional: ArgValue) -> Ref
 texmodel.components.Description(category: Literal['command', 'environment', 'value'], name: str, cs: str | None, doc: str, arguments: tuple[ArgumentInfo, ...], python: object | None, default: object | None, colour_name: str | None, body: str | None, end: str | None) -> None

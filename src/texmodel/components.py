@@ -143,6 +143,18 @@ if TYPE_CHECKING:
     from .package import Package
 
 type Node = Command | Environment | Passthrough | Comment
+
+
+def _colour_named(value: object) -> object:
+    """A colour value class as its xcolor name (`ColourName(Ink)`); anything else as it is."""
+    return ColourName(value) if isinstance(value, type) else value
+
+
+if TYPE_CHECKING:  # a type checker sees the class too; at run time the field holds the name
+    type ColourRef = ColourName | type[Value[Any]]
+else:
+    ColourRef = Annotated[ColourName, pydantic.BeforeValidator(_colour_named)]
+"""A colour argument: a `ColourName`, or a registered colour value (`bg=Ink`), which is stored as its name."""
 Resolved = TexRaw | Ref | Comment | Group | Seq | Cs | Lit | Hole
 Source = tuple[tuple[Resolved, ...], str]  # a body's pieces and where they came from
 
@@ -255,6 +267,9 @@ class _Meta(type(pydantic.BaseModel)):
             given = dict(zip(names, positional, strict=False)) | given
         if missing := sorted(n for n, f in fields.items() if f.is_required() and n not in given):
             raise TypeError(f"{cls.__name__}() missing arguments {missing}")
+        for a in node.__tm_args__:  # a colour value class given for a colour name is that name
+            if a.body.kind is BodyKind.COLOUR_NAME and a.name in given:
+                given[a.name] = _colour_named(given[a.name])
         return node.model_construct(set(given), **given)
 
 
@@ -1019,6 +1034,7 @@ __all__ = [
     "ArgValue",
     "ArgumentInfo",
     "Children",
+    "ColourRef",
     "Command",
     "Description",
     "Environment",

@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   selector (`TM-M076`).
 - `Value.xcolor_name`: a registered colour value's resolved xcolor name, a `ColourName` (`Ink.xcolor_name` is `ap-ink`), to give a
   `ColourName` field: `bg=Ink.xcolor_name`.
+- `texmodel.components.ColourRef`: a colour argument that takes a `ColourName` or a registered colour value (`bg=Ink`) and holds
+  its name. The colour fields of the `tcolorbox`, `tikz` and `tabularray` headers are `ColourRef`.
 - `texmodel.keyvals.Entry`: an item that spells its own key (`cell{1}{2}={bg=red}`); declare the field `list[Item[Entry]]`.
 
 ## [0.11.0] - 2026-10-30
