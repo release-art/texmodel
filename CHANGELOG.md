@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ext.table`: `Table(RowClass, rows)` for a `TableRow` writes the rows as typed nodes (the header one `Passthrough`);
   `TM-M085` refuses `fmt=`, `totals`, `subtotal`, `group_by` and `spans` there, since the row writes its cells.
   The class is the column layout: the rows may be of any `TableRow` classes (an abstract base can carry the `Col`s).
+  `TM-M086`: a row command whose body writes more or fewer cells than the layout has columns (its `&`, counted as text).
 - `ext.table.Widest`: `Widest.declare(pkg, "LabelWidth")` and `Col(width=widest)` make a column as wide as the widest cell of the
   whole document, tables included: the cells record their widths (`ext.recorded`, `cmd=`) and the next run sets the column.
 - `run.hand_edits.read_edits(stub=)` stubs more components; it stubs `tblr`, `longtblr` and `talltblr` itself when a row is.
