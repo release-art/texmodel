@@ -35,12 +35,14 @@ from typing import Any, ClassVar, Final
 
 import pydantic
 
-from ..components import ColourRef, Passthrough
+from ..components import AnyValue, ColourRef, Command, Passthrough, control_name, field
 from ..errors import DeclarationError, ValidationError
 from ..keyvals import Entry
+from ..package import Package
 from ..std import tabularray as t
 from ..std.graphicx import IncludeGraphics, IncludeGraphicsOptions
 from ..types import Length, Raw, escape
+from .recorded import Recorded
 
 _NUMBERS: Final = (int, float, Decimal)
 _SPACE: Final = r"\,"  # a thin space: the group separator of digits
@@ -204,6 +206,37 @@ class Flex:
 
 
 @dataclasses.dataclass(frozen=True)
+class Widest:
+    """A column as wide as the widest cell of its kind in the whole document, tables included: each body cell (and the
+    header label) records its width, and the column is that wide in the next run (`ext.recorded`). `declare` makes the
+    recorded length `<Name>` and the command `Measure<Name>` that `tabularray`'s `cmd` applies to the cells; give it
+    to `Col(width=)` in every table that shares the width. The first run sets the column to nothing, so rerun."""
+
+    measure: type[Command]
+    value: type[AnyValue]
+
+    @classmethod
+    def declare(cls, package: Package, name: str) -> "Widest":
+        parts = Recorded(name).declare(package)
+        record = rf"\{package.prefix}Record{name}"
+        measure = package.make_command(
+            f"Measure{name}",
+            f"Set the text, recording its width as {name}.",
+            fields={"text": (Raw, field())},
+            body=rf"\setbox\z@\hbox{{#text}}{record}{{\the\wd\z@}}#text",
+        )
+        return cls(measure, parts.value)
+
+    @property
+    def length(self) -> Length:
+        return Length.expr(rf"\{control_name(self.value)}")
+
+    @property
+    def cmd(self) -> Raw:
+        return Raw(rf"\{control_name(self.measure)}")
+
+
+@dataclasses.dataclass(frozen=True)
 class Col:
     """How a field is a column. `label` defaults to the field's name; `group` is a header group, or nested groups outer
     first (`("2025", "H1")`): consecutive columns with the same group share a spanner. `unit` follows the label in
@@ -215,7 +248,7 @@ class Col:
     _: dataclasses.KW_ONLY
     fmt: Format | None = None
     align: t.HAlign | None = None
-    width: Length | Flex | None = None
+    width: Length | Flex | Widest | None = None
     unit: str | None = None
     group: str | tuple[str, ...] | None = None
     stub: bool = False
@@ -232,7 +265,7 @@ class _Column:
     fmt: Format
     align: t.HAlign
     valign: t.VAlign | None
-    width: Length | Flex | None
+    width: Length | Flex | Widest | None
     group: tuple[str, ...]
     stub: bool
     style: t.ColumnSpec | None
@@ -628,19 +661,22 @@ class Table[T: pydantic.BaseModel]:
                 out.subtotals.append(len(out.lines))
         return out
 
-    def _column_entries(self, position: Sequence[int]) -> list[Entry]:
+    def _column_entries(self, position: Sequence[int], labels: int) -> list[Entry]:
         found: list[Entry] = []
         for i, c in enumerate(self.columns, start=1):
             width = c.width
             spec = t.ColumnSpec(
                 halign=c.align,
                 valign=c.valign,
-                wd=width if isinstance(width, Length) else None,
+                wd=width.length if isinstance(width, Widest) else width if isinstance(width, Length) else None,
                 co=width.n if isinstance(width, Flex) else None,
             )
             found += [t.column(i, spec), *([t.column(i, c.style)] if c.style is not None else [])]
             if c.cells is not None and position:
                 found.append(t.cell(t.selector(*_ranges(position)), i, c.cells))
+            if isinstance(width, Widest):  # the cells measure themselves, the labels too
+                measured = [*([labels] if labels else []), *position]
+                found.append(t.cell(t.selector(*_ranges(measured)), i, t.CellSpec(cmd=width.cmd)))
         return found
 
     def _structure_entries(self, layout: _Layout) -> list[Entry]:
@@ -707,7 +743,7 @@ class Table[T: pydantic.BaseModel]:
             rules += [t.column(1, t.ColumnSpec(leftsep=look.edge)), t.column(last, t.ColumnSpec(rightsep=look.edge))]
         # The columns' entries come before the cells': a cell's own alignment wins.
         rules += [
-            *self._column_entries(layout.position),
+            *self._column_entries(layout.position, h),
             *spans,
             *self._structure_entries(layout),
             *self._styled(layout.position),
@@ -767,4 +803,5 @@ __all__ = [
     "Table",
     "Text",
     "Total",
+    "Widest",
 ]

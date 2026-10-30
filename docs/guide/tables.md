@@ -217,5 +217,32 @@ keys work. `read_edits` stubs the `tblr` environments too whenever a row is stub
 `stub=` adds other components. Reordering rows or adding a row line is not restorable (`TM-R006`, `TM-R005`), as for any
 container.
 
+## A column as wide as the widest cell
+
+Several tables that sit one under the other, such as profile blocks, read as one design when their label columns are
+equally wide: as wide as the widest label of any of them. `Widest.declare(pkg, "LabelWidth")` declares the length
+(`\apLabelWidth`, a `Recorded` maximum, [Values](values.md#values-only-the-whole-document-knows)) and the command that
+measures a cell; `Col(width=widest)` in each table sets the column to that length and has its cells measure themselves
+(`tabularray`'s `cmd`), the header label too. It works for plain tables and for rows that are nodes.
+
+```python
+from texmodel.ext.table import Widest
+
+widest = Widest.declare(pkg, "LabelWidth")
+
+
+class Line(BaseModel):
+    label: Annotated[str, Col("Label", width=widest)]
+    value: str
+
+
+shown = Table(Line, [Line(label="Sound", value="Loud")], look=Look.PLAIN).render()
+assert r"column{1}={halign=l,wd=\apLabelWidth}" in shown and r"cmd=\apMeasureLabelWidth" in shown
+```
+
+The widths are measured in one run and used in the next, so the first run sets the column to nothing and says the value is
+not settled: let `latexmk` rerun, as for any `Recorded`. A cell that does not typeset the same on every pass (a box LaTeX
+defers) does not settle.
+
 A row that does not validate is an error naming its index (`TM-C026`); a group on separated columns, a second stub or a
 total over a column that is not a visible number is a `DeclarationError` when the table is built (`TM-M077` to `TM-M082`).

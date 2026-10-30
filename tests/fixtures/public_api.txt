@@ -114,7 +114,7 @@ texmodel.ext.spot.Spot(plate: str, proxy: CMYK = …) -> None
 texmodel.ext.spot.Spot.plates: property
 texmodel.ext.spot.SpotColour: _AnnotatedAlias
 texmodel.ext.table.Block(*, missing: str = …) -> None
-texmodel.ext.table.Col(label: str | None = …, *, fmt: Format | None = …, align: t.HAlign | None = …, width: Length | Flex | None = …, unit: str | None = …, group: str | tuple[str, ...] | None = …, stub: bool = …, hide: bool = …, valign: t.VAlign | None = …, style: t.ColumnSpec | None = …, cells: t.CellSpec | None = …) -> None
+texmodel.ext.table.Col(label: str | None = …, *, fmt: Format | None = …, align: t.HAlign | None = …, width: Length | Flex | Widest | None = …, unit: str | None = …, group: str | tuple[str, ...] | None = …, stub: bool = …, hide: bool = …, valign: t.VAlign | None = …, style: t.ColumnSpec | None = …, cells: t.CellSpec | None = …) -> None
 texmodel.ext.table.Date(pattern: str = …, *, missing: str = …) -> None
 texmodel.ext.table.Flex(n: float = …) -> None
 texmodel.ext.table.Format(*, missing: str = …) -> None
@@ -134,6 +134,10 @@ texmodel.ext.table.Table.node(self) -> t.Tblr | t.Talltblr | t.Longtblr
 texmodel.ext.table.Table.render(self) -> str
 texmodel.ext.table.Text(*, missing: str = …) -> None
 texmodel.ext.table.Total(label: str, sum: tuple[str, ...] = …) -> None
+texmodel.ext.table.Widest(measure: type[Command], value: type[AnyValue]) -> None
+texmodel.ext.table.Widest.cmd: property
+texmodel.ext.table.Widest.declare(cls, package: Package, name: str) -> Widest
+texmodel.ext.table.Widest.length: property
 texmodel.history.Change(level: Level, where: str, what: str) -> None
 texmodel.history.Level(*values)
 texmodel.history.Problem(path: str, reason: str, value: object = …, schema: Mapping[str, Any] = …) -> None

@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Environment.checks` takes further checks of a node.
 - `ext.table`: `Table(RowClass, rows)` for a `TableRow` writes the rows as typed nodes (the header one `Passthrough`);
   `TM-M085` refuses `fmt=`, `totals`, `subtotal`, `group_by` and `spans` there, since the row writes its cells.
+- `ext.table.Widest`: `Widest.declare(pkg, "LabelWidth")` and `Col(width=widest)` make a column as wide as the widest cell of the
+  whole document, tables included: the cells record their widths (`ext.recorded`, `cmd=`) and the next run sets the column.
 - `run.hand_edits.read_edits(stub=)` stubs more components; it stubs `tblr`, `longtblr` and `talltblr` itself when a row is.
 - `ColourName.macro(r"\bbRowLabelColour")` (or a registered value that defines the macro): a colour read when the document is
   typeset, left out of `names` and of the plate check.
