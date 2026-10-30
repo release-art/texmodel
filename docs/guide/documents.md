@@ -59,8 +59,14 @@ code and a path such as `Card/Fact[2].text`; `pkg.document` raises the same list
 
 `Package(..., requires=[xcolor.package])` (or `pkg.require(...)`, which also takes options) loads other packages first. A
 package whose `.sty` is hand-written (`adopted=True`) cannot load them itself, so what it declares is loaded wherever it is
-used: before it in a generated `.sty` that calls it, and as a `\usepackage` line before it in a document of its own. A
-`std` header does this where the real package needs another to do its work (`tabularray` needs `xcolor` for its colours).
+used. Loading a package first loads what it declares, so every package comes before what needs it, and each is loaded once,
+however many packages need it: in a generated `.sty` that calls it as `\RequirePackage` lines, in a document of its own as
+`\usepackage` lines. A `std` header does this where the real package needs another to do its work (`tabularray` needs
+`xcolor` for its colours).
+
+Two packages that need one package with different options (a set of options is compared, not its order) are an error
+(`TM-P013`), since only one load can win. The way out is the top level: `pkg.require(shared, options=[...])` on the package
+being generated, or on the adopted package being planned, gives the list that is used and ends the conflict.
 
 ## A package built on another
 

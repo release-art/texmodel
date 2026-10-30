@@ -285,7 +285,9 @@ def test_an_adopted_package_declares_what_it_needs_and_those_load_before_it():
     out = pkg.render()
     order = [out.index(rf"\RequirePackage{{{n}}}") for n in ("hand-colours", "hand-tables", "hand-grids")]
     assert order == sorted(order) and out.count("hand-colours") == 1
-    assert [n for n, _ in grids._load(set(), ("opt",))] == ["hand-colours", "hand-tables", "hand-grids"]  # noqa: SLF001
+    opted = Package("user-opted", prefix="uo")
+    opted.require(grids, options=["opt"])
+    assert opted.require_entries() == [("hand-colours", ()), ("hand-tables", ()), ("hand-grids", ("opt",))]
     lines = grids.plan(Cell(text="x")).text.splitlines()
     assert lines[2:5] == [r"\usepackage{hand-colours}", r"\usepackage{hand-tables}", r"\usepackage{hand-grids}"]
 
@@ -311,10 +313,40 @@ def test_a_package_two_others_need_is_loaded_once_by_the_first_call():
     left = Package("hand-left", prefix="", adopted=True, requires=[shared])
     right = Package("hand-right", prefix="", adopted=True, requires=[shared])
     top = Package("hand-top", prefix="", adopted=True, requires=[left, right])
-    assert [n for n, _ in top._load(set())] == ["hand-shared", "hand-left", "hand-right", "hand-top"]  # noqa: SLF001
-    assert top.plan(Document()).text.count(r"\usepackage{hand-shared}") == 1
+    uses = [line for line in top.plan(Document()).text.splitlines() if line.startswith("\\usepackage")]
+    assert uses == [f"\\usepackage{{hand-{n}}}" for n in ("shared", "left", "right", "top")]
 
     pkg = Package("user-diamond", prefix="ud")
     pkg.require(left)
     pkg.require(right)
     assert [n for n, _ in pkg.require_entries()] == ["hand-shared", "hand-left", "hand-right"]
+
+
+def test_a_package_asked_for_with_different_options_is_an_error_the_top_level_resolves():
+    shared = Package("hand-shared", prefix="", adopted=True)
+    one = Package("hand-one", prefix="", adopted=True)
+    two = Package("hand-two", prefix="", adopted=True)
+    one.require(shared, options=["a"])
+    two.require(shared, options=["b", "a"])
+    pkg = Package("user-both", prefix="ub")
+    pkg.require(one)
+    pkg.require(two)
+    with pytest.raises(DeclarationError) as raised:
+        pkg.require_entries()
+    assert raised.value.code == "TM-P013" and "hand-one" in str(raised.value) and "hand-two" in str(raised.value)
+    assert "require it at the top" in raised.value.hint
+    with pytest.raises(DeclarationError):
+        Package("hand-top", prefix="", adopted=True, requires=[one, two]).plan(Document())
+
+    pkg.require(shared, options=["a", "b"])  # the user's list, written after what needs it, decides
+    assert pkg.require_entries() == [("hand-shared", ("a", "b")), ("hand-one", ()), ("hand-two", ())]
+    top = Package("hand-top", prefix="", adopted=True, requires=[one, two])
+    top.require(shared, options=["b"])
+    assert r"\usepackage[b]{hand-shared}" in top.plan(Document()).text
+
+    agreeing = Package("hand-agree", prefix="", adopted=True)
+    agreeing.require(shared, options=["a", "b"])
+    user = Package("user-agree", prefix="uu")
+    user.require(two)
+    user.require(agreeing)  # the same set of options, in any order, is not a conflict
+    assert user.require_entries() == [("hand-shared", ("b", "a")), ("hand-two", ()), ("hand-agree", ())]

@@ -205,6 +205,7 @@ texmodel.package.Package.render_plan(self, *, version: str | None = …) -> Plan
 texmodel.package.Package.require(self, package: Package, *, options: Sequence[str] = …) -> None
 texmodel.package.Package.require_entries(self) -> list[tuple[str, tuple[str, ...]]]
 texmodel.package.Package.required_packages: property
+texmodel.package.Package.requirements: property
 texmodel.package.Package.test_document(self, *body: Node | Document, stub: Sequence[Component] = …) -> str
 texmodel.package.Package.value(self, cls: V) -> V
 texmodel.package.Package.value_named(self, name: str) -> type[AnyValue] | None

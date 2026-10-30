@@ -194,6 +194,42 @@ def _node_lines(node: Node, path: str, depth: int = 0) -> Iterator[Line]:
         yield Line(path, f"{pad}\\end{{{control_name(type(node))}}}")
 
 
+class _Loads:
+    """The calls that load packages for one root package (a `.sty`, or a document): each package is called once, by its
+    first caller, and an adopted one first calls what it declares it needs, so every package loads before what needs it.
+    A package asked for twice with different options is an error, unless the root requires it itself: the options the
+    root gives are the user's decision and are the ones used."""
+
+    def __init__(self, root: "Package") -> None:
+        self.mandated = {p.name: o for p, o in root.requirements}
+        self.options: dict[str, tuple[str, ...]] = {}  # what each package is loaded with, in call order
+        self.asker: dict[str, str] = {}
+
+    def call(self, package: "Package", options: tuple[str, ...], asker: str) -> list[tuple[str, tuple[str, ...]]]:
+        name = package.name
+        wanted = self.mandated.get(name, options)
+        if name in self.options:
+            if set(self.options[name]) != set(wanted):
+                raise DeclarationError(
+                    f"{name}: {self.asker[name]} loads it with options {list(self.options[name])}, "
+                    f"{asker} with {list(wanted)}",
+                    code="TM-P013",
+                    path=name,
+                    hint=f"require it at the top, with the options you want: pkg.require({name}, options=[...])",
+                )
+            return []
+        self.options[name], self.asker[name] = wanted, asker
+        needed = [e for p, o in package.requirements for e in self.call(p, o, name)] if package.adopted else []
+        return [*needed, (name, wanted)]
+
+    def plain(self, name: str) -> list[tuple[str, tuple[str, ...]]]:
+        """A package named by a value's need, which has no options."""
+        if name in self.options:
+            return []
+        self.options[name] = ()
+        return [(name, ())]
+
+
 class Package:
     def __init__(
         self,
@@ -605,6 +641,11 @@ class Package:
         self._requires.append((package, tuple(options)))
 
     @property
+    def requirements(self) -> tuple[tuple["Package", tuple[str, ...]], ...]:
+        """The packages given to `requires=` and `require()`, in order, with the options each was given."""
+        return tuple(self._requires)
+
+    @property
     def depends_on(self) -> tuple["Package", ...]:
         """The other packages this one requires or whose components its bodies call, in first-use order."""
         called = (typing.cast("Package", t.__tm_package__) for t in self._calls)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
@@ -612,30 +653,16 @@ class Package:
         found = (*(p for p, _ in self._requires), *called, *needed)
         return tuple(dict.fromkeys(p for p in found if p is not self and not p.builtin))
 
-    def _load(self, seen: set[str], options: tuple[str, ...] = ()) -> list[tuple[str, tuple[str, ...]]]:
-        """The call that loads this package: what an adopted one declares it needs (its hand-written `.sty` does not
-        load them) is called first, then it loads itself with `options`. `seen` holds every package already called, so
-        each is loaded once, by its first call."""
-        if self.name in seen:
-            return []
-        seen.add(self.name)
-        needed = [e for p, o in self._requires for e in p._load(seen, o)] if self.adopted else []  # noqa: SLF001
-        return [*needed, (self.name, options)]
-
     def require_entries(self) -> list[tuple[str, tuple[str, ...]]]:
         """What the `.sty` loads: `require()`d packages in order with their options, then, sorted, the packages the
         values need (M14) and the components call that are not already loaded; computed, never collected by mutation.
-        Each is a call that first calls what it needs, so a package is loaded once, before what needs it."""
-        seen: set[str] = set()
-        entries = [e for p, o in self._requires for e in p._load(seen, o)]  # noqa: SLF001
+        Each is a call that first calls what it needs (see `_Loads`): a package is loaded once, before what needs it."""
+        loads = _Loads(self)
+        entries = [e for p, o in self._requires for e in loads.call(p, o, self.name)]
         needs = {p for s in self._items if isinstance(s, ValueSpec) for p in s.needs if isinstance(p, str)}
         called = {p.name: p for p in self.depends_on}
-        for name in sorted({*needs, *called} - seen):
-            if name in called:
-                entries += called[name]._load(seen)  # noqa: SLF001
-            elif name not in seen:
-                seen.add(name)
-                entries.append((name, ()))
+        for name in sorted({*needs, *called} - loads.options.keys()):
+            entries += loads.call(called[name], (), self.name) if name in called else loads.plain(name)
         return entries
 
     @property
@@ -882,7 +909,7 @@ class Package:
         ]
         uses = [
             Line("document", f"\\usepackage[{','.join(o)}]{{{n}}}" if o else f"\\usepackage{{{n}}}")
-            for n, o in self._load(set(), tuple(own))
+            for n, o in _Loads(self).call(self, tuple(own), "the document")
         ]
 
         def values() -> list[Line]:
