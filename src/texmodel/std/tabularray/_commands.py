@@ -2,7 +2,7 @@
 
 from texmodel.components import Command
 from texmodel.interface import SQUARE, arg
-from texmodel.types import Length, Raw
+from texmodel.types import ControlSequence, Length, Name, NameList, Raw
 
 from ._specs import (
     CellSpan,
@@ -280,7 +280,7 @@ class UseTblrLibrary(Command):
     `functional`, `hook`, `html`, `nameref`, `siunitx`, `tikz`, `varwidth`, `zref`.)"""
 
     cs = "UseTblrLibrary"
-    libraries: Raw
+    libraries: NameList
 
 
 @package.command
@@ -288,7 +288,7 @@ class SetTblrInner(Command):
     r"""Default inner keys of some tables: `\SetTblrInner[tblr,longtblr]{rowsep=0pt}`."""
 
     cs = "SetTblrInner"
-    environments: Raw | None = None
+    environments: NameList | None = None
     spec: TblrInner
 
 
@@ -297,7 +297,7 @@ class SetTblrOuter(Command):
     r"""Default outer keys of some tables: `\SetTblrOuter[longtblr]{headsep=3pt}`."""
 
     cs = "SetTblrOuter"
-    environments: Raw | None = None
+    environments: NameList | None = None
     spec: TblrOuter
 
 
@@ -317,7 +317,7 @@ class NewTblrColumnType(Command):
     r"""A column type for `colspec`: `\NewTblrColumnType{t}[1]{Q[t,wd=#1]}`; `count` and `default` as `\newcommand`."""
 
     cs = "NewTblrColumnType"
-    name: Raw
+    name: Name
     count: int | None = arg(SQUARE, default=None, fill="")
     default: Raw | None = arg(SQUARE, default=None)
     definition: Raw
@@ -328,7 +328,7 @@ class NewTblrRowType(Command):
     r"""A row type for `rowspec`: `\NewTblrRowType{t}[1]{Q[t,ht=#1]}`."""
 
     cs = "NewTblrRowType"
-    name: Raw
+    name: Name
     count: int | None = arg(SQUARE, default=None, fill="")
     default: Raw | None = arg(SQUARE, default=None)
     definition: Raw
@@ -339,7 +339,7 @@ class NewTblrColumnRowType(Command):
     r"""A type for both `colspec` and `rowspec`."""
 
     cs = "NewTblrColumnRowType"
-    name: Raw
+    name: Name
     count: int | None = arg(SQUARE, default=None, fill="")
     default: Raw | None = arg(SQUARE, default=None)
     definition: Raw
@@ -350,7 +350,7 @@ class NewTblrEnviron(Command):
     r"""A table environment with its own defaults: `\NewTblrEnviron{mytblr}`, then `\SetTblrInner[mytblr]{...}`."""
 
     cs = "NewTblrEnviron"
-    name: Raw
+    name: Name
 
 
 @package.command
@@ -358,7 +358,7 @@ class NewTblrTableCommand(Command):
     r"""A command that may change a table's specifications inside it: `\NewTblrTableCommand\myhline{\hline[red]}`."""
 
     cs = "NewTblrTableCommand"
-    name: Raw
+    name: ControlSequence
     count: int | None = arg(SQUARE, default=None, fill="")
     default: Raw | None = arg(SQUARE, default=None)
     definition: Raw
@@ -369,7 +369,7 @@ class NewTblrContentCommand(Command):
     r"""A command that holds cell text, to use inside a table: `\NewTblrContentCommand\cellname{...}`."""
 
     cs = "NewTblrContentCommand"
-    name: Raw
+    name: ControlSequence
     count: int | None = arg(SQUARE, default=None, fill="")
     default: Raw | None = arg(SQUARE, default=None)
     definition: Raw
@@ -380,7 +380,7 @@ class NewTblrDashStyle(Command):
     r"""A rule style for `dash`: `\NewTblrDashStyle{dashdot}{...}`."""
 
     cs = "NewTblrDashStyle"
-    name: Raw
+    name: Name
     definition: Raw
 
 
@@ -389,7 +389,7 @@ class NewTblrTheme(Command):
     r"""A theme for the head and foot of long tables: templates and styles, chosen with `theme=` in the outer keys."""
 
     cs = "NewTblrTheme"
-    name: Raw
+    name: Name
     code: Raw
 
 
@@ -399,8 +399,8 @@ class DeclareTblrTemplate(Command):
     (`default` defines and selects it)."""
 
     cs = "DeclareTblrTemplate"
-    element: Raw
-    name: Raw
+    element: Name
+    name: Name
     code: Raw
 
 
@@ -409,8 +409,8 @@ class SetTblrTemplate(Command):
     r"""Select a template of an element: `\SetTblrTemplate{caption}{empty}`."""
 
     cs = "SetTblrTemplate"
-    element: Raw
-    name: Raw
+    element: Name
+    name: Name
 
 
 @package.command
@@ -418,8 +418,8 @@ class UseTblrTemplate(Command):
     r"""Use a template (and its style), inside another template: `\UseTblrTemplate{caption-tag}{default}`."""
 
     cs = "UseTblrTemplate"
-    element: Raw
-    name: Raw
+    element: Name
+    name: Name
 
 
 @package.command
@@ -427,8 +427,8 @@ class ExpTblrTemplate(Command):
     r"""Use a template without its style."""
 
     cs = "ExpTblrTemplate"
-    element: Raw
-    name: Raw
+    element: Name
+    name: Name
 
 
 @package.command
@@ -436,5 +436,5 @@ class SetTblrStyle(Command):
     r"""The style of a head or foot element: `\SetTblrStyle{firsthead}{font=\bfseries}`."""
 
     cs = "SetTblrStyle"
-    element: Raw
+    element: Name
     style: Raw

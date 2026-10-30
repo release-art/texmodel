@@ -481,7 +481,7 @@ def test_a_block_is_a_group_that_keeps_ampersands_and_breaks_in_it():
 def test_an_image_is_includegraphics_and_refuses_a_path_that_would_break_it():
     assert Image(Length("2cm")).tex("a_b.png") == r"{\includegraphics[width=2cm]{a_b.png}}"
     assert Image().tex("a.png") == r"{\includegraphics{a.png}}"
-    with pytest.raises(ValueError, match="path"):
+    with pytest.raises(ValidationError, match="reads as syntax"):
         Image().tex("a}.png")
 
 

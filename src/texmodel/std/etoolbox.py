@@ -6,7 +6,7 @@ from typing import Annotated
 
 from texmodel.components import Command
 from texmodel.package import Package
-from texmodel.types import Raw, ValueKind
+from texmodel.types import ControlSequence, Name, Raw, ValueKind
 
 package = Package("etoolbox", prefix="", adopted=True)
 
@@ -16,7 +16,7 @@ class Appto(Command):
     r"""Append code to a macro."""
 
     cs = "appto"
-    macro: Raw
+    macro: ControlSequence
     code: Raw
 
 
@@ -25,7 +25,7 @@ class GAppto(Command):
     r"""Append code to a macro, globally."""
 
     cs = "gappto"
-    macro: Raw
+    macro: ControlSequence
     code: Raw
 
 
@@ -34,7 +34,7 @@ class Preto(Command):
     r"""Prepend code to a macro."""
 
     cs = "preto"
-    macro: Raw
+    macro: ControlSequence
     code: Raw
 
 
@@ -43,7 +43,7 @@ class GPreto(Command):
     r"""Prepend code to a macro, globally."""
 
     cs = "gpreto"
-    macro: Raw
+    macro: ControlSequence
     code: Raw
 
 
@@ -73,7 +73,7 @@ class NewToggle(Command):
     r"""Declare a switch."""
 
     cs = "newtoggle"
-    name: Raw
+    name: Name
 
 
 @package.command
@@ -81,7 +81,7 @@ class ToggleTrue(Command):
     r"""Set a switch to true."""
 
     cs = "toggletrue"
-    name: Raw
+    name: Name
 
 
 @package.command
@@ -89,7 +89,7 @@ class ToggleFalse(Command):
     r"""Set a switch to false."""
 
     cs = "togglefalse"
-    name: Raw
+    name: Name
 
 
 @package.command
@@ -97,7 +97,7 @@ class SetToggle(Command):
     r"""Set a switch to `true` or `false`."""
 
     cs = "settoggle"
-    name: Raw
+    name: Name
     value: Raw
 
 
@@ -139,7 +139,7 @@ class IfToggle(Command):
     r"""Choose by a switch."""
 
     cs = "iftoggle"
-    name: Raw
+    name: Name
     yes: Raw
     no: Raw
 
@@ -149,7 +149,7 @@ class AtBeginEnvironment(Command):
     r"""Code at the start of an environment."""
 
     cs = "AtBeginEnvironment"
-    environment: Raw
+    environment: Name
     code: Raw
 
 
@@ -158,12 +158,12 @@ class AtEndEnvironment(Command):
     r"""Code at the end of an environment."""
 
     cs = "AtEndEnvironment"
-    environment: Raw
+    environment: Name
     code: Raw
 
 
 def _toggle_setting(prefix: str, name: str, value: bool, _alias: str | None) -> str:  # noqa: FBT001
-    return (ToggleTrue if value else ToggleFalse)(name=Raw(f"{prefix}{name}")).render()
+    return (ToggleTrue if value else ToggleFalse)(name=Name(f"{prefix}{name}")).render()
 
 
 TOGGLE = ValueKind(
@@ -172,7 +172,7 @@ TOGGLE = ValueKind(
     "boolean",
     lambda prefix, name, _alias: (("control", f"{prefix}{name}", f"\\{prefix}{name}"),),
     lambda prefix, name, default, alias: [
-        NewToggle(name=Raw(f"{prefix}{name}")).render(),
+        NewToggle(name=Name(f"{prefix}{name}")).render(),
         *([] if default is None else [_toggle_setting(prefix, name, default, alias)]),
     ],
     _toggle_setting,

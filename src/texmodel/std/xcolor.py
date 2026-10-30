@@ -4,7 +4,7 @@ A header (the package is adopted): it declares the interface, `texmodel` writes 
 
 from texmodel.components import Command
 from texmodel.package import Package
-from texmodel.types import Raw, Text
+from texmodel.types import Name, Raw, Text
 
 package = Package("xcolor", prefix="", adopted=True)
 
@@ -14,7 +14,7 @@ class DefineColor(Command):
     r"""Name a colour: `\definecolor{ink}{HTML}{223344}`."""
 
     cs = "definecolor"
-    name: Raw
+    name: Name
     model: Raw
     spec: Raw
 
@@ -24,7 +24,7 @@ class ColorLet(Command):
     r"""Name a colour by mixing others."""
 
     cs = "colorlet"
-    name: Raw
+    name: Name
     spec: Raw
 
 

@@ -12,7 +12,7 @@ from ...components import AnyValue, Command, control_name, field
 from ...errors import DeclarationError
 from ...package import Package
 from ...std import tabularray as t
-from ...types import Length, Raw
+from ...types import ControlSequence, Length, Raw
 from ..recorded import Recorded
 from ._formats import NUMBERS, Format, Number, Text
 
@@ -53,8 +53,8 @@ class Widest:
         return Length.expr(rf"\{control_name(self.value)}")
 
     @property
-    def cmd(self) -> Raw:
-        return Raw(rf"\{control_name(self.measure)}")
+    def cmd(self) -> ControlSequence:
+        return ControlSequence(rf"\{control_name(self.measure)}")
 
 
 @dataclasses.dataclass(frozen=True)

@@ -10,7 +10,7 @@ from typing import Any, ClassVar, Final
 from ...errors import DeclarationError
 from ...std import tabularray as t
 from ...std.graphicx import IncludeGraphics, IncludeGraphicsOptions
-from ...types import Length, Raw, escape
+from ...types import FilePath, Length, Raw, escape
 
 NUMBERS: Final = (int, float, Decimal)
 _SPACE: Final = r"\,"  # a thin space: the group separator of digits
@@ -156,8 +156,5 @@ class Image(Block):
     width: Length | None = None
 
     def _tex(self, value: object) -> str:
-        path = str(value)
-        if set(path) & set("{}\\%#"):
-            raise ValueError(f"Image: {path!r} has a character a path cannot")
         options = IncludeGraphicsOptions(width=self.width) if self.width else None
-        return "{" + IncludeGraphics(path=Raw(path), options=options).render() + "}"
+        return "{" + IncludeGraphics(path=FilePath(str(value)), options=options).render() + "}"

@@ -7,7 +7,7 @@ from texmodel.interface import Flag, Item
 from texmodel.keys import PGFKEYS
 from texmodel.keyvals import KeyVals, key
 from texmodel.package import Package
-from texmodel.types import Length, Raw
+from texmodel.types import Length, NameList, Raw
 
 package = Package("tcolorbox", prefix="", adopted=True)
 
@@ -48,7 +48,7 @@ class TcbUseLibrary(Command):
     r"""Load tcolorbox libraries: `\tcbuselibrary{skins}`."""
 
     cs = "tcbuselibrary"
-    libraries: Raw
+    libraries: NameList
 
 
 @package.command

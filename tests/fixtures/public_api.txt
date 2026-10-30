@@ -353,6 +353,10 @@ texmodel.types.CMYK.plates: property
 texmodel.types.Choice(new_class_name, /, names, *, module=…, qualname=…, type=…, start=…, boundary=…)
 texmodel.types.Claim: TypeAliasType
 texmodel.types.Colour: Union
+texmodel.types.ControlSequence(tex: str) -> None
+texmodel.types.FilePath(tex: str) -> None
+texmodel.types.FilePath.of(cls, path: PurePosixPath) -> FilePath
+texmodel.types.FontName(tex: str) -> None
 texmodel.types.Gray(g: float) -> None
 texmodel.types.Gray.plates: property
 texmodel.types.Length(value: str | float, unit: str | None = …) -> None
@@ -360,6 +364,9 @@ texmodel.types.Length.expr(tex: Raw | str) -> LengthExpr
 texmodel.types.Length.inches: property
 texmodel.types.LengthExpr(tex: Raw | str) -> None
 texmodel.types.LengthExpr.inches: property
+texmodel.types.Macro(tex: str) -> None
+texmodel.types.Name(tex: str) -> None
+texmodel.types.NameList(tex: str) -> None
 texmodel.types.PDF: _PdfMarker
 texmodel.types.PROCESS: frozenset
 texmodel.types.PdfString: _AnnotatedAlias

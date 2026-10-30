@@ -11,7 +11,7 @@ from texmodel.keys import L3KEYS
 from texmodel.keyvals import Entry, KeyVals, key
 from texmodel.package import Package
 from texmodel.std import xcolor
-from texmodel.types import Choice, Length, Raw, Text
+from texmodel.types import Choice, ControlSequence, Length, Raw, Text
 
 package = Package("tabularray", prefix="", adopted=True, requires=[xcolor.package])  # a colour key needs xcolor
 
@@ -181,7 +181,7 @@ class CellSpec(KeyVals, rules=L3KEYS):
     mode: Mode | None = None
     math: Flag = key("$", default=False)
     dmath: Flag = key("$$", default=False)
-    cmd: Raw | None = None
+    cmd: ControlSequence | None = None
     preto: Raw | None = None
     appto: Raw | None = None
     guard: Flag = False  # the siunitx library
@@ -199,7 +199,7 @@ class RowSpec(KeyVals, rules=L3KEYS):
     mode: Mode | None = None
     math: Flag = key("$", default=False)
     dmath: Flag = key("$$", default=False)
-    cmd: Raw | None = None
+    cmd: ControlSequence | None = None
     abovesep: Length | None = None
     abovesep_plus: Length | None = key("abovesep+")
     belowsep: Length | None = None
@@ -224,7 +224,7 @@ class ColumnSpec(KeyVals, rules=L3KEYS):
     mode: Mode | None = None
     math: Flag = key("$", default=False)
     dmath: Flag = key("$$", default=False)
-    cmd: Raw | None = None
+    cmd: ControlSequence | None = None
     leftsep: Length | None = None
     leftsep_plus: Length | None = key("leftsep+")
     rightsep: Length | None = None

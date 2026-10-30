@@ -6,7 +6,7 @@ from texmodel.components import Passthrough
 from texmodel.errors import DeclarationError
 from texmodel.interface import ColourName
 from texmodel.std import tabularray as t
-from texmodel.types import Length, Raw
+from texmodel.types import Length, Name, Raw
 
 
 @pytest.mark.parametrize(
@@ -88,10 +88,10 @@ def test_the_commands_inside_a_table_write_their_optional_argument_first():
     assert t.SetHline(columns=t.selector("2-3"), spec=t.HlineSpec()).render() == r"\SetHline{2-3}{}"
     assert t.Cline(columns=t.selector(2), options=t.HlineSpec(dash=t.Dash.DASHED)).render() == r"\cline[dash=dashed]{2}"
     assert (
-        t.NewTblrColumnType(name=Raw("t"), count=1, definition=Raw("Q[t]")).render()
+        t.NewTblrColumnType(name=Name("t"), count=1, definition=Raw("Q[t]")).render()
         == r"\NewTblrColumnType{t}[1]{Q[t]}"
     )
     assert (
-        t.NewTblrColumnType(name=Raw("t"), count=1, default=Raw("2cm"), definition=Raw("Q[t]")).render()
+        t.NewTblrColumnType(name=Name("t"), count=1, default=Raw("2cm"), definition=Raw("Q[t]")).render()
         == r"\NewTblrColumnType{t}[1][2cm]{Q[t]}"
     )

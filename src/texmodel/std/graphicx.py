@@ -30,7 +30,8 @@ class IncludeGraphicsOptions(KeyVals, rules=KEYVAL):
 
 @package.command
 class IncludeGraphics(Command):
-    r"""Place a picture: `\includegraphics[width=3cm]{a.png}`."""
+    r"""Place a picture: `\includegraphics[width=3cm]{a.png}`. `path` is a `FilePath` (a checked file name), a `Macro`
+    that expands to the name, or any `Raw` TeX."""
 
     cs = "includegraphics"
     path: Raw

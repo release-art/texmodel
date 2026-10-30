@@ -9,7 +9,7 @@ from texmodel.interface import Flag, Item, OptionalValue
 from texmodel.keys import PGFKEYS
 from texmodel.keyvals import KeyVals, key
 from texmodel.package import Package
-from texmodel.types import Length, Raw
+from texmodel.types import Length, NameList, Raw
 
 package = Package("tikz", prefix="", adopted=True)
 
@@ -50,7 +50,7 @@ class UseTikzLibrary(Command):
     r"""Load TikZ libraries: `\usetikzlibrary{calc,positioning}`."""
 
     cs = "usetikzlibrary"
-    libraries: Raw
+    libraries: NameList
 
 
 @package.command

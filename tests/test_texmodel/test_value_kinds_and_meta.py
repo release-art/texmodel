@@ -8,7 +8,7 @@ from texmodel.interface import arg
 from texmodel.package import Package
 from texmodel.spec import json_schema
 from texmodel.std.etoolbox import Toggle
-from texmodel.types import RGB, Colour, Length, Raw, Text
+from texmodel.types import RGB, Colour, Length, Name, Raw, Text
 
 
 def test_colour_name_replaces_the_derived_name():
@@ -127,15 +127,15 @@ def test_a_call_can_be_an_argument_of_another_call():
         text: Text
 
         def body(self):
-            fail = PackageError.call(Raw("p"), Raw("Too many"), Raw("At most 3."))
-            return [IfNumGreater.call(Raw(r"\value{n}"), Raw("3"), Seq(fail, StepCounter.call(Raw("n"))), Raw(""))]
+            fail = PackageError.call(Name("p"), Raw("Too many"), Raw("At most 3."))
+            return [IfNumGreater.call(Raw(r"\value{n}"), Raw("3"), Seq(fail, StepCounter.call(Name("n"))), Raw(""))]
 
     p.command(Fact)
     assert "\\ifnumgreater{\\value{n}}{3}{\\PackageError{p}{Too many}{At most 3.}\\stepcounter{n}}{}" in p.render()
     assert p.depends_on[0].name == "etoolbox"
 
     with pytest.raises(DeclarationError, check=lambda e: e.code == "TM-M026"):
-        Fact.call(StepCounter.call(Raw("n")))  # a Text argument is text, not a call
+        Fact.call(StepCounter.call(Name("n")))  # a Text argument is text, not a call
 
 
 def test_a_counting_rule_is_a_macro_parametrised_by_its_counter():
@@ -148,7 +148,7 @@ def test_a_counting_rule_is_a_macro_parametrised_by_its_counter():
 
     def too(word: str) -> Ref:
         message = Seq(Lit(f"Too {word} "), Hole("what"), Lit(" on one card"))
-        return PackageError.call(Raw("p"), message, Raw("See the brand rules."))
+        return PackageError.call(Name("p"), message, Raw("See the brand rules."))
 
     @p.command
     class CountAtMost(Command):
@@ -193,7 +193,7 @@ def test_a_counting_rule_is_a_macro_parametrised_by_its_counter():
         children = [Fact.times(2, 3)]
 
         def begin(self):
-            return [SetCounter.call(Raw("acFacts"), Raw("0"))]
+            return [SetCounter.call(Name("acFacts"), Raw("0"))]
 
         def end(self):
             return [CountAtLeast.call(Raw("acFacts"), Raw("2"), Raw("facts"))]

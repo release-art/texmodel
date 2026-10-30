@@ -240,23 +240,23 @@ from texmodel.components import Command, Environment
 from texmodel.package import Package
 from texmodel.std.etoolbox import IfNumGreater, IfNumLess
 from texmodel.std.latex import CounterValue, NewCounter, PackageError, SetCounter, StepCounter
-from texmodel.types import Raw, Text
+from texmodel.types import Name, Raw, Text
 
 pkg = Package("acme-cards", prefix="ac", whitespace=Whitespace.TRIM)
-pkg.library("counters", NewCounter(name=Raw("acFacts")).render())  # \newcounter{acFacts}
+pkg.library("counters", NewCounter(name=Name("acFacts")).render())  # \newcounter{acFacts}
 
 
 def failure(word: str) -> Ref:
     """The error a rule raises; the region's name is the macro's third argument."""
     message = Seq(Lit(f"Too {word} "), Hole("what"), Lit(" on one card"))
-    return PackageError.call(Raw("acme-cards"), message, Raw("See the card rules."))
+    return PackageError.call(Name("acme-cards"), message, Raw("See the card rules."))
 
 
 @pkg.command
 class CountAtMost(Command):
     """Count one more of a region and fail past its limit."""
 
-    counter: Raw
+    counter: Name
     limit: Raw
     what: Raw
 
@@ -271,7 +271,7 @@ class CountAtMost(Command):
 class CountAtLeast(Command):
     """Fail when a region has fewer than its minimum."""
 
-    counter: Raw
+    counter: Name
     limit: Raw
     what: Raw
 
@@ -286,7 +286,7 @@ class Fact(Command, unused=("text",)):
     text: Text
 
     def body(self):
-        return [CountAtMost.call(Raw("acFacts"), Raw("3"), Raw("facts")), r"#text"]
+        return [CountAtMost.call(Name("acFacts"), Raw("3"), Raw("facts")), r"#text"]
 
 
 @pkg.environment
@@ -296,10 +296,10 @@ class Card(Environment):
     children = [Fact.times(2, 3)]
 
     def begin(self):
-        return [SetCounter.call(Raw("acFacts"), Raw("0"))]
+        return [SetCounter.call(Name("acFacts"), Raw("0"))]
 
     def end(self):
-        return [CountAtLeast.call(Raw("acFacts"), Raw("2"), Raw("facts"))]
+        return [CountAtLeast.call(Name("acFacts"), Raw("2"), Raw("facts"))]
 
 
 print(pkg.render())

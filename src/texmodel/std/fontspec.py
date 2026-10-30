@@ -4,7 +4,7 @@ A header (the package is adopted): it declares the interface, `texmodel` writes 
 
 from texmodel.components import Command
 from texmodel.package import Package
-from texmodel.types import Raw
+from texmodel.types import FontName, Raw
 
 package = Package("fontspec", prefix="", adopted=True)
 
@@ -14,7 +14,7 @@ class SetMainFont(Command):
     r"""The main font: `\setmainfont[Path=fonts/]{Nunito-Regular.ttf}`."""
 
     cs = "setmainfont"
-    font: Raw
+    font: FontName
     options: Raw | None = None
 
 
@@ -23,7 +23,7 @@ class SetSansFont(Command):
     r"""The sans-serif font."""
 
     cs = "setsansfont"
-    font: Raw
+    font: FontName
     options: Raw | None = None
 
 
@@ -32,5 +32,5 @@ class SetMonoFont(Command):
     r"""The monospaced font."""
 
     cs = "setmonofont"
-    font: Raw
+    font: FontName
     options: Raw | None = None

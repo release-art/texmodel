@@ -7,7 +7,7 @@ from ...components import Anywhere, Environment, Passthrough
 from ...errors import DeclarationError
 from ...package import Package
 from ...std import tabularray as t
-from ...types import Length, Raw
+from ...types import Length, Name, NameList, Raw
 from ._parts import Look
 from ._table import Table, check_cells
 
@@ -59,9 +59,9 @@ def declare[E: type[TableEnvironment]](pkg: Package) -> Callable[[E], E]:
         inner = layout._node(every=True).inner  # pyright: ignore[reportPrivateUsage]
         expand = Raw("".join(rf"\{r.__tm_cs__}" for r in cls.rows))
         parts = [
-            t.NewTblrEnviron(name=Raw(name)),
-            t.SetTblrInner(environments=Raw(name), spec=inner),
-            t.SetTblrOuter(environments=Raw(name), spec=t.TblrOuter(expand=expand)),
+            t.NewTblrEnviron(name=Name(name)),
+            t.SetTblrInner(environments=NameList(name), spec=inner),
+            t.SetTblrOuter(environments=NameList(name), spec=t.TblrOuter(expand=expand)),
         ]
         pkg.library(f"{cls.__tm_cs__}Layout", "\n".join(p.render() for p in parts))
         return cls

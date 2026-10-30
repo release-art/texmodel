@@ -28,7 +28,7 @@ from texmodel.preamble import PreambleSlots
 from texmodel.run.compiler import Compiler
 from texmodel.run.diagnostics import PackageError, Severity
 from texmodel.std import MODULES, TEXLIVE
-from texmodel.types import Length, Raw, Text
+from texmodel.types import ControlSequence, FilePath, FontName, Length, Name, NameList, Raw, Text
 
 
 def header(name: str):  # noqa: ANN201
@@ -90,11 +90,11 @@ X = Raw("x")
 def latex_samples():
     from texmodel.std import latex as k
 
-    length, counter, box = Raw(r"\tmlen"), Raw("tmc"), Raw(r"\tmbox")
+    length, counter, box = ControlSequence(r"\tmlen"), Name("tmc"), ControlSequence(r"\tmbox")
     value = Raw(k.CounterValue(name=counter).render())
     pre = [
-        k.DeclareOption(option=Raw("tmopt"), code=Raw("")),
-        k.PassOptionsToPackage(options=Raw("final"), package=Raw("microtype")),
+        k.DeclareOption(option=Name("tmopt"), code=Raw("")),
+        k.PassOptionsToPackage(options=Raw("final"), package=Name("microtype")),
     ]
     nodes = [
         k.NewLength(length=length),
@@ -160,11 +160,11 @@ def latex_samples():
         k.UseBox(box=box),
         k.AtBeginDocument(code=Raw("")),
         k.AtEndDocument(code=Raw("")),
-        k.PackageWarning(package=Raw("tmpkg"), message=Raw("a warning")),
-        k.PackageWarningNoLine(package=Raw("tmpkg"), message=Raw("a warning")),
-        k.PackageInfo(package=Raw("tmpkg"), message=Raw("a note")),
-        k.IfFileExists(file=Raw("tm-nonexistent.tex"), yes=Raw(""), no=Raw("")),
-        k.InputIfFileExists(file=Raw("tm-nonexistent.tex"), yes=Raw(""), no=Raw("")),
+        k.PackageWarning(package=Name("tmpkg"), message=Raw("a warning")),
+        k.PackageWarningNoLine(package=Name("tmpkg"), message=Raw("a warning")),
+        k.PackageInfo(package=Name("tmpkg"), message=Raw("a note")),
+        k.IfFileExists(file=FilePath("tm-nonexistent.tex"), yes=Raw(""), no=Raw("")),
+        k.InputIfFileExists(file=FilePath("tm-nonexistent.tex"), yes=Raw(""), no=Raw("")),
         k.Center(body_of("x")),
         k.FlushLeft(body_of("x")),
         k.FlushRight(body_of("x")),
@@ -199,8 +199,8 @@ def xcolor_samples():
     from texmodel.std import xcolor as c
 
     return [], [
-        c.DefineColor(name=Raw("tmink"), model=Raw("HTML"), spec=Raw("223344")),
-        c.ColorLet(name=Raw("tmb"), spec=Raw("tmink!50")),
+        c.DefineColor(name=Name("tmink"), model=Raw("HTML"), spec=Raw("223344")),
+        c.ColorLet(name=Name("tmb"), spec=Raw("tmink!50")),
         c.Color(name=Raw("tmink")),
         c.Color(name=Raw("1,0,0"), model=Raw("rgb")),
         c.TextColor(name=Raw("tmink"), text="x"),
@@ -221,12 +221,12 @@ def geometry_samples():
 def etoolbox_samples():
     from texmodel.std import etoolbox as e
 
-    macro = Raw(r"\tmm")
+    macro = ControlSequence(r"\tmm")
     pre = [
         Raw(r"\newcommand{\tmm}{}"),
-        e.NewToggle(name=Raw("tmt")),
-        e.AtBeginEnvironment(environment=Raw("center"), code=Raw("")),
-        e.AtEndEnvironment(environment=Raw("center"), code=Raw("")),
+        e.NewToggle(name=Name("tmt")),
+        e.AtBeginEnvironment(environment=Name("center"), code=Raw("")),
+        e.AtEndEnvironment(environment=Name("center"), code=Raw("")),
     ]
     nodes = [
         e.Appto(macro=macro, code=X),
@@ -235,10 +235,10 @@ def etoolbox_samples():
         e.GPreto(macro=macro, code=X),
         e.IfBlank(argument=Raw(""), yes=Raw("a"), no=Raw("b")),
         e.IfStrEqual(first=Raw("a"), second=Raw("a"), yes=Raw("y"), no=Raw("n")),
-        e.ToggleTrue(name=Raw("tmt")),
-        e.ToggleFalse(name=Raw("tmt")),
-        e.SetToggle(name=Raw("tmt"), value=Raw("true")),
-        e.IfToggle(name=Raw("tmt"), yes=Raw("y"), no=Raw("n")),
+        e.ToggleTrue(name=Name("tmt")),
+        e.ToggleFalse(name=Name("tmt")),
+        e.SetToggle(name=Name("tmt"), value=Raw("true")),
+        e.IfToggle(name=Name("tmt"), yes=Raw("y"), no=Raw("n")),
         e.IfNumGreater(left=Raw("2"), right=Raw("1"), yes=Raw("y"), no=Raw("n")),
         e.IfNumLess(left=Raw("1"), right=Raw("2"), yes=Raw("y"), no=Raw("n")),
         e.IfNumEqual(left=Raw("1"), right=Raw("1"), yes=Raw("y"), no=Raw("n")),
@@ -295,7 +295,7 @@ def tikz_samples():
     from texmodel.std import tikz as t
 
     return [
-        t.UseTikzLibrary(libraries=Raw("calc,positioning")),
+        t.UseTikzLibrary(libraries=NameList("calc,positioning")),
         t.TikzSet(options=t.TikzOptions(extra=Raw("tmstyle/.style={draw}"))),
     ], [
         t.Tikzpicture(
@@ -317,7 +317,7 @@ def tcolorbox_samples():
     from texmodel.std import tcolorbox as t
 
     return [
-        t.TcbUseLibrary(libraries=Raw("skins,fitting")),
+        t.TcbUseLibrary(libraries=NameList("skins,fitting")),
         t.TcbSet(options=t.TcolorboxOptions(colback=ColourName("white"))),
     ], [
         t.Tcolorbox(
@@ -340,9 +340,9 @@ def fontspec_samples():
     from texmodel.std import fontspec as f
 
     return [
-        f.SetMainFont(font=Raw("Latin Modern Roman"), options=Raw("Ligatures=TeX")),
-        f.SetSansFont(font=Raw("Latin Modern Sans")),
-        f.SetMonoFont(font=Raw("Latin Modern Mono")),
+        f.SetMainFont(font=FontName("Latin Modern Roman"), options=Raw("Ligatures=TeX")),
+        f.SetSansFont(font=FontName("Latin Modern Sans")),
+        f.SetMonoFont(font=FontName("Latin Modern Mono")),
     ], []
 
 
@@ -352,7 +352,7 @@ def calc_samples():
         latex as k,
     )
 
-    counter, length, box = Raw("tmc"), Raw(r"\tmlen"), Raw(r"\tmtotal")
+    counter, length, box = Name("tmc"), ControlSequence(r"\tmlen"), ControlSequence(r"\tmtotal")
     pre = [k.NewCounter(name=counter), k.NewLength(length=length), k.NewLength(length=box)]
     return pre, [
         c.SetCounter(counter=counter, value=c.integer(7) / 2),
@@ -370,28 +370,28 @@ def tabularray_samples():
         return body_of(*(f"{line} \\\\" for line in lines))
 
     pre = [
-        t.UseTblrLibrary(libraries=Raw("booktabs,diagbox,tikz")),
-        t.NewTblrColumnType(name=Raw("Y"), count=1, default=Raw("2cm"), definition=Raw("Q[l,wd=#1]")),
-        t.NewTblrRowType(name=Raw("Y"), count=1, definition=Raw("Q[t,ht=#1]")),
-        t.NewTblrColumnRowType(name=Raw("Z"), definition=Raw("Q[c]")),
-        t.NewTblrEnviron(name=Raw("tmtblr")),
-        t.NewTblrTableCommand(name=Raw(r"\tmrule"), definition=Raw(r"\hline[red]")),
-        t.NewTblrContentCommand(name=Raw(r"\tmcell"), definition=Raw("x")),
-        t.NewTblrDashStyle(name=Raw("tmdash"), definition=Raw("on 2pt off 1pt")),
-        t.NewTblrTheme(name=Raw("tmtheme"), code=Raw(r"\SetTblrStyle{firsthead}{font=\bfseries}")),
-        t.DeclareTblrTemplate(element=Raw("conthead-text"), name=Raw("tmt"), code=Raw("(more)")),
+        t.UseTblrLibrary(libraries=NameList("booktabs,diagbox,tikz")),
+        t.NewTblrColumnType(name=Name("Y"), count=1, default=Raw("2cm"), definition=Raw("Q[l,wd=#1]")),
+        t.NewTblrRowType(name=Name("Y"), count=1, definition=Raw("Q[t,ht=#1]")),
+        t.NewTblrColumnRowType(name=Name("Z"), definition=Raw("Q[c]")),
+        t.NewTblrEnviron(name=Name("tmtblr")),
+        t.NewTblrTableCommand(name=ControlSequence(r"\tmrule"), definition=Raw(r"\hline[red]")),
+        t.NewTblrContentCommand(name=ControlSequence(r"\tmcell"), definition=Raw("x")),
+        t.NewTblrDashStyle(name=Name("tmdash"), definition=Raw("on 2pt off 1pt")),
+        t.NewTblrTheme(name=Name("tmtheme"), code=Raw(r"\SetTblrStyle{firsthead}{font=\bfseries}")),
+        t.DeclareTblrTemplate(element=Name("conthead-text"), name=Name("tmt"), code=Raw("(more)")),
         t.DeclareTblrTemplate(
-            element=Raw("caption"),
-            name=Raw("tmt"),
+            element=Name("caption"),
+            name=Name("tmt"),
             code=Raw(
-                t.UseTblrTemplate(element=Raw("caption-tag"), name=Raw("default")).render()
-                + t.ExpTblrTemplate(element=Raw("caption-text"), name=Raw("default")).render()
+                t.UseTblrTemplate(element=Name("caption-tag"), name=Name("default")).render()
+                + t.ExpTblrTemplate(element=Name("caption-text"), name=Name("default")).render()
             ),
         ),
-        t.SetTblrTemplate(element=Raw("conthead-text"), name=Raw("normal")),
-        t.SetTblrStyle(element=Raw("caption-tag"), style=Raw(r"font=\bfseries")),
+        t.SetTblrTemplate(element=Name("conthead-text"), name=Name("normal")),
+        t.SetTblrStyle(element=Name("caption-tag"), style=Raw(r"font=\bfseries")),
         t.SetTblrInner(spec=t.TblrInner(rowsep=Length("1pt"))),
-        t.SetTblrInner(environments=Raw("longtblr"), spec=t.TblrInner(rowsep=Length("1pt"))),
+        t.SetTblrInner(environments=NameList("longtblr"), spec=t.TblrInner(rowsep=Length("1pt"))),
         t.SetTblrOuter(spec=t.TblrOuter(baseline=t.Baseline.TOP)),
         t.SetTblrTracing(what=Raw("none")),
     ]
@@ -403,7 +403,7 @@ def tabularray_samples():
         fg=ColourName("blue"),
         font=Raw(r"\bfseries"),
         mode=t.Mode.TEXT,
-        cmd=Raw(r"\relax"),
+        cmd=ControlSequence(r"\relax"),
         preto=Raw("x"),
         appto=Raw("y"),
     )
@@ -643,7 +643,7 @@ async def test_real_tex_accepts_a_call_of_every_declared_name(name, compiler, tm
 async def test_package_error_is_the_error_it_says(compiler, tmp_path):  # noqa: F811
     from texmodel.std import latex
 
-    node = latex.PackageError(package=Raw("tmpkg"), message=Raw("it broke"), help=Raw("press return"))
+    node = latex.PackageError(package=Name("tmpkg"), message=Raw("it broke"), help=Raw("press return"))
     plan = latex.package.plan(node)
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "d.tex").write_text(plan.text, encoding="utf-8")

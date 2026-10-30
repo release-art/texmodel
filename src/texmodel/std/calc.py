@@ -31,7 +31,7 @@ from typing import overload
 from texmodel.components import Command
 from texmodel.errors import DeclarationError
 from texmodel.package import Package
-from texmodel.types import Length, LengthExpr, Raw, escape, plain_number
+from texmodel.types import ControlSequence, Length, LengthExpr, Name, Raw, escape, plain_number
 
 package = Package("calc", prefix="", adopted=True)
 
@@ -347,7 +347,7 @@ class SetCounter(Command):
     r"""Set a counter to an integer expression: `\setcounter{c}{3*\real{1.6}}`."""
 
     cs = "setcounter"
-    counter: Raw
+    counter: Name
     value: IntExpr
 
 
@@ -356,7 +356,7 @@ class AddToCounter(Command):
     r"""Add an integer expression to a counter."""
 
     cs = "addtocounter"
-    counter: Raw
+    counter: Name
     value: IntExpr
 
 
@@ -365,7 +365,7 @@ class SetLength(Command):
     r"""Set a length to a glue expression: `\setlength{\parskip}{\widthof{abc}*\real{0.68}}`."""
 
     cs = "setlength"
-    length: Raw
+    length: ControlSequence
     value: Length
 
 
@@ -374,7 +374,7 @@ class AddToLength(Command):
     r"""Add a glue expression to a length."""
 
     cs = "addtolength"
-    length: Raw
+    length: ControlSequence
     value: Length
 
 
@@ -383,5 +383,5 @@ class SetToTotalHeight(Command):
     r"""Set a length to the height plus depth of some text: `\settototalheight{\len}{Ag}`."""
 
     cs = "settototalheight"
-    length: Raw
+    length: ControlSequence
     text: Raw
