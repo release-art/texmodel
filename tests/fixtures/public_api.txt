@@ -132,12 +132,14 @@ texmodel.ext.table.Span(column: str, count: int = …, where: Callable[[T], bool
 texmodel.ext.table.Table(model: type[T], rows: Iterable[T | Mapping[str, Any]], *, caption: str | None = …, label: str | None = …, group_by: str | None = …, subtotal: Total | None = …, totals: Sequence[Total] = …, notes: Sequence[Note] = …, highlights: Sequence[Highlight[T]] = …, spans: Sequence[Span[T]] = …, look: Look = …, header: bool = …, long: bool = …, width: Length | None = …, blocks: bool = …, rules: Sequence[Entry] = …) -> None
 texmodel.ext.table.Table.node(self) -> t.Tblr | t.Talltblr | t.Longtblr
 texmodel.ext.table.Table.render(self) -> str
+texmodel.ext.table.TableEnvironment(content: tuple[typing.Annotated[Node, Children(owner=<class 'texmodel.ext.table._environment.TableEnvironment'>)], ...], outer: texmodel.std.tabularray._specs.TblrOuter | None = …)
 texmodel.ext.table.Text(*, missing: str = …) -> None
 texmodel.ext.table.Total(label: str, sum: tuple[str, ...] = …) -> None
 texmodel.ext.table.Widest(measure: type[Command], value: type[AnyValue]) -> None
 texmodel.ext.table.Widest.cmd: property
 texmodel.ext.table.Widest.declare(cls, package: Package, name: str) -> Widest
 texmodel.ext.table.Widest.length: property
+texmodel.ext.table.declare(pkg: Package) -> Callable[[E], E]
 texmodel.history.Change(level: Level, where: str, what: str) -> None
 texmodel.history.Level(*values)
 texmodel.history.Problem(path: str, reason: str, value: object = …, schema: Mapping[str, Any] = …) -> None

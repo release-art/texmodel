@@ -217,6 +217,38 @@ keys work. `read_edits` stubs the `tblr` environments too whenever a row is stub
 `stub=` adds other components. Reordering rows or adding a row line is not restorable (`TM-R006`, `TM-R005`), as for any
 container.
 
+## A table the package owns
+
+A table's design belongs to the package, and a document should hold only rows. `TableEnvironment` declares the layout once:
+`columns` is a row class that carries the `Col`s, `rows` the row commands the table holds (any `TableRow` classes, so a
+rating row with other fields sits in the same table), and `look`, `width` and `blocks` are as in `Table`. `declare(pkg)`
+registers the environment and writes the layout into the `.sty` (`\NewTblrEnviron`, `\SetTblrInner`, `\SetTblrOuter` with
+`expand`); the document writes `\begin{apProfile}` and the rows, and nothing of the layout. The optional argument is the
+table's `outer` keys (caption, label, notes), which belong to the document. A subclass inherits what it does not set, and an
+abstract one is a shared look.
+
+```python
+from texmodel.ext import table
+
+
+@table.declare(pkg)
+class Profile(table.TableEnvironment):
+    """The profile block of a card."""
+
+    columns = ProfileRow
+    rows = (ProfileRow,)
+    look = Look.PLAIN
+
+
+block = Profile(ProfileRow(icon=Raw("a"), label="Sound", value="Loud"))
+assert block.render().startswith(r"\begin{apProfile}")
+assert r"\SetTblrOuter[apProfileTblr]{expand=\apProfileRow}" in pkg.render()
+```
+
+A row command that writes more or fewer cells than `columns` has columns is `TM-M086`; a missing `columns` is `TM-M088`
+and rows that are not registered are `TM-M087`, all when the package is imported. A table environment has no header, groups,
+totals or spans: those depend on the rows, so a plain `Table` sets them.
+
 ## A column as wide as the widest cell
 
 Several tables that sit one under the other, such as profile blocks, read as one design when their label columns are

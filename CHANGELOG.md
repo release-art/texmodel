@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ext.table.TableEnvironment` and `declare(pkg)`: a table whose layout the package owns. A subclass sets `columns`, `rows`
+  (any `TableRow` classes), `look`, `width` and `blocks` and inherits the rest; the `.sty` gets `\NewTblrEnviron`,
+  `\SetTblrInner` and `\SetTblrOuter` with `expand`, and a document holds only the rows (`TM-M087`: rows not registered,
+  `TM-M088`: no columns).
+
 ## [0.12.0] - 2026-10-30
 
 ### Added

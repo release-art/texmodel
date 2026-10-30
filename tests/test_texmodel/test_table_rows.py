@@ -338,3 +338,123 @@ def test_a_row_with_fewer_cells_than_the_layout_has_columns_is_refused():
     with pytest.raises(DeclarationError, match="Short writes 2 cells, the layout ProfileColumns has 3") as raised:
         Table(ProfileColumns, [Short(icon=Raw("a"), label="x")], header=False)
     assert raised.value.code == "TM-M086"
+
+
+envpkg = Package("acme-profenv", prefix="ae")
+envpkg.require(t.package)
+
+
+@envpkg.command
+class EnvRow(t.TableRow):
+    """A plain row."""
+
+    icon: Raw
+    label: Text
+    value: Text
+
+
+@envpkg.command
+class EnvRating(t.TableRow):
+    """A row without a value."""
+
+    icon: Raw
+    label: Text
+    score: int
+    body = r"#icon & #label & \SetCell{l} #score \\"
+
+
+class EnvColumns(t.TableRow, abstract=True):
+    """The columns."""
+
+    icon: Annotated[Raw, Col("", width=Length("6mm"))]
+    label: Annotated[Text, Col("")]
+    value: Annotated[Text, Col("", cells=t.CellSpec(font=Raw(r"\bfseries")))]
+
+
+@ext_table.declare(envpkg)
+class Profile(ext_table.TableEnvironment):
+    """A profile block."""
+
+    columns = EnvColumns
+    rows = (EnvRow, EnvRating)
+    look = Look.PLAIN
+
+
+def test_a_declared_table_environment_writes_its_layout_into_the_sty():
+    sty = envpkg.render()
+    assert r"\NewTblrEnviron{aeProfileTblr}" in sty
+    assert r"\SetTblrOuter[aeProfileTblr]{expand=\aeEnvRow\aeEnvRating" in sty
+    assert re.search(r"\\SetTblrInner\[aeProfileTblr\]\{colspec=QQQ", sty)
+    doc = Profile(EnvRow(icon=Raw("a"), label="Size", value="L"), EnvRating(icon=Raw(""), label="Energy", score=4))
+    assert doc.render().startswith(r"\begin{aeProfile}")
+
+
+@pytest.mark.tex
+@pytest.mark.timeout(900)
+async def test_real_tex_sets_a_table_environment_the_package_owns(compiler, tmp_path):  # noqa: F811
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "acme-profenv.sty").write_text(envpkg.render(), encoding="utf-8")
+    block = Profile(
+        EnvRow(icon=Raw("a"), label="Size", value="L"),
+        EnvRating(icon=Raw(""), label="Energy", score=4),
+        outer=t.TblrOuter(caption="Profile"),
+    )
+    done = await compile_sample(compiler, envpkg.plan(Document(block, latex.Null(), preamble=SLOTS)), tmp_path)
+    if done[2] and len(done[2]) == len(done[1]):
+        pytest.skip(f"the reference image lacks: {sorted({d.message for d in done[2]})}")
+    result, errors, _ = done
+    assert result.ok and not errors, [(d.path, d.code, d.message) for d in errors]
+
+
+class SharedLook(ext_table.TableEnvironment, abstract=True):
+    """A look the profile tables share."""
+
+    look = Look.PLAIN
+    columns = EnvColumns
+
+
+def test_a_table_environment_inherits_what_it_does_not_set():
+    @ext_table.declare(envpkg)
+    class Inherited(SharedLook):
+        """Rows of its own."""
+
+        rows = (EnvRow,)
+
+    assert Inherited.look is Look.PLAIN and Inherited.columns is EnvColumns
+    assert Inherited(EnvRow(icon=Raw("a"), label="x", value="y")).violations() == []
+    assert Inherited(EnvRating(icon=Raw("a"), label="x", score=1)).violations() != []  # not one of its rows
+    assert r"\SetTblrOuter[aeInheritedTblr]{expand=\aeEnvRow}" in envpkg.render()
+
+
+def test_a_table_environment_needs_columns_and_registered_rows():
+    class NoColumns(ext_table.TableEnvironment):
+        """No columns."""
+
+        rows = (EnvRow,)
+
+    with pytest.raises(DeclarationError, match="no columns") as raised:
+        ext_table.declare(envpkg)(NoColumns)
+    assert raised.value.code == "TM-M088"
+
+    class Loose(t.TableRow):
+        """Never registered."""
+
+        icon: Raw
+        label: Text
+        value: Text
+
+    class Unregistered(SharedLook):
+        """Rows not registered."""
+
+        rows = (Loose,)
+
+    with pytest.raises(DeclarationError, match="Loose") as raised:
+        ext_table.declare(envpkg)(Unregistered)
+    assert raised.value.code == "TM-M087"
+
+    class NoRows(SharedLook):
+        """No rows."""
+
+    with pytest.raises(DeclarationError, match="not registered") as raised:
+        ext_table.declare(envpkg)(NoRows)
+    assert raised.value.code == "TM-M087"

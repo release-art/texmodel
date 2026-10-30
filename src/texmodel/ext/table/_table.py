@@ -55,6 +55,23 @@ def _line(cells: list[str]) -> str:
     return " & ".join(cells) + r" \\"
 
 
+def check_cells(layout: type, count: int, rows: Iterable[tuple[str, type]]) -> None:
+    """A row command writes as many cells as the layout has columns: its body's `&`, counted as text."""
+    if not issubclass(layout, t.TableRow):
+        return
+    for where, row in rows:
+        tex: list[dict[str, str]] = [vars(k).get("__tm_tex__", {}) for k in row.__mro__]
+        text = next((d["body"] for d in tex if "body" in d), "")
+        cells = len(re.findall(r"(?<!\\)&", text)) + 1
+        if text and cells != count:
+            raise DeclarationError(
+                f"{where}: {row.__name__} writes {cells} cells, the layout {layout.__name__} has {count} columns",
+                code="TM-M086",
+                path=where,
+                hint="write one cell per column in the body (an empty cell is `&` with nothing after it)",
+            )
+
+
 @dataclasses.dataclass(frozen=True)
 class Table[T: pydantic.BaseModel]:
     """A row model and its rows, with the parts of a table. `rows` are instances of the model, or mappings it validates;
@@ -112,21 +129,7 @@ class Table[T: pydantic.BaseModel]:
         object.__setattr__(self, "groups", groups)
 
     def _check_cells(self, body: Sequence[T], count: int) -> None:
-        """A row command writes as many cells as the layout has columns: its body's `&`, counted as text."""
-        if not issubclass(self.model, t.TableRow):
-            return
-        for i, row in enumerate(body):
-            tex: list[dict[str, str]] = [vars(k).get("__tm_tex__", {}) for k in type(row).__mro__]
-            text = next((d["body"] for d in tex if "body" in d), "")
-            cells = len(re.findall(r"(?<!\\)&", text)) + 1
-            if text and cells != count:
-                raise DeclarationError(
-                    f"rows[{i}]: {type(row).__name__} writes {cells} cells, the layout {self.model.__name__} has "
-                    f"{count} columns",
-                    code="TM-M086",
-                    path=f"rows[{i}]",
-                    hint="write one cell per column in the body (an empty cell is `&` with nothing after it)",
-                )
+        check_cells(self.model, count, [(f"rows[{i}]", type(row)) for i, row in enumerate(body)])
 
     def _check_node_rows(self) -> None:
         """Rows that are nodes are written by their own command: what writes cells in a plain table has no part."""
@@ -258,7 +261,7 @@ class Table[T: pydantic.BaseModel]:
                 out.subtotals.append(len(out.lines))
         return out
 
-    def _column_entries(self, position: Sequence[int], labels: int) -> list[Entry]:
+    def _column_entries(self, position: Sequence[int], labels: int, *, every: bool = False) -> list[Entry]:
         found: list[Entry] = []
         for i, c in enumerate(self.columns, start=1):
             width = c.width
@@ -269,11 +272,12 @@ class Table[T: pydantic.BaseModel]:
                 co=width.n if isinstance(width, Flex) else None,
             )
             found += [t.column(i, spec), *([t.column(i, c.style)] if c.style is not None else [])]
-            if c.cells is not None and position:
-                found.append(t.cell(t.selector(*_ranges(position)), i, c.cells))
+            if c.cells is not None and (position or every):
+                found.append(t.cell(t.selector(*_ranges(position)) if position else t.selector("-"), i, c.cells))
             if isinstance(width, Widest):  # the cells measure themselves, the labels too
                 measured = [*([labels] if labels else []), *position]
-                found.append(t.cell(t.selector(*_ranges(measured)), i, t.CellSpec(cmd=width.cmd)))
+                where = t.selector(*_ranges(measured)) if measured else t.selector("-")
+                found.append(t.cell(where, i, t.CellSpec(cmd=width.cmd)))
         return found
 
     def _structure_entries(self, layout: _Layout) -> list[Entry]:
@@ -320,6 +324,10 @@ class Table[T: pydantic.BaseModel]:
 
     def node(self) -> t.Tblr | t.Talltblr | t.Longtblr:
         """The table as a `tabularray` environment, typed down to its keys."""
+        return self._node(every=False)
+
+    def _node(self, *, every: bool) -> t.Tblr | t.Talltblr | t.Longtblr:
+        """`every`: a layout of no rows yet, whose cell styles and measurement apply to every row."""
         header, spans, under = self._header()
         h, last, look = len(header), len(self.columns), self.look
         ruled, grid = look.rules is Rules.BOOKTABS, look.rules is Rules.GRID
@@ -340,7 +348,7 @@ class Table[T: pydantic.BaseModel]:
             rules += [t.column(1, t.ColumnSpec(leftsep=look.edge)), t.column(last, t.ColumnSpec(rightsep=look.edge))]
         # The columns' entries come before the cells': a cell's own alignment wins.
         rules += [
-            *self._column_entries(layout.position, h),
+            *self._column_entries(layout.position, h, every=every),
             *spans,
             *self._structure_entries(layout),
             *self._styled(layout.position),
