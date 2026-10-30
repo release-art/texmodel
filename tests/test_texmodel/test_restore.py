@@ -17,7 +17,7 @@ from hypothesis import (
 from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 
 import texmodel
-from texmodel.components import Command
+from texmodel.components import Command, Passthrough
 from texmodel.document import Document
 from texmodel.errors import DeclarationError, Violation
 from texmodel.package import Package
@@ -25,7 +25,7 @@ from texmodel.plan import Edit, EditKind, FieldEdit, data_path
 from texmodel.restore import Reason, restore
 from texmodel.run.hand_edits import read_edits
 from texmodel.spec import to_dict
-from texmodel.types import CMYK, Text, escape
+from texmodel.types import CMYK, Raw, Text, escape
 
 PROJECT, CARDS = convert.load()
 DECK = Document(*convert.body(CARDS), settings=convert.settings(PROJECT), preamble=convert.preamble(PROJECT))
@@ -207,6 +207,13 @@ class Note(Command):
     text: Text
     label: Text | None = None
     body = r"[#label] #text"
+
+
+def test_a_passthrough_deleted_is_removed_like_any_node():
+    document = Document(Note(text="n"), Passthrough(Raw(r"\vspace{2mm}")), Note(text="m"))
+    plan = small.plan(document)
+    found = restore(small, document, plan.edits(plan.text.replace("\\vspace{2mm}\n", "")))
+    assert found.unapplied == () and [type(n).__name__ for n in found.document.content] == ["Note", "Note"]
 
 
 def test_a_field_whose_type_is_not_read_back_from_text_is_unreadable():

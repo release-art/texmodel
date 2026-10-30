@@ -55,7 +55,7 @@ restored.unapplied    # Unapplied(edit, reason, violation, writes) for each one 
 | Edit | Restored as |
 |---|---|
 | `CHANGED`, the change inside one or more arguments, each reading to a value of its field | the node with those fields replaced |
-| `REMOVED`, every line of one node (a command's call; an environment's `\begin` to `\end`) | the node removed from its parent, when the grammar still holds |
+| `REMOVED`, every line of one node (a command's call; an environment's `\begin` to `\end`; a `Passthrough`'s TeX) | the node removed from its parent, when the grammar still holds |
 | A call line turned into a comment of itself (`% \bbLeadFact{...}`) | the same as removing it; regeneration writes no line (decision 2) |
 
 ### What comes back unapplied, and why

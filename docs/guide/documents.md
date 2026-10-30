@@ -268,7 +268,8 @@ assert plan.lines[0].path == "header"
 wrote, exactly as `pkg.plan(document)` rendered it (everything merged in that the file shows, a profile already
 expanded), and `edits` are that plan's edits of the file (or `read_edits`'). An edit that does not match a line of that
 plan is refused (`TM-X034`). A changed argument restores as its field's new
-value; a node whose every line is deleted, or commented out as itself (`%`, then the line), is removed from its parent.
+value; a node whose every line is deleted, or commented out as itself (`%`, then the line), is removed from its parent:
+a command, an environment or a `Passthrough`; a `Comment` never is.
 Regenerating writes no line in its place.
 
 ```python

@@ -7,42 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- `texmodel.restore.restore(pkg, document, edits)`: the document that writes a hand-edited file, from the document
-  texmodel last wrote and its plan's edits (or `read_edits`'). A changed argument restores as its field's new value; a
-  node deleted, or commented out as itself, is removed when its parent's grammar allows. Each edit is applied only when
-  the document with it writes the edited line exactly; every other comes back in `unapplied` with a `Reason`, one
-  registry of stable `TM-R001`-`TM-R011` codes. Edits of another document are refused (`TM-X034`).
-- `Edit.line` (1-based, in the edited file; `None` for a removed line or an edit only TeX saw) and `Edit.file`, given as
-  `Plan.edits(text, file=path)` or `read_edits(..., file=path)`; `Edit.plan_line`, the plan line an edit is about (for
-  an added line, the one it follows), which `restore` reads instead of matching text.
-- An added line's `Unapplied` names the node it stands in (`parent`) and the child it follows (`after`).
-- `plan.BEGIN_DOCUMENT`, the plan's `\begin{document}` line.
-- `plan.data_path(path)` and `Edit.data_path`: where a plan line's writer is in the document's `to_dict` data, a
-  `PurePosixPath` (`/content/1/content/0`, `/settings/2`, `/preamble/after_package/0`).
-
-### Fixed
-
-- `Plan.edits` pairs a line with itself commented out or re-spaced inside a replaced block, so deleting one line and
-  commenting out the next names each by its own path; a line the same on both sides of a block (difflib's autojunk on a
-  long file) is no longer an edit.
-- `read_edits` reports a call commented out on its line as one `REMOVED` edit, not `UNREAD` and `REMOVED`.
-
-### Changed
-
-- `texmodel_build` is `texmodel.run`, a subpackage of `texmodel` (`from texmodel.run.compiler import Compiler`). The
-  core never imports it: an exhaustive import-linter layers contract (`cli` above `run` above every core module).
-- One command: `texmodel-build <command>` is `texmodel run <command>` (`compile`, `build`, `clean`, `verify`,
-  `doctor`); `texmodel -v` sets the logging for both.
-- The configuration table `[tool.texmodel-build]` is `[tool.texmodel.run]` (`.targets`, `.profiles`, `.measures`,
-  `.exempt` under it); the verifier entry-point group `texmodel_build.verifiers` is `texmodel.run.verifiers`.
-- Async: `Compiler.compile`, `clean`, `check_ready`, `missing_files`, `versions()` and `image_info()` (methods, no
-  longer properties), `build_targets`, `run_probes`, `check_library`, `check_verifier_contract`, `read_edits`,
-  `verify_file`, `verify_files` and `Verifier.verify` are coroutines. A compile that times out or is cancelled kills
-  its process group (`latexmk` and the engine it started) and, in the image, its container. `build_targets` and `verify_files` run `jobs` in a `TaskGroup`.
-
-## [0.11.0] - 2026-10-29
+## [0.11.0] - 2026-10-30
 
 Output change: a package with a `ColourSpace` declares `cmyk` and `rgb` as l3keys options in an options section.
 
@@ -68,17 +33,47 @@ Output change: a package with a `ColourSpace` declares `cmyk` and `rgb` as l3key
   (the trim and its sides turned 90°, `TM-M074` unless they are symmetric), when the package loads; every sheet is written
   as numbers in `\if` branches (`TM-M075` for a switch that is not a flag option). `PrintPage(marks=True)` draws crop
   marks on the full sheet (`showcrop`).
+- `texmodel.restore.restore(pkg, document, edits)`: the document that writes a hand-edited file, from the document
+  texmodel last wrote and its plan's edits (or `read_edits`'). A changed argument restores as its field's new value; a
+  node deleted, or commented out as itself, is removed when its parent's grammar allows. Each edit is applied only when
+  the document with it writes the edited line exactly; every other comes back in `unapplied` with a `Reason`, one
+  registry of stable `TM-R001`-`TM-R011` codes. Edits of another document are refused (`TM-X034`).
+- `Edit.line` (1-based, in the edited file; `None` for a removed line or an edit only TeX saw) and `Edit.file`, given as
+  `Plan.edits(text, file=path)` or `read_edits(..., file=path)`; `Edit.plan_line`, the plan line an edit is about (for
+  an added line, the one it follows), which `restore` reads instead of matching text.
+- An added line's `Unapplied` names the node it stands in (`parent`) and the child it follows (`after`).
+- `plan.BEGIN_DOCUMENT`, the plan's `\begin{document}` line.
+- `plan.data_path(path)` and `Edit.data_path`: where a plan line's writer is in the document's `to_dict` data, a
+  `PurePosixPath` (`/content/1/content/0`, `/settings/2`, `/preamble/after_package/0`).
 
 ### Changed
 
 - `ColourSpace` declares the package option `cmyk`, with its inverse `rgb`, through `Package.option`: it may be declared
   anywhere in the package, twice the same way is one option, and a document may set its flag (`\usepackage[cmyk=false]`)
   as well as pass the class option `rgb`.
+- `texmodel_build` is `texmodel.run`, a subpackage of `texmodel` (`from texmodel.run.compiler import Compiler`). The
+  core never imports it: an exhaustive import-linter layers contract (`cli` above `run` above every core module).
+- One command: `texmodel-build <command>` is `texmodel run <command>` (`compile`, `build`, `clean`, `verify`,
+  `doctor`); `texmodel -v` sets the logging for both.
+- The configuration table `[tool.texmodel-build]` is `[tool.texmodel.run]` (`.targets`, `.profiles`, `.measures`,
+  `.exempt` under it); the verifier entry-point group `texmodel_build.verifiers` is `texmodel.run.verifiers`.
+- Async: `Compiler.compile`, `clean`, `check_ready`, `missing_files`, `versions()` and `image_info()` (methods, no
+  longer properties), `build_targets`, `run_probes`, `check_library`, `check_verifier_contract`, `read_edits`,
+  `verify_file`, `verify_files` and `Verifier.verify` are coroutines. A compile that times out or is cancelled kills
+  its process group (`latexmk` and the engine it started) and, in the image, its container.
+  `build_targets` and `verify_files` run `jobs` in a `TaskGroup`.
 
 ### Removed
 
 - `texmodel.ext.colourspace.LIBRARY`, and the rule that `ColourSpace` comes before the colours (`TM-M065` now means only a
   package without a prefix): its option is in the options section, before every colour.
+
+### Fixed
+
+- `Plan.edits` pairs a line with itself commented out or re-spaced inside a replaced block, so deleting one line and
+  commenting out the next names each by its own path; a line the same on both sides of a block (difflib's autojunk on a
+  long file) is no longer an edit.
+- `read_edits` reports a call commented out on its line as one `REMOVED` edit, not `UNREAD` and `REMOVED`.
 
 ## [0.10.0] - 2026-10-29
 

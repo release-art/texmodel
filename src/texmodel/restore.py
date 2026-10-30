@@ -179,6 +179,8 @@ def _checked(
 ) -> Unapplied | None:
     """Why `change` alone does not write what its edits found, or `None`: the grammar holds and the plan of the
     document with it is the plan's text with those lines edited (or gone)."""
+    # ponytail: one plan of the whole document per change, so edits x document size; a deck is small. Render only the
+    # changed node's lines if a large document with many edits is slow.
     alone = _with(document, [change])
     edit = edits[change.edits[0]]
     if problems := [v for node in alone.content for v in node.violations()]:
