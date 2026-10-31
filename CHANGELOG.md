@@ -7,94 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- `std` headers: `hyperref`, `setspace`, `fancyhdr`, `caption`, `subcaption`, `babel`, `polyglossia`, `multicol`,
-  `pdfpages` and `luacolor`, each compiled against the reference image.
-
 ## [0.12.0] - 2026-10-30
 
+Typed tables, pictures, package dependencies and fields of several kinds. Generated output of existing packages is unchanged.
+
 ### Added
 
-- `ext.table`: `Table(header=False)` writes no header row and no rule under it (`TM-M083` for a column with a `group`);
-  `Look(edge=)` is the padding at the first column's left edge and the last one's right edge, so any look may be flush; a guide
-  paragraph says that a project may subclass `Format`.
-- `std.tabularray.TableRow`: a row a package writes as a command (one cell per field when it has no `body`), allowed in any
-  `tabularray` table; `expand_of(rows)` is the table's `expand` key, and a row command missing from it is `TM-C027` (before,
-  TeX failed with a misplaced alignment tab). `TM-M084`: a row command takes mandatory arguments only. A child that is an
-  instance of an abstract `Anywhere` kind floats like the kind, and the schema lists its registered subclasses;
-  `Environment.checks` takes further checks of a node.
-- `ext.table`: `Table(RowClass, rows)` for a `TableRow` writes the rows as typed nodes (the header one `Passthrough`);
-  `TM-M085` refuses `fmt=`, `totals`, `subtotal`, `group_by` and `spans` there, since the row writes its cells.
-  The class is the column layout: the rows may be of any `TableRow` classes (an abstract base can carry the `Col`s).
-  `TM-M086`: a row command whose body writes more or fewer cells than the layout has columns (its `&`, counted as text).
-- Checked `Raw` types, which a field holds where a bare `Raw` is too loose, and which check again when data loads:
-  `ControlSequence` (one control word, `TM-C030`; a `Macro`), `Name` (`TM-C031`), `NameList` (names separated by commas, `TM-C032`),
-  `Macro` (a control word and braced arguments, `TM-C029`), `FilePath` (`FilePath.of(PurePosixPath(...))`) and `FontName`
-  (no `{`, `}`, `\`, `%`, `#` or control characters, `TM-C028`).
-- A field may be a union of `Raw` subclasses (`FilePath | Macro`): a value of any member is accepted, anything else
-  (a bare `Raw`) is refused, and data loading tries each member.
-- `ext.table.Layout(columns, look=, width=, blocks=, rules=)`: the design of a table apart from what it holds. It is data and
-  declares nothing: `layout.table(rows, caption=...)` is a plain `Table`, a `TableEnvironment` takes it as its `layout`,
-  and `dataclasses.replace` makes a variant.
-- `ext.table.TableEnvironment.collect = Macro(...)`: the environment sets the table into a box of its own and calls the
-  macro with `\usebox{...}` as its last argument, so a host can collect it as an item and set it later; without `collect`
-  nothing changes.
-- `ext.table.TableEnvironment` and `declare(pkg)`: a table whose layout the package owns. A subclass sets `layout` and `rows`
-  (any `TableRow` classes) and inherits the rest; the `.sty` gets `\NewTblrEnviron`,
-  `\SetTblrInner` and `\SetTblrOuter` with `expand`, and a document holds only the rows (`TM-M087`: rows not registered,
-  `TM-M088`: no layout).
-- `ext.table.Widest`: `Widest.declare(pkg, "LabelWidth")` and `Col(width=widest)` make a column as wide as the widest cell of the
-  whole document, tables included: the cells record their widths (`ext.recorded`, `cmd=`) and the next run sets the column.
-- `run.hand_edits.read_edits(stub=)` stubs more components; it stubs `tblr`, `longtblr` and `talltblr` itself when a row is.
-- `ColourName.macro(r"\bbRowLabelColour")` (or a registered value that defines the macro): a colour read when the document is
-  typeset, left out of `names` and of the plate check.
+**Tables** (`texmodel.ext.table`)
+
+- `Table(Model, rows)` sets a table from a pydantic row model whose fields are the columns, with `tabularray` and
+  booktabs-style rules. `Col` on a field gives its label, format, alignment, `valign`, width, unit, header group, stub, `hide`,
+  `style` (the whole column) and `cells` (the body rows only). Formats: `Text`, `Number`, `Percent`, `Money`, `Date`, `Label`,
+  `Block` (a minipage, a list, a nested table) and `Image`; a project may subclass `Format`. Parts: caption, notes, totals,
+  `group_by` with `subtotal`, `Highlight` and `Span` by predicate, `long=True`, `blocks=True` (`measure=vbox`),
+  `header=False`, and `Look` (`BOOKTABS`, `GRID`, `PLAIN`; `edge=` is the padding at the outer edges).
+  `TM-M077` to `TM-M083`, `TM-C026`.
+- Rows as typed nodes: `Table(RowClass, rows)` for a `std.tabularray.TableRow`, a row a package writes as a command (one cell
+  per field when it has no `body`). `expand_of(rows)` is the table's `expand` key, and a row command missing from it is
+  `TM-C027`. `TM-M084`: a row command takes mandatory arguments only. `TM-M085`: `fmt=`, `totals`, `subtotal`, `group_by` and
+  `spans` are refused there. `TM-M086`: a body that writes more or fewer cells than the layout has columns.
+- `Layout(columns, look=, width=, blocks=, rules=)`: the design of a table apart from its rows. `TableEnvironment` and
+  `declare(pkg)` make a table whose layout a package owns (`\NewTblrEnviron`, `\SetTblrInner`, `\SetTblrOuter` in the `.sty`;
+  `TM-M087`, `TM-M088`), and `collect = Macro(...)` sets it into a box that a host collects as an item.
+- `Widest.declare(pkg, "LabelWidth")` and `Col(width=widest)`: a column as wide as the widest cell of the whole document.
+- A child that is an instance of an abstract `Anywhere` kind floats like the kind, and the schema lists its registered
+  subclasses. `Environment.checks` takes further checks of a node. `run.hand_edits.read_edits(stub=)` stubs more components.
+
+**`tabularray`** (`texmodel.std.tabularray`)
+
+- The whole package and its `booktabs`, `diagbox` and `tikz` libraries: `Tblr`, `Longtblr`, `Talltblr`, the inner and outer
+  key lists, the key lists of rules, cells, rows, columns and borders, the commands inside a table and the definers.
+  `selector` checks a child selector (`TM-M076`); `keyvals.Entry` is an item that spells its own key. It requires `xcolor`.
+
+**Pictures** (`texmodel.ext.graphics`)
+
+- `Picture`: `\includegraphics` that fits a box without distorting, crops and rotates, and needs `alt=` or `decorative=True`;
+  `Figure`: one picture, centred, caption below, label after. `TM-C033` to `TM-C035`. `std.latex` declares `figure`,
+  `\caption` and `\label`, and `std.graphicx` the keys `trim`, `alt` and `artifact`.
+
+**Fields and types**
+
+- A field may take several kinds (`icon: Icon | Picture | None`): a value is written as the first member that holds it, a
+  violation names them all, data tries them in order and the schema is an `anyOf`.
+- `texmodel.types.AsTeX` makes a type of your own a field value: it writes itself with `render()`, checks itself when built
+  and may read a hand edit back with `from_tex(text)`. `Raw`, `KeyVals` and `Picture` are such types.
+- Checked `Raw` types, for a field where a bare `Raw` is too loose; they check again when data loads. `ControlSequence`
+  (`TM-C030`), `Name` (`TM-C031`), `NameList` (`TM-C032`), `Macro` (`TM-C029`), `FilePath` and `FontName` (`TM-C028`). A union of
+  them (`FilePath | Macro`) takes any member.
+
+**Packages and colours**
+
+- `Package(..., requires=[...])`: the packages an adopted package needs. They load before it wherever it is used (`\RequirePackage`
+  in a generated `.sty`, `\usepackage` in a document), each once, at its first call. Two packages that need one with
+  different options are `TM-P013`; require it at the top with the options you want (`pkg.require(...)`).
+  `Package.requirements` lists them.
+- `Value.xcolor_name` is a registered colour's xcolor name; `ColourRef` is a colour argument that takes a `ColourName` or a
+  colour value (`bg=Ink`). `ColourName.macro(r"\bbRowLabelColour")` is a colour read when the document is typeset.
+
+**Standard headers** (`texmodel.std`)
+
+- `hyperref`, `setspace`, `fancyhdr`, `caption`, `subcaption`, `babel`, `polyglossia`, `multicol`, `pdfpages` and `luacolor`,
+  each compiled against the reference image.
 
 ### Changed
 
-- `std` fields that name a thing take a checked type, not `Raw`: `ControlSequence` for the length, box and macro of `latex`, `calc`
-  and `etoolbox`, the `cmd` keys and the `tabularray` command names; `Name` for counters, toggles, environments, packages,
-  options, colours, `tabularray` types, themes and templates; `NameList` for libraries and the environments of `SetTblrInner`;
-  `FilePath` for `IfFileExists` and `InputIfFileExists`; `FontName` for `fontspec`. `IncludeGraphics.path` and `IncludePdf.path` are
-  `FilePath | Macro`; `ext.table.Image` writes a `FilePath`, so a bad path is a `ValidationError`, not a `ValueError`.
-- `Look(rules=Rules.GRID)` and `Look(rules=Rules.NONE)` built by hand are flush at the edges, like the default; `Look.GRID` and
-  `Look.PLAIN` keep their padding (`edge=None`), so their output is the same.
-- `components`, `package`, `std.tabularray` and `ext.table` are subpackages with private submodules; every public name is
-  imported from the same path as before, but a class's `__module__` is now the submodule (`texmodel.components._node`).
-
-### Added
-
-- `Package(..., requires=[...])`: the packages an adopted package needs. They load before it wherever it is used: as
-  `\RequirePackage` lines before it in a generated `.sty` that calls it (or `require()`s it), and as `\usepackage` lines before
-  it in a document of its own; loading a package calls what it needs first, and a package needed twice loads once, at its
-  first call. Two packages that need one package with different options are `TM-P013`, resolved by requiring it with the
-  options you want at the top level (`pkg.require(...)`). `Package.requirements` lists what a package requires.
-  `texmodel.std.tabularray` requires `xcolor`, for its colour keys.
-- A field may take several kinds (`icon: Icon | Picture | None`): the value is written as the first member that holds it, a
-  violation names them all, data tries them in order and the schema is an `anyOf`. `texmodel.types.AsTeX` makes a type
-  of your own a field value: it writes itself with `render()`, checks itself when built and may read a hand edit back with `from_tex(text)`.
-  `ext.graphics.Picture` is one (it reads the `\includegraphics` call it writes).
-- `texmodel.ext.graphics`, pictures with opinions: `Picture` (`\includegraphics` that fits a box without distorting, crops and rotates, and needs `alt=` or `decorative=True`) and `Figure` (centred, caption below, label after);
-  `TM-C033` to `TM-C035`. `texmodel.std.latex` declares `figure`, `\caption` and `\label`, and `std.graphicx` the keys `trim`, `alt` and `artifact`.
-- `ext.table` rich cells: the formats `Block` (a group: a minipage, a list, a nested table) and `Image`, `Col.cells` (a
-  `CellSpec` for the body rows only), `Col.valign` (a block or image aligns at the head of the row) and
-  `Table(blocks=True)` (`measure=vbox`, for lists and display maths in cells).
-- `ext.table` row groups (`group_by`, `subtotal`), `Highlight` and `Span` by predicate, the formats `Money`, `Date` and `Label`,
-  and `Look.GRID` and `Look.PLAIN` (`Rules`); `TM-M081` and `TM-M082`.
-- `texmodel.ext.table`, a table from a row model (a pydantic model whose fields are the columns): `Col` on a field (label, format, alignment,
-  width, unit, header group, stub, hide), the formats `Text`, `Number` and `Percent`, `Table` with a caption, notes, totals and
-  `long=True`, and `Look` for the rules and header; it writes a `tabularray` environment of `texmodel.std.tabularray`
-  (`TM-M077` to `TM-M080`, `TM-C026`).
-- `texmodel.std.tabularray`, the whole of the `tabularray` package and its `booktabs`, `diagbox` and `tikz` libraries: `Tblr`,
-  `Longtblr`, `Talltblr`, `Booktabs`, `Longtabs` and `Talltabs`; the inner and outer key lists (`TblrInner`, `TblrOuter`)
-  and the key lists of rules, cells, rows, columns and borders; the commands inside a table (`Hline`, `SetCell`, `Toprule`,
-  `Diagbox`, ...); the definers (`NewTblrColumnType`, `NewTblrTheme`, `DeclareTblrTemplate`, ...). `selector` checks a child
-  selector (`TM-M076`).
-- `Value.xcolor_name`: a registered colour value's resolved xcolor name, a `ColourName` (`Ink.xcolor_name` is `ap-ink`), to give a
-  `ColourName` field: `bg=Ink.xcolor_name`.
-- `texmodel.components.ColourRef`: a colour argument that takes a `ColourName` or a registered colour value (`bg=Ink`) and holds
-  its name. The colour fields of the `tcolorbox`, `tikz` and `tabularray` headers are `ColourRef`.
-- `texmodel.keyvals.Entry`: an item that spells its own key (`cell{1}{2}={bg=red}`); declare the field `list[Item[Entry]]`.
+- `std` fields that name a thing take a checked type, not `Raw`: `ControlSequence`, `Name`, `NameList`, `FilePath` or
+  `FontName`. `IncludeGraphics.path` and `IncludePdf.path` are `FilePath | Macro`.
+- `Look(rules=Rules.GRID)` and `Look(rules=Rules.NONE)` built by hand are flush at the edges, like the default.
+- `components`, `package`, `std.tabularray` and `ext.table` are subpackages with private submodules. Public names import
+  from the same path, but a class's `__module__` is now the submodule (`texmodel.components._node`).
 
 ## [0.11.0] - 2026-10-30
 
