@@ -2,7 +2,8 @@
 
 `texmodel.std` has a typed header for each TeX package a deck loads: `latex` (the kernel), `graphicx`, `xcolor`, `geometry`,
 `etoolbox`, `eso_pic`, `microtype`, `hyphenat`, `anyfontsize`, `calc`, `pdfrender`, `enumitem`, `adjustbox`, `tikz`,
-`tcolorbox`, `fontspec` and `tabularray`. The blocks on this page run in order, as one module.
+`tcolorbox`, `fontspec`, `tabularray`, `hyperref`, `setspace`, `fancyhdr`, `caption`, `subcaption`, `babel`,
+`polyglossia`, `multicol`, `pdfpages` and `luacolor`. The blocks on this page run in order, as one module.
 
 A header is an adopted package with no prefix, whose components name their TeX command with `cs`:
 

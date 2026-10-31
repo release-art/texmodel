@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `std` headers: `hyperref`, `setspace`, `fancyhdr`, `caption`, `subcaption`, `babel`, `polyglossia`, `multicol`,
+  `pdfpages` and `luacolor`, each compiled against the reference image.
+
 ## [0.12.0] - 2026-10-30
 
 ### Added

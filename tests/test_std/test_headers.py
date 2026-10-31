@@ -56,7 +56,7 @@ def test_a_header_is_an_adopted_package_whose_components_all_name_their_control_
     assert package.builtin == (name == "latex")
     for cls in package.registered:
         assert cls.__doc__ and cls.__dict__["cs"] and cls.__tm_cs__ == cls.__dict__["cs"]  # pyright: ignore[reportAttributeAccessIssue]
-    if name in {"hyphenat", "anyfontsize"}:
+    if name in {"hyphenat", "anyfontsize", "luacolor"}:
         assert package.registered == ()  # loaded with Package.require; nothing to call
 
 
@@ -542,6 +542,105 @@ def tabularray_samples():
     return pre, nodes
 
 
+def hyperref_samples():
+    from texmodel.std import hyperref as h
+
+    options = h.HypersetupOptions(
+        pdftitle="Deck", pdfauthor="A", colorlinks=True, linkcolor=Raw("blue"), extra=Raw("pdfborder={0 0 0}")
+    )
+    return [h.Hypersetup(options=options)], [
+        h.HyperTarget(name=Raw("tmt"), text="x"),
+        h.HyperLink(name=Raw("tmt"), text="x"),
+        h.Href(url=Raw("https://example.org"), text="x"),
+        h.Url(url=Raw("https://example.org")),
+    ]
+
+
+def setspace_samples():
+    from texmodel.std import setspace as s
+
+    return [], [
+        s.SetStretch(factor=Raw("1.25")),
+        s.SingleSpacing(),
+        s.OneAndHalfSpacing(),
+        s.DoubleSpacing(),
+    ]
+
+
+def fancyhdr_samples():
+    from texmodel.std import (
+        fancyhdr as f,
+        latex as k,
+    )
+
+    return [f.Fancyhf(text=Raw("")), f.Fancyhead(where=Raw("L"), text=Raw("x")), f.Fancyfoot(text=Raw("x"))], [
+        k.PageStyle(style=Raw("fancy")),
+        f.Fancyhf(where=Raw("C"), text=Raw("x")),
+        f.Fancyhead(text=Raw("x")),
+        f.Fancyfoot(where=Raw("C"), text=Raw("x")),
+    ]
+
+
+def caption_samples():
+    from texmodel.std import caption as c
+
+    return [c.CaptionSetup(options=Raw("font=small,labelfont=bf"))], [
+        c.CaptionOf(kind=Raw("figure"), text="x"),
+        c.CaptionOf(kind=Raw("figure"), short="s", text="x"),
+    ]
+
+
+def subcaption_samples():
+    from texmodel.std import subcaption as s
+
+    box = s.SubCaptionBox(text="x", content=Raw("y"))
+    return [], [
+        body_of(
+            r"\begin{figure}",
+            box.render(),
+            r"\begin{minipage}{3cm}",
+            s.SubCaption(text="x").render(),
+            r"\end{minipage}",
+            r"\end{figure}",
+        )
+    ]
+
+
+def babel_samples():
+    from texmodel.std import babel as b
+
+    return [], [b.SelectLanguage(language=Name("english")), b.ForeignLanguage(language=Name("english"), text="x")]
+
+
+def polyglossia_samples():
+    from texmodel.std import polyglossia as p
+
+    return [
+        p.SetMainLanguage(language=Name("english")),
+        p.SetOtherLanguage(options=Raw("variant=german"), language=Name("german")),
+    ], []
+
+
+def multicol_samples():
+    from texmodel.std import multicol as m
+
+    return [], [m.Multicols(body_of("x", m.ColumnBreak().render(), "y"), columns=2)]
+
+
+def pdfpages_samples():
+    from texmodel.std import pdfpages as p
+
+    return [], [
+        p.IncludePdf(path=FilePath("tm-doc.pdf")),
+        p.IncludePdf(
+            path=FilePath("tm-doc.pdf"),
+            options=p.IncludePdfOptions(
+                pages=Raw("1"), nup=Raw("1x1"), angle=0, scale=1, landscape=True, frame=True, extra=Raw("noautoscale")
+            ),
+        ),
+    ]
+
+
 SAMPLES = {
     "latex": latex_samples,
     "graphicx": graphicx_samples,
@@ -560,6 +659,16 @@ SAMPLES = {
     "tcolorbox": tcolorbox_samples,
     "fontspec": fontspec_samples,
     "tabularray": tabularray_samples,
+    "hyperref": hyperref_samples,
+    "setspace": setspace_samples,
+    "fancyhdr": fancyhdr_samples,
+    "caption": caption_samples,
+    "subcaption": subcaption_samples,
+    "babel": babel_samples,
+    "polyglossia": polyglossia_samples,
+    "multicol": multicol_samples,
+    "pdfpages": pdfpages_samples,
+    "luacolor": lambda: ([], []),
 }
 ERRORS = {"PackageError"}  # declared and called in `test_package_error`: it stops the run on purpose
 
@@ -581,6 +690,22 @@ def test_every_sample_set_is_listed_and_calls_every_declared_name():
 
 
 # --- conformance: real TeX accepts the calls --------------------------------------------------------------------
+
+
+def pdf() -> bytes:
+    """A one-page PDF, so pdfpages has a file to place."""
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] >>",
+    ]
+    out, offsets = b"%PDF-1.4\n", []
+    for number, body in enumerate(objects, 1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n%s\nendobj\n" % (number, body)
+    xref = len(out)
+    out += b"xref\n0 4\n0000000000 65535 f \n" + b"".join(b"%010d 00000 n \n" % o for o in offsets)
+    return out + b"trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % xref
 
 
 def png() -> bytes:
@@ -612,6 +737,7 @@ async def compile_sample(comp: Compiler, plan, tmp_path: pathlib.Path):  # noqa:
     src.mkdir(parents=True, exist_ok=True)
     (src / "d.tex").write_text(plan.text, encoding="utf-8")
     (src / "tm-pic.png").write_bytes(png())
+    (src / "tm-doc.pdf").write_bytes(pdf())
     result = await comp.compile(src / "d.tex", tmp_path / "out", plan=plan)
     errors = [d for d in result.diagnostics if d.severity is Severity.ERROR]
     return result, errors, [d for d in errors if d.code == GAP[0] or GAP[1] in d.message]
