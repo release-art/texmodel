@@ -26,7 +26,7 @@ import dataclasses
 import enum
 import re
 from collections.abc import Mapping
-from typing import Annotated, Any, Final, Literal, Self
+from typing import Annotated, Any, Final, Literal
 
 from pydantic_core import core_schema
 
@@ -324,23 +324,6 @@ class Body:
         return self.kind.value
 
 
-class AsTeX:
-    r"""A type that is a field value because it writes itself: subclass it and define `render()`, the TeX of the value
-    without delimiters (`ext.graphics.Picture`). The type checks itself when it is built (as `FilePath` does) and loads
-    from data by its own pydantic schema, which a dataclass or a model has already; the field only checks that the
-    value is one. Nothing is found by name: a type with a `render()` that does not subclass this is not accepted."""
-
-    def render(self) -> str:
-        raise NotImplementedError
-
-    @classmethod
-    def read(cls, text: str) -> Self:
-        r"""The value `text` is, as `\detokenize` shows it in a stub call (a hand edit read back), or `ValueError`
-        saying why it is not one. A type that does not read leaves this: the field is then unread, with no value and
-        no violation."""
-        raise NotImplementedError
-
-
 RAW_BODY: Final = Body(BodyKind.RAW)
 TEXT_BODY: Final = Body(BodyKind.TEXT)
 
@@ -348,7 +331,6 @@ TEXT_BODY: Final = Body(BodyKind.TEXT)
 __all__ = [
     "ANGLE",
     "ArgOptions",
-    "AsTeX",
     "BRACE",
     "Body",
     "BodyKind",

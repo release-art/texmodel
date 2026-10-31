@@ -74,7 +74,7 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 - A union field writes a value as the first member that holds it, so members that hold the same value (`Text | Raw`) are
   ordered by hand; a stub call is read back as the first member that reads it, and a member that is not read (an `AsTeX`
   type without `read`, a key list) leaves the field unread.
-- A subclass of `AsTeX` is written by its `render()` and read back only if it defines `read(text)` (otherwise the field is
+- A subclass of `AsTeX` is written by its `render()` and read back only if it defines `from_tex(text)` (otherwise the field is
   unread in a hand edit); the type checks itself when built, and `violations()` only checks that a value is one. `Picture`
   reads the call it writes, not a path from a macro or a key it does not write.
 - A `Raw` value or `Item[Raw]` is written as given: texmodel checks only that its braces balance.

@@ -80,8 +80,8 @@ texmodel.ext.graphics.Figure(picture: Picture, *, caption: str | None = …, sho
 texmodel.ext.graphics.Figure.node(self) -> latex.Figure
 texmodel.ext.graphics.Figure.render(self) -> str
 texmodel.ext.graphics.Picture(path: str | PurePosixPath | FilePath | Macro, *, alt: str | None = …, decorative: bool = …, width: Length | None = …, height: Length | None = …, scale: float | None = …, crop: Crop | None = …, rotate: float | None = …, page: int | None = …) -> None
+texmodel.ext.graphics.Picture.from_tex(cls, text: str) -> Self
 texmodel.ext.graphics.Picture.node(self) -> IncludeGraphics
-texmodel.ext.graphics.Picture.read(cls, text: str) -> Self
 texmodel.ext.graphics.Picture.render(self) -> str
 texmodel.ext.intent.LIBRARY: str
 texmodel.ext.intent.OutputCondition(profile: str, identifier: str, info: str, registry: str = …, colorants: int = …) -> None
@@ -163,9 +163,6 @@ texmodel.history.violation_pointer(path: str) -> str
 texmodel.history.worst(changes: Sequence[Change]) -> Level
 texmodel.interface.ANGLE: Delimiter
 texmodel.interface.ArgOptions(delimiter: Delimiter | None, fill: str | Gap, sep: str | None, group: SlotGroup | None, booleans: tuple[str, str] | None) -> None
-texmodel.interface.AsTeX()
-texmodel.interface.AsTeX.read(cls, text: str) -> Self
-texmodel.interface.AsTeX.render(self) -> str
 texmodel.interface.BRACE: Delimiter
 texmodel.interface.Body(kind: BodyKind, choice: type[Choice] | None = …, items: tuple['Body', ...] = …, attrs: tuple[str, ...] = …, keyvals: type | None = …, token: str | None = …, expression: type | tuple[type, ...] | None = …) -> None
 texmodel.interface.Body.describe(self) -> str
@@ -362,6 +359,9 @@ texmodel.testing.expand(node: Node, stubs: Sequence[Component] = …) -> list[Ca
 texmodel.testing.export_probes(package: Package) -> str
 texmodel.testing.read_call(cls: Component, call: Call) -> tuple[FieldEdit, ...]
 texmodel.testing.stub_tex(stubs: Sequence[Component]) -> str
+texmodel.types.AsTeX()
+texmodel.types.AsTeX.from_tex(cls, text: str) -> Self
+texmodel.types.AsTeX.render(self) -> str
 texmodel.types.CMYK(c: float, m: float, y: float, k: float) -> None
 texmodel.types.CMYK.plates: property
 texmodel.types.Choice(new_class_name, /, names, *, module=…, qualname=…, type=…, start=…, boundary=…)
@@ -388,6 +388,7 @@ texmodel.types.Plate(*values)
 texmodel.types.RGB(r: float, g: float, b: float) -> None
 texmodel.types.RGB.plates: property
 texmodel.types.Raw(tex: str) -> None
+texmodel.types.Raw.render(self) -> str
 texmodel.types.TEXT: _TextMarker
 texmodel.types.Text: _AnnotatedAlias
 texmodel.types.ValueKind(name: str, python: type | types.UnionType, json_type: str, claims: Callable[[str, str, str | None], tuple[Claim, ...]], declare: Callable[[str, str, Any, str | None], list[str]], setting: Callable[[str, str, Any, str | None], str], needs: tuple['str | Package', ...] = …, defines: Callable[[str, str, str | None], tuple[Claim, ...]] | None = …, named: bool = …, may_omit: bool = …, bare: bool = …, adoptable: bool = …) -> None

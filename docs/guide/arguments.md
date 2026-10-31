@@ -117,7 +117,7 @@ A union of the types above takes a value of any member, written as the first mem
 them all (`one of ['RULER', 'PAW'] | Picture`). Data tries the members in order, as pydantic does, and the schema is an
 `anyOf`. A type of your own is a value when it subclasses `AsTeX` and writes itself with `render()`; it checks itself when
 it is built (as `FilePath` does), loads from data by its own pydantic schema, which a dataclass or a model already has,
-and the field only checks that the value is one. A type that defines `read(text)` is also read back from a hand edit
+and the field only checks that the value is one. A type that defines `from_tex(text)` is also read back from a hand edit
 (`Picture` reads the `\includegraphics` call it writes); one that does not leaves the field unread. `texmodel.ext.graphics.Picture`
 is one.
 

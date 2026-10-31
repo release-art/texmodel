@@ -71,8 +71,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   options you want at the top level (`pkg.require(...)`). `Package.requirements` lists what a package requires.
   `texmodel.std.tabularray` requires `xcolor`, for its colour keys.
 - A field may take several kinds (`icon: Icon | Picture | None`): the value is written as the first member that holds it, a
-  violation names them all, data tries them in order and the schema is an `anyOf`. `texmodel.interface.AsTeX` makes a type
-  of your own a field value: it writes itself with `render()`, checks itself when built and may read a hand edit back with `read(text)`.
+  violation names them all, data tries them in order and the schema is an `anyOf`. `texmodel.types.AsTeX` makes a type
+  of your own a field value: it writes itself with `render()`, checks itself when built and may read a hand edit back with `from_tex(text)`.
   `ext.graphics.Picture` is one (it reads the `\includegraphics` call it writes).
 - `texmodel.ext.graphics`, pictures with opinions: `Picture` (`\includegraphics` that fits a box without distorting, crops and rotates, and needs `alt=` or `decorative=True`) and `Figure` (centred, caption below, label after);
   `TM-C033` to `TM-C035`. `texmodel.std.latex` declares `figure`, `\caption` and `\label`, and `std.graphicx` the keys `trim`, `alt` and `artifact`.

@@ -22,10 +22,9 @@ from typing import Any, Final, Self
 from .._internal.read import read_length, unescaped
 from ..components import Passthrough
 from ..errors import DeclarationError, ValidationError
-from ..interface import AsTeX
 from ..std import latex
 from ..std.graphicx import IncludeGraphics, IncludeGraphicsOptions
-from ..types import FilePath, Length, Macro, Name, Raw
+from ..types import AsTeX, FilePath, Length, Macro, Name, Raw
 
 _ZERO = Length("0pt")
 
@@ -98,7 +97,7 @@ class Picture(AsTeX):
         return self.node().render()
 
     @classmethod
-    def read(cls, text: str) -> Self:
+    def from_tex(cls, text: str) -> Self:
         r"""A picture from the `\includegraphics` call it was written as (what a stub shows of a field), so a hand edit
         of it is seen. A call with a key it does not write, or a path from a macro, is not read."""
         body = text.strip()

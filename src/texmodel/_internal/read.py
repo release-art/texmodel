@@ -5,9 +5,9 @@ import re
 from typing import cast
 
 from ..errors import DeclarationError, Violation
-from ..interface import AsTeX, Body, BodyKind
+from ..interface import Body, BodyKind
 from ..plan import FieldEdit
-from ..types import Length, Raw, escape
+from ..types import AsTeX, Length, Raw, escape
 from .render import Arg
 from .values import value_ok, value_text
 
@@ -104,7 +104,7 @@ def read_value(body: Body, text: str, *, booleans: tuple[str, str] = ("true", "f
         case BodyKind.LIST:
             return [read_value(body.items[0], p, booleans=booleans, sep=sep) for p in text.split(sep)] if text else []
         case BodyKind.TEX:
-            return cast("type[AsTeX]", body.expression).read(text)
+            return cast("type[AsTeX]", body.expression).from_tex(text)
         case BodyKind.ONE_OF:
             unread, refused = False, list[str]()
             for alternative in body.items:

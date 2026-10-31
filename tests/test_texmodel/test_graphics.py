@@ -75,8 +75,8 @@ PICTURES = [
 
 @pytest.mark.parametrize("picture", PICTURES)
 def test_a_picture_reads_back_from_the_call_it_was_written_as(picture):
-    assert Picture.read(detokenized(picture.render())) == picture
-    assert Picture.read("{" + detokenized(picture.render()) + "}") == picture
+    assert Picture.from_tex(detokenized(picture.render())) == picture
+    assert Picture.from_tex("{" + detokenized(picture.render()) + "}") == picture
 
 
 @pytest.mark.parametrize(
@@ -93,12 +93,12 @@ def test_a_picture_reads_back_from_the_call_it_was_written_as(picture):
 )
 def test_a_call_that_is_no_picture_is_refused_with_the_reason(text):
     with pytest.raises(ValueError):  # noqa: PT011
-        Picture.read(text)
+        Picture.from_tex(text)
 
 
 def test_a_path_from_a_macro_is_not_read():
     with pytest.raises(NotImplementedError):
-        Picture.read(r"\includegraphics [alt=x]{\figdir a}")
+        Picture.from_tex(r"\includegraphics [alt=x]{\figdir a}")
 
 
 @pytest.mark.tex

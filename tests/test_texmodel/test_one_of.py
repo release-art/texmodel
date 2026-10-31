@@ -5,15 +5,18 @@ import enum
 
 import pytest
 
+from texmodel._internal.bodies import body_of
 from texmodel._internal.read import detokenized
 from texmodel.components import Command
 from texmodel.errors import DeclarationError, ValidationError
 from texmodel.ext.graphics import Picture
-from texmodel.interface import AsTeX
+from texmodel.interface import BodyKind, Flag
+from texmodel.keys import PGFKEYS
+from texmodel.keyvals import KeyVals
 from texmodel.package import Package
 from texmodel.spec import from_dict, json_schema, to_dict
 from texmodel.testing import Call, read_call
-from texmodel.types import Choice, FilePath, Raw, Text
+from texmodel.types import AsTeX, Choice, FilePath, Raw, Text
 
 
 @enum.unique
@@ -162,4 +165,15 @@ def test_astex_is_abstract_until_a_type_writes_and_reads_itself():
     with pytest.raises(NotImplementedError):
         AsTeX().render()
     with pytest.raises(NotImplementedError):
-        Stamp.read("x")
+        Stamp.from_tex("x")
+
+
+def test_raw_and_key_lists_are_astex_and_keep_their_own_kinds():
+    class Opts(KeyVals, rules=PGFKEYS):
+        center: Flag = False
+
+    assert Raw(r"\x").render() == r"\x" and FilePath("a.png").render() == "a.png"
+    assert Opts(center=True).render() == "center"
+    assert issubclass(Raw, AsTeX) and issubclass(Opts, AsTeX)
+    kinds = [(b.kind if b else None) for b in map(body_of, (FilePath, Opts, Stamp))]
+    assert kinds == [BodyKind.RAW, BodyKind.KEYVALS, BodyKind.TEX]

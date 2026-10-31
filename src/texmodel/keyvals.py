@@ -33,7 +33,7 @@ from ._internal.values import unprotected, value_text
 from .errors import DeclarationError
 from .interface import FLAG, SWITCH, Body, BodyKind, Item, OptionalValue
 from .keys import KeyRules
-from .types import Raw
+from .types import AsTeX, Raw
 
 
 @enum.unique
@@ -133,7 +133,7 @@ def _classify(cls: type, name: str, spelling: str, hint: Any, rules: KeyRules) -
     return KeyItem(name, spelling, kind, body, repeated)
 
 
-class KeyVals(pydantic.BaseModel):
+class KeyVals(pydantic.BaseModel, AsTeX):
     """The base of a key list; give each subclass its library's `KeyRules`: `class Opts(KeyVals, rules=PGFKEYS)`.
 
     `exclusive` lists groups of fields of which at most one may be set; `requires` maps a field to the one it needs."""

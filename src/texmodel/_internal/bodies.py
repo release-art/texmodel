@@ -5,8 +5,8 @@ import types
 import typing
 from typing import Annotated, Any
 
-from ..interface import RAW_BODY, AsTeX, Body, BodyKind, ColourName, Item, OptionalValue, Token
-from ..types import CMYK, PDF, RGB, TEXT, Choice, Gray, Length, Raw
+from ..interface import RAW_BODY, Body, BodyKind, ColourName, Item, OptionalValue, Token
+from ..types import CMYK, PDF, RGB, TEXT, AsTeX, Choice, Gray, Length, Raw
 
 _COLOURS = (CMYK, RGB, Gray)
 
@@ -60,8 +60,6 @@ def body_of(hint: Any) -> Body | None:  # noqa: ANN401, C901
         return RAW_BODY
     if isinstance(h, type) and issubclass(h, Raw):
         return Body(BodyKind.RAW, expression=h)
-    if isinstance(h, type) and issubclass(h, AsTeX):
-        return Body(BodyKind.TEX, expression=h)
     if h is bool:
         return Body(BodyKind.BOOL)
     if h is int:
@@ -74,6 +72,8 @@ def body_of(hint: Any) -> Body | None:  # noqa: ANN401, C901
         return Body(BodyKind.CHOICE, choice=h)
     if isinstance(h, type) and getattr(h, "__tm_keyvals__", False):
         return Body(BodyKind.KEYVALS, keyvals=h)
+    if isinstance(h, type) and issubclass(h, AsTeX):
+        return Body(BodyKind.TEX, expression=h)
     if origin is list:
         element = body_of(typing.get_args(h)[0])
         return None if element is None else Body(BodyKind.LIST, items=(element,))

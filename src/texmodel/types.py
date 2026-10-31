@@ -13,7 +13,7 @@ from collections.abc import Callable
 from decimal import Decimal
 from fractions import Fraction
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Final
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Final, Self
 
 from .errors import DeclarationError, ValidationError
 
@@ -135,11 +135,32 @@ def balanced(tex: str) -> bool:
     return depth == 0
 
 
+class AsTeX:
+    r"""A type that is a field value because it writes itself: subclass it and define `render()`, the TeX of the value
+    without delimiters. `Raw` and `KeyVals` are such types, and so is `ext.graphics.Picture`. The type checks itself
+    when it is built (as `FilePath` does) and loads from data by its own pydantic schema, which a dataclass or a model
+    has already; the field only checks that the value is one. Nothing is found by name: a type with a `render()` that
+    does not subclass this is not accepted."""
+
+    def render(self) -> str:
+        raise NotImplementedError
+
+    @classmethod
+    def from_tex(cls, text: str) -> Self:
+        r"""The value `text` is, as `\detokenize` shows it in a stub call (a hand edit read back), or `ValueError`
+        saying why it is not one. A type that does not read leaves this: the field is then unread, with no value and
+        no violation."""
+        raise NotImplementedError
+
+
 @dataclasses.dataclass(frozen=True)
-class Raw:
+class Raw(AsTeX):
     """TeX passed through unescaped, only where a field is declared `Raw` (T3). A distinct class, never a `str`."""
 
     tex: str
+
+    def render(self) -> str:
+        return self.tex
 
     def __post_init__(self) -> None:
         if not balanced(self.tex):
@@ -536,6 +557,7 @@ __all__ = [
     "PROCESS",
     "Plate",
     "plates_of",
+    "AsTeX",
     "Choice",
     "Claim",
     "Colour",
