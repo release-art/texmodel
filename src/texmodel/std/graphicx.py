@@ -7,7 +7,7 @@ from texmodel.interface import Flag, Item
 from texmodel.keys import KEYVAL
 from texmodel.keyvals import KeyVals
 from texmodel.package import Package
-from texmodel.types import FilePath, Length, Macro, Raw
+from texmodel.types import FilePath, Length, Macro, Raw, Text
 
 package = Package("graphicx", prefix="", adopted=True)
 
@@ -25,6 +25,9 @@ class IncludeGraphicsOptions(KeyVals, rules=KEYVAL):
     page: int | None = None
     clip: Flag = False
     draft: Flag = False
+    trim: Raw | None = None  # four lengths, left bottom right top, cut off when `clip` is set
+    alt: Text | None = None  # the text for a tagged PDF (LaTeX 2024-11 and later)
+    artifact: Flag = False  # a picture that is decoration, which a tagged PDF leaves out
     extra: Item[Raw] | None = None
 
 

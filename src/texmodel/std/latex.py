@@ -590,3 +590,29 @@ class Minipage(Environment):
     children = [Anywhere(Passthrough)]
     width: Length
     position: BoxPosition | None = None
+
+
+@package.environment
+class Figure(Environment):
+    r"""A float for a picture: `\begin{figure}[tbp]`. `placement` is the letters of `h`, `t`, `b`, `p` and `!`."""
+
+    cs = "figure"
+    children = [Anywhere(Passthrough)]
+    placement: Raw | None = None
+
+
+@package.command
+class Caption(Command):
+    r"""The caption of a float: `\caption[Short]{Text}`."""
+
+    cs = "caption"
+    short: Text | None = arg(SQUARE, default=None)
+    text: Text
+
+
+@package.command
+class Label(Command):
+    r"""A cross-reference target: `\label{fig:logo}`."""
+
+    cs = "label"
+    name: Name

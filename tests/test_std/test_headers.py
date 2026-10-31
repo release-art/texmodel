@@ -169,6 +169,9 @@ def latex_samples():
         k.FlushLeft(body_of("x")),
         k.FlushRight(body_of("x")),
         k.Minipage(body_of("x"), width=Length("3cm"), position=k.BoxPosition.TOP),
+        k.Figure(body_of("x"), placement=Raw("tbp")),
+        k.Figure(body_of(k.Caption(short="Short", text="A & B").render()), placement=None),
+        k.Label(name=Name("fig:a")),
         k.ClearPage(),
     ]
     return pre, nodes
@@ -188,9 +191,12 @@ def graphicx_samples():
                 scale=0.5,
                 angle=0,
                 clip=True,
-                extra=Raw("trim=0 0 0 0"),
+                trim=Raw("0pt 0pt 0pt 0pt"),
+                alt="A white pixel",
+                extra=Raw("interpolate"),
             ),
         ),
+        g.IncludeGraphics(path=FilePath("tm-pic.png"), options=g.IncludeGraphicsOptions(artifact=True)),
         g.IncludeGraphics(path=FilePath("tm-pic.png")),
     ]
 

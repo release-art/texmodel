@@ -70,6 +70,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   first call. Two packages that need one package with different options are `TM-P013`, resolved by requiring it with the
   options you want at the top level (`pkg.require(...)`). `Package.requirements` lists what a package requires.
   `texmodel.std.tabularray` requires `xcolor`, for its colour keys.
+- `texmodel.ext.graphics`, pictures with opinions: `Picture` (`\includegraphics` that fits a box without distorting, crops and rotates, and needs `alt=` or `decorative=True`) and `Figure` (centred, caption below, label after);
+  `TM-M089` to `TM-M091`. `texmodel.std.latex` declares `figure`, `\caption` and `\label`, and `std.graphicx` the keys `trim`, `alt` and `artifact`.
 - `ext.table` rich cells: the formats `Block` (a group: a minipage, a list, a nested table) and `Image`, `Col.cells` (a
   `CellSpec` for the body rows only), `Col.valign` (a block or image aligns at the head of the row) and
   `Table(blocks=True)` (`measure=vbox`, for lists and display maths in cells).

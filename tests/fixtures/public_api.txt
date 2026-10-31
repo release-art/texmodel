@@ -75,6 +75,13 @@ texmodel.ext.fit.Fit.declare(self, package: Package) -> FitParts
 texmodel.ext.fit.FitParts(record: type[Command], fit: type[Command], target: type[Value[Any]], floor: type[Value[Any]], room: type[Value[Any]], size: type[Value[Any]], line_size: type[Value[Any]])
 texmodel.ext.fit.LIBRARY: str
 texmodel.ext.fit.choose_sizes(each: Sequence[float], own: float, *, target: float, floor: float, reduced_sizes: int) -> tuple[float, float]
+texmodel.ext.graphics.Crop(left: Length = …, bottom: Length = …, right: Length = …, top: Length = …) -> None
+texmodel.ext.graphics.Figure(picture: Picture, *, caption: str | None = …, short: str | None = …, label: str | None = …, placement: str | None = …) -> None
+texmodel.ext.graphics.Figure.node(self) -> latex.Figure
+texmodel.ext.graphics.Figure.render(self) -> str
+texmodel.ext.graphics.Picture(path: str | PurePosixPath | FilePath | Macro, *, alt: str | None = …, decorative: bool = …, width: Length | None = …, height: Length | None = …, scale: float | None = …, crop: Crop | None = …, rotate: float | None = …, page: int | None = …) -> None
+texmodel.ext.graphics.Picture.node(self) -> IncludeGraphics
+texmodel.ext.graphics.Picture.render(self) -> str
 texmodel.ext.intent.LIBRARY: str
 texmodel.ext.intent.OutputCondition(profile: str, identifier: str, info: str, registry: str = …, colorants: int = …) -> None
 texmodel.ext.intent.OutputCondition.check_profile(self, data: bytes) -> list[Violation]
