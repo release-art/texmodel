@@ -14,6 +14,7 @@ from texmodel.components import Command, Environment, control_name
 from texmodel.errors import TexmodelError
 from texmodel.package import Package
 from texmodel.plan import BEGIN_DOCUMENT, Edit, EditKind, FieldEdit, Line, Plan
+from texmodel.std.tabularray import Longtblr, TableRow, Talltblr, Tblr
 from texmodel.testing import Call, Component, read_call, stub_tex
 
 from .compiler import Compiler
@@ -101,6 +102,11 @@ def _merged(line_edits: list[Edit], probed: _Probed, is_call: re.Pattern[str]) -
     return [*out, *(p for p, _ in probed)]
 
 
+# The tables of the package itself: those of its `booktabs` library exist only when the library is loaded, so a stub
+# cannot redefine them.
+_TABLES = (Tblr, Longtblr, Talltblr)
+
+
 async def read_edits(
     compiler: Compiler,
     plan: Plan,
@@ -108,6 +114,7 @@ async def read_edits(
     *packages: Package,
     files: Mapping[str, str] | None = None,
     file: pathlib.Path | None = None,
+    stub: Sequence[Component] = (),
 ) -> list[Edit]:
     """What `text` changed against `plan`, read by TeX: `Plan.edits` with each `CHANGED` line's `fields` carrying the
     typed value the argument now holds (or the `Violation` saying it holds none), a line TeX reads as the plan's own
@@ -118,8 +125,13 @@ async def read_edits(
     `.sty` is written beside the document; `files` are others it loads (path -> text); `file` is the file `text` was
     read from, which every edit carries (an edit only TeX saw has no `line`). The plan's own text is compiled
     too, as the baseline. A document that does not compile raises `CompileError`, so nothing is read from a broken one.
+    `stub` are components of other packages to stub too. `tblr`, `longtblr` and `talltblr` are stubbed whenever a
+    `TableRow` is: a table processes its body four times, which would log each row four times.
     A stubbed macro redefined in `text` is not noticed: its calls vanish."""
     classes = {control_name(c): c for p in packages for c in p.registered if issubclass(c, Command | Environment)}
+    if any(issubclass(c, TableRow) for c in classes.values()):
+        stub = [*stub, *_TABLES]
+    classes |= {control_name(c): c for c in stub}
     if not classes:
         raise TexmodelError(
             "no command or environment to stub", code="TM-X033", hint="pass the packages the document loads"

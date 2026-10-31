@@ -71,6 +71,12 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   and l3keys with a corpus of awkward values (`tests/test_texmodel/test_interface_tex.py`); `KVOPTIONS` was not. A space at
   the end of a value is kept by `{{ a }}` in three of the four and trimmed by `l3keys`; a library that treats braces
   differently from these needs its own `KeyRules`.
+- A union field writes a value as the first member that holds it, so members that hold the same value (`Text | Raw`) are
+  ordered by hand; a stub call is read back as the first member that reads it, and a member that is not read (an `AsTeX`
+  type without `read`, a key list) leaves the field unread.
+- A subclass of `AsTeX` is written by its `render()` and read back only if it defines `from_tex(text)` (otherwise the field is
+  unread in a hand edit); the type checks itself when built, and `violations()` only checks that a value is one. `Picture`
+  reads the call it writes, not a path from a macro or a key it does not write.
 - A `Raw` value or `Item[Raw]` is written as given: texmodel checks only that its braces balance.
 - The names `content` (an environment's children) and `type` (the component in data) are not usable as field names, nor
   any attribute every component has (`copy`, `json`, `render`, a `model_` name: `TM-M045`).
@@ -113,6 +119,13 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   `\relax` scan stops are not modelled. A `DimenExpr` fits the commands that read lengths through `\setlength` (checked for
   `\makebox`, `\raisebox`, `\parbox`, `\hspace`, `\vspace`, `\rule`, `minipage`, `p{}`); `\fontsize` and `\hskip` take
   primitives and refuse it, and nothing stops you passing one to a `Length` field of such a command.
+- `tabularray`: `colspec` and `rowspec` are `Raw` (their language is not modelled), the experimental interfaces (child ids and
+  classes, hooks, public variables) and the `functional` library's functions are not typed, and the `amsmath` library's
+  `+matrix`, `+array` and `+cases` environments are not declared: an environment name has letters only (`TM-M027`).
+- `ext.table`: a `collect`ed `TableEnvironment` allocates one box register per use (never freed) and cannot hold a `long` table; a `TableEnvironment` holds rows that are nodes only, with no header, groups, totals or spans (a plain `Table` sets those, and writes its layout into the document); `Widest` sets its column to nothing on the first run (rerun until settled), measures the cell text and not its group or footnote marks, and a cell that does not typeset the same on every pass never settles; a row command that calls another row command is listed in `expand` by hand, reordering or adding a row line is not restorable (`TM-R006`, `TM-R005`), a `TableRow` has no optional argument or `\multicolumn` (use `\SetCell`), `read_edits` does not stub the `booktabs` library's tables; no footnote marks in cells, no `rowspan`, no `\verb` or `\footnote` in a cell, `blocks=True` and `Image` do not load `varwidth` or `graphicx` (the document's package does), no header cells that merge vertically over a column without a group, and
+  no number alignment by decimal point at mixed precision. A `Table` is a builder, not a component, so it is not in a document's data or schema.
+- `ext.graphics`: a figure holds one picture, with no sub-figures, side-by-side pictures or maximum size (that is `adjustbox`);
+  `alt` and `artifact` are LaTeX 2024-11 keys, an older kernel refuses them.
 - `tests/test_std` proves a call is accepted by TeX, not that it does what the name suggests. A library the reference image
   lacks makes its test skip (a failure under `TEXMODEL_REQUIRE_TEX=1`).
 - TikZ paths (`\draw`, `\node`) are written as `Passthrough` or `Raw`.

@@ -29,10 +29,11 @@ texmodel.components.Anywhere(kind: type) -> None
 texmodel.components.ArgValue: TypeAliasType
 texmodel.components.ArgumentInfo(name: str, optional: bool, doc: str | None) -> None
 texmodel.components.Children(owner: type[Environment] | Package) -> None
+texmodel.components.ColourRef: _AnnotatedAlias
 texmodel.components.Command()
 texmodel.components.Command.call(cls, *required: ArgValue, **optional: ArgValue) -> Ref
 texmodel.components.Description(category: Literal['command', 'environment', 'value'], name: str, cs: str | None, doc: str, arguments: tuple[ArgumentInfo, ...], python: object | None, default: object | None, colour_name: str | None, body: str | None, end: str | None) -> None
-texmodel.components.Environment(content: tuple[texmodel.components.Node, ...])
+texmodel.components.Environment(content: tuple[texmodel.components._node.Node, ...])
 texmodel.components.Environment.close(cls) -> Ref
 texmodel.components.Environment.open(cls, **args: ArgValue) -> Ref
 texmodel.components.Node: TypeAliasType
@@ -42,6 +43,7 @@ texmodel.components.Resolved: Union
 texmodel.components.Source: GenericAlias
 texmodel.components.Value(value: T) -> None
 texmodel.components.Value.declared_default(cls) -> T | None
+texmodel.components.concrete_kinds(kind: type) -> list[type]
 texmodel.components.control_name(cls: type) -> str
 texmodel.components.describe(cls: type) -> Description
 texmodel.components.field(*, renamed_from: str | None = …, doc: str | None = …, meta: Mapping[str, object] | None = …, default: Any = …) -> Any
@@ -73,6 +75,14 @@ texmodel.ext.fit.Fit.declare(self, package: Package) -> FitParts
 texmodel.ext.fit.FitParts(record: type[Command], fit: type[Command], target: type[Value[Any]], floor: type[Value[Any]], room: type[Value[Any]], size: type[Value[Any]], line_size: type[Value[Any]])
 texmodel.ext.fit.LIBRARY: str
 texmodel.ext.fit.choose_sizes(each: Sequence[float], own: float, *, target: float, floor: float, reduced_sizes: int) -> tuple[float, float]
+texmodel.ext.graphics.Crop(left: Length = …, bottom: Length = …, right: Length = …, top: Length = …) -> None
+texmodel.ext.graphics.Figure(picture: Picture, *, caption: str | None = …, short: str | None = …, label: str | None = …, placement: str | None = …) -> None
+texmodel.ext.graphics.Figure.node(self) -> latex.Figure
+texmodel.ext.graphics.Figure.render(self) -> str
+texmodel.ext.graphics.Picture(path: str | PurePosixPath | FilePath | Macro, *, alt: str | None = …, decorative: bool = …, width: Length | None = …, height: Length | None = …, scale: float | None = …, crop: Crop | None = …, rotate: float | None = …, page: int | None = …) -> None
+texmodel.ext.graphics.Picture.from_tex(cls, text: str) -> Self
+texmodel.ext.graphics.Picture.node(self) -> IncludeGraphics
+texmodel.ext.graphics.Picture.render(self) -> str
 texmodel.ext.intent.LIBRARY: str
 texmodel.ext.intent.OutputCondition(profile: str, identifier: str, info: str, registry: str = …, colorants: int = …) -> None
 texmodel.ext.intent.OutputCondition.check_profile(self, data: bytes) -> list[Violation]
@@ -111,6 +121,36 @@ texmodel.ext.spot.KIND: ValueKind
 texmodel.ext.spot.Spot(plate: str, proxy: CMYK = …) -> None
 texmodel.ext.spot.Spot.plates: property
 texmodel.ext.spot.SpotColour: _AnnotatedAlias
+texmodel.ext.table.Block(*, missing: str = …) -> None
+texmodel.ext.table.Col(label: str | None = …, *, fmt: Format | None = …, align: t.HAlign | None = …, width: Length | Flex | Widest | None = …, unit: str | None = …, group: str | tuple[str, ...] | None = …, stub: bool = …, hide: bool = …, valign: t.VAlign | None = …, style: t.ColumnSpec | None = …, cells: t.CellSpec | None = …) -> None
+texmodel.ext.table.Date(pattern: str = …, *, missing: str = …) -> None
+texmodel.ext.table.Flex(n: float = …) -> None
+texmodel.ext.table.Format(*, missing: str = …) -> None
+texmodel.ext.table.Format.tex(self, value: object) -> str
+texmodel.ext.table.Highlight(where: Callable[[T], bool], columns: tuple[str, ...] | None = …, *, bg: ColourRef | None = …, fg: ColourRef | None = …, bold: bool = …, font: Raw | None = …) -> None
+texmodel.ext.table.Image(width: Length | None = …, *, missing: str = …) -> None
+texmodel.ext.table.Label(texts: Mapping[Any, str | Raw], *, missing: str = …) -> None
+texmodel.ext.table.Layout(columns: type[T], *, look: Look = …, width: Length | None = …, blocks: bool = …, rules: Sequence[Entry] = …) -> None
+texmodel.ext.table.Layout.check(self, rows: Sequence[tuple[str, type]]) -> None
+texmodel.ext.table.Layout.table(self, rows: Iterable[T | Mapping[str, Any]], **content: Any) -> Table[T]
+texmodel.ext.table.Look(rules: Rules = …, heavy: Length = …, light: Length = …, rowsep: Length = …, colsep: Length = …, edge: Length | None = …, header_font: Raw | None = …, header_bg: ColourRef | None = …, header_fg: ColourRef | None = …, total_font: Raw | None = …, group_font: Raw | None = …, group_gap: Length = …, indent: Length = …) -> None
+texmodel.ext.table.Money(decimals: int = …, thousands: bool = …, point: str = …, separator: str = …, sign: bool = …, minus: str = …, *, missing: str = …, symbol: str = …, after: bool = …) -> None
+texmodel.ext.table.Note(text: str, tag: str = …) -> None
+texmodel.ext.table.Number(decimals: int = …, thousands: bool = …, point: str = …, separator: str = …, sign: bool = …, minus: str = …, *, missing: str = …) -> None
+texmodel.ext.table.Percent(decimals: int = …, thousands: bool = …, point: str = …, separator: str = …, sign: bool = …, minus: str = …, *, missing: str = …) -> None
+texmodel.ext.table.Rules(*values)
+texmodel.ext.table.Span(column: str, count: int = …, where: Callable[[T], bool] | None = …) -> None
+texmodel.ext.table.Table(model: type[T], rows: Iterable[T | Mapping[str, Any]], *, caption: str | None = …, label: str | None = …, group_by: str | None = …, subtotal: Total | None = …, totals: Sequence[Total] = …, notes: Sequence[Note] = …, highlights: Sequence[Highlight[T]] = …, spans: Sequence[Span[T]] = …, look: Look = …, header: bool = …, long: bool = …, width: Length | None = …, blocks: bool = …, rules: Sequence[Entry] = …) -> None
+texmodel.ext.table.Table.node(self) -> t.Tblr | t.Talltblr | t.Longtblr
+texmodel.ext.table.Table.render(self) -> str
+texmodel.ext.table.TableEnvironment(content: tuple[typing.Annotated[Node, Children(owner=<class 'texmodel.ext.table._environment.TableEnvironment'>)], ...], outer: texmodel.std.tabularray._specs.TblrOuter | None = …)
+texmodel.ext.table.Text(*, missing: str = …) -> None
+texmodel.ext.table.Total(label: str, sum: tuple[str, ...] = …) -> None
+texmodel.ext.table.Widest(measure: type[Command], value: type[AnyValue]) -> None
+texmodel.ext.table.Widest.cmd: property
+texmodel.ext.table.Widest.declare(cls, package: Package, name: str) -> Widest
+texmodel.ext.table.Widest.length: property
+texmodel.ext.table.declare(pkg: Package) -> Callable[[E], E]
 texmodel.history.Change(level: Level, where: str, what: str) -> None
 texmodel.history.Level(*values)
 texmodel.history.Problem(path: str, reason: str, value: object = …, schema: Mapping[str, Any] = …) -> None
@@ -124,10 +164,11 @@ texmodel.history.worst(changes: Sequence[Change]) -> Level
 texmodel.interface.ANGLE: Delimiter
 texmodel.interface.ArgOptions(delimiter: Delimiter | None, fill: str | Gap, sep: str | None, group: SlotGroup | None, booleans: tuple[str, str] | None) -> None
 texmodel.interface.BRACE: Delimiter
-texmodel.interface.Body(kind: BodyKind, choice: type[Choice] | None = …, items: tuple['Body', ...] = …, attrs: tuple[str, ...] = …, keyvals: type | None = …, token: str | None = …, expression: type | None = …) -> None
+texmodel.interface.Body(kind: BodyKind, choice: type[Choice] | None = …, items: tuple['Body', ...] = …, attrs: tuple[str, ...] = …, keyvals: type | None = …, token: str | None = …, expression: type | tuple[type, ...] | None = …) -> None
 texmodel.interface.Body.describe(self) -> str
 texmodel.interface.BodyKind(*values)
 texmodel.interface.ColourName(base: str | type[Any], *, tint: float | None = …, mix: str | type[Any] | None = …) -> ColourName
+texmodel.interface.ColourName.macro(cls, base: str | type[Any]) -> ColourName
 texmodel.interface.ColourName.names: property
 texmodel.interface.Delimiter(open: str, close: str) -> None
 texmodel.interface.FLAG: _Marker
@@ -155,13 +196,15 @@ texmodel.keys.KeyRules(assign: str = …, separator: str = …, booleans: tuple[
 texmodel.keys.L3KEYS: KeyRules
 texmodel.keys.PGFKEYS: KeyRules
 texmodel.keys.XKEYVAL: KeyRules
+texmodel.keyvals.Entry(tex: str) -> None
+texmodel.keyvals.Entry.of(cls, key: str, *groups: KeyVals | Raw) -> Entry
 texmodel.keyvals.ItemKind(*values)
 texmodel.keyvals.KeyItem(name: str, key: str, kind: ItemKind, body: Body | None, repeated: bool = …) -> None
 texmodel.keyvals.KeyVals()
 texmodel.keyvals.KeyVals.render(self) -> str
 texmodel.keyvals.key(spelling: str | None = …, *, default: Any = …) -> Any
 texmodel.package.GENERATOR_VERSION: NoneType
-texmodel.package.Package(name: str, *, prefix: str, version: str = …, date: str | None = …, description: str = …, header: str = …, document_class: str = …, adopted: bool = …, builtin: bool = …, whitespace: Whitespace = …, comments: Sequence[type[Comment]] = …, base: Package | None = …) -> None
+texmodel.package.Package(name: str, *, prefix: str, version: str = …, date: str | None = …, description: str = …, header: str = …, document_class: str = …, adopted: bool = …, builtin: bool = …, whitespace: Whitespace = …, comments: Sequence[type[Comment]] = …, base: Package | None = …, requires: Sequence[Package] = …) -> None
 texmodel.package.Package.check_interface(self, *sources: str) -> list[Violation]
 texmodel.package.Package.check_parts(self) -> list[Violation]
 texmodel.package.Package.colour_constraints(self) -> dict[str, frozenset[str] | None]
@@ -183,6 +226,7 @@ texmodel.package.Package.render_plan(self, *, version: str | None = …) -> Plan
 texmodel.package.Package.require(self, package: Package, *, options: Sequence[str] = …) -> None
 texmodel.package.Package.require_entries(self) -> list[tuple[str, tuple[str, ...]]]
 texmodel.package.Package.required_packages: property
+texmodel.package.Package.requirements: property
 texmodel.package.Package.test_document(self, *body: Node | Document, stub: Sequence[Component] = …) -> str
 texmodel.package.Package.value(self, cls: V) -> V
 texmodel.package.Package.value_named(self, name: str) -> type[AnyValue] | None
@@ -272,7 +316,7 @@ texmodel.run.errors.CompileError(message: str, *, diagnostics: tuple[Diagnostic,
 texmodel.run.errors.ToolchainError(message: str, *, code: str = …, path: str = …, hint: str = …) -> None
 texmodel.run.fonts.embedded(log: str, cwd: pathlib.Path) -> list[pathlib.Path]
 texmodel.run.fonts.outside(log: str, allowed: Sequence[pathlib.Path], cwd: pathlib.Path) -> list[pathlib.Path]
-async texmodel.run.hand_edits.read_edits(compiler: Compiler, plan: Plan, text: str, *packages: Package, files: Mapping[str, str] | None = …, file: pathlib.Path | None = …) -> list[Edit]
+async texmodel.run.hand_edits.read_edits(compiler: Compiler, plan: Plan, text: str, *packages: Package, files: Mapping[str, str] | None = …, file: pathlib.Path | None = …, stub: Sequence[Component] = …) -> list[Edit]
 texmodel.run.result.CompileResult(*, pdf: pathlib.Path | None, log: pathlib.Path | None, passes: int, pages: int | None, diagnostics: tuple[Diagnostic, ...], seconds: float, engine: str, engine_version: str, latexmk_version: str, image: str | None = …, image_digest: str | None = …, image_revision: str | None = …) -> None
 texmodel.run.result.CompileResult.errors: property
 texmodel.run.result.CompileResult.from_dict(cls, data: dict[str, Any], **override: Any) -> Self
@@ -315,11 +359,18 @@ texmodel.testing.expand(node: Node, stubs: Sequence[Component] = …) -> list[Ca
 texmodel.testing.export_probes(package: Package) -> str
 texmodel.testing.read_call(cls: Component, call: Call) -> tuple[FieldEdit, ...]
 texmodel.testing.stub_tex(stubs: Sequence[Component]) -> str
+texmodel.types.AsTeX()
+texmodel.types.AsTeX.from_tex(cls, text: str) -> Self
+texmodel.types.AsTeX.render(self) -> str
 texmodel.types.CMYK(c: float, m: float, y: float, k: float) -> None
 texmodel.types.CMYK.plates: property
 texmodel.types.Choice(new_class_name, /, names, *, module=…, qualname=…, type=…, start=…, boundary=…)
 texmodel.types.Claim: TypeAliasType
 texmodel.types.Colour: Union
+texmodel.types.ControlSequence(tex: str) -> None
+texmodel.types.FilePath(tex: str) -> None
+texmodel.types.FilePath.of(cls, path: PurePosixPath) -> FilePath
+texmodel.types.FontName(tex: str) -> None
 texmodel.types.Gray(g: float) -> None
 texmodel.types.Gray.plates: property
 texmodel.types.Length(value: str | float, unit: str | None = …) -> None
@@ -327,6 +378,9 @@ texmodel.types.Length.expr(tex: Raw | str) -> LengthExpr
 texmodel.types.Length.inches: property
 texmodel.types.LengthExpr(tex: Raw | str) -> None
 texmodel.types.LengthExpr.inches: property
+texmodel.types.Macro(tex: str) -> None
+texmodel.types.Name(tex: str) -> None
+texmodel.types.NameList(tex: str) -> None
 texmodel.types.PDF: _PdfMarker
 texmodel.types.PROCESS: frozenset
 texmodel.types.PdfString: _AnnotatedAlias
@@ -334,6 +388,7 @@ texmodel.types.Plate(*values)
 texmodel.types.RGB(r: float, g: float, b: float) -> None
 texmodel.types.RGB.plates: property
 texmodel.types.Raw(tex: str) -> None
+texmodel.types.Raw.render(self) -> str
 texmodel.types.TEXT: _TextMarker
 texmodel.types.Text: _AnnotatedAlias
 texmodel.types.ValueKind(name: str, python: type | types.UnionType, json_type: str, claims: Callable[[str, str, str | None], tuple[Claim, ...]], declare: Callable[[str, str, Any, str | None], list[str]], setting: Callable[[str, str, Any, str | None], str], needs: tuple['str | Package', ...] = …, defines: Callable[[str, str, str | None], tuple[Claim, ...]] | None = …, named: bool = …, may_omit: bool = …, bare: bool = …, adoptable: bool = …) -> None

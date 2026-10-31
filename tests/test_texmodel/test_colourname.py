@@ -213,3 +213,42 @@ def test_an_expression_that_mixes_different_plates_is_a_violation_whoever_wrote_
     (found,) = Label(text="x", colour=ColourName("ab-ink!70!red")).violations()
     assert "ab-ink K" in found.message and "red C+M+Y+K" in found.message
     assert violations(colour="ab-ink!70!nonsense") == [("TM-C022", "Label.colour")]  # an unknown name has no plates yet
+
+
+def test_a_registered_colour_carries_its_resolved_name_for_a_field():
+    @brand.value
+    class Foil(Value[Colour]):
+        """Foil."""
+
+        colour_name = "abFoilRed"
+        default = CMYK(0, 0.2, 1, 0)
+
+    assert Ink.xcolor_name == "ab-ink" and isinstance(Ink.xcolor_name, ColourName)
+    assert Foil.xcolor_name == "abFoilRed" == ColourName(Foil)
+    assert Label(text="x", colour=Ink.xcolor_name).violations() == []
+
+
+def test_a_colour_value_given_for_a_colour_field_is_stored_as_its_name():
+    from texmodel.components import ColourRef
+    from texmodel.keys import PGFKEYS
+    from texmodel.keyvals import KeyVals
+    from texmodel.std import tabularray as t
+
+    @series.command
+    class Chip(Command):
+        """A chip."""
+
+        colour: ColourRef
+        other: ColourRef | None = None
+        body = r"\textcolor{#colour}{x}#other"
+
+    class Opts(KeyVals, rules=PGFKEYS):
+        bg: ColourRef | None = None
+
+    chip = Chip(colour=Ink, other=ColourName("red"))
+    assert chip.colour == "ab-ink" and isinstance(chip.colour, ColourName) and chip.other == "red"
+    assert chip.violations() == [] and "{ab-ink}" in chip.render()
+    assert Opts(bg=Ink).bg == "ab-ink" and Opts(bg=Ink).render() == "bg=ab-ink"
+    assert t.CellSpec(bg=Ink, fg=ColourName("red")).render() == "bg=ab-ink,fg=red"
+    with pytest.raises(DeclarationError):
+        Opts(bg=Chip)  # pyright: ignore[reportArgumentType]  # not a colour value, on purpose

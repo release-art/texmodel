@@ -7,7 +7,7 @@ import enum
 from texmodel.components import Anywhere, Command, Environment, Passthrough
 from texmodel.interface import SQUARE, Gap, Star, arg
 from texmodel.package import Package
-from texmodel.types import Choice, Length, Raw, Text
+from texmodel.types import Choice, ControlSequence, FilePath, Length, Name, Raw, Text
 
 package = Package("latex", prefix="", adopted=True, builtin=True)
 
@@ -88,7 +88,7 @@ class SetLength(Command):
     r"""Set a length: `\setlength{\parindent}{0pt}`."""
 
     cs = "setlength"
-    length: Raw
+    length: ControlSequence
     value: Length
 
 
@@ -97,7 +97,7 @@ class AddToLength(Command):
     r"""Add to a length."""
 
     cs = "addtolength"
-    length: Raw
+    length: ControlSequence
     value: Length
 
 
@@ -106,7 +106,7 @@ class NewLength(Command):
     r"""Declare a length."""
 
     cs = "newlength"
-    length: Raw
+    length: ControlSequence
 
 
 @package.command
@@ -114,7 +114,7 @@ class SetToWidth(Command):
     r"""Set a length to the width of some text."""
 
     cs = "settowidth"
-    length: Raw
+    length: ControlSequence
     text: Raw
 
 
@@ -123,7 +123,7 @@ class SetToHeight(Command):
     r"""Set a length to the height of some text."""
 
     cs = "settoheight"
-    length: Raw
+    length: ControlSequence
     text: Raw
 
 
@@ -132,7 +132,7 @@ class SetToDepth(Command):
     r"""Set a length to the depth of some text."""
 
     cs = "settodepth"
-    length: Raw
+    length: ControlSequence
     text: Raw
 
 
@@ -141,7 +141,7 @@ class NewCounter(Command):
     r"""Declare a counter."""
 
     cs = "newcounter"
-    name: Raw
+    name: Name
 
 
 @package.command
@@ -149,7 +149,7 @@ class SetCounter(Command):
     r"""Set a counter."""
 
     cs = "setcounter"
-    name: Raw
+    name: Name
     value: Raw
 
 
@@ -158,7 +158,7 @@ class StepCounter(Command):
     r"""Add one to a counter."""
 
     cs = "stepcounter"
-    name: Raw
+    name: Name
 
 
 @package.command
@@ -166,7 +166,7 @@ class Arabic(Command):
     r"""Write a counter in arabic numerals."""
 
     cs = "arabic"
-    name: Raw
+    name: Name
 
 
 @package.command
@@ -174,7 +174,7 @@ class CounterValue(Command):
     r"""The value of a counter, for arithmetic."""
 
     cs = "value"
-    name: Raw
+    name: Name
 
 
 @package.command
@@ -456,7 +456,7 @@ class NewSaveBox(Command):
     r"""Declare a box register."""
 
     cs = "newsavebox"
-    box: Raw
+    box: ControlSequence
 
 
 @package.command
@@ -464,7 +464,7 @@ class UseBox(Command):
     r"""Typeset a saved box."""
 
     cs = "usebox"
-    box: Raw
+    box: ControlSequence
 
 
 @package.command
@@ -488,7 +488,7 @@ class PackageError(Command):
     r"""Stop with a package's error."""
 
     cs = "PackageError"
-    package: Raw
+    package: Name
     message: Raw
     help: Raw
 
@@ -498,7 +498,7 @@ class PackageWarning(Command):
     r"""A package's warning, with the input line."""
 
     cs = "PackageWarning"
-    package: Raw
+    package: Name
     message: Raw
 
 
@@ -507,7 +507,7 @@ class PackageWarningNoLine(Command):
     r"""A package's warning, without the input line."""
 
     cs = "PackageWarningNoLine"
-    package: Raw
+    package: Name
     message: Raw
 
 
@@ -516,7 +516,7 @@ class PackageInfo(Command):
     r"""A package's note in the log."""
 
     cs = "PackageInfo"
-    package: Raw
+    package: Name
     message: Raw
 
 
@@ -526,7 +526,7 @@ class PassOptionsToPackage(Command):
 
     cs = "PassOptionsToPackage"
     options: Raw
-    package: Raw
+    package: Name
 
 
 @package.command
@@ -534,7 +534,7 @@ class DeclareOption(Command):
     r"""Declare a package option and what it does."""
 
     cs = "DeclareOption"
-    option: Raw
+    option: Name
     code: Raw
 
 
@@ -543,7 +543,7 @@ class IfFileExists(Command):
     r"""Choose by whether a file can be found."""
 
     cs = "IfFileExists"
-    file: Raw
+    file: FilePath
     yes: Raw
     no: Raw
 
@@ -553,7 +553,7 @@ class InputIfFileExists(Command):
     r"""Read a file if it can be found."""
 
     cs = "InputIfFileExists"
-    file: Raw
+    file: FilePath
     yes: Raw
     no: Raw
 
@@ -590,3 +590,29 @@ class Minipage(Environment):
     children = [Anywhere(Passthrough)]
     width: Length
     position: BoxPosition | None = None
+
+
+@package.environment
+class Figure(Environment):
+    r"""A float for a picture: `\begin{figure}[tbp]`. `placement` is the letters of `h`, `t`, `b`, `p` and `!`."""
+
+    cs = "figure"
+    children = [Anywhere(Passthrough)]
+    placement: Raw | None = None
+
+
+@package.command
+class Caption(Command):
+    r"""The caption of a float: `\caption[Short]{Text}`."""
+
+    cs = "caption"
+    short: Text | None = arg(SQUARE, default=None)
+    text: Text
+
+
+@package.command
+class Label(Command):
+    r"""A cross-reference target: `\label{fig:logo}`."""
+
+    cs = "label"
+    name: Name

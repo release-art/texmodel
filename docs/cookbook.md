@@ -240,23 +240,23 @@ from texmodel.components import Command, Environment
 from texmodel.package import Package
 from texmodel.std.etoolbox import IfNumGreater, IfNumLess
 from texmodel.std.latex import CounterValue, NewCounter, PackageError, SetCounter, StepCounter
-from texmodel.types import Raw, Text
+from texmodel.types import Name, Raw, Text
 
 pkg = Package("acme-cards", prefix="ac", whitespace=Whitespace.TRIM)
-pkg.library("counters", NewCounter(name=Raw("acFacts")).render())  # \newcounter{acFacts}
+pkg.library("counters", NewCounter(name=Name("acFacts")).render())  # \newcounter{acFacts}
 
 
 def failure(word: str) -> Ref:
     """The error a rule raises; the region's name is the macro's third argument."""
     message = Seq(Lit(f"Too {word} "), Hole("what"), Lit(" on one card"))
-    return PackageError.call(Raw("acme-cards"), message, Raw("See the card rules."))
+    return PackageError.call(Name("acme-cards"), message, Raw("See the card rules."))
 
 
 @pkg.command
 class CountAtMost(Command):
     """Count one more of a region and fail past its limit."""
 
-    counter: Raw
+    counter: Name
     limit: Raw
     what: Raw
 
@@ -271,7 +271,7 @@ class CountAtMost(Command):
 class CountAtLeast(Command):
     """Fail when a region has fewer than its minimum."""
 
-    counter: Raw
+    counter: Name
     limit: Raw
     what: Raw
 
@@ -286,7 +286,7 @@ class Fact(Command, unused=("text",)):
     text: Text
 
     def body(self):
-        return [CountAtMost.call(Raw("acFacts"), Raw("3"), Raw("facts")), r"#text"]
+        return [CountAtMost.call(Name("acFacts"), Raw("3"), Raw("facts")), r"#text"]
 
 
 @pkg.environment
@@ -296,10 +296,10 @@ class Card(Environment):
     children = [Fact.times(2, 3)]
 
     def begin(self):
-        return [SetCounter.call(Raw("acFacts"), Raw("0"))]
+        return [SetCounter.call(Name("acFacts"), Raw("0"))]
 
     def end(self):
-        return [CountAtLeast.call(Raw("acFacts"), Raw("2"), Raw("facts"))]
+        return [CountAtLeast.call(Name("acFacts"), Raw("2"), Raw("facts"))]
 
 
 print(pkg.render())
@@ -367,6 +367,68 @@ bindings (`NewToggle`, `ToggleTrue`), names the package it needs (`needs=(packag
   with the rest (cycles, order).
 - **Add a kind only when a value needs its own declaration.** A call (`Command`) is enough to *use* something; a kind
   is for a setting the package declares and a document sets.
+
+## A report table from a row model
+
+A table is a pydantic model (its fields are the columns) and its rows. A `Col` on a field says how the column reads, a
+format writes every cell escaped, and a brand colour is given by its class. The table is a typed `tabularray` environment, so
+it goes in any `Document`; the brand package requires `tabularray`, which brings `xcolor` before it.
+
+```python
+from typing import Annotated
+
+from pydantic import BaseModel
+
+from texmodel.components import Value
+from texmodel.document import Document
+from texmodel.ext.table import Col, Highlight, Look, Note, Number, Percent, Table, Total
+from texmodel.package import Package
+from texmodel.std import tabularray
+from texmodel.types import RGB, Colour
+
+report = Package("acme-report", prefix="ar")
+report.require(tabularray.package)
+
+
+@report.value
+class Ink(Value[Colour]):
+    """The report's ink."""
+
+    default = RGB(0.1, 0.2, 0.5)
+
+
+class Sale(BaseModel):
+    region: Annotated[str, Col("Region", stub=True)]
+    q1: Annotated[float, Col("Q1", group="2025", fmt=Number(0))]
+    q2: Annotated[float, Col("Q2", group="2025", fmt=Number(0))]
+    growth: Annotated[float, Col("Growth", fmt=Percent(1, sign=True))]
+
+
+rows = [
+    Sale(region="North & Central", q1=1200, q2=1340, growth=0.117),
+    Sale(region="East", q1=980, q2=905, growth=-0.077),
+]
+table = Table(
+    Sale,
+    rows,
+    caption="Revenue by region",
+    totals=[Total("Total", sum=("q1", "q2"))],
+    notes=[Note("EUR thousands.")],
+    look=Look(header_bg=Ink),
+    highlights=[Highlight(lambda r: r.growth < 0, columns=("growth",), fg=Ink, bold=True)],
+)
+
+assert r"\RequirePackage{xcolor}" in report.render() and "bg=ar-ink" in table.render()
+plan = report.plan(Document(table.node()))
+assert r"North \& Central & 1\,200 & 1\,340 & +11.7\,\% \\" in plan.text
+```
+
+- **A format owns the escaping.** `North & Central` is written `North \& Central`; no cell is ever TeX you assembled.
+- **Precision is chosen, not guessed.** A `float` field needs a `fmt`; a number is right-aligned at the decimals you gave,
+  which puts the points in line.
+- **A colour is a class.** `fg=Ink` is the colour value, stored as its xcolor name (`ar-ink`) and checked against the package.
+- **The rules are the table's.** The default `Look` is booktabs': a heavy rule above and below, a light one under the header
+  and above the total, no vertical rules.
 
 ## A family of packages
 

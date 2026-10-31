@@ -1,7 +1,11 @@
 """Typed references in bodies: `call`, `open`, `close`, holes, packages that follow."""
 
+import pytest
+
 from texmodel.body import Hole, RefKind, TexRaw, Whitespace
 from texmodel.components import Command, Environment
+from texmodel.document import Document
+from texmodel.errors import DeclarationError
 from texmodel.package import Package
 from texmodel.types import Choice, Raw, Text
 
@@ -253,3 +257,120 @@ def test_packages_that_require_each_other_are_refused_when_rendered():
         a.render()
     with refused("TM-P007"):
         b.render()
+
+
+def test_an_adopted_package_declares_what_it_needs_and_those_load_before_it():
+    colours = Package("hand-colours", prefix="", adopted=True)
+    tables = Package("hand-tables", prefix="", adopted=True, requires=[colours])
+    grids = Package("hand-grids", prefix="", adopted=True, requires=[tables])
+
+    @grids.command
+    class Cell(Command):
+        """A cell."""
+
+        cs = "gridcell"
+        text: Text
+
+    pkg = Package("user-grid", prefix="ug")
+
+    @pkg.command
+    class Wrap(Command):
+        """Calls a cell."""
+
+        text: Text
+
+        def body(self):  # noqa: ARG002
+            return [Cell.call(Hole("text"))]
+
+    out = pkg.render()
+    order = [out.index(rf"\RequirePackage{{{n}}}") for n in ("hand-colours", "hand-tables", "hand-grids")]
+    assert order == sorted(order) and out.count("hand-colours") == 1
+    opted = Package("user-opted", prefix="uo")
+    opted.require(grids, options=["opt"])
+    assert opted.require_entries() == [("hand-colours", ()), ("hand-tables", ()), ("hand-grids", ("opt",))]
+    lines = grids.plan(Cell(text="x")).text.splitlines()
+    assert lines[2:5] == [r"\usepackage{hand-colours}", r"\usepackage{hand-tables}", r"\usepackage{hand-grids}"]
+
+
+def test_a_required_adopted_package_keeps_its_options_and_a_repeat_of_a_need_is_loaded_once():
+    colours = Package("hand-colours", prefix="", adopted=True)
+    tables = Package("hand-tables", prefix="", adopted=True, requires=[colours])
+    pkg = Package("user-table", prefix="ut")
+    pkg.require(colours, options=["table"])
+    pkg.require(tables, options=["x"])
+    assert pkg.require_entries() == [("hand-colours", ("table",)), ("hand-tables", ("x",))]
+    for bad, code in ((lambda: Package("a", prefix="", requires=[Package("k", prefix="", builtin=True)]), "TM-P008"),):
+        with pytest.raises(DeclarationError) as raised:
+            bad()
+        assert raised.value.code == code
+    with pytest.raises(DeclarationError) as raised:
+        Package("b", prefix="", requires=[colours, colours])
+    assert raised.value.code == "TM-P010"
+
+
+def test_a_package_two_others_need_is_loaded_once_by_the_first_call():
+    shared = Package("hand-shared", prefix="", adopted=True)
+    left = Package("hand-left", prefix="", adopted=True, requires=[shared])
+    right = Package("hand-right", prefix="", adopted=True, requires=[shared])
+    top = Package("hand-top", prefix="", adopted=True, requires=[left, right])
+    uses = [line for line in top.plan(Document()).text.splitlines() if line.startswith("\\usepackage")]
+    assert uses == [f"\\usepackage{{hand-{n}}}" for n in ("shared", "left", "right", "top")]
+
+    pkg = Package("user-diamond", prefix="ud")
+    pkg.require(left)
+    pkg.require(right)
+    assert [n for n, _ in pkg.require_entries()] == ["hand-shared", "hand-left", "hand-right"]
+
+
+def test_a_package_asked_for_with_different_options_is_an_error_the_top_level_resolves():
+    shared = Package("hand-shared", prefix="", adopted=True)
+    one = Package("hand-one", prefix="", adopted=True)
+    two = Package("hand-two", prefix="", adopted=True)
+    one.require(shared, options=["a"])
+    two.require(shared, options=["b", "a"])
+    pkg = Package("user-both", prefix="ub")
+    pkg.require(one)
+    pkg.require(two)
+    with pytest.raises(DeclarationError) as raised:
+        pkg.require_entries()
+    assert raised.value.code == "TM-P013" and "hand-one" in str(raised.value) and "hand-two" in str(raised.value)
+    assert "require it at the top" in raised.value.hint
+    with pytest.raises(DeclarationError):
+        Package("hand-top", prefix="", adopted=True, requires=[one, two]).plan(Document())
+
+    pkg.require(shared, options=["a", "b"])  # the user's list, written after what needs it, decides
+    assert pkg.require_entries() == [("hand-shared", ("a", "b")), ("hand-one", ()), ("hand-two", ())]
+    top = Package("hand-top", prefix="", adopted=True, requires=[one, two])
+    top.require(shared, options=["b"])
+    assert r"\usepackage[b]{hand-shared}" in top.plan(Document()).text
+
+    agreeing = Package("hand-agree", prefix="", adopted=True)
+    agreeing.require(shared, options=["a", "b"])
+    user = Package("user-agree", prefix="uu")
+    user.require(two)
+    user.require(agreeing)  # the same set of options, in any order, is not a conflict
+    assert user.require_entries() == [("hand-shared", ("b", "a")), ("hand-two", ()), ("hand-agree", ())]
+
+
+def test_a_package_a_value_needs_by_name_is_loaded_once_when_another_call_brought_it_first():
+    from texmodel.components import Value
+    from texmodel.std import tabularray
+    from texmodel.types import CMYK, Colour
+
+    pkg = Package("user-needs", prefix="un")
+
+    @pkg.value
+    class Ink(Value[Colour]):
+        """Ink."""
+
+        needs_packages = ("xcolor",)
+        default = CMYK(0, 0, 0, 1)
+
+    @pkg.command
+    class Rule(Command):
+        """A rule."""
+
+        def body(self):
+            return [tabularray.Hline.call()]
+
+    assert pkg.require_entries() == [("xcolor", ()), ("tabularray", ())]

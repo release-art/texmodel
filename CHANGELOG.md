@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-30
+
+Typed tables, pictures, package dependencies and fields of several kinds. Generated output of existing packages is unchanged.
+
+### Added
+
+**Tables** (`texmodel.ext.table`)
+
+- `Table(Model, rows)` sets a table from a pydantic row model whose fields are the columns, with `tabularray` and
+  booktabs-style rules. `Col` on a field gives its label, format, alignment, `valign`, width, unit, header group, stub, `hide`,
+  `style` (the whole column) and `cells` (the body rows only). Formats: `Text`, `Number`, `Percent`, `Money`, `Date`, `Label`,
+  `Block` (a minipage, a list, a nested table) and `Image`; a project may subclass `Format`. Parts: caption, notes, totals,
+  `group_by` with `subtotal`, `Highlight` and `Span` by predicate, `long=True`, `blocks=True` (`measure=vbox`),
+  `header=False`, and `Look` (`BOOKTABS`, `GRID`, `PLAIN`; `edge=` is the padding at the outer edges).
+  `TM-M077` to `TM-M083`, `TM-C026`.
+- Rows as typed nodes: `Table(RowClass, rows)` for a `std.tabularray.TableRow`, a row a package writes as a command (one cell
+  per field when it has no `body`). `expand_of(rows)` is the table's `expand` key, and a row command missing from it is
+  `TM-C027`. `TM-M084`: a row command takes mandatory arguments only. `TM-M085`: `fmt=`, `totals`, `subtotal`, `group_by` and
+  `spans` are refused there. `TM-M086`: a body that writes more or fewer cells than the layout has columns.
+- `Layout(columns, look=, width=, blocks=, rules=)`: the design of a table apart from its rows. `TableEnvironment` and
+  `declare(pkg)` make a table whose layout a package owns (`\NewTblrEnviron`, `\SetTblrInner`, `\SetTblrOuter` in the `.sty`;
+  `TM-M087`, `TM-M088`), and `collect = Macro(...)` sets it into a box that a host collects as an item.
+- `Widest.declare(pkg, "LabelWidth")` and `Col(width=widest)`: a column as wide as the widest cell of the whole document.
+- A child that is an instance of an abstract `Anywhere` kind floats like the kind, and the schema lists its registered
+  subclasses. `Environment.checks` takes further checks of a node. `run.hand_edits.read_edits(stub=)` stubs more components.
+
+**`tabularray`** (`texmodel.std.tabularray`)
+
+- The whole package and its `booktabs`, `diagbox` and `tikz` libraries: `Tblr`, `Longtblr`, `Talltblr`, the inner and outer
+  key lists, the key lists of rules, cells, rows, columns and borders, the commands inside a table and the definers.
+  `selector` checks a child selector (`TM-M076`); `keyvals.Entry` is an item that spells its own key. It requires `xcolor`.
+
+**Pictures** (`texmodel.ext.graphics`)
+
+- `Picture`: `\includegraphics` that fits a box without distorting, crops and rotates, and needs `alt=` or `decorative=True`;
+  `Figure`: one picture, centred, caption below, label after. `TM-C033` to `TM-C035`. `std.latex` declares `figure`,
+  `\caption` and `\label`, and `std.graphicx` the keys `trim`, `alt` and `artifact`.
+
+**Fields and types**
+
+- A field may take several kinds (`icon: Icon | Picture | None`): a value is written as the first member that holds it, a
+  violation names them all, data tries them in order and the schema is an `anyOf`.
+- `texmodel.types.AsTeX` makes a type of your own a field value: it writes itself with `render()`, checks itself when built
+  and may read a hand edit back with `from_tex(text)`. `Raw`, `KeyVals` and `Picture` are such types.
+- Checked `Raw` types, for a field where a bare `Raw` is too loose; they check again when data loads. `ControlSequence`
+  (`TM-C030`), `Name` (`TM-C031`), `NameList` (`TM-C032`), `Macro` (`TM-C029`), `FilePath` and `FontName` (`TM-C028`). A union of
+  them (`FilePath | Macro`) takes any member.
+
+**Packages and colours**
+
+- `Package(..., requires=[...])`: the packages an adopted package needs. They load before it wherever it is used (`\RequirePackage`
+  in a generated `.sty`, `\usepackage` in a document), each once, at its first call. Two packages that need one with
+  different options are `TM-P013`; require it at the top with the options you want (`pkg.require(...)`).
+  `Package.requirements` lists them.
+- `Value.xcolor_name` is a registered colour's xcolor name; `ColourRef` is a colour argument that takes a `ColourName` or a
+  colour value (`bg=Ink`). `ColourName.macro(r"\bbRowLabelColour")` is a colour read when the document is typeset.
+
+**Standard headers** (`texmodel.std`)
+
+- `hyperref`, `setspace`, `fancyhdr`, `caption`, `subcaption`, `babel`, `polyglossia`, `multicol`, `pdfpages` and `luacolor`,
+  each compiled against the reference image.
+
+### Changed
+
+- `std` fields that name a thing take a checked type, not `Raw`: `ControlSequence`, `Name`, `NameList`, `FilePath` or
+  `FontName`. `IncludeGraphics.path` and `IncludePdf.path` are `FilePath | Macro`.
+- `Look(rules=Rules.GRID)` and `Look(rules=Rules.NONE)` built by hand are flush at the edges, like the default.
+- `components`, `package`, `std.tabularray` and `ext.table` are subpackages with private submodules. Public names import
+  from the same path, but a class's `__module__` is now the submodule (`texmodel.components._node`).
+
 ## [0.11.0] - 2026-10-30
 
 Output change: a package with a `ColourSpace` declares `cmyk` and `rgb` as l3keys options in an options section.
@@ -369,7 +439,8 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/release-art/texmodel/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/release-art/texmodel/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/release-art/texmodel/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/release-art/texmodel/compare/v0.8.0...v0.9.0

@@ -6,7 +6,7 @@ import typing
 from typing import Annotated, Any
 
 from ..interface import RAW_BODY, Body, BodyKind, ColourName, Item, OptionalValue, Token
-from ..types import CMYK, PDF, RGB, TEXT, Choice, Gray, Length, Raw
+from ..types import CMYK, PDF, RGB, TEXT, AsTeX, Choice, Gray, Length, Raw
 
 _COLOURS = (CMYK, RGB, Gray)
 
@@ -72,6 +72,8 @@ def body_of(hint: Any) -> Body | None:  # noqa: ANN401, C901
         return Body(BodyKind.CHOICE, choice=h)
     if isinstance(h, type) and getattr(h, "__tm_keyvals__", False):
         return Body(BodyKind.KEYVALS, keyvals=h)
+    if isinstance(h, type) and issubclass(h, AsTeX):
+        return Body(BodyKind.TEX, expression=h)
     if origin is list:
         element = body_of(typing.get_args(h)[0])
         return None if element is None else Body(BodyKind.LIST, items=(element,))
@@ -96,7 +98,15 @@ def _tuple_body(args: tuple[Any, ...]) -> Body | None:
 
 
 def _union_body(members: list[Any]) -> Body | None:
-    """The one union a field may be: the colour models (`Colour`)."""
+    """The unions a field may be: the colour models (`Colour`), several `Raw` subclasses (`FilePath | Macro`), or any
+    kinds the field takes (`Icon | Picture`), each value written as the first alternative that holds it."""
     if members and set(members) == set(_COLOURS):
         return Body(BodyKind.COLOUR)
-    return None
+    if members and all(isinstance(m, type) and issubclass(m, Raw) for m in members):
+        return Body(BodyKind.RAW, expression=tuple(members))
+    alternatives = [body_of(m) for m in members]
+    return (
+        None
+        if not members or None in alternatives
+        else Body(BodyKind.ONE_OF, items=tuple(a for a in alternatives if a))
+    )

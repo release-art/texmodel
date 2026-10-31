@@ -150,6 +150,8 @@ from texmodel.interface import ColourName
 assert ColourName("red") == "red" and ColourName("red", tint=0.5, mix="blue") == "red!50!blue"
 ```
 
+A registered colour value carries its name as `Ink.xcolor_name` (a `ColourName`, `vl-ink`), the name for a field. A field typed `ColourRef` (the colour fields of the `std` headers) also takes the class itself, `bg=Ink`, and
+holds that name; declare your own with `colour: ColourRef`.
 `ColourName(Ink)` is `vl-ink`, `ColourName(Ink, tint=0.7)` is `vl-ink!70` and `ColourName(Ink, tint=0.7, mix=Paper)` is
 `vl-ink!70!vl-paper`: 70% ink, 30% paper. `ColourName("red!50!blue")` takes an expression as written, `name`, `name!50` or `name!50!name`,
 with numbers up to 100 (`TM-M067`); a tint outside 0 to 1 is `TM-M017`.
@@ -160,6 +162,11 @@ colour value of its package or of its base, a colour one of its LaTeX libraries 
 Anything else is `TM-C022` at the field, and an expression that is not that grammar is `TM-C023`. The names of the
 `dvipsnames` or `svgnames` options are not known: declare the colour, or take a `Raw`. A node outside a package is not
 checked, and neither are the colour keys of a `KeyVals`.
+
+A colour that a macro names, read when the document is typeset, is `ColourName.macro(r"\bbRowLabelColour")` (a control word,
+with or without its backslash), or `ColourName.macro(Value)` for a registered value that defines the macro. The package cannot
+check a macro, so it is left out of `names`, and it is not part of a plate check; it takes a tint like a name
+(`ColourName(macro, tint=0.5)`). A bad macro is `TM-M067`.
 
 Both ends of a mix may ink the same plates and no others, so K-only ink is not mixed with a CMYK colour, a duotone or a
 spot. `ColourName(TextInk, tint=0.7, mix=Paper)` is fine when `Paper` declares `plates = {Plate.K}`; with a colour that

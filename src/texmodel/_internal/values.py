@@ -15,7 +15,7 @@ from ..interface import Body, BodyKind
 from ..types import CMYK, RGB, Gray, Length, Raw, pdf_escape, plain_number, plates_of
 from .inline import text_of
 
-_COLOUR_NAME = re.compile(r"[A-Za-z][A-Za-z0-9!.+-]*")
+_COLOUR_NAME = re.compile(r"[A-Za-z\\][A-Za-z0-9!.+@\\-]*")
 
 
 def plates_outside(allowed: AbstractSet[str] | None, colour: object) -> str | None:
@@ -70,6 +70,10 @@ def value_ok(body: Body, value: Any) -> bool:  # noqa: ANN401, C901
             return isinstance(value, bool)
         case BodyKind.KEYVALS:
             return body.keyvals is not None and isinstance(value, body.keyvals)
+        case BodyKind.TEX:
+            return isinstance(value, cast("type", body.expression))
+        case BodyKind.ONE_OF:
+            return any(value_ok(b, value) for b in body.items)
         case BodyKind.LIST:
             return isinstance(value, list | tuple) and all(value_ok(body.items[0], v) for v in cast("list[Any]", value))
         case BodyKind.TUPLE:
@@ -108,8 +112,11 @@ def value_text(  # noqa: C901
             return booleans[0 if value else 1]
         case BodyKind.TOKEN:
             return (body.token or "") if value else ""
-        case BodyKind.KEYVALS:
+        case BodyKind.KEYVALS | BodyKind.TEX:
             return value.render()
+        case BodyKind.ONE_OF:
+            held = next(b for b in body.items if value_ok(b, value))
+            return value_text(held, value, syntax, booleans=booleans, sep=sep)
         case BodyKind.LIST:
             return sep.join(value_text(body.items[0], v, syntax, booleans=booleans, sep=sep) for v in value)
         case BodyKind.TUPLE:

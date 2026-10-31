@@ -33,7 +33,7 @@ from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode
 from ._internal.preamble_data import PreambleData, preamble_data
 from ._internal.values import plates_outside
 from .body import Comment
-from .components import AnyValue, Children, Command, Environment, Node, Value
+from .components import AnyValue, Children, Command, Environment, Node, Value, concrete_kinds
 from .document import OPTION, Document
 from .errors import DeclarationError, Violation
 from .package import Package
@@ -185,7 +185,7 @@ def _reachable(classes: Iterable[type]) -> dict[str, type]:
         cls = todo.pop()
         if cls.__name__ not in found:
             found[cls.__name__] = cls
-            todo += [t.kind for t in getattr(cls, "__tm_grammar__", ())]
+            todo += [k for t in getattr(cls, "__tm_grammar__", ()) for k in concrete_kinds(t.kind)]
     return found
 
 

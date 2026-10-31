@@ -10,6 +10,7 @@ header.
 import importlib
 import os
 import pathlib
+import pkgutil
 import re
 import shutil
 import struct
@@ -27,7 +28,7 @@ from texmodel.preamble import PreambleSlots
 from texmodel.run.compiler import Compiler
 from texmodel.run.diagnostics import PackageError, Severity
 from texmodel.std import MODULES, TEXLIVE
-from texmodel.types import Length, Raw, Text
+from texmodel.types import ControlSequence, FilePath, FontName, Length, Name, NameList, Raw, Text
 
 
 def header(name: str):  # noqa: ANN201
@@ -42,8 +43,8 @@ def body_of(*lines: str) -> Passthrough:
 
 
 def test_the_modules_listed_are_the_modules_there_are():
-    folder = pathlib.Path(importlib.import_module("texmodel.std").__file__ or "").parent
-    assert sorted(p.stem for p in folder.glob("*.py") if p.stem != "__init__") == sorted(MODULES)
+    std = importlib.import_module("texmodel.std")
+    assert sorted(m.name for m in pkgutil.iter_modules(std.__path__)) == sorted(MODULES)
     assert TEXLIVE.isdigit()
 
 
@@ -55,7 +56,7 @@ def test_a_header_is_an_adopted_package_whose_components_all_name_their_control_
     assert package.builtin == (name == "latex")
     for cls in package.registered:
         assert cls.__doc__ and cls.__dict__["cs"] and cls.__tm_cs__ == cls.__dict__["cs"]  # pyright: ignore[reportAttributeAccessIssue]
-    if name in {"hyphenat", "anyfontsize"}:
+    if name in {"hyphenat", "anyfontsize", "luacolor"}:
         assert package.registered == ()  # loaded with Package.require; nothing to call
 
 
@@ -89,11 +90,11 @@ X = Raw("x")
 def latex_samples():
     from texmodel.std import latex as k
 
-    length, counter, box = Raw(r"\tmlen"), Raw("tmc"), Raw(r"\tmbox")
+    length, counter, box = ControlSequence(r"\tmlen"), Name("tmc"), ControlSequence(r"\tmbox")
     value = Raw(k.CounterValue(name=counter).render())
     pre = [
-        k.DeclareOption(option=Raw("tmopt"), code=Raw("")),
-        k.PassOptionsToPackage(options=Raw("final"), package=Raw("microtype")),
+        k.DeclareOption(option=Name("tmopt"), code=Raw("")),
+        k.PassOptionsToPackage(options=Raw("final"), package=Name("microtype")),
     ]
     nodes = [
         k.NewLength(length=length),
@@ -159,15 +160,18 @@ def latex_samples():
         k.UseBox(box=box),
         k.AtBeginDocument(code=Raw("")),
         k.AtEndDocument(code=Raw("")),
-        k.PackageWarning(package=Raw("tmpkg"), message=Raw("a warning")),
-        k.PackageWarningNoLine(package=Raw("tmpkg"), message=Raw("a warning")),
-        k.PackageInfo(package=Raw("tmpkg"), message=Raw("a note")),
-        k.IfFileExists(file=Raw("tm-nonexistent.tex"), yes=Raw(""), no=Raw("")),
-        k.InputIfFileExists(file=Raw("tm-nonexistent.tex"), yes=Raw(""), no=Raw("")),
+        k.PackageWarning(package=Name("tmpkg"), message=Raw("a warning")),
+        k.PackageWarningNoLine(package=Name("tmpkg"), message=Raw("a warning")),
+        k.PackageInfo(package=Name("tmpkg"), message=Raw("a note")),
+        k.IfFileExists(file=FilePath("tm-nonexistent.tex"), yes=Raw(""), no=Raw("")),
+        k.InputIfFileExists(file=FilePath("tm-nonexistent.tex"), yes=Raw(""), no=Raw("")),
         k.Center(body_of("x")),
         k.FlushLeft(body_of("x")),
         k.FlushRight(body_of("x")),
         k.Minipage(body_of("x"), width=Length("3cm"), position=k.BoxPosition.TOP),
+        k.Figure(body_of("x"), placement=Raw("tbp")),
+        k.Figure(body_of(k.Caption(short="Short", text="A & B").render()), placement=None),
+        k.Label(name=Name("fig:a")),
         k.ClearPage(),
     ]
     return pre, nodes
@@ -179,7 +183,7 @@ def graphicx_samples():
     return [], [
         g.GraphicsPath(directories=Raw("{}{img/}")),
         g.IncludeGraphics(
-            path=Raw("tm-pic.png"),
+            path=FilePath("tm-pic.png"),
             options=g.IncludeGraphicsOptions(
                 width=Length("1cm"),
                 height=Length("1cm"),
@@ -187,10 +191,13 @@ def graphicx_samples():
                 scale=0.5,
                 angle=0,
                 clip=True,
-                extra=Raw("trim=0 0 0 0"),
+                trim=Raw("0pt 0pt 0pt 0pt"),
+                alt="A white pixel",
+                extra=Raw("interpolate"),
             ),
         ),
-        g.IncludeGraphics(path=Raw("tm-pic.png")),
+        g.IncludeGraphics(path=FilePath("tm-pic.png"), options=g.IncludeGraphicsOptions(artifact=True)),
+        g.IncludeGraphics(path=FilePath("tm-pic.png")),
     ]
 
 
@@ -198,8 +205,8 @@ def xcolor_samples():
     from texmodel.std import xcolor as c
 
     return [], [
-        c.DefineColor(name=Raw("tmink"), model=Raw("HTML"), spec=Raw("223344")),
-        c.ColorLet(name=Raw("tmb"), spec=Raw("tmink!50")),
+        c.DefineColor(name=Name("tmink"), model=Raw("HTML"), spec=Raw("223344")),
+        c.ColorLet(name=Name("tmb"), spec=Raw("tmink!50")),
         c.Color(name=Raw("tmink")),
         c.Color(name=Raw("1,0,0"), model=Raw("rgb")),
         c.TextColor(name=Raw("tmink"), text="x"),
@@ -220,12 +227,12 @@ def geometry_samples():
 def etoolbox_samples():
     from texmodel.std import etoolbox as e
 
-    macro = Raw(r"\tmm")
+    macro = ControlSequence(r"\tmm")
     pre = [
         Raw(r"\newcommand{\tmm}{}"),
-        e.NewToggle(name=Raw("tmt")),
-        e.AtBeginEnvironment(environment=Raw("center"), code=Raw("")),
-        e.AtEndEnvironment(environment=Raw("center"), code=Raw("")),
+        e.NewToggle(name=Name("tmt")),
+        e.AtBeginEnvironment(environment=Name("center"), code=Raw("")),
+        e.AtEndEnvironment(environment=Name("center"), code=Raw("")),
     ]
     nodes = [
         e.Appto(macro=macro, code=X),
@@ -234,10 +241,10 @@ def etoolbox_samples():
         e.GPreto(macro=macro, code=X),
         e.IfBlank(argument=Raw(""), yes=Raw("a"), no=Raw("b")),
         e.IfStrEqual(first=Raw("a"), second=Raw("a"), yes=Raw("y"), no=Raw("n")),
-        e.ToggleTrue(name=Raw("tmt")),
-        e.ToggleFalse(name=Raw("tmt")),
-        e.SetToggle(name=Raw("tmt"), value=Raw("true")),
-        e.IfToggle(name=Raw("tmt"), yes=Raw("y"), no=Raw("n")),
+        e.ToggleTrue(name=Name("tmt")),
+        e.ToggleFalse(name=Name("tmt")),
+        e.SetToggle(name=Name("tmt"), value=Raw("true")),
+        e.IfToggle(name=Name("tmt"), yes=Raw("y"), no=Raw("n")),
         e.IfNumGreater(left=Raw("2"), right=Raw("1"), yes=Raw("y"), no=Raw("n")),
         e.IfNumLess(left=Raw("1"), right=Raw("2"), yes=Raw("y"), no=Raw("n")),
         e.IfNumEqual(left=Raw("1"), right=Raw("1"), yes=Raw("y"), no=Raw("n")),
@@ -294,7 +301,7 @@ def tikz_samples():
     from texmodel.std import tikz as t
 
     return [
-        t.UseTikzLibrary(libraries=Raw("calc,positioning")),
+        t.UseTikzLibrary(libraries=NameList("calc,positioning")),
         t.TikzSet(options=t.TikzOptions(extra=Raw("tmstyle/.style={draw}"))),
     ], [
         t.Tikzpicture(
@@ -316,7 +323,7 @@ def tcolorbox_samples():
     from texmodel.std import tcolorbox as t
 
     return [
-        t.TcbUseLibrary(libraries=Raw("skins,fitting")),
+        t.TcbUseLibrary(libraries=NameList("skins,fitting")),
         t.TcbSet(options=t.TcolorboxOptions(colback=ColourName("white"))),
     ], [
         t.Tcolorbox(
@@ -339,9 +346,9 @@ def fontspec_samples():
     from texmodel.std import fontspec as f
 
     return [
-        f.SetMainFont(font=Raw("Latin Modern Roman"), options=Raw("Ligatures=TeX")),
-        f.SetSansFont(font=Raw("Latin Modern Sans")),
-        f.SetMonoFont(font=Raw("Latin Modern Mono")),
+        f.SetMainFont(font=FontName("Latin Modern Roman"), options=Raw("Ligatures=TeX")),
+        f.SetSansFont(font=FontName("Latin Modern Sans")),
+        f.SetMonoFont(font=FontName("Latin Modern Mono")),
     ], []
 
 
@@ -351,7 +358,7 @@ def calc_samples():
         latex as k,
     )
 
-    counter, length, box = Raw("tmc"), Raw(r"\tmlen"), Raw(r"\tmtotal")
+    counter, length, box = Name("tmc"), ControlSequence(r"\tmlen"), ControlSequence(r"\tmtotal")
     pre = [k.NewCounter(name=counter), k.NewLength(length=length), k.NewLength(length=box)]
     return pre, [
         c.SetCounter(counter=counter, value=c.integer(7) / 2),
@@ -359,6 +366,284 @@ def calc_samples():
         c.SetLength(length=length, value=c.widthof("abc") * c.real(0.5) + Length("1pt")),
         c.AddToLength(length=length, value=c.glue(Length("1pt"), Length("1pt"))),
         c.SetToTotalHeight(length=box, text=Raw("Ag")),
+    ]
+
+
+def tabularray_samples():
+    from texmodel.std import tabularray as t
+
+    def rows(*lines: str) -> Passthrough:
+        return body_of(*(f"{line} \\\\" for line in lines))
+
+    pre = [
+        t.UseTblrLibrary(libraries=NameList("booktabs,diagbox,tikz")),
+        t.NewTblrColumnType(name=Name("Y"), count=1, default=Raw("2cm"), definition=Raw("Q[l,wd=#1]")),
+        t.NewTblrRowType(name=Name("Y"), count=1, definition=Raw("Q[t,ht=#1]")),
+        t.NewTblrColumnRowType(name=Name("Z"), definition=Raw("Q[c]")),
+        t.NewTblrEnviron(name=Name("tmtblr")),
+        t.NewTblrTableCommand(name=ControlSequence(r"\tmrule"), definition=Raw(r"\hline[red]")),
+        t.NewTblrContentCommand(name=ControlSequence(r"\tmcell"), definition=Raw("x")),
+        t.NewTblrDashStyle(name=Name("tmdash"), definition=Raw("on 2pt off 1pt")),
+        t.NewTblrTheme(name=Name("tmtheme"), code=Raw(r"\SetTblrStyle{firsthead}{font=\bfseries}")),
+        t.DeclareTblrTemplate(element=Name("conthead-text"), name=Name("tmt"), code=Raw("(more)")),
+        t.DeclareTblrTemplate(
+            element=Name("caption"),
+            name=Name("tmt"),
+            code=Raw(
+                t.UseTblrTemplate(element=Name("caption-tag"), name=Name("default")).render()
+                + t.ExpTblrTemplate(element=Name("caption-text"), name=Name("default")).render()
+            ),
+        ),
+        t.SetTblrTemplate(element=Name("conthead-text"), name=Name("normal")),
+        t.SetTblrStyle(element=Name("caption-tag"), style=Raw(r"font=\bfseries")),
+        t.SetTblrInner(spec=t.TblrInner(rowsep=Length("1pt"))),
+        t.SetTblrInner(environments=NameList("longtblr"), spec=t.TblrInner(rowsep=Length("1pt"))),
+        t.SetTblrOuter(spec=t.TblrOuter(baseline=t.Baseline.TOP)),
+        t.SetTblrTracing(what=Raw("none")),
+    ]
+    cell = t.CellSpec(
+        halign=t.HAlign.CENTRE,
+        valign=t.VAlign.MIDDLE,
+        wd=Length("2cm"),
+        bg=ColourName("red"),
+        fg=ColourName("blue"),
+        font=Raw(r"\bfseries"),
+        mode=t.Mode.TEXT,
+        cmd=ControlSequence(r"\relax"),
+        preto=Raw("x"),
+        appto=Raw("y"),
+    )
+    row = t.RowSpec(
+        halign=t.HAlign.LEFT,
+        ht=Length("5mm"),
+        bg=ColourName("red"),
+        math=True,
+        abovesep=Length("1pt"),
+        belowsep_plus=Length("1pt"),
+        rowsep=Length("1pt"),
+    )
+    column = t.ColumnSpec(
+        valign=t.VAlign.TOP,
+        wd=Length("2cm"),
+        co=1.5,
+        dmath=True,
+        leftsep=Length("1pt"),
+        rightsep_plus=Length("1pt"),
+        colsep=Length("1pt"),
+    )
+    hline = t.HlineSpec(dash=t.Dash.DASHED, wd=Length("1pt"), fg=ColourName("red"), leftpos=-1, l=True, endpos=True)
+    vline = t.VlineSpec(dash=t.Dash.DOTTED, wd=Length("1pt"), fg=ColourName("red"), abovepos=1, belowpos=1)
+    inner = t.TblrInner(
+        colspec=Raw("llll"),
+        width=Length("8cm"),
+        hlines=t.HlineSpec(),
+        vlines=vline,
+        cells=t.CellSpec(halign=t.HAlign.LEFT),
+        rows=t.RowSpec(abovesep=Length("1pt")),
+        columns=t.ColumnSpec(colsep=Length("2pt")),
+        rulesep=Length("2pt"),
+        stretch=1.2,
+        abovesep=Length("1pt"),
+        belowsep=Length("1pt"),
+        leftsep=Length("1pt"),
+        rightsep=Length("1pt"),
+        hspan=t.Span.EVEN,
+        vspan=t.Span.EVEN,
+        baseline=t.Baseline.BOTTOM,
+        measure=t.Measure.VBOX,
+        rules=[
+            t.cell(1, 2, cell, span=t.CellSpan(c=2)),
+            t.cells(t.CellSpec(halign=t.HAlign.LEFT), span=t.CellSpan()),
+            t.row("odd", row),
+            t.column("1-Z", column),
+            t.hline(t.selector(1, "Z"), hline),
+            t.hline(2, hline, "1-2"),
+            t.vline("Y[2]", vline, "every{1}{-1}"),
+            t.hlines(hline, 1),
+            t.vlines(vline, "odd"),
+            t.hborder(
+                2, t.HborderSpec(pagebreak=t.PageBreak.NO, abovespace=Length("1pt"), belowspace_plus=Length("1pt"))
+            ),
+            t.vborder(2, t.VborderSpec(leftspace=Length("1pt"), rightspace_plus=Length("1pt"))),
+        ],
+        extra=Raw("rowhead=0"),
+    )
+    long = t.TblrInner(colspec=Raw("ll"), rowhead=1, rowfoot=1, rowspec=Raw("Q[t]Q[t]Q[t]"))
+    outer = t.TblrOuter(
+        baseline=t.Baseline.TOP,
+        expand=Raw(r"\tmcell"),
+        expand_plus=Raw(r"\tmcell"),
+        headsep=Length("3pt"),
+        footsep=Length("3pt"),
+        presep=Length("3pt"),
+        postsep=Length("3pt"),
+        theme=Raw("tmtheme"),
+        caption="A & B",
+        entry="AB",
+        label=Raw("tm:long"),
+        rules=[t.note(Raw("a"), Raw("It is a note.")), t.remark(Raw("Source"), Raw("Made up."))],
+    )
+    nodes = [
+        t.TblrTikzBelow(body_of(r"\path (table.north west) rectangle (table.south east);")),
+        t.TblrTikzAbove(body_of(r"\draw (1-1.north west) -- (1-1.south east);")),
+        t.Tblr(
+            t.Toprule(options=t.HlineSpec(wd=Length("1pt"))),
+            t.Diagbox(lower=Raw("Aa"), upper=Raw("Pp")),
+            rows("& B & C & D"),
+            t.Midrule(),
+            t.Hline(options=hline),
+            t.Hline(),
+            t.Cline(columns=t.selector("1-2"), options=hline),
+            t.Cmidrule(columns=t.selector("2-3"), options=t.HlineSpec(l=-0.4)),
+            t.Cmidrulemore(columns=t.selector("1-2")),
+            t.Morecmidrules(),
+            t.Cmidrule(columns=t.selector("1-2")),
+            t.Hborder(spec=t.HborderSpec(abovespace=Length("1pt"))),
+            t.SetHline(index=t.selector(1), columns=t.selector("2-3"), spec=hline),
+            t.SetHlines(columns=t.selector("1"), spec=hline),
+            t.SetCell(span=t.CellSpan(c=2), spec=cell),
+            rows("x &  & C & D"),
+            t.SetRow(spec=row),
+            t.SetRows(spec=row),
+            t.SetCells(span=t.CellSpan(), spec=cell),
+            t.Vborder(spec=t.VborderSpec(leftspace=Length("1pt"))),
+            t.SetColumn(spec=column),
+            t.SetColumns(spec=column),
+            t.Vline(options=vline),
+            t.SetVline(index=t.selector(1), rows=t.selector("1-2"), spec=vline),
+            t.SetVlines(rows=t.selector("1"), spec=vline),
+            t.Rline(rows=t.selector("1-2"), options=vline),
+            rows("A & B & C \\TblrNote{a}  & D"),
+            t.Specialrule(spec=t.HlineSpec(wd=Length("0.5pt")), below=Length("2pt"), above=Length("3pt")),
+            rows("A & B & C & D"),
+            t.Addlinespace(space=Length("1em")),
+            t.Addlinespace(),
+            t.Addrowspace(space=Length("1em")),
+            rows("A & B & C & D"),
+            t.Bottomrule(options=t.HlineSpec(wd=Length("1pt"))),
+            outer=t.TblrOuter(baseline=t.Baseline.TOP),
+            inner=inner,
+        ),
+        t.Tblr(rows("a & b"), inner=t.TblrInner(colspec=Raw("ll"))),
+        t.Tblr(
+            t.Diagboxthree(lower=Raw("A"), middle=Raw("B"), upper=Raw("C")),
+            rows("& D & E"),
+            inner=t.TblrInner(colspec=Raw("lll"), hlines=t.HlineSpec(), vlines=t.VlineSpec()),
+        ),
+        t.Longtblr(
+            t.Hline(),
+            rows("a & b", "c & d", "e & f"),
+            outer=outer,
+            inner=long,
+        ),
+        t.Talltblr(
+            rows("a & b"),
+            outer=t.TblrOuter(caption="T", rules=[t.note(Raw("a"), Raw("n"))]),
+            inner=t.TblrInner(colspec=Raw("ll")),
+        ),
+        t.Booktabs(t.Toprule(), rows("a & b"), t.Bottomrule(), inner=t.TblrInner(colspec=Raw("ll"))),
+        t.Longtabs(t.Toprule(), rows("a & b"), t.Bottomrule(), inner=t.TblrInner(colspec=Raw("ll"))),
+        t.Talltabs(t.Toprule(), rows("a & b"), t.Bottomrule(), inner=t.TblrInner(colspec=Raw("ll"))),
+    ]
+    return pre, nodes
+
+
+def hyperref_samples():
+    from texmodel.std import hyperref as h
+
+    options = h.HypersetupOptions(
+        pdftitle="Deck", pdfauthor="A", colorlinks=True, linkcolor=Raw("blue"), extra=Raw("pdfborder={0 0 0}")
+    )
+    return [h.Hypersetup(options=options)], [
+        h.HyperTarget(name=Raw("tmt"), text="x"),
+        h.HyperLink(name=Raw("tmt"), text="x"),
+        h.Href(url=Raw("https://example.org"), text="x"),
+        h.Url(url=Raw("https://example.org")),
+    ]
+
+
+def setspace_samples():
+    from texmodel.std import setspace as s
+
+    return [], [
+        s.SetStretch(factor=Raw("1.25")),
+        s.SingleSpacing(),
+        s.OneAndHalfSpacing(),
+        s.DoubleSpacing(),
+    ]
+
+
+def fancyhdr_samples():
+    from texmodel.std import (
+        fancyhdr as f,
+        latex as k,
+    )
+
+    return [f.Fancyhf(text=Raw("")), f.Fancyhead(where=Raw("L"), text=Raw("x")), f.Fancyfoot(text=Raw("x"))], [
+        k.PageStyle(style=Raw("fancy")),
+        f.Fancyhf(where=Raw("C"), text=Raw("x")),
+        f.Fancyhead(text=Raw("x")),
+        f.Fancyfoot(where=Raw("C"), text=Raw("x")),
+    ]
+
+
+def caption_samples():
+    from texmodel.std import caption as c
+
+    return [c.CaptionSetup(options=Raw("font=small,labelfont=bf"))], [
+        c.CaptionOf(kind=Raw("figure"), text="x"),
+        c.CaptionOf(kind=Raw("figure"), short="s", text="x"),
+    ]
+
+
+def subcaption_samples():
+    from texmodel.std import subcaption as s
+
+    box = s.SubCaptionBox(text="x", content=Raw("y"))
+    return [], [
+        body_of(
+            r"\begin{figure}",
+            box.render(),
+            r"\begin{minipage}{3cm}",
+            s.SubCaption(text="x").render(),
+            r"\end{minipage}",
+            r"\end{figure}",
+        )
+    ]
+
+
+def babel_samples():
+    from texmodel.std import babel as b
+
+    return [], [b.SelectLanguage(language=Name("english")), b.ForeignLanguage(language=Name("english"), text="x")]
+
+
+def polyglossia_samples():
+    from texmodel.std import polyglossia as p
+
+    return [
+        p.SetMainLanguage(language=Name("english")),
+        p.SetOtherLanguage(options=Raw("variant=german"), language=Name("german")),
+    ], []
+
+
+def multicol_samples():
+    from texmodel.std import multicol as m
+
+    return [], [m.Multicols(body_of("x", m.ColumnBreak().render(), "y"), columns=2)]
+
+
+def pdfpages_samples():
+    from texmodel.std import pdfpages as p
+
+    return [], [
+        p.IncludePdf(path=FilePath("tm-doc.pdf")),
+        p.IncludePdf(
+            path=FilePath("tm-doc.pdf"),
+            options=p.IncludePdfOptions(
+                pages=Raw("1"), nup=Raw("1x1"), angle=0, scale=1, landscape=True, frame=True, extra=Raw("noautoscale")
+            ),
+        ),
     ]
 
 
@@ -379,6 +664,17 @@ SAMPLES = {
     "tikz": tikz_samples,
     "tcolorbox": tcolorbox_samples,
     "fontspec": fontspec_samples,
+    "tabularray": tabularray_samples,
+    "hyperref": hyperref_samples,
+    "setspace": setspace_samples,
+    "fancyhdr": fancyhdr_samples,
+    "caption": caption_samples,
+    "subcaption": subcaption_samples,
+    "babel": babel_samples,
+    "polyglossia": polyglossia_samples,
+    "multicol": multicol_samples,
+    "pdfpages": pdfpages_samples,
+    "luacolor": lambda: ([], []),
 }
 ERRORS = {"PackageError"}  # declared and called in `test_package_error`: it stops the run on purpose
 
@@ -400,6 +696,22 @@ def test_every_sample_set_is_listed_and_calls_every_declared_name():
 
 
 # --- conformance: real TeX accepts the calls --------------------------------------------------------------------
+
+
+def pdf() -> bytes:
+    """A one-page PDF, so pdfpages has a file to place."""
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] >>",
+    ]
+    out, offsets = b"%PDF-1.4\n", []
+    for number, body in enumerate(objects, 1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n%s\nendobj\n" % (number, body)
+    xref = len(out)
+    out += b"xref\n0 4\n0000000000 65535 f \n" + b"".join(b"%010d 00000 n \n" % o for o in offsets)
+    return out + b"trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % xref
 
 
 def png() -> bytes:
@@ -431,6 +743,7 @@ async def compile_sample(comp: Compiler, plan, tmp_path: pathlib.Path):  # noqa:
     src.mkdir(parents=True, exist_ok=True)
     (src / "d.tex").write_text(plan.text, encoding="utf-8")
     (src / "tm-pic.png").write_bytes(png())
+    (src / "tm-doc.pdf").write_bytes(pdf())
     result = await comp.compile(src / "d.tex", tmp_path / "out", plan=plan)
     errors = [d for d in result.diagnostics if d.severity is Severity.ERROR]
     return result, errors, [d for d in errors if d.code == GAP[0] or GAP[1] in d.message]
@@ -462,7 +775,7 @@ async def test_real_tex_accepts_a_call_of_every_declared_name(name, compiler, tm
 async def test_package_error_is_the_error_it_says(compiler, tmp_path):  # noqa: F811
     from texmodel.std import latex
 
-    node = latex.PackageError(package=Raw("tmpkg"), message=Raw("it broke"), help=Raw("press return"))
+    node = latex.PackageError(package=Name("tmpkg"), message=Raw("it broke"), help=Raw("press return"))
     plan = latex.package.plan(node)
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "d.tex").write_text(plan.text, encoding="utf-8")

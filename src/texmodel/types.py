@@ -12,7 +12,8 @@ import types
 from collections.abc import Callable
 from decimal import Decimal
 from fractions import Fraction
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Final
+from pathlib import PurePosixPath
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Final, Self
 
 from .errors import DeclarationError, ValidationError
 
@@ -134,11 +135,32 @@ def balanced(tex: str) -> bool:
     return depth == 0
 
 
+class AsTeX:
+    r"""A type that is a field value because it writes itself: subclass it and define `render()`, the TeX of the value
+    without delimiters. `Raw` and `KeyVals` are such types, and so is `ext.graphics.Picture`. The type checks itself
+    when it is built (as `FilePath` does) and loads from data by its own pydantic schema, which a dataclass or a model
+    has already; the field only checks that the value is one. Nothing is found by name: a type with a `render()` that
+    does not subclass this is not accepted."""
+
+    def render(self) -> str:
+        raise NotImplementedError
+
+    @classmethod
+    def from_tex(cls, text: str) -> Self:
+        r"""The value `text` is, as `\detokenize` shows it in a stub call (a hand edit read back), or `ValueError`
+        saying why it is not one. A type that does not read leaves this: the field is then unread, with no value and
+        no violation."""
+        raise NotImplementedError
+
+
 @dataclasses.dataclass(frozen=True)
-class Raw:
+class Raw(AsTeX):
     """TeX passed through unescaped, only where a field is declared `Raw` (T3). A distinct class, never a `str`."""
 
     tex: str
+
+    def render(self) -> str:
+        return self.tex
 
     def __post_init__(self) -> None:
         if not balanced(self.tex):
@@ -164,6 +186,130 @@ class Raw:
             python_schema=cs.no_info_plain_validator_function(make),
             serialization=cs.plain_serializer_function_ser_schema(lambda raw: raw.tex),
         )
+
+
+_CONTROL_WORD = re.compile(r"\\[A-Za-z@]+")
+_NOT_IN_A_FILE_NAME = re.compile(r"[{}\\%#]|[\x00-\x1f]")
+
+
+def _is_call(tex: str) -> bool:
+    """A control word followed by braced groups only: `\\a`, `\\a{b}{c}`."""
+    found = _CONTROL_WORD.match(tex)
+    if found is None:
+        return False
+    i = found.end()
+    while i < len(tex):
+        if tex[i] != "{":
+            return False
+        depth = 0
+        while i < len(tex):
+            c = tex[i]
+            if c == "\\":
+                i += 2
+                continue
+            depth += (c == "{") - (c == "}")
+            i += 1
+            if depth == 0:
+                break
+    return True
+
+
+def _check_call(raw: Raw) -> None:
+    if not _is_call(raw.tex):
+        raise ValidationError(
+            f"{type(raw).__name__}: {raw.tex!r} is not a control word and its braced arguments",
+            code="TM-C029",
+            hint=r"write \name or \name{argument}; for other TeX use Raw",
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class Macro(Raw):
+    r"""A call of a macro, a control word and its braced arguments: `Macro(r"\jobname")`, `Macro(r"\figdir{a}")`. It
+    is TeX as written, checked to be a call and nothing else, so a field can hold it where a `Raw` is too loose."""
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _check_call(self)
+
+
+@dataclasses.dataclass(frozen=True)
+class _PlainText(Raw):
+    """Raw TeX with no syntax in it, where a name is read: the base of `FilePath` and `FontName`."""
+
+    def __post_init__(self) -> None:
+        bad = _NOT_IN_A_FILE_NAME.search(self.tex)
+        if not self.tex or bad:
+            reason = f"has {bad.group()!r}, which TeX reads as syntax" if bad else "is empty"
+            raise ValidationError(
+                f"{type(self).__name__}: {self.tex!r} {reason}",
+                code="TM-C028",
+                hint="TeX syntax cannot be written in a name; a macro that expands to it is a Macro",
+            )
+        super().__post_init__()
+
+
+@dataclasses.dataclass(frozen=True)
+class FilePath(_PlainText):
+    r"""A file name, `/` between directories: `FilePath("img/a_b.png")`, or `FilePath.of(PurePosixPath(...))`. `{`, `}`,
+    `\\`, `%`, `#` and control characters are TeX syntax where a name is read and cannot be written there, so they are
+    refused (`TM-C028`); `_`, `~`, `&`, `$`, `^` and spaces are safe. A field that names a file is typed
+    `FilePath | Macro`."""
+
+    @classmethod
+    def of(cls, path: PurePosixPath) -> "FilePath":
+        """The name of a `PurePosixPath`."""
+        return cls(path.as_posix())
+
+
+@dataclasses.dataclass(frozen=True)
+class FontName(_PlainText):
+    """A font by name or file, as `fontspec` takes it: `FontName("Latin Modern Roman")`. The same characters as a
+    `FilePath` are refused (`TM-C028`)."""
+
+
+def _checked(pattern: re.Pattern[str], what: str, code: str, example: str) -> Callable[[Raw], None]:
+    def check(raw: Raw) -> None:
+        if not pattern.fullmatch(raw.tex):
+            raise ValidationError(
+                f"{type(raw).__name__}: {raw.tex!r} is not {what}", code=code, hint=f"write {example}"
+            )
+
+    return check
+
+
+_NAME = r"[A-Za-z][A-Za-z0-9@*:_.-]*"
+_check_control_sequence = _checked(re.compile(r"\\[A-Za-z@]+"), "one control word", "TM-C030", r"\\name")
+_check_name = _checked(re.compile(_NAME), "a name (letters, digits and `@*:_.-`)", "TM-C031", "name")
+_check_names = _checked(re.compile(rf"{_NAME}(\s*,\s*{_NAME})*"), "names separated by commas", "TM-C032", "a,b")
+
+
+@dataclasses.dataclass(frozen=True)
+class ControlSequence(Macro):
+    r"""One control word, where a field holds a macro, a length or a box register: `ControlSequence(r"\mylen")`. It is
+    the narrowest `Macro`, so a `Macro` field takes it."""
+
+    def __post_init__(self) -> None:
+        Raw.__post_init__(self)
+        _check_control_sequence(self)
+
+
+@dataclasses.dataclass(frozen=True)
+class Name(Raw):
+    """A counter, toggle, environment, package or similar name: `Name("section")`. It starts with a letter."""
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _check_name(self)
+
+
+@dataclasses.dataclass(frozen=True)
+class NameList(Raw):
+    """Names separated by commas, as a list of libraries or environments: `NameList("skins,breakable")`."""
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _check_names(self)
 
 
 class Choice(enum.Enum):
@@ -411,12 +557,19 @@ __all__ = [
     "PROCESS",
     "Plate",
     "plates_of",
+    "AsTeX",
     "Choice",
     "Claim",
     "Colour",
+    "ControlSequence",
+    "FilePath",
+    "FontName",
     "Gray",
     "Length",
     "LengthExpr",
+    "Macro",
+    "Name",
+    "NameList",
     "PDF",
     "PdfString",
     "RGB",

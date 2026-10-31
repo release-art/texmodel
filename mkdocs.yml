@@ -33,6 +33,8 @@ nav:
       - Check committed files: guide/check.md
       - TeX you already have: guide/adopting.md
       - Standard libraries: guide/std.md
+      - Tables: guide/tables.md
+      - Pictures: guide/graphics.md
       - Testing: guide/testing.md
       - Print output: guide/print.md
       - Building and compiling: guide/build.md

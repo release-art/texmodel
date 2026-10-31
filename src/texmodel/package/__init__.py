@@ -11,15 +11,14 @@ import re
 import textwrap
 import types
 import typing
-from collections.abc import Callable, Iterator, Mapping, Sequence
-from typing import Annotated, Any, NamedTuple
+from collections.abc import Callable, Mapping, Sequence
+from typing import Annotated, Any
 
 from pydantic.fields import FieldInfo
 
-from ._internal.emit import INDENT, call_line, emit
-from ._internal.options import Option, OptionKind, choice_kind
-from ._internal.pieces import template_text
-from ._internal.render import (
+from .._internal.options import Option, OptionKind, choice_kind
+from .._internal.pieces import template_text
+from .._internal.render import (
     EnvSpec,
     Spec,
     ValueSpec,
@@ -34,29 +33,27 @@ from ._internal.render import (
     render_value,
     require_lines,
     signature,
-    undeclared,
 )
-from ._internal.scan import scan_colours, scan_counters, scan_declarations
-from ._internal.specs import env_spec_of, spec_of, value_spec_of
-from ._internal.values import fill_text
-from .body import Comment, Library, Syntax, TemplateRef, Whitespace
-from .components import (
+from .._internal.scan import scan_colours, scan_counters, scan_declarations
+from .._internal.specs import env_spec_of, spec_of, value_spec_of
+from .._internal.values import fill_text
+from ..body import Comment, Library, Syntax, TemplateRef, Whitespace
+from ..components import (
     AnyValue,
     Command,
     Environment,
     Node,
-    Passthrough,
     Value,
-    control_name,
 )
-from .document import OPTION, Document
-from .drift import stamp
-from .errors import DeclarationError, Violation
-from .interface import XCOLOR, colour_of, constraint_of
-from .plan import BEGIN_DOCUMENT, Line, Plan, Span
-from .preamble import Entry, PdfInfo, RequireMetadata
-from .testing import Component, stub_tex
-from .types import PROCESS, Choice, Length, Raw, balanced
+from ..document import Document
+from ..drift import stamp
+from ..errors import DeclarationError, Violation
+from ..interface import XCOLOR, ColourName, colour_of, constraint_of
+from ..plan import Line, Plan
+from ..testing import Component, stub_tex
+from ..types import PROCESS, Choice, Length, Raw, balanced
+from ._check import Defs, compare, name_shown
+from ._plan import Loads, document_of, plan_of, setting_line
 
 _NAME = re.compile(r"[a-z][a-z0-9-]*")
 _PREFIX = re.compile(r"[a-z]*")  # empty: the package of a standard TeX library, whose names carry none
@@ -80,15 +77,6 @@ def _package_option(option: str) -> bool:
     )
 
 
-def _passthroughs(node: Node, path: str) -> Iterator[tuple[str, Passthrough]]:
-    """Every `Passthrough` in a tree with its plan path."""
-    if isinstance(node, Passthrough):
-        yield path, node
-    elif isinstance(node, Environment):
-        for i, child in enumerate(node.content):
-            yield from _passthroughs(child, f"{path}/{type(child).__name__}[{i}]")
-
-
 GENERATOR_VERSION: str | None = None
 """Set in a copy of texmodel with no installed metadata (embedded in a wheel) to the version it was built from."""
 
@@ -100,16 +88,6 @@ def generator_version() -> str:
     return m[0] if m else "0.0.0"
 
 
-class _Defs(NamedTuple):
-    """What a library defines: control sequences with their signatures, and names of other kinds (colours, counters)."""
-
-    controls: dict[str, str]
-    others: frozenset[tuple[str, str]]
-
-    def pairs(self) -> list[tuple[str, str]]:
-        return [*(("control", n) for n in self.controls), *sorted(self.others)]
-
-
 def _concrete(cls: type[Command] | type[Environment]) -> None:
     if cls.__tm_abstract__:
         raise DeclarationError(
@@ -118,31 +96,6 @@ def _concrete(cls: type[Command] | type[Environment]) -> None:
             path=cls.__name__,
             hint="register the subclasses",
         )
-
-
-def _shown(kind: str, name: str) -> str:
-    return f"\\{name}" if kind == "control" else f"{kind} {name}"
-
-
-def _compare(who: str, lib: str, defs: _Defs, wanted: Sequence[tuple[str, str, str]]) -> list[Violation]:
-    """`who` wants these names (kind, name, signature) from library `lib`: each must be defined, as declared."""
-    out: list[Violation] = []
-    for kind, name, want in wanted:
-        if (kind, name) not in defs.pairs():
-            out.append(
-                Violation("TM-C010", who, f"{_shown(kind, name)} is declared but library {lib} does not define it")
-            )
-        elif kind == "control" and canonical(defs.controls[name]) != canonical(want):
-            out.append(
-                Violation(
-                    "TM-C011",
-                    who,
-                    f"{_shown(kind, name)}: declared {want or 'without arguments'}, library {lib} defines "
-                    f"{defs.controls[name] or 'no arguments'}",
-                    hint="change the declaration or the library so they agree",
-                )
-            )
-    return out
 
 
 def _field_data(spec: object) -> tuple[object, object]:
@@ -156,42 +109,6 @@ def declared(text: str) -> frozenset[str]:
     """The control sequences `text` declares (`bbName`, no backslash), by the forms the adoption scanner reads (see
     `check_interface`), not by `\\def`, `\\let` or an expl3 definer. A colour or a counter is not one."""
     return frozenset(scan_declarations(text))
-
-
-def setting_line(value: AnyValue) -> str:
-    """The line that sets `value` for a document: `\\setlength{\\acGap}{3mm}`, `\\renewcommand{\\acName}{R\\&D}`,
-    `\\acDrafttrue`. It is what `Package.plan` writes for each of a `Document`'s `settings`."""
-    cls = type(value)
-    return cls.__tm_kind__.setting(*addressed(cls.__tm_prefix__, cls.__name__, cls.cs), value.value, cls.colour_name)
-
-
-def _document_of(body: Sequence[Node | Document]) -> Document:
-    """The `Document` a call gave: one, alone, or the bare nodes of a plain one."""
-    given = [b for b in body if isinstance(b, Document)]
-    if given and len(body) > 1:
-        raise TypeError("a Document is the whole document: give it alone, or give only nodes")
-    return given[0] if given else Document(*typing.cast("Sequence[Node]", body))
-
-
-def _tex_of(item: Raw | Entry) -> Raw:
-    """The `Raw` a slot item stands for."""
-    return item if isinstance(item, Raw) else item.raw()
-
-
-def _node_lines(node: Node, path: str, depth: int = 0) -> Iterator[Line]:
-    """The lines a node renders at `depth`; children are indexed within their parent, as `violations()` paths are."""
-    if not isinstance(node, Command | Environment):
-        yield from (Line(path, tex) for tex in emit(node, depth).splitlines())
-        return
-    pad = INDENT * depth
-    call, found = call_line(node)
-    shift = len(pad)  # a multi-line call has no one-line spans
-    spans = tuple(Span(arg, start + shift, end + shift) for arg, start, end in found) if "\n" not in call else ()
-    yield from (Line(path, tex, spans) for tex in (pad + call).splitlines())
-    if isinstance(node, Environment):
-        for i, child in enumerate(node.content):
-            yield from _node_lines(child, f"{path}/{type(child).__name__}[{i}]", depth + 1)
-        yield Line(path, f"{pad}\\end{{{control_name(type(node))}}}")
 
 
 class Package:
@@ -210,6 +127,7 @@ class Package:
         whitespace: Whitespace = Whitespace.KEEP,
         comments: Sequence[type[Comment]] = (),
         base: "Package | None" = None,
+        requires: "Sequence[Package]" = (),
     ) -> None:
         if not _NAME.fullmatch(name):
             raise DeclarationError(f"package name {name!r} must match [a-z][a-z0-9-]*", code="TM-P001")
@@ -237,6 +155,8 @@ class Package:
         self._options: dict[str, Option] = {}  # package options by name, in registration order (§21)
         if base is not None:
             self.require(base)
+        for dependency in requires:
+            self.require(dependency)
 
     def _add(
         self, spec: Spec | EnvSpec | ValueSpec, *claims: tuple[dict[str, str], str, str], rendered: bool = True
@@ -358,6 +278,8 @@ class Package:
         if not spec.kind.named:  # a colour is not a control sequence
             cls.__tm_cs__ = "".join(addressed(self.prefix, spec.name, spec.cs))
         cls.__tm_prefix__ = self.prefix
+        if spec.kind.named:
+            cls.xcolor_name = ColourName(cls)
         self._classes.append(cls)
         return cls
 
@@ -600,6 +522,11 @@ class Package:
         self._requires.append((package, tuple(options)))
 
     @property
+    def requirements(self) -> tuple[tuple["Package", tuple[str, ...]], ...]:
+        """The packages given to `requires=` and `require()`, in order, with the options each was given."""
+        return tuple(self._requires)
+
+    @property
     def depends_on(self) -> tuple["Package", ...]:
         """The other packages this one requires or whose components its bodies call, in first-use order."""
         called = (typing.cast("Package", t.__tm_package__) for t in self._calls)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
@@ -609,11 +536,15 @@ class Package:
 
     def require_entries(self) -> list[tuple[str, tuple[str, ...]]]:
         """What the `.sty` loads: `require()`d packages in order with their options, then, sorted, the packages the
-        values need (M14) and the components call that are not already loaded; computed, never collected by mutation."""
-        explicit = [(p.name, o) for p, o in self._requires]
+        values need (M14) and the components call that are not already loaded; computed, never collected by mutation.
+        Each is a call that first calls what it needs (see `Loads`): a package is loaded once, before what needs it."""
+        loads = Loads(self)
+        entries = [e for p, o in self._requires for e in loads.call(p, o, self.name)]
         needs = {p for s in self._items if isinstance(s, ValueSpec) for p in s.needs if isinstance(p, str)}
-        rest = sorted({*needs, *(p.name for p in self.depends_on)} - {n for n, _ in explicit})
-        return [*explicit, *((n, ()) for n in rest)]
+        called = {p.name: p for p in self.depends_on}
+        for name in sorted({*needs, *called} - loads.options.keys()):
+            entries += loads.call(called[name], (), self.name) if name in called else loads.plain(name)
+        return entries
 
     @property
     def required_packages(self) -> tuple[str, ...]:
@@ -720,11 +651,11 @@ class Package:
         """`<prefix>Name`: a name in the package's public namespace (none for a package without a prefix)."""
         return bool(self.prefix) and re.fullmatch(rf"{self.prefix}[A-Z][A-Za-z]*", name) is not None
 
-    def _parts(self) -> dict[str, "_Defs"]:
+    def _parts(self) -> dict[str, "Defs"]:
         """What each library defines, by library name, in the forms `scan` reads; a library written in expl3 is not
         read."""
         return {
-            i.name: _Defs(
+            i.name: Defs(
                 scan_declarations(i.text),
                 frozenset(
                     [*(("colour", n) for n in scan_colours(i.text)), *(("counter", n) for n in scan_counters(i.text))]
@@ -747,7 +678,7 @@ class Package:
         for lib, defs in self._parts().items():
             for kind, name in defs.pairs():
                 if (kind, name) in owner:
-                    out.append(f"{_shown(kind, name)} is defined by {owner[kind, name]} and by library {lib}")
+                    out.append(f"{name_shown(kind, name)} is defined by {owner[kind, name]} and by library {lib}")
                 owner.setdefault((kind, name), f"library {lib}")
         return out
 
@@ -761,7 +692,7 @@ class Package:
         for cls in (c for c in self._classes if issubclass(c, Command | Environment)):
             lib = cls.defined_by
             if lib is not None and lib.name in parts:
-                out += _compare(
+                out += compare(
                     cls.__name__, lib.name, parts[lib.name], [("control", cls.__tm_cs__, signature(cls.__tm_args__))]
                 )
         for member in self._classes:
@@ -773,7 +704,7 @@ class Package:
                 names = value.__tm_kind__.must_define(
                     *addressed(self.prefix, value.__name__, value.cs), value.colour_name
                 )
-                out += _compare(value.__name__, lib.name, parts[lib.name], [(t, k, "") for t, k, _ in names])
+                out += compare(value.__name__, lib.name, parts[lib.name], [(t, k, "") for t, k, _ in names])
         for lib, defs in parts.items():
             out += [
                 Violation(
@@ -793,94 +724,7 @@ class Package:
 
         Everything wrong is reported at once, as an `ExceptionGroup` of `ValidationError` (E2).
         """
-        document = _document_of(body)
-        preamble, settings, options = document.preamble, document.settings, document.options
-        problems = [v for node in document.content for v in node.violations()]
-        problems += [
-            Violation("TM-M015", path, f"\\{word} is not declared by this package", hint="declare it, or fix the name")
-            for i, node in enumerate(document.content)
-            for path, passthrough in _passthroughs(node, f"{type(node).__name__}[{i}]")
-            for word in undeclared(self.prefix, passthrough.tex.tex, self.known_controls)
-        ]
-        problems += [
-            Violation(
-                "TM-M015",
-                f"preamble.{slot}[{i}]",
-                f"\\{word} is not declared by this package",
-                hint="declare it, or fix the name",
-            )
-            for slot, i, item in preamble.items()
-            for word in undeclared(self.prefix, _tex_of(item).tex, self.known_controls)
-        ]
-        problems += [
-            Violation(
-                "TM-C008",
-                f"preamble.{slot}[{i}]",
-                f"{type(item).__name__} does not belong in {slot}",
-                hint=f"put it in {' or '.join(type(item).slots)}",
-            )
-            for slot, i, item in preamble.items()
-            if not isinstance(item, Raw) and slot not in type(item).slots
-        ]
-        problems += [
-            Violation(
-                "TM-C009",
-                f"preamble.{slot}[{i}]",
-                "PdfInfo needs \\DocumentMetadata, which no RequireMetadata in before_class provides",
-                hint="add RequireMetadata() to before_class",
-            )
-            for slot, i, item in preamble.items()
-            if isinstance(item, PdfInfo) and not any(isinstance(x, RequireMetadata) for x in preamble.before_class)
-        ]
-        problems += [
-            Violation("TM-C006", f"options[{i}]", f"class option {o!r} must match [A-Za-z0-9][A-Za-z0-9=.-]*")
-            for i, o in enumerate(options)
-            if not OPTION.fullmatch(o)
-        ]
-        if problems:
-            raise ExceptionGroup("invalid document", [v.error() for v in problems])
-        opts = f"[{','.join(options)}]" if options else ""
-
-        def slot(name: str) -> list[Line]:
-            return [
-                Line(f"preamble.{name}[{i}]", tex)
-                for i, raw in enumerate(getattr(preamble, name))
-                for tex in _tex_of(raw).tex.splitlines()
-            ]
-
-        # An option is set where it takes effect, when its package loads: this package's in `\\usepackage[...]`, a
-        # base's passed to it first. Every other setting goes right after the package, in the order given.
-        routed = [(i, v, self._option_of(type(v))) for i, v in enumerate(settings)]
-        own = [found[1].text(v.value) for _, v, found in routed if found and found[0] is self]
-        passed = [
-            Line(f"settings[{i}]", f"\\PassOptionsToPackage{{{found[1].text(v.value)}}}{{{found[0].name}}}")
-            for i, v, found in routed
-            if found and found[0] is not self
-        ]
-        use = f"\\usepackage[{','.join(own)}]{{{self.name}}}" if own else f"\\usepackage{{{self.name}}}"
-
-        def values() -> list[Line]:
-            return [Line(f"settings[{i}]", setting_line(v)) for i, v, found in routed if not found]
-
-        return Plan(
-            (
-                Line("header", f"% {self.name} document -- {stamp(generator_version())}. Do not edit."),
-                *slot("before_class"),
-                Line("document", f"\\documentclass{opts}{{{self.document_class}}}"),
-                *slot("before_package"),
-                *passed,
-                *([] if self.builtin else [Line("document", use)]),
-                *values(),
-                *slot("after_package"),
-                BEGIN_DOCUMENT,
-                *(
-                    line
-                    for i, node in enumerate(document.content)
-                    for line in _node_lines(node, f"{type(node).__name__}[{i}]")
-                ),
-                Line("document", "\\end{document}"),
-            )
-        )
+        return plan_of(self, document_of(body), generator_version(), self._option_of)
 
     def document(self, *body: Node | Document) -> str:
         """The `.tex` text of `plan(...)`."""
@@ -891,7 +735,7 @@ class Package:
         is replaced by a macro that writes `texmodel:probe:callN=...` to the log instead of typesetting. Read the calls
         with `texmodel.run.testkit.run_probes` and `testing.Call.parse`; `testing.expand` gives the same calls
         without TeX."""
-        document = _document_of(body)
+        document = document_of(body)
         slots = document.preamble
         stubs = dataclasses.replace(slots, after_package=(*slots.after_package, Raw(stub_tex(stub))))
         return self.document(

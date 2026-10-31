@@ -55,6 +55,19 @@ assert r"\dkFact{Friendly \& loyal.}" in tex
 `Text` fields are escaped; a `Raw` field passes TeX through. `card.violations()` lists every broken rule at once, each with a
 code and a path such as `Card/Fact[2].text`; `pkg.document` raises the same list as an `ExceptionGroup` of `ValidationError`.
 
+## Packages that need packages
+
+`Package(..., requires=[xcolor.package])` (or `pkg.require(...)`, which also takes options) loads other packages first. A
+package whose `.sty` is hand-written (`adopted=True`) cannot load them itself, so what it declares is loaded wherever it is
+used. Loading a package first loads what it declares, so every package comes before what needs it, and each is loaded once,
+however many packages need it: in a generated `.sty` that calls it as `\RequirePackage` lines, in a document of its own as
+`\usepackage` lines. A `std` header does this where the real package needs another to do its work (`tabularray` needs
+`xcolor` for its colours).
+
+Two packages that need one package with different options (a set of options is compared, not its order) are an error
+(`TM-P013`), since only one load can win. The way out is the top level: `pkg.require(shared, options=[...])` on the package
+being generated, or on the adopted package being planned, gives the list that is used and ends the conflict.
+
 ## A package built on another
 
 `Package("acme-series", prefix="as", base=brand)` specializes `brand`: its `.sty` loads the base first, and a document of

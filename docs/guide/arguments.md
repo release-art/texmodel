@@ -97,6 +97,7 @@ assert Put(text=Raw("x"), at=(1, 2)).render() == r"\put(1,2){x}"
 | `Text` | escaped |
 | `PdfString` | for the inside of a PDF literal string: [Values](values.md#pdf-strings) |
 | `Raw` | as it is |
+| `ControlSequence`, `Name`, `NameList`, `Macro`, `FilePath`, `FontName` | `Raw` that is checked to be what the field holds: `\mylen`, a counter or package name, `a,b`, `\figdir{a}`, a file name, a font; the check runs when data loads too; a union of them (`FilePath \| Macro`) takes any member |
 | `Length` | `Length("2mm")`, or `Length.expr(r"\linewidth")` for a TeX expression |
 | `CMYK`, `RGB`, `Gray` | colour components in [0, 1], no conversion between models |
 | `ColourName` | an xcolor name or expression, checked against the package ([Colour names](values.md#colour-names)) |
@@ -105,8 +106,44 @@ assert Put(text=Raw("x"), at=(1, 2)).render() == r"\put(1,2){x}"
 | `Choice` | the member's TeX |
 | tuple, `NamedTuple`, dataclass, model, `list` | of those; a `list` repeats |
 | `KeyVals` | a key list, below |
+| a union of those, `Icon \| Picture` | the alternative that holds the value |
+| a subclass of `AsTeX` | what its `render()` returns |
 
 A wrong value is a violation with the field's path.
+
+### Several kinds, and your own types
+
+A union of the types above takes a value of any member, written as the first member that holds it; the violation names
+them all (`one of ['RULER', 'PAW'] | Picture`). Data tries the members in order, as pydantic does, and the schema is an
+`anyOf`. A type of your own is a value when it subclasses `AsTeX` and writes itself with `render()`; it checks itself when
+it is built (as `FilePath` does), loads from data by its own pydantic schema, which a dataclass or a model already has,
+and the field only checks that the value is one. A type that defines `from_tex(text)` is also read back from a hand edit
+(`Picture` reads the `\includegraphics` call it writes); one that does not leaves the field unread. `texmodel.ext.graphics.Picture`
+is one.
+
+```python
+from texmodel.ext.graphics import Picture
+
+
+@enum.unique
+class Icon(Choice):
+    RULER = Raw(r"\adRuler")
+
+
+@pkg.command
+class ProfileRow(Command):
+    """A row of a profile: an icon of the vocabulary or a picture, and a label."""
+
+    cs = "adRow"
+    icon: Icon | Picture | None = None
+    label: Text
+
+
+assert ProfileRow(icon=Icon.RULER, label="Size").render() == r"\adRow[\adRuler]{Size}"
+crest = ProfileRow(icon=Picture("img/crest.png", alt="Crest"), label="Breed")
+assert crest.render() == r"\adRow[{\includegraphics[alt=Crest]{img/crest.png}}]{Breed}"
+assert [v.code for v in ProfileRow(icon="Ruler", label="x").violations()] == ["TM-C003"]  # type: ignore[arg-type]
+```
 
 ## Key lists
 
@@ -116,7 +153,7 @@ each item is written, and its `KeyRules` say how the library reads it.
 ```python
 from texmodel.interface import Flag, Item, OptionalValue, Switch
 from texmodel.keys import PGFKEYS
-from texmodel.keyvals import KeyVals, key
+from texmodel.keyvals import Entry, KeyVals, key
 
 
 class AdjustOptions(KeyVals, rules=PGFKEYS):
@@ -126,6 +163,7 @@ class AdjustOptions(KeyVals, rules=PGFKEYS):
     rounded: OptionalValue[Length] | None = key("rounded corners")    # rounded corners  /  rounded corners=2pt
     tags: list[Text] | None = None                                    # tags=a,tags=b   (a list repeats the key)
     extra: Item[Raw] | None = None                                    # anything else, as written
+    rules: list[Item[Entry]] | None = None                            # cell{1}{2}={bg=red}  (an item that spells its own key)
 
 
 @pkg.command

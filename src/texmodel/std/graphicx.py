@@ -7,7 +7,7 @@ from texmodel.interface import Flag, Item
 from texmodel.keys import KEYVAL
 from texmodel.keyvals import KeyVals
 from texmodel.package import Package
-from texmodel.types import Length, Raw
+from texmodel.types import FilePath, Length, Macro, Raw, Text
 
 package = Package("graphicx", prefix="", adopted=True)
 
@@ -25,15 +25,19 @@ class IncludeGraphicsOptions(KeyVals, rules=KEYVAL):
     page: int | None = None
     clip: Flag = False
     draft: Flag = False
+    trim: Raw | None = None  # four lengths, left bottom right top, cut off when `clip` is set
+    alt: Text | None = None  # the text for a tagged PDF (LaTeX 2024-11 and later)
+    artifact: Flag = False  # a picture that is decoration, which a tagged PDF leaves out
     extra: Item[Raw] | None = None
 
 
 @package.command
 class IncludeGraphics(Command):
-    r"""Place a picture: `\includegraphics[width=3cm]{a.png}`."""
+    r"""Place a picture: `\includegraphics[width=3cm]{a.png}`. `path` is a `FilePath` (a checked
+    file name) or a `Macro` (`\figdir{a}`, or a bare `ControlSequence`) that expands to it."""
 
     cs = "includegraphics"
-    path: Raw
+    path: FilePath | Macro
     options: IncludeGraphicsOptions | None = None
 
 
