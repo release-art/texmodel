@@ -1,5 +1,6 @@
 """Rows that are nodes: a `TableRow` command in a table, listed in `expand` so that tabularray expands it first."""
 
+import dataclasses
 import pathlib
 import re
 import typing
@@ -14,7 +15,7 @@ from texmodel.components import Command, Passthrough
 from texmodel.document import Document
 from texmodel.errors import DeclarationError
 from texmodel.ext import table as ext_table
-from texmodel.ext.table import Col, Highlight, Look, Note, Span, Table, Total
+from texmodel.ext.table import Col, Highlight, Layout, Look, Note, Span, Table, Total
 from texmodel.package import Package
 from texmodel.preamble import PreambleSlots
 from texmodel.restore import Restored, restore
@@ -375,9 +376,8 @@ class EnvColumns(t.TableRow, abstract=True):
 class Profile(ext_table.TableEnvironment):
     """A profile block."""
 
-    columns = EnvColumns
+    layout = Layout(EnvColumns, look=Look.PLAIN)
     rows = (EnvRow, EnvRating)
-    look = Look.PLAIN
 
 
 def test_a_declared_table_environment_writes_its_layout_into_the_sty():
@@ -432,9 +432,8 @@ class CollectRow(t.TableRow):
 class Collected(ext_table.TableEnvironment):
     """A table the host collects and sets later."""
 
-    columns = EnvColumns
+    layout = Layout(EnvColumns, look=Look.PLAIN)
     rows = (CollectRow,)
-    look = Look.PLAIN
     collect = Macro(r"\acCollectItem")
 
 
@@ -475,8 +474,7 @@ async def test_real_tex_collects_the_table_and_sets_it_later(compiler, tmp_path)
 class SharedLook(ext_table.TableEnvironment, abstract=True):
     """A look the profile tables share."""
 
-    look = Look.PLAIN
-    columns = EnvColumns
+    layout = Layout(EnvColumns, look=Look.PLAIN)
 
 
 def test_a_table_environment_inherits_what_it_does_not_set():
@@ -486,20 +484,20 @@ def test_a_table_environment_inherits_what_it_does_not_set():
 
         rows = (EnvRow,)
 
-    assert Inherited.look is Look.PLAIN and Inherited.columns is EnvColumns
+    assert Inherited.layout is SharedLook.layout
     assert Inherited(EnvRow(icon=Raw("a"), label="x", value="y")).violations() == []
     assert Inherited(EnvRating(icon=Raw("a"), label="x", score=1)).violations() != []  # not one of its rows
     assert r"\SetTblrOuter[aeInheritedTblr]{expand=\aeEnvRow}" in envpkg.render()
 
 
-def test_a_table_environment_needs_columns_and_registered_rows():
-    class NoColumns(ext_table.TableEnvironment):
-        """No columns."""
+def test_a_table_environment_needs_a_layout_and_registered_rows():
+    class NoLayout(ext_table.TableEnvironment):
+        """No layout."""
 
         rows = (EnvRow,)
 
-    with pytest.raises(DeclarationError, match="no columns") as raised:
-        ext_table.declare(envpkg)(NoColumns)
+    with pytest.raises(DeclarationError, match="no layout") as raised:
+        ext_table.declare(envpkg)(NoLayout)
     assert raised.value.code == "TM-M088"
 
     class Loose(t.TableRow):
@@ -524,3 +522,25 @@ def test_a_table_environment_needs_columns_and_registered_rows():
     with pytest.raises(DeclarationError, match="not registered") as raised:
         ext_table.declare(envpkg)(NoRows)
     assert raised.value.code == "TM-M087"
+
+
+def test_a_layout_is_data_that_a_plain_table_and_an_environment_share():
+    lay = Layout(EnvColumns, look=Look.PLAIN, width=Length("8cm"))
+    rows: list[typing.Any] = [EnvRow(icon=Raw("a"), label="Size", value="L")]
+    assert (
+        lay.table(rows, header=False).render()
+        == Table(EnvColumns, rows, look=Look.PLAIN, width=Length("8cm"), header=False).render()
+    )
+    assert dataclasses.replace(lay, width=None).width is None and lay.width == Length("8cm")
+    lay.check([("rows", EnvRow)])
+
+    @pkg.command
+    class Few(t.TableRow):
+        """Two cells."""
+
+        icon: Raw
+        label: Text
+
+    with pytest.raises(DeclarationError) as raised:
+        lay.check([("rows", Few)])
+    assert raised.value.code == "TM-M086"

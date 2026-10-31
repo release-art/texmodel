@@ -219,12 +219,12 @@ container.
 
 ## A table the package owns
 
-A table's design belongs to the package, and a document should hold only rows. `TableEnvironment` declares the layout once:
-`columns` is a row class that carries the `Col`s, `rows` the row commands the table holds (any `TableRow` classes, so a
-rating row with other fields sits in the same table), and `look`, `width` and `blocks` are as in `Table`. `declare(pkg)`
-registers the environment and writes the layout into the `.sty` (`\NewTblrEnviron`, `\SetTblrInner`, `\SetTblrOuter` with
-`expand`); the document writes `\begin{apProfile}` and the rows, and nothing of the layout. The optional argument is the
-table's `outer` keys (caption, label, notes), which belong to the document. A subclass inherits what it does not set, and an
+A table's design belongs to the package, and a document should hold only rows. `TableEnvironment` declares it once:
+`layout` is a [`Layout`](#a-layout-to-share) (its `columns` is a row class that carries the `Col`s, with `look`, `width`
+and `blocks` as in `Table`) and `rows` the row commands the table holds (any `TableRow` classes, so a rating row with other
+fields sits in the same table). `declare(pkg)` registers the environment and writes the layout into the `.sty`
+(`\NewTblrEnviron`, `\SetTblrInner`, `\SetTblrOuter` with `expand`); the document writes `\begin{apProfile}` and the rows,
+and nothing of the layout. The optional argument is the table's `outer` keys (caption, label, notes), which belong to the document. A subclass inherits what it does not set, and an
 abstract one is a shared look.
 
 ```python
@@ -235,9 +235,8 @@ from texmodel.ext import table
 class Profile(table.TableEnvironment):
     """The profile block of a card."""
 
-    columns = ProfileRow
+    layout = table.Layout(ProfileRow, look=Look.PLAIN)
     rows = (ProfileRow,)
-    look = Look.PLAIN
 
 
 block = Profile(ProfileRow(icon=Raw("a"), label="Sound", value="Loud"))
@@ -245,9 +244,27 @@ assert block.render().startswith(r"\begin{apProfile}")
 assert r"\SetTblrOuter[apProfileTblr]{expand=\apProfileRow}" in pkg.render()
 ```
 
-A row command that writes more or fewer cells than `columns` has columns is `TM-M086`; a missing `columns` is `TM-M088`
+A row command that writes more or fewer cells than `columns` has columns is `TM-M086`; a missing `layout` is `TM-M088`
 and rows that are not registered are `TM-M087`, all when the package is imported. A table environment has no header, groups,
 totals or spans: those depend on the rows, so a plain `Table` sets them.
+
+### A layout to share
+
+A `Layout` is the design of a table apart from what it holds: the `Col`s, `look`, `width`, `blocks` and `rules`. It is data
+and declares nothing, so one layout serves a plain `Table` (`layout.table(rows, caption=...)`) and any number of
+environments, and `dataclasses.replace(layout, width=...)` makes a variant.
+
+```python
+import dataclasses
+
+from texmodel.ext.table import Layout
+
+profile_look = Layout(ProfileRow, look=Look.PLAIN)
+plain = profile_look.table([ProfileRow(icon=Raw("a"), label="Sound", value="Loud")], header=False)
+assert plain.render() == Table(ProfileRow, plain.data, look=Look.PLAIN, header=False).render()
+wide = dataclasses.replace(profile_look, width=Length("8cm"))
+assert wide.look is Look.PLAIN and wide.width == Length("8cm")
+```
 
 ### A table the host collects
 

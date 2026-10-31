@@ -26,7 +26,7 @@ from ._columns import Col, Flex, Widest
 from ._environment import TableEnvironment, declare
 from ._formats import Block, Date, Format, Image, Label, Money, Number, Percent, Text
 from ._parts import Highlight, Look, Note, Rules, Span, Total
-from ._table import Table
+from ._table import Layout, Table
 
 __all__ = [
     "Block",
@@ -37,6 +37,7 @@ __all__ = [
     "Highlight",
     "Image",
     "Label",
+    "Layout",
     "Look",
     "Money",
     "Note",

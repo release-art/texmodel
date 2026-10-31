@@ -387,3 +387,28 @@ class Table[T: pydantic.BaseModel]:
 
     def render(self) -> str:
         return self.node().render()
+
+
+@dataclasses.dataclass(frozen=True)
+class Layout[T: pydantic.BaseModel]:
+    r"""The design of a table, apart from what it holds: `columns` is the row model or `TableRow` class that carries
+    the `Col`s, and `look`, `width`, `blocks` and `rules` are as in `Table`. It is data and declares nothing:
+    `layout.table(rows, caption=...)` is a plain `Table` of it, and a `TableEnvironment` takes it as its `layout`.
+    A variant is `dataclasses.replace(layout, width=...)`."""
+
+    columns: type[T]
+    _: dataclasses.KW_ONLY
+    look: Look = Look.BOOKTABS
+    width: Length | None = None
+    blocks: bool = False
+    rules: Sequence[Entry] = ()
+
+    def table(self, rows: Iterable[T | Mapping[str, Any]], **content: Any) -> Table[T]:  # noqa: ANN401
+        """A `Table` of these rows in this layout; `content` is the rest of `Table`'s keywords (`caption`, ...)."""
+        return Table(
+            self.columns, rows, look=self.look, width=self.width, blocks=self.blocks, rules=self.rules, **content
+        )
+
+    def check(self, rows: Sequence[tuple[str, type]]) -> None:
+        """Every row class writes as many cells as the layout has columns (`TM-M086`); `rows` are (path, class)."""
+        check_cells(self.columns, len(columns_of(self.columns, None)), rows)

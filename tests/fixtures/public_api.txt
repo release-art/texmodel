@@ -122,6 +122,9 @@ texmodel.ext.table.Format.tex(self, value: object) -> str
 texmodel.ext.table.Highlight(where: Callable[[T], bool], columns: tuple[str, ...] | None = …, *, bg: ColourRef | None = …, fg: ColourRef | None = …, bold: bool = …, font: Raw | None = …) -> None
 texmodel.ext.table.Image(width: Length | None = …, *, missing: str = …) -> None
 texmodel.ext.table.Label(texts: Mapping[Any, str | Raw], *, missing: str = …) -> None
+texmodel.ext.table.Layout(columns: type[T], *, look: Look = …, width: Length | None = …, blocks: bool = …, rules: Sequence[Entry] = …) -> None
+texmodel.ext.table.Layout.check(self, rows: Sequence[tuple[str, type]]) -> None
+texmodel.ext.table.Layout.table(self, rows: Iterable[T | Mapping[str, Any]], **content: Any) -> Table[T]
 texmodel.ext.table.Look(rules: Rules = …, heavy: Length = …, light: Length = …, rowsep: Length = …, colsep: Length = …, edge: Length | None = …, header_font: Raw | None = …, header_bg: ColourRef | None = …, header_fg: ColourRef | None = …, total_font: Raw | None = …, group_font: Raw | None = …, group_gap: Length = …, indent: Length = …) -> None
 texmodel.ext.table.Money(decimals: int = …, thousands: bool = …, point: str = …, separator: str = …, sign: bool = …, minus: str = …, *, missing: str = …, symbol: str = …, after: bool = …) -> None
 texmodel.ext.table.Note(text: str, tag: str = …) -> None

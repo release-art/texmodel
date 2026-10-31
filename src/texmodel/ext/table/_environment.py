@@ -8,9 +8,8 @@ from ...components import Anywhere, Environment, Passthrough
 from ...errors import DeclarationError
 from ...package import Package
 from ...std import tabularray as t
-from ...types import Length, Macro, Name, NameList, Raw
-from ._parts import Look
-from ._table import Table, check_cells
+from ...types import Macro, Name, NameList, Raw
+from ._table import Layout
 
 _FORWARD_BEGIN = r"\csname\@currenvir Tblr\endcsname[#outer]{}"
 _FORWARD_END = r"\csname end\@currenvir Tblr\endcsname"
@@ -40,16 +39,13 @@ def _collect_end(collect: Macro) -> str:
 class TableEnvironment(Environment, abstract=True):
     r"""A table whose layout the package owns, declared with class attributes and registered by `declare(pkg)`.
 
-    `columns` is a `TableRow` class that carries the `Col`s, `rows` the row commands the table holds (any `TableRow`
-    classes, whatever their fields), `look`, `width` and `blocks` as in `Table`. A subclass inherits what it does not
-    set. The document writes `\begin{acProfile}[caption=...]` and the rows; the optional argument is the table's
-    outer keys (caption, label, notes), which belong to the document."""
+    `layout` is a `Layout` (its `columns` is a `TableRow` class that carries the `Col`s), `rows` the row commands the
+    table holds (any `TableRow` classes, whatever their fields). A subclass inherits what it does not set.
+    The document writes `\begin{acProfile}[caption=...]` and the rows; the optional argument is the table's outer keys
+    (caption, label, notes), which belong to the document."""
 
-    columns: ClassVar[type[t.TableRow] | None] = None
+    layout: ClassVar[Layout[t.TableRow] | None] = None
     rows: ClassVar[tuple[type[t.TableRow], ...]] = ()
-    look: ClassVar[Look] = Look.BOOKTABS
-    width: ClassVar[Length | None] = None
-    blocks: ClassVar[bool] = False
     collect: ClassVar[Macro | None] = None
     outer: t.TblrOuter | None = None
     # `tabularray` takes a mandatory argument, so the environment of the layout is `<name>Tblr` and this one forwards.
@@ -70,8 +66,10 @@ def declare[E: type[TableEnvironment]](pkg: Package) -> Callable[[E], E]:
 
     def register(cls: E) -> E:
         where = cls.__name__
-        if cls.columns is None:
-            raise DeclarationError(f"{where}: no columns", code="TM-M088", path=where, hint="set columns = <row class>")
+        if cls.layout is None:
+            raise DeclarationError(
+                f"{where}: no layout", code="TM-M088", path=where, hint="set layout = Layout(<row class>, ...)"
+            )
         unregistered = [r.__name__ for r in cls.rows if not hasattr(r, "__tm_cs__")]
         if not cls.rows or unregistered:
             raise DeclarationError(
@@ -80,11 +78,11 @@ def declare[E: type[TableEnvironment]](pkg: Package) -> Callable[[E], E]:
                 path=where,
                 hint="set rows = (RowClass, ...) and register each with its package first",
             )
-        layout = Table(cls.columns, [], header=False, look=cls.look, width=cls.width, blocks=cls.blocks)
-        check_cells(cls.columns, len(layout.columns), [(f"{where}.rows", r) for r in cls.rows])
+        cls.layout.check([(f"{where}.rows", r) for r in cls.rows])
+        shown = cls.layout.table([], header=False)
         pkg.environment(cls)
         name = f"{cls.__tm_cs__}Tblr"
-        inner = layout._node(every=True).inner  # pyright: ignore[reportPrivateUsage]
+        inner = shown._node(every=True).inner  # pyright: ignore[reportPrivateUsage]
         expand = Raw("".join(rf"\{r.__tm_cs__}" for r in cls.rows))
         counter = [rf"\newcounter{{{cls.__tm_cs__}Boxes}}"] if cls.collect is not None else []
         parts = [

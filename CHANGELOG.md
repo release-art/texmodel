@@ -34,13 +34,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (no `{`, `}`, `\`, `%`, `#` or control characters, `TM-C028`).
 - A field may be a union of `Raw` subclasses (`FilePath | Macro`): a value of any member is accepted, anything else
   (a bare `Raw`) is refused, and data loading tries each member.
+- `ext.table.Layout(columns, look=, width=, blocks=, rules=)`: the design of a table apart from what it holds. It is data and
+  declares nothing: `layout.table(rows, caption=...)` is a plain `Table`, a `TableEnvironment` takes it as its `layout`,
+  and `dataclasses.replace` makes a variant.
 - `ext.table.TableEnvironment.collect = Macro(...)`: the environment sets the table into a box of its own and calls the
   macro with `\usebox{...}` as its last argument, so a host can collect it as an item and set it later; without `collect`
   nothing changes.
-- `ext.table.TableEnvironment` and `declare(pkg)`: a table whose layout the package owns. A subclass sets `columns`, `rows`
-  (any `TableRow` classes), `look`, `width` and `blocks` and inherits the rest; the `.sty` gets `\NewTblrEnviron`,
+- `ext.table.TableEnvironment` and `declare(pkg)`: a table whose layout the package owns. A subclass sets `layout` and `rows`
+  (any `TableRow` classes) and inherits the rest; the `.sty` gets `\NewTblrEnviron`,
   `\SetTblrInner` and `\SetTblrOuter` with `expand`, and a document holds only the rows (`TM-M087`: rows not registered,
-  `TM-M088`: no columns).
+  `TM-M088`: no layout).
 - `ext.table.Widest`: `Widest.declare(pkg, "LabelWidth")` and `Col(width=widest)` make a column as wide as the widest cell of the
   whole document, tables included: the cells record their widths (`ext.recorded`, `cmd=`) and the next run sets the column.
 - `run.hand_edits.read_edits(stub=)` stubs more components; it stubs `tblr`, `longtblr` and `talltblr` itself when a row is.
