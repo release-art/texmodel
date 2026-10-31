@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (no `{`, `}`, `\`, `%`, `#` or control characters, `TM-C028`).
 - A field may be a union of `Raw` subclasses (`FilePath | Macro`): a value of any member is accepted, anything else
   (a bare `Raw`) is refused, and data loading tries each member.
+- `ext.table.TableEnvironment.collect = Macro(...)`: the environment sets the table into a box of its own and calls the
+  macro with `\usebox{...}` as its last argument, so a host can collect it as an item and set it later; without `collect`
+  nothing changes.
 - `ext.table.TableEnvironment` and `declare(pkg)`: a table whose layout the package owns. A subclass sets `columns`, `rows`
   (any `TableRow` classes), `look`, `width` and `blocks` and inherits the rest; the `.sty` gets `\NewTblrEnviron`,
   `\SetTblrInner` and `\SetTblrOuter` with `expand`, and a document holds only the rows (`TM-M087`: rows not registered,

@@ -249,6 +249,15 @@ A row command that writes more or fewer cells than `columns` has columns is `TM-
 and rows that are not registered are `TM-M087`, all when the package is imported. A table environment has no header, groups,
 totals or spans: those depend on the rows, so a plain `Table` sets them.
 
+### A table the host collects
+
+A host that sets its items later (a panel around a list, built when the count is known) cannot take a table that typesets
+where it is written. `collect = Macro(r"\apCollectItem")` makes the environment set the table into a box of its own at
+the width in effect (`\linewidth`) and call the macro with `\usebox{<that box>}` as its last argument, instead of
+printing it. The macro may carry arguments (`Macro(r"\apCollect{front}")`); the box is kept for the rest of the run,
+one register per use. Without `collect` the table is set where it stands. A `long` table cannot be collected, since a
+box does not break across pages.
+
 ## A column as wide as the widest cell
 
 Several tables that sit one under the other, such as profile blocks, read as one design when their label columns are

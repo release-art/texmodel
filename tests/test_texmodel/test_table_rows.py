@@ -23,7 +23,7 @@ from texmodel.std import (
     latex,
     tabularray as t,
 )
-from texmodel.types import Length, Raw, Text
+from texmodel.types import Length, Macro, Raw, Text
 
 pkg = Package("acme-prof", prefix="ap")
 
@@ -400,6 +400,72 @@ async def test_real_tex_sets_a_table_environment_the_package_owns(compiler, tmp_
         outer=t.TblrOuter(caption="Profile"),
     )
     done = await compile_sample(compiler, envpkg.plan(Document(block, latex.Null(), preamble=SLOTS)), tmp_path)
+    if done[2] and len(done[2]) == len(done[1]):
+        pytest.skip(f"the reference image lacks: {sorted({d.message for d in done[2]})}")
+    result, errors, _ = done
+    assert result.ok and not errors, [(d.path, d.code, d.message) for d in errors]
+
+
+collectpkg = Package("acme-collect", prefix="ac")
+collectpkg.require(t.package)
+collectpkg.library("Host", "\\newcounter{acItems}\\newcommand{\\hostStash}{}")
+
+
+@collectpkg.command
+class CollectItem(Command):
+    """What the host does with a collected table: count it and keep the call."""
+
+    item: Raw
+    body = r"\stepcounter{acItems}\g@addto@macro\hostStash{#item}"
+
+
+@collectpkg.command
+class CollectRow(t.TableRow):
+    """A row of a collected table."""
+
+    icon: Raw
+    label: Text
+    value: Text
+
+
+@ext_table.declare(collectpkg)
+class Collected(ext_table.TableEnvironment):
+    """A table the host collects and sets later."""
+
+    columns = EnvColumns
+    rows = (CollectRow,)
+    look = Look.PLAIN
+    collect = Macro(r"\acCollectItem")
+
+
+def test_a_collecting_table_sets_a_box_and_hands_it_to_the_hosts_macro():
+    sty = collectpkg.render()
+    assert r"\newcounter{acCollectedBoxes}" in sty
+    assert r"\global\expandafter\setbox\csname\@currenvir Box\arabic{\@currenvir Boxes}\endcsname\hbox\bgroup" in sty
+    assert r"\unexpanded{\acCollectItem}{\noexpand\usebox" in sty
+    assert r"\setbox" not in envpkg.render()  # a table without collect is set where it stands
+
+
+def test_collect_takes_a_macro_with_arguments_and_is_inherited():
+    class Host(Collected):
+        """A further collecting table."""
+
+        collect = Macro(r"\acCollectItem{front}")
+
+    assert Host.collect == Macro(r"\acCollectItem{front}")
+    assert Collected.collect == Macro(r"\acCollectItem")
+
+
+@pytest.mark.tex
+@pytest.mark.timeout(900)
+async def test_real_tex_collects_the_table_and_sets_it_later(compiler, tmp_path):  # noqa: F811
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "acme-collect.sty").write_text(collectpkg.render(), encoding="utf-8")
+    block = Collected(CollectRow(icon=Raw("a"), label="Size", value="L"), outer=t.TblrOuter(caption="Collected"))
+    later = Passthrough(Raw(r"\par\hostStash\par items: \theacItems"))
+    done = await compile_sample(
+        compiler, collectpkg.plan(Document(block, later, latex.Null(), preamble=SLOTS)), tmp_path
+    )
     if done[2] and len(done[2]) == len(done[1]):
         pytest.skip(f"the reference image lacks: {sorted({d.message for d in done[2]})}")
     result, errors, _ = done
