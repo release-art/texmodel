@@ -5,7 +5,7 @@ import types
 import typing
 from typing import Annotated, Any
 
-from ..interface import RAW_BODY, Body, BodyKind, ColourName, Item, OptionalValue, Token
+from ..interface import RAW_BODY, AsTeX, Body, BodyKind, ColourName, Item, OptionalValue, Token
 from ..types import CMYK, PDF, RGB, TEXT, Choice, Gray, Length, Raw
 
 _COLOURS = (CMYK, RGB, Gray)
@@ -60,6 +60,8 @@ def body_of(hint: Any) -> Body | None:  # noqa: ANN401, C901
         return RAW_BODY
     if isinstance(h, type) and issubclass(h, Raw):
         return Body(BodyKind.RAW, expression=h)
+    if isinstance(h, type) and issubclass(h, AsTeX):
+        return Body(BodyKind.TEX, expression=h)
     if h is bool:
         return Body(BodyKind.BOOL)
     if h is int:
@@ -96,9 +98,15 @@ def _tuple_body(args: tuple[Any, ...]) -> Body | None:
 
 
 def _union_body(members: list[Any]) -> Body | None:
-    """The unions a field may be: the colour models (`Colour`), or several `Raw` subclasses (`FilePath | Macro`)."""
+    """The unions a field may be: the colour models (`Colour`), several `Raw` subclasses (`FilePath | Macro`), or any
+    kinds the field takes (`Icon | Picture`), each value written as the first alternative that holds it."""
     if members and set(members) == set(_COLOURS):
         return Body(BodyKind.COLOUR)
     if members and all(isinstance(m, type) and issubclass(m, Raw) for m in members):
         return Body(BodyKind.RAW, expression=tuple(members))
-    return None
+    alternatives = [body_of(m) for m in members]
+    return (
+        None
+        if not members or None in alternatives
+        else Body(BodyKind.ONE_OF, items=tuple(a for a in alternatives if a))
+    )

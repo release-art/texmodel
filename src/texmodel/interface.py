@@ -26,7 +26,7 @@ import dataclasses
 import enum
 import re
 from collections.abc import Mapping
-from typing import Annotated, Any, Final, Literal
+from typing import Annotated, Any, Final, Literal, Self
 
 from pydantic_core import core_schema
 
@@ -291,6 +291,8 @@ class BodyKind(enum.Enum):
     LIST = "list"
     KEYVALS = "KeyVals"
     TOKEN = "Token"
+    TEX = "AsTeX"
+    ONE_OF = "union"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -299,11 +301,13 @@ class Body:
 
     kind: BodyKind
     choice: type[Choice] | None = None
-    items: tuple["Body", ...] = ()  # TUPLE: one per element; LIST: the one element
+    items: tuple["Body", ...] = ()  # TUPLE: one per element; LIST: the one element; ONE_OF: the alternatives
     attrs: tuple[str, ...] = ()  # TUPLE of a record (NamedTuple, dataclass, model): the attributes in order
     keyvals: type | None = None
     token: str | None = None
-    expression: type | tuple[type, ...] | None = None  # RAW: the `Raw` subclass (or subclasses: a union) it must be
+    expression: type | tuple[type, ...] | None = (
+        None  # RAW: the `Raw` subclass (or subclasses: a union) it must be; TEX: the type
+    )
 
     def describe(self) -> str:
         if self.choice is not None:
@@ -313,9 +317,28 @@ class Body:
         if self.expression is not None:
             names = self.expression if isinstance(self.expression, tuple) else (self.expression,)
             return " | ".join(t.__name__ for t in names)
+        if self.kind is BodyKind.ONE_OF:
+            return " | ".join(i.describe() for i in self.items)
         if self.kind in (BodyKind.TUPLE, BodyKind.LIST):
             return f"{self.kind.value} of ({', '.join(i.describe() for i in self.items)})"
         return self.kind.value
+
+
+class AsTeX:
+    r"""A type that is a field value because it writes itself: subclass it and define `render()`, the TeX of the value
+    without delimiters (`ext.graphics.Picture`). The type checks itself when it is built (as `FilePath` does) and loads
+    from data by its own pydantic schema, which a dataclass or a model has already; the field only checks that the
+    value is one. Nothing is found by name: a type with a `render()` that does not subclass this is not accepted."""
+
+    def render(self) -> str:
+        raise NotImplementedError
+
+    @classmethod
+    def read(cls, text: str) -> Self:
+        r"""The value `text` is, as `\detokenize` shows it in a stub call (a hand edit read back), or `ValueError`
+        saying why it is not one. A type that does not read leaves this: the field is then unread, with no value and
+        no violation."""
+        raise NotImplementedError
 
 
 RAW_BODY: Final = Body(BodyKind.RAW)
@@ -325,6 +348,7 @@ TEXT_BODY: Final = Body(BodyKind.TEXT)
 __all__ = [
     "ANGLE",
     "ArgOptions",
+    "AsTeX",
     "BRACE",
     "Body",
     "BodyKind",

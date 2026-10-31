@@ -106,8 +106,44 @@ assert Put(text=Raw("x"), at=(1, 2)).render() == r"\put(1,2){x}"
 | `Choice` | the member's TeX |
 | tuple, `NamedTuple`, dataclass, model, `list` | of those; a `list` repeats |
 | `KeyVals` | a key list, below |
+| a union of those, `Icon \| Picture` | the alternative that holds the value |
+| a subclass of `AsTeX` | what its `render()` returns |
 
 A wrong value is a violation with the field's path.
+
+### Several kinds, and your own types
+
+A union of the types above takes a value of any member, written as the first member that holds it; the violation names
+them all (`one of ['RULER', 'PAW'] | Picture`). Data tries the members in order, as pydantic does, and the schema is an
+`anyOf`. A type of your own is a value when it subclasses `AsTeX` and writes itself with `render()`; it checks itself when
+it is built (as `FilePath` does), loads from data by its own pydantic schema, which a dataclass or a model already has,
+and the field only checks that the value is one. A type that defines `read(text)` is also read back from a hand edit
+(`Picture` reads the `\includegraphics` call it writes); one that does not leaves the field unread. `texmodel.ext.graphics.Picture`
+is one.
+
+```python
+from texmodel.ext.graphics import Picture
+
+
+@enum.unique
+class Icon(Choice):
+    RULER = Raw(r"\adRuler")
+
+
+@pkg.command
+class ProfileRow(Command):
+    """A row of a profile: an icon of the vocabulary or a picture, and a label."""
+
+    cs = "adRow"
+    icon: Icon | Picture | None = None
+    label: Text
+
+
+assert ProfileRow(icon=Icon.RULER, label="Size").render() == r"\adRow[\adRuler]{Size}"
+crest = ProfileRow(icon=Picture("img/crest.png", alt="Crest"), label="Breed")
+assert crest.render() == r"\adRow[{\includegraphics[alt=Crest]{img/crest.png}}]{Breed}"
+assert [v.code for v in ProfileRow(icon="Ruler", label="x").violations()] == ["TM-C003"]  # type: ignore[arg-type]
+```
 
 ## Key lists
 

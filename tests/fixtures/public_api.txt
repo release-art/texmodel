@@ -81,6 +81,7 @@ texmodel.ext.graphics.Figure.node(self) -> latex.Figure
 texmodel.ext.graphics.Figure.render(self) -> str
 texmodel.ext.graphics.Picture(path: str | PurePosixPath | FilePath | Macro, *, alt: str | None = …, decorative: bool = …, width: Length | None = …, height: Length | None = …, scale: float | None = …, crop: Crop | None = …, rotate: float | None = …, page: int | None = …) -> None
 texmodel.ext.graphics.Picture.node(self) -> IncludeGraphics
+texmodel.ext.graphics.Picture.read(cls, text: str) -> Self
 texmodel.ext.graphics.Picture.render(self) -> str
 texmodel.ext.intent.LIBRARY: str
 texmodel.ext.intent.OutputCondition(profile: str, identifier: str, info: str, registry: str = …, colorants: int = …) -> None
@@ -162,6 +163,9 @@ texmodel.history.violation_pointer(path: str) -> str
 texmodel.history.worst(changes: Sequence[Change]) -> Level
 texmodel.interface.ANGLE: Delimiter
 texmodel.interface.ArgOptions(delimiter: Delimiter | None, fill: str | Gap, sep: str | None, group: SlotGroup | None, booleans: tuple[str, str] | None) -> None
+texmodel.interface.AsTeX()
+texmodel.interface.AsTeX.read(cls, text: str) -> Self
+texmodel.interface.AsTeX.render(self) -> str
 texmodel.interface.BRACE: Delimiter
 texmodel.interface.Body(kind: BodyKind, choice: type[Choice] | None = …, items: tuple['Body', ...] = …, attrs: tuple[str, ...] = …, keyvals: type | None = …, token: str | None = …, expression: type | tuple[type, ...] | None = …) -> None
 texmodel.interface.Body.describe(self) -> str

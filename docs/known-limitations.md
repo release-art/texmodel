@@ -71,6 +71,12 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   and l3keys with a corpus of awkward values (`tests/test_texmodel/test_interface_tex.py`); `KVOPTIONS` was not. A space at
   the end of a value is kept by `{{ a }}` in three of the four and trimmed by `l3keys`; a library that treats braces
   differently from these needs its own `KeyRules`.
+- A union field writes a value as the first member that holds it, so members that hold the same value (`Text | Raw`) are
+  ordered by hand; a stub call is read back as the first member that reads it, and a member that is not read (an `AsTeX`
+  type without `read`, a key list) leaves the field unread.
+- A subclass of `AsTeX` is written by its `render()` and read back only if it defines `read(text)` (otherwise the field is
+  unread in a hand edit); the type checks itself when built, and `violations()` only checks that a value is one. `Picture`
+  reads the call it writes, not a path from a macro or a key it does not write.
 - A `Raw` value or `Item[Raw]` is written as given: texmodel checks only that its braces balance.
 - The names `content` (an environment's children) and `type` (the component in data) are not usable as field names, nor
   any attribute every component has (`copy`, `json`, `render`, a `model_` name: `TM-M045`).

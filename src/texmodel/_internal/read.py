@@ -2,9 +2,10 @@
 after each control word, runs of spaces one)."""
 
 import re
+from typing import cast
 
 from ..errors import DeclarationError, Violation
-from ..interface import Body, BodyKind
+from ..interface import AsTeX, Body, BodyKind
 from ..plan import FieldEdit
 from ..types import Length, Raw, escape
 from .render import Arg
@@ -41,7 +42,7 @@ _UNESCAPE = {detokenized(escape(c)): c for c in "\\&%$#_{}~^"}
 _TEXT = re.compile("|".join(map(re.escape, sorted(_UNESCAPE, key=len, reverse=True))) + r"|[\\{}%$#&_^~]")
 
 
-def _text(text: str) -> str:
+def unescaped(text: str) -> str:
     def one(m: re.Match[str]) -> str:
         if m[0] not in _UNESCAPE:
             raise ValueError(f"{m[0]!r} is TeX, not text")
@@ -50,7 +51,7 @@ def _text(text: str) -> str:
     return _TEXT.sub(one, text)
 
 
-def _length(text: str) -> Length:
+def read_length(text: str) -> Length:
     try:
         return Length("".join(text.split()))
     except DeclarationError:
@@ -65,7 +66,7 @@ def read_value(body: Body, text: str, *, booleans: tuple[str, str] = ("true", "f
     shown = text.strip()
     match body.kind:
         case BodyKind.TEXT:
-            return _text(text)
+            return unescaped(text)
         case BodyKind.RAW if body.expression is None:
             return Raw(text)
         case BodyKind.CHOICE if body.choice is not None:
@@ -74,7 +75,7 @@ def read_value(body: Body, text: str, *, booleans: tuple[str, str] = ("true", "f
                     return member
             raise ValueError(f"{shown!r} is not a {body.choice.__name__}")
         case BodyKind.LENGTH:
-            return _length(text)
+            return read_length(text)
         case BodyKind.COLOUR_NAME:
             if not value_ok(body, shown):
                 raise ValueError(f"{shown!r} is not a colour name")
@@ -102,6 +103,20 @@ def read_value(body: Body, text: str, *, booleans: tuple[str, str] = ("true", "f
             return tuple(read_value(b, p, booleans=booleans, sep=sep) for b, p in zip(body.items, parts, strict=True))
         case BodyKind.LIST:
             return [read_value(body.items[0], p, booleans=booleans, sep=sep) for p in text.split(sep)] if text else []
+        case BodyKind.TEX:
+            return cast("type[AsTeX]", body.expression).read(text)
+        case BodyKind.ONE_OF:
+            unread, refused = False, list[str]()
+            for alternative in body.items:
+                try:
+                    return read_value(alternative, text, booleans=booleans, sep=sep)
+                except NotImplementedError:
+                    unread = True
+                except ValueError as exc:
+                    refused.append(str(exc))
+            if unread:  # one alternative may be what the text says, and cannot be read
+                raise NotImplementedError(body.kind.value)
+            raise ValueError(" and ".join(refused))
         case _:
             raise NotImplementedError(body.kind.value)
 

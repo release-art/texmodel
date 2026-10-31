@@ -14,10 +14,15 @@ The document's package requires `graphicx` (`std.graphicx`); a cropped picture i
 """
 
 import dataclasses
+import re
+from collections.abc import Callable
 from pathlib import PurePosixPath
+from typing import Any, Final, Self
 
+from .._internal.read import read_length, unescaped
 from ..components import Passthrough
-from ..errors import DeclarationError
+from ..errors import DeclarationError, ValidationError
+from ..interface import AsTeX
 from ..std import latex
 from ..std.graphicx import IncludeGraphics, IncludeGraphicsOptions
 from ..types import FilePath, Length, Macro, Name, Raw
@@ -35,12 +40,18 @@ class Crop:
     top: Length = _ZERO
 
 
+def _file(path: "str | PurePosixPath | FilePath | Macro") -> FilePath | Macro:
+    if isinstance(path, str):
+        return FilePath(path)
+    return FilePath.of(path) if isinstance(path, PurePosixPath) else path
+
+
 @dataclasses.dataclass(frozen=True)
-class Picture:
+class Picture(AsTeX):
     """A picture by its path. `width` and `height` are lengths (`Length.expr(r"\\linewidth")` for a share of the line):
     both fit the picture in that box, keeping its proportions; `scale` is a factor and excludes them. `rotate` is
     degrees counter-clockwise, `page` a page of a PDF. The path is a name TeX reads as it is (`TM-C028`), or a
-    `Macro`."""
+    `Macro`. A `Picture` is a value a command field takes (`AsTeX`): `icon: Icon | Picture | None`."""
 
     path: str | PurePosixPath | FilePath | Macro
     _: dataclasses.KW_ONLY
@@ -54,25 +65,21 @@ class Picture:
     page: int | None = None
 
     def __post_init__(self) -> None:
+        _file(self.path)  # a path TeX would read as syntax is refused here, not when it is rendered
         if (self.alt is None) == (not self.decorative):
-            raise DeclarationError(
+            raise ValidationError(
                 f"Picture({self.path!r}): give alt= or decorative=True, not both and not neither",
-                code="TM-M089",
+                code="TM-C033",
                 path=str(self.path),
                 hint="alt is the text for a reader who cannot see the picture; decorative=True says there is none",
             )
         if self.scale is not None and (self.width or self.height):
-            raise DeclarationError(
-                f"Picture({self.path!r}): scale excludes width and height", code="TM-M090", path=str(self.path)
+            raise ValidationError(
+                f"Picture({self.path!r}): scale excludes width and height", code="TM-C034", path=str(self.path)
             )
 
     def node(self) -> IncludeGraphics:
-        path = self.path
-        if isinstance(path, str):
-            path = FilePath(path)
-        elif isinstance(path, PurePosixPath):
-            path = FilePath.of(path)
-        crop = self.crop
+        path, crop = _file(self.path), self.crop
         options = IncludeGraphicsOptions(
             width=self.width,
             height=self.height,
@@ -90,6 +97,72 @@ class Picture:
     def render(self) -> str:
         return self.node().render()
 
+    @classmethod
+    def read(cls, text: str) -> Self:
+        r"""A picture from the `\includegraphics` call it was written as (what a stub shows of a field), so a hand edit
+        of it is seen. A call with a key it does not write, or a path from a macro, is not read."""
+        body = text.strip()
+        if body.startswith("{") and body.endswith("}"):  # the group a key list puts around a value
+            body = body[1:-1].strip()
+        call = _CALL.fullmatch(body)
+        if not call:
+            raise ValueError(f"{body!r} is not an \\includegraphics call")
+        if "\\" in call["path"]:
+            raise NotImplementedError("a path from a macro")
+        given: dict[str, Any] = {}
+        for key, value in _keys(call["keys"] or ""):
+            if key in _WRITTEN_WITH_OTHERS:
+                continue
+            if key in _FLAGS and value is None:
+                given[_FLAGS[key]] = True
+            elif key in _READERS and value is not None:
+                name, read = _READERS[key]
+                given[name] = read(value)
+            else:
+                raise ValueError(f"{key!r} is not a key of a Picture, or has no value")
+        try:
+            return cls(call["path"].strip(), **given)
+        except (ValidationError, DeclarationError) as exc:
+            raise ValueError(str(exc)) from exc
+
+
+def _crop(text: str) -> Crop:
+    left, bottom, right, top = (read_length(p) for p in text.split())
+    return Crop(left, bottom, right, top)
+
+
+_READERS: Final[dict[str, tuple[str, Callable[[str], object]]]] = {
+    "width": ("width", read_length),
+    "height": ("height", read_length),
+    "scale": ("scale", float),
+    "angle": ("rotate", float),
+    "page": ("page", int),
+    "alt": ("alt", unescaped),
+    "trim": ("crop", _crop),
+}
+_FLAGS: Final = {"artifact": "decorative"}
+_WRITTEN_WITH_OTHERS: Final = {"clip", "keepaspectratio"}  # the crop and the box say them
+_CALL: Final = re.compile(r"\\includegraphics\s*(?:\[(?P<keys>.*)\])?\s*\{(?P<path>[^{}]*)\}", re.DOTALL)
+
+
+def _keys(text: str) -> list[tuple[str, str | None]]:
+    """`width=3cm,alt={a, b},clip` as pairs, split at the commas outside braces; a bare key has no value, a braced value
+    loses its braces."""
+    parts: list[str] = []
+    depth, start = 0, 0
+    for i, c in enumerate(text + ","):
+        depth += (c == "{") - (c == "}")
+        if c == "," and depth == 0:
+            parts.append(text[start:i].strip())
+            start = i + 1
+    pairs: list[tuple[str, str | None]] = []
+    for part in filter(None, parts):
+        key, equals, value = part.partition("=")
+        value = value.strip()
+        braced = value.startswith("{") and value.endswith("}")
+        pairs.append((key.strip(), (value[1:-1] if braced else value) if equals else None))
+    return pairs
+
 
 @dataclasses.dataclass(frozen=True)
 class Figure:
@@ -105,8 +178,8 @@ class Figure:
 
     def __post_init__(self) -> None:
         if self.placement is not None and not (self.placement and set(self.placement) <= set("htbp!")):
-            raise DeclarationError(
-                f"Figure: placement {self.placement!r} is not letters of h, t, b, p and !", code="TM-M091"
+            raise ValidationError(
+                f"Figure: placement {self.placement!r} is not letters of h, t, b, p and !", code="TM-C035"
             )
 
     def node(self) -> latex.Figure:
