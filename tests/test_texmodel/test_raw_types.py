@@ -5,6 +5,7 @@ from pathlib import PurePosixPath
 import pydantic
 import pytest
 
+from texmodel._internal.bodies import body_of
 from texmodel.errors import ValidationError
 from texmodel.std.graphicx import IncludeGraphics, IncludeGraphicsOptions
 from texmodel.types import ControlSequence, FilePath, FontName, Length, Macro, Name, NameList, Raw
@@ -38,7 +39,21 @@ def test_a_picture_takes_a_file_name_a_macro_or_raw_tex():
     sized = IncludeGraphicsOptions(width=Length("2cm"))
     assert IncludeGraphics(path=FilePath("a.png"), options=sized).render() == r"\includegraphics[width=2cm]{a.png}"
     assert IncludeGraphics(path=Macro(r"\figdir{a}")).render() == r"\includegraphics{\figdir{a}}"
-    assert IncludeGraphics(path=Raw(r"\jobname-fig")).render() == r"\includegraphics{\jobname-fig}"
+    assert IncludeGraphics(path=Macro(r"\jobname")).render() == r"\includegraphics{\jobname}"
+    assert IncludeGraphics(path=FilePath("a.png")).render() == r"\includegraphics{a.png}"
+    assert IncludeGraphics(path=Raw(r"\jobname-fig")).violations()  # pyright: ignore[reportArgumentType]
+
+
+def test_a_union_of_raw_subclasses_takes_any_member_and_nothing_else():
+    class Holder(pydantic.BaseModel):
+        file: FilePath | Macro
+
+    assert Holder.model_validate({"file": "a.png"}).file == FilePath("a.png")
+    assert Holder.model_validate({"file": r"\figdir{a}"}).file == Macro(r"\figdir{a}")
+    with pytest.raises(pydantic.ValidationError):
+        Holder.model_validate({"file": "a%.png"})
+    body = body_of(FilePath | Macro)
+    assert body is not None and body.describe() == "FilePath | Macro"
 
 
 def test_data_loads_a_typed_field_through_its_check():
@@ -75,3 +90,9 @@ def test_a_field_of_a_header_refuses_the_wrong_kind_of_name():
 
     assert SetLength(length=ControlSequence(r"\x"), value=Length("1mm")).render() == r"\setlength{\x}{1mm}"
     assert SetLength(length=Raw("2cm"), value=Length("1mm")).violations()  # pyright: ignore[reportArgumentType]
+
+
+def test_a_control_sequence_is_the_narrowest_macro():
+    assert isinstance(ControlSequence(r"\x"), Macro)
+    assert IncludeGraphics(path=ControlSequence(r"\jobname")).render() == r"\includegraphics{\jobname}"
+    assert not isinstance(Macro(r"\x{y}"), ControlSequence)

@@ -97,7 +97,7 @@ assert Put(text=Raw("x"), at=(1, 2)).render() == r"\put(1,2){x}"
 | `Text` | escaped |
 | `PdfString` | for the inside of a PDF literal string: [Values](values.md#pdf-strings) |
 | `Raw` | as it is |
-| `ControlSequence`, `Name`, `NameList`, `Macro`, `FilePath`, `FontName` | `Raw` that is checked to be what the field holds: `\mylen`, a counter or package name, `a,b`, `\figdir{a}`, a file name, a font; the check runs when data loads too |
+| `ControlSequence`, `Name`, `NameList`, `Macro`, `FilePath`, `FontName` | `Raw` that is checked to be what the field holds: `\mylen`, a counter or package name, `a,b`, `\figdir{a}`, a file name, a font; the check runs when data loads too; a union of them (`FilePath \| Macro`) takes any member |
 | `Length` | `Length("2mm")`, or `Length.expr(r"\linewidth")` for a TeX expression |
 | `CMYK`, `RGB`, `Gray` | colour components in [0, 1], no conversion between models |
 | `ColourName` | an xcolor name or expression, checked against the package ([Colour names](values.md#colour-names)) |

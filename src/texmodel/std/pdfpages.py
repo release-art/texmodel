@@ -7,7 +7,7 @@ from texmodel.interface import Flag, Item
 from texmodel.keys import KEYVAL
 from texmodel.keyvals import KeyVals
 from texmodel.package import Package
-from texmodel.types import FilePath, Raw
+from texmodel.types import FilePath, Macro, Raw
 
 package = Package("pdfpages", prefix="", adopted=True)
 
@@ -30,4 +30,4 @@ class IncludePdf(Command):
 
     cs = "includepdf"
     options: IncludePdfOptions | None = None
-    path: FilePath
+    path: FilePath | Macro

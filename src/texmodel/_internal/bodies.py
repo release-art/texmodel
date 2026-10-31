@@ -96,7 +96,9 @@ def _tuple_body(args: tuple[Any, ...]) -> Body | None:
 
 
 def _union_body(members: list[Any]) -> Body | None:
-    """The one union a field may be: the colour models (`Colour`)."""
+    """The unions a field may be: the colour models (`Colour`), or several `Raw` subclasses (`FilePath | Macro`)."""
     if members and set(members) == set(_COLOURS):
         return Body(BodyKind.COLOUR)
+    if members and all(isinstance(m, type) and issubclass(m, Raw) for m in members):
+        return Body(BodyKind.RAW, expression=tuple(members))
     return None

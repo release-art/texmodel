@@ -193,6 +193,15 @@ def _is_call(tex: str) -> bool:
     return True
 
 
+def _check_call(raw: Raw) -> None:
+    if not _is_call(raw.tex):
+        raise ValidationError(
+            f"{type(raw).__name__}: {raw.tex!r} is not a control word and its braced arguments",
+            code="TM-C029",
+            hint=r"write \name or \name{argument}; for other TeX use Raw",
+        )
+
+
 @dataclasses.dataclass(frozen=True)
 class Macro(Raw):
     r"""A call of a macro, a control word and its braced arguments: `Macro(r"\jobname")`, `Macro(r"\figdir{a}")`. It
@@ -200,12 +209,7 @@ class Macro(Raw):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        if not _is_call(self.tex):
-            raise ValidationError(
-                f"Macro: {self.tex!r} is not a control word and its braced arguments",
-                code="TM-C029",
-                hint=r"write \name or \name{argument}; for other TeX use Raw",
-            )
+        _check_call(self)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -228,7 +232,8 @@ class _PlainText(Raw):
 class FilePath(_PlainText):
     r"""A file name, `/` between directories: `FilePath("img/a_b.png")`, or `FilePath.of(PurePosixPath(...))`. `{`, `}`,
     `\\`, `%`, `#` and control characters are TeX syntax where a name is read and cannot be written there, so they are
-    refused (`TM-C028`); `_`, `~`, `&`, `$`, `^` and spaces are safe."""
+    refused (`TM-C028`); `_`, `~`, `&`, `$`, `^` and spaces are safe. A field that names a file is typed
+    `FilePath | Macro`."""
 
     @classmethod
     def of(cls, path: PurePosixPath) -> "FilePath":
@@ -259,11 +264,12 @@ _check_names = _checked(re.compile(rf"{_NAME}(\s*,\s*{_NAME})*"), "names separat
 
 
 @dataclasses.dataclass(frozen=True)
-class ControlSequence(Raw):
-    r"""One control word, where a field holds a macro, a length or a box register: `ControlSequence(r"\mylen")`."""
+class ControlSequence(Macro):
+    r"""One control word, where a field holds a macro, a length or a box register: `ControlSequence(r"\mylen")`. It is
+    the narrowest `Macro`, so a `Macro` field takes it."""
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        Raw.__post_init__(self)
         _check_control_sequence(self)
 
 

@@ -7,7 +7,7 @@ from texmodel.interface import Flag, Item
 from texmodel.keys import KEYVAL
 from texmodel.keyvals import KeyVals
 from texmodel.package import Package
-from texmodel.types import Length, Raw
+from texmodel.types import FilePath, Length, Macro, Raw
 
 package = Package("graphicx", prefix="", adopted=True)
 
@@ -30,11 +30,11 @@ class IncludeGraphicsOptions(KeyVals, rules=KEYVAL):
 
 @package.command
 class IncludeGraphics(Command):
-    r"""Place a picture: `\includegraphics[width=3cm]{a.png}`. `path` is a `FilePath` (a checked file name), a `Macro`
-    that expands to the name, or any `Raw` TeX."""
+    r"""Place a picture: `\includegraphics[width=3cm]{a.png}`. `path` is a `FilePath` (a checked
+    file name) or a `Macro` (`\figdir{a}`, or a bare `ControlSequence`) that expands to it."""
 
     cs = "includegraphics"
-    path: Raw
+    path: FilePath | Macro
     options: IncludeGraphicsOptions | None = None
 
 

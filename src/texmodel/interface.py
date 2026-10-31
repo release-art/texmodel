@@ -303,7 +303,7 @@ class Body:
     attrs: tuple[str, ...] = ()  # TUPLE of a record (NamedTuple, dataclass, model): the attributes in order
     keyvals: type | None = None
     token: str | None = None
-    expression: type | None = None  # RAW: a `Raw` subclass the value must be (an expression type of a library)
+    expression: type | tuple[type, ...] | None = None  # RAW: the `Raw` subclass (or subclasses: a union) it must be
 
     def describe(self) -> str:
         if self.choice is not None:
@@ -311,7 +311,8 @@ class Body:
         if self.keyvals is not None:
             return self.keyvals.__name__
         if self.expression is not None:
-            return self.expression.__name__
+            names = self.expression if isinstance(self.expression, tuple) else (self.expression,)
+            return " | ".join(t.__name__ for t in names)
         if self.kind in (BodyKind.TUPLE, BodyKind.LIST):
             return f"{self.kind.value} of ({', '.join(i.describe() for i in self.items)})"
         return self.kind.value

@@ -29,9 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The class is the column layout: the rows may be of any `TableRow` classes (an abstract base can carry the `Col`s).
   `TM-M086`: a row command whose body writes more or fewer cells than the layout has columns (its `&`, counted as text).
 - Checked `Raw` types, which a field holds where a bare `Raw` is too loose, and which check again when data loads:
-  `ControlSequence` (one control word, `TM-C030`), `Name` (`TM-C031`), `NameList` (names separated by commas, `TM-C032`),
+  `ControlSequence` (one control word, `TM-C030`; a `Macro`), `Name` (`TM-C031`), `NameList` (names separated by commas, `TM-C032`),
   `Macro` (a control word and braced arguments, `TM-C029`), `FilePath` (`FilePath.of(PurePosixPath(...))`) and `FontName`
   (no `{`, `}`, `\`, `%`, `#` or control characters, `TM-C028`).
+- A field may be a union of `Raw` subclasses (`FilePath | Macro`): a value of any member is accepted, anything else
+  (a bare `Raw`) is refused, and data loading tries each member.
 - `ext.table.TableEnvironment` and `declare(pkg)`: a table whose layout the package owns. A subclass sets `columns`, `rows`
   (any `TableRow` classes), `look`, `width` and `blocks` and inherits the rest; the `.sty` gets `\NewTblrEnviron`,
   `\SetTblrInner` and `\SetTblrOuter` with `expand`, and a document holds only the rows (`TM-M087`: rows not registered,
@@ -47,8 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `std` fields that name a thing take a checked type, not `Raw`: `ControlSequence` for the length, box and macro of `latex`, `calc`
   and `etoolbox`, the `cmd` keys and the `tabularray` command names; `Name` for counters, toggles, environments, packages,
   options, colours, `tabularray` types, themes and templates; `NameList` for libraries and the environments of `SetTblrInner`;
-  `FilePath` for `IfFileExists` and `InputIfFileExists`; `FontName` for `fontspec`. `IncludeGraphics.path` stays `Raw` and takes
-  `FilePath` or `Macro`; `ext.table.Image` writes a `FilePath`, so a bad path is a `ValidationError`, not a `ValueError`.
+  `FilePath` for `IfFileExists` and `InputIfFileExists`; `FontName` for `fontspec`. `IncludeGraphics.path` and `IncludePdf.path` are
+  `FilePath | Macro`; `ext.table.Image` writes a `FilePath`, so a bad path is a `ValidationError`, not a `ValueError`.
 - `Look(rules=Rules.GRID)` and `Look(rules=Rules.NONE)` built by hand are flush at the edges, like the default; `Look.GRID` and
   `Look.PLAIN` keep their padding (`edge=None`), so their output is the same.
 - `components`, `package`, `std.tabularray` and `ext.table` are subpackages with private submodules; every public name is

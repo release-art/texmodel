@@ -153,7 +153,7 @@ texmodel.history.worst(changes: Sequence[Change]) -> Level
 texmodel.interface.ANGLE: Delimiter
 texmodel.interface.ArgOptions(delimiter: Delimiter | None, fill: str | Gap, sep: str | None, group: SlotGroup | None, booleans: tuple[str, str] | None) -> None
 texmodel.interface.BRACE: Delimiter
-texmodel.interface.Body(kind: BodyKind, choice: type[Choice] | None = …, items: tuple['Body', ...] = …, attrs: tuple[str, ...] = …, keyvals: type | None = …, token: str | None = …, expression: type | None = …) -> None
+texmodel.interface.Body(kind: BodyKind, choice: type[Choice] | None = …, items: tuple['Body', ...] = …, attrs: tuple[str, ...] = …, keyvals: type | None = …, token: str | None = …, expression: type | tuple[type, ...] | None = …) -> None
 texmodel.interface.Body.describe(self) -> str
 texmodel.interface.BodyKind(*values)
 texmodel.interface.ColourName(base: str | type[Any], *, tint: float | None = …, mix: str | type[Any] | None = …) -> ColourName

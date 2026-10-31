@@ -180,7 +180,7 @@ def graphicx_samples():
     return [], [
         g.GraphicsPath(directories=Raw("{}{img/}")),
         g.IncludeGraphics(
-            path=Raw("tm-pic.png"),
+            path=FilePath("tm-pic.png"),
             options=g.IncludeGraphicsOptions(
                 width=Length("1cm"),
                 height=Length("1cm"),
@@ -191,7 +191,7 @@ def graphicx_samples():
                 extra=Raw("trim=0 0 0 0"),
             ),
         ),
-        g.IncludeGraphics(path=Raw("tm-pic.png")),
+        g.IncludeGraphics(path=FilePath("tm-pic.png")),
     ]
 
 
