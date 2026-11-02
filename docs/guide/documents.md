@@ -94,13 +94,15 @@ assert from_dict(series, {"settings": [{"type": "Pad", "value": "2mm"}]}).settin
 
 ## What a node is
 
-`Command`, `Environment` and `Passthrough` are frozen pydantic models. Building one does not validate it (`violations()` does);
-assigning to a field raises `pydantic.ValidationError`, and `str(node)` is `repr(node)`. `node.model_fields_set` is the fields
-the caller passed, a default given explicitly included; `to_dict` writes exactly those. A field cannot be named like an
-attribute every component has (`copy`, `json`, `render`, a `model_` name: `TM-M045`).
+`Command`, `Environment` and `Passthrough` are frozen dataclasses. Building one does not validate it (`violations()` does);
+assigning to a field raises `dataclasses.FrozenInstanceError`, and `str(node)` is `repr(node)`. `node.fields_set` is the
+fields the caller passed, a default given explicitly included; `to_dict` writes exactly those, and `node.copy(**update)`
+keeps them and adds the updated ones. A field cannot be named like an attribute every component has (`copy`, `render`,
+`violations`, `fields_set`, `meta`, `cs`, `syntax`, `defined_by`, `times`, or an attribute of pydantic's `BaseModel` such as
+`json`: `TM-M045`).
 
 ```python
-assert Fact(text="a").model_fields_set == {"text"}
+assert Fact(text="a").fields_set == {"text"}
 assert to_dict(Fact(text="a")) == {"type": "Fact", "text": "a"}
 ```
 

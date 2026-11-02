@@ -9,11 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- `texmodel.components.Children` (plumbing for the schema; it moved to `texmodel._internal.data`), and the pydantic
+  attributes of a node: `model_fields_set`, `model_copy`, `model_dump`, `model_validate`, `model_fields` and
+  `model_json_schema` (use `fields_set`, `copy`, `to_dict`, `from_dict`, `json_schema`).
 - `texmodel.run.hand_edits` and its compile: `read_edits(compiler, plan, text, ..., files=)` is gone (see Changed), and so is
   `TM-X032` (a plan whose lines and calls disagree).
 
 ### Changed
 
+- `Command`, `Environment` and `Passthrough` are frozen dataclasses, no longer pydantic models built through a metaclass.
+  Construction, equality, hash, `repr`, `violations()`, `render()`, the schema and `from_dict`/`to_dict` behave as before;
+  `node.fields_set` replaces `model_fields_set` and `node.copy(**update)` replaces `model_copy(update=)`. The data of a
+  component is a pydantic model generated from its arguments. A field may now start with `model_`; `TM-M045` refuses the
+  attributes a component has (`copy`, `render`, `violations`, `fields_set`, `meta`, `cs`, `syntax`, `defined_by`, `times`,
+  a command's `call`, an environment's `children`, `checks`, `open`, `close`) and pydantic's own (`json`, `dict`...).
+  A row command and a table environment hook their class's creation with `_prepare` and `__init_subclass__`, not
+  pydantic's `__pydantic_init_subclass__`. A `Table` takes a row command as its row model.
 - `read_edits` reads the calls a document writes, from its tokens by each component's signature, and runs no TeX: it is
   `texmodel.hand_edits.read_edits(plan, text, *packages, file=, stub=)`, synchronous, with no compiler. A call a macro of
   the document makes is not read: a call written inside a definition (`\newcommand`, `\def`, `\newenvironment`, xparse's
@@ -21,9 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that cannot be read is `UNREAD`. The stub compile is a test oracle now (`texmodel.testing.stub_tex` is unchanged).
 - The expl3 libraries of a package are read too (`check_parts`, duplicate names, colours), and `\cs_new:Npn` functions
   are declarations. xparse's `v`, `g`, `u` and `e` types read as letters, not `?`.
-- `texmodel.testing.detokenized` treats a Unicode letter as part of a control word, shows `#` doubled, and takes only a space,
-  a tab and a line end for spaces (a no-break space is a character), as LuaTeX does.
-- Package-option, library, `Raw` and body checks read tokens, not text: `balanced`, the `\ExplSyntaxOn` check of an expl3
+- `texmodel.testing.detokenized`- Package-option, library, `Raw` and body checks read tokens, not text: `balanced`, the `\ExplSyntaxOn` check of an expl3
   block, `TM-M015` (a `\<prefix>Name` in a verbatim or after `\string` is not a use), the `&` count of a table row
   (`TM-M086`: an `&` inside braces is no cell), `\RequirePackage` and kin, and `\includegraphics` read back from a hand edit.
  treats a Unicode letter as part of a control word, shows `#` doubled, and takes only a space,

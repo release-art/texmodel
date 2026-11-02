@@ -79,7 +79,8 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   reads the call it writes, not a path from a macro or a key it does not write.
 - A `Raw` value or `Item[Raw]` is written as given: texmodel checks only that its braces balance.
 - The names `content` (an environment's children) and `type` (the component in data) are not usable as field names, nor
-  any attribute every component has (`copy`, `json`, `render`, a `model_` name: `TM-M045`).
+  any attribute every component has (`copy`, `render`, `violations`, `fields_set`, `meta`, `cs`, `syntax`, `defined_by`, `times`, or an attribute of
+  pydantic's `BaseModel` such as `json`, which the data model of a component would shadow: `TM-M045`).
 - pyright checks a command's and a `Passthrough`'s arguments, not an environment's keywords: `dataclass_transform` cannot
   describe positional children.
 

@@ -2,12 +2,14 @@
 
 import dataclasses
 import itertools
+import typing
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from decimal import Decimal
 from typing import Any
 
 import pydantic
 
+from ..._internal.data import validated
 from ..._internal.tex import count_outside_groups
 from ...components import Passthrough
 from ...errors import DeclarationError, ValidationError
@@ -73,7 +75,7 @@ def check_cells(layout: type, count: int, rows: Iterable[tuple[str, type]]) -> N
 
 
 @dataclasses.dataclass(frozen=True)
-class Table[T: pydantic.BaseModel]:
+class Table[T: pydantic.BaseModel | t.TableRow]:
     """A row model and its rows, with the parts of a table. `rows` are instances of the model, or mappings it validates;
     `node()` is the `tabularray` environment, `render()` its TeX. `group_by` names a field whose runs of equal values
     become row groups, each under a label row (the field is not a column), with a `subtotal` row if given. `blocks`
@@ -110,7 +112,7 @@ class Table[T: pydantic.BaseModel]:
                 body.append(row)  # a node row of any class: its command writes the cells, the model only the columns
                 continue
             try:
-                body.append(self.model.model_validate(row))
+                body.append(self._row(typing.cast("Mapping[str, Any]", row)))
             except pydantic.ValidationError as exc:
                 raise ValidationError(f"row {i}: {exc}", code="TM-C026", path=f"rows[{i}]") from exc
         self._check_cells(body, len(columns))
@@ -127,6 +129,12 @@ class Table[T: pydantic.BaseModel]:
         object.__setattr__(self, "columns", columns)
         object.__setattr__(self, "data", tuple(body))
         object.__setattr__(self, "groups", groups)
+
+    def _row(self, row: Mapping[str, Any]) -> T:
+        """A mapping as a row of the model: validated by pydantic, or by the row command's data model."""
+        if issubclass(self.model, t.TableRow):
+            return typing.cast("T", validated(self.model, row))
+        return self.model.model_validate(row)
 
     def _check_cells(self, body: Sequence[T], count: int) -> None:
         check_cells(self.model, count, [(f"rows[{i}]", type(row)) for i, row in enumerate(body)])
@@ -390,7 +398,7 @@ class Table[T: pydantic.BaseModel]:
 
 
 @dataclasses.dataclass(frozen=True)
-class Layout[T: pydantic.BaseModel]:
+class Layout[T: pydantic.BaseModel | t.TableRow]:
     r"""The design of a table, apart from what it holds: `columns` is the row model or `TableRow` class that carries
     the `Col`s, and `look`, `width`, `blocks` and `rules` are as in `Table`. It is data and declares nothing:
     `layout.table(rows, caption=...)` is a plain `Table` of it, and a `TableEnvironment` takes it as its `layout`.

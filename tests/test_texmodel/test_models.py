@@ -1,4 +1,4 @@
-"""Components are frozen pydantic models (D1): positional construction, `model_fields_set`, what is refused."""
+"""Components are frozen pydantic models (D1): positional construction, `fields_set`, what is refused."""
 
 import pytest
 from hypothesis import (
@@ -39,20 +39,20 @@ class Box(Environment):
 
 
 def test_fields_set_is_what_the_caller_passed_positionally_or_by_keyword():
-    assert Note(text="x").model_fields_set == {"text"}
-    assert Note(text="x", label=None).model_fields_set == {"text", "label"}  # a default given is the caller's
-    assert Note(text="x", gap=Length("2mm")).model_fields_set == {"text", "gap"}
-    assert Box(Note(text="x")).model_fields_set == {"content"} and Box(title="T").model_fields_set == {
+    assert Note(text="x").fields_set == {"text"}
+    assert Note(text="x", label=None).fields_set == {"text", "label"}  # a default given is the caller's
+    assert Note(text="x", gap=Length("2mm")).fields_set == {"text", "gap"}
+    assert Box(Note(text="x")).fields_set == {"content"} and Box(title="T").fields_set == {
         "content",
         "title",
     }
-    assert Passthrough(Raw(r"\par")).model_fields_set == {"tex"}
+    assert Passthrough(Raw(r"\par")).fields_set == {"tex"}
 
 
 def test_fields_set_from_data_is_the_keys_the_data_gave_and_to_dict_writes_them():
     node = from_dict(Box, {"title": "T", "content": [{"type": "Note", "text": "x", "label": None}]})
-    assert isinstance(node, Box) and node.model_fields_set == {"content", "title"}
-    assert isinstance(note := node.content[0], Note) and note.model_fields_set == {"text", "label"}
+    assert isinstance(node, Box) and node.fields_set == {"content", "title"}
+    assert isinstance(note := node.content[0], Note) and note.fields_set == {"text", "label"}
     assert to_dict(node) == {
         "type": "Box",
         "title": "T",
@@ -70,13 +70,14 @@ def test_a_round_trip_through_data_keeps_the_tree_and_its_fields_set(label: obje
     node = Box(Note(text="x", **given_fields), Passthrough(Raw(r"\par")))  # pyright: ignore[reportArgumentType]
     back = from_dict(Box, to_dict(node))
     assert isinstance(back, Box) and back == node
-    assert [c.model_fields_set for c in back.content] == [c.model_fields_set for c in node.content]  # pyright: ignore[reportAttributeAccessIssue]
+    assert [c.fields_set for c in back.content] == [c.fields_set for c in node.content]  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def test_a_comment_child_dumps_its_fields():
-    assert Box(Note(text="x"), Comment("c")).model_dump(include={"content"}, exclude_unset=True) == {
-        "content": ({"text": "x"}, {"text": "c"})
-    }
+    assert to_dict(Box(Note(text="x"), Comment("c")))["content"] == [
+        {"type": "Note", "text": "x"},
+        {"type": "Comment", "text": "c"},
+    ]
 
 
 def test_construction_does_not_validate_data_does():
@@ -106,8 +107,18 @@ def test_equality_and_hash_are_structural_and_ignore_fields_set():
     assert str(Box(Passthrough(Raw(r"\par")), title="T")) == shown == r"Box(Passthrough(Raw(tex='\\par')), title='T')"
 
 
-@pytest.mark.parametrize("name", ["json", "copy", "model_kind", "render"])
+@pytest.mark.parametrize("name", ["copy", "render", "violations", "fields_set", "meta", "json", "model_fields"])
 def test_a_field_named_like_an_attribute_of_every_component_is_refused(name: str):
     with pytest.raises(DeclarationError) as info:
         type(f"Bad{name.title()}", (Command,), {"__doc__": "Bad.", "__annotations__": {name: Text}})
     assert info.value.code == "TM-M045" and f".{name}" in str(info.value)
+
+
+def test_a_field_may_start_with_model():
+    class Modelled(Command):
+        """A name pydantic would warn about in a model of its own."""
+
+        model_kind: Text
+
+    assert Modelled(model_kind="a").fields_set == {"model_kind"}
+    assert from_dict(Modelled, {"model_kind": "a"}) == Modelled(model_kind="a")

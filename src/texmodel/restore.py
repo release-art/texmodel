@@ -141,7 +141,7 @@ def _update(node: "Command | Environment", edit: Edit) -> Mapping[str, object] |
         if found.violation is not None:
             return Unapplied(edit, Reason.INVALID_VALUE, found.violation)
         if a.optional and not a.token and not found.found:  # left out: the field's default
-            update[a.name] = type(node).model_fields[a.name].get_default(call_default_factory=True)
+            update[a.name] = a.default
             continue
         read = read_field(a, detokenized(found.found))
         if read.violation is not None:
@@ -162,9 +162,9 @@ def _rebuilt(
         if path in changes and changes[path] is None:
             continue
         if update := changes.get(path):
-            node = typing.cast("Environment", node).model_copy(update=dict(update))
+            node = typing.cast("Command | Environment", node).copy(**update)
         if isinstance(node, Environment) and any(p.startswith(path + "/") for p in changes):
-            node = node.model_copy(update={"content": _rebuilt(node.content, path + "/", changes)})
+            node = node.copy(content=_rebuilt(node.content, path + "/", changes))
         out.append(node)
     return tuple(out)
 

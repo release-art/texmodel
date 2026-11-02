@@ -12,7 +12,7 @@ from hypothesis import (
 )
 
 from texmodel._internal.bodies import body_of
-from texmodel._internal.fields import FieldNotes
+from texmodel._internal.fields import NOTES, FieldNotes
 from texmodel._internal.render import canonical, newcommand_fits, signature, xparse_spec
 from texmodel._internal.scan import scan_declarations, xparse_letters
 from texmodel.body import Hole
@@ -366,7 +366,7 @@ def test_the_rest_of_the_value_helpers():
         a: set[int]
 
     assert body_of(Odd) is None
-    assert FieldNotes("old") in arg(renamed_from="old").metadata
+    assert arg(renamed_from="old").metadata[NOTES] == FieldNotes("old")
     assert scan_declarations(r"\NewDocumentCommand{\cdOpen}{m", "cd") == {"cdOpen": "?"}
 
 

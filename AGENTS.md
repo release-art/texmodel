@@ -84,8 +84,9 @@ TEXMODEL_REQUIRE_TEX=1 pdm run pytest -m tex --no-cov   # when output, the scan 
   order in what is rendered. A `Value` is a `ValueKind` (data), not a branch in the renderer.
 - Optional fields are written `arg(default=...)` so a type checker reads them as keyword-only. Component fields are keyword-only
   (`Fact(text="a")`), in code, tests and docs alike; `kw_only=False` on a class is the rare, stated exception.
-- Pydantic is used at the data boundary (`spec`, `KeyVals`, `library(fill=)` models) and is the base of `Command`, `Environment` and `Passthrough`, which are built without validating.
-  Lax coercion is fine: pyright catches mismatches at the source.
+- Pydantic is used at the data boundary (`spec`, `KeyVals`, `library(fill=)` models); `Command`, `Environment` and `Passthrough` are frozen
+  dataclasses built without validating, and `_internal/data.py` generates their pydantic model. Lax coercion is fine: pyright catches
+  mismatches at the source.
 - Scanning TeX is token-level (`_internal/tex.py`: a tokenizer with spans, no expansion) and honest about it (a name defined
   another way counts as missing); it never silently accepts. Read TeX through it, not with a new regex. Reading beyond that
   (expansion, a call a macro makes) is parked (plan N1); raise it only if the work needs it.

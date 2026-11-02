@@ -14,8 +14,6 @@ import typing
 from collections.abc import Callable, Mapping, Sequence
 from typing import Annotated, Any
 
-from pydantic.fields import FieldInfo
-
 from .._internal.options import Option, OptionKind, choice_kind
 from .._internal.pieces import template_text
 from .._internal.render import (
@@ -101,8 +99,9 @@ def _concrete(cls: type[Command] | type[Environment]) -> None:
 
 def _field_data(spec: object) -> tuple[object, object]:
     """What makes two field declarations the same: the default and the `field(doc=, meta=)` data."""
-    if isinstance(spec, FieldInfo):
-        return spec.default, tuple(spec.metadata)
+    if isinstance(spec, dataclasses.Field):
+        field = typing.cast("dataclasses.Field[object]", spec)
+        return field.default, tuple(field.metadata.items())
     return spec, ()
 
 

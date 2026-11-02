@@ -140,7 +140,11 @@ def test_an_empty_list_reads_as_empty():
 # --- laws ---------------------------------------------------------------------------------------------------------
 
 
-@given(st.text(string.printable.replace("\x0b", "")))  # TeX ignores a vertical tab
+@given(
+    st.text(string.printable.replace("\x0b", "")).filter(  # TeX ignores a vertical tab; a blank line is `\par`
+        lambda t: not re.search(r"(?:\r\n|\r|\n)[ \t]*(?:\r\n|\r|\n)", t)
+    )
+)
 def test_text_reads_back_up_to_the_spaces_tex_collapses(text):
     assert read(text=text)["text"].value == re.sub(r"[ \t\r\n]+", " ", text.lstrip(TEX_SPACE))
 

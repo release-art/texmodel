@@ -30,7 +30,7 @@ from typing import Annotated, Any, Final, Literal
 
 from pydantic_core import core_schema
 
-from ._internal.fields import FieldNotes, field_info
+from ._internal.fields import FieldNotes, field_spec
 from .errors import DeclarationError
 from .types import PROCESS, Choice, Plate, plain_number, plates_of
 
@@ -272,7 +272,7 @@ def arg(
     part of a `SlotGroup`; `booleans` is the literal pair of a `bool`. A field with a default is keyword-only in
     Python, wherever it stands among the others; a required field is positional."""
     notes = FieldNotes(renamed_from, doc, dict(meta or {}))
-    return field_info(default, notes, ArgOptions(delimiter, fill, sep, group, booleans), kw_only=kw_only)
+    return field_spec(default, notes, ArgOptions(delimiter, fill, sep, group, booleans), keyword=kw_only)
 
 
 @enum.unique

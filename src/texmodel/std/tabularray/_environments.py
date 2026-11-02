@@ -51,11 +51,13 @@ class TableRow(Command, abstract=True):
     A row command that calls another lists both."""
 
     @classmethod
-    def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
-        if not kwargs.get("abstract") and not any("body" in k.__dict__.get("__tm_tex__", {}) for k in cls.__mro__):
-            cls.__tm_tex__["body"] = " & ".join(f"#{n}" for n in cls.model_fields) + r" \\"
-        super().__pydantic_init_subclass__(**kwargs)
-        if not kwargs.get("abstract") and (
+    def _prepare(cls) -> None:
+        if not cls.__tm_abstract__ and not any("body" in k.__dict__.get("__tm_tex__", {}) for k in cls.__mro__):
+            cls.__tm_tex__["body"] = " & ".join(f"#{f.name}" for f in cls.__tm_fields__) + r" \\"
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if not cls.__tm_abstract__ and (
             any(a.optional for a in cls.__tm_args__) or not newcommand_fits(cls.__tm_args__)
         ):
             raise DeclarationError(
