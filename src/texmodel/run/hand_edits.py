@@ -9,6 +9,7 @@ import re
 from collections.abc import Mapping, Sequence
 from itertools import zip_longest
 
+from texmodel._internal.calls import ParsedCall, parse_calls
 from texmodel.body import RefKind
 from texmodel.components import Command, Environment, control_name
 from texmodel.errors import TexmodelError
@@ -19,6 +20,12 @@ from texmodel.testing import Call, Component, read_call, stub_tex
 
 from .compiler import Compiler
 from .testkit import run_probes
+
+
+def _written(tex: str, stubs: Sequence[Component]) -> list[Call]:
+    """The calls `tex` writes, in document order, read from its tokens: no TeX runs."""
+    classes = {control_name(c): c for c in stubs}
+    return [p.call for p in parse_calls(tex, classes) if isinstance(p, ParsedCall)]
 
 
 async def _calls(compiler: Compiler, tex: str, stubs: Sequence[Component], files: Mapping[str, str]) -> list[Call]:
@@ -107,6 +114,64 @@ def _merged(line_edits: list[Edit], probed: _Probed, is_call: re.Pattern[str]) -
 _TABLES = (Tblr, Longtblr, Talltblr)
 
 
+@dataclasses.dataclass(frozen=True)
+class _Setup:
+    """What a read needs of the packages: the stubbed components and the plan's lines that call them."""
+
+    classes: Mapping[str, Component]
+    is_call: re.Pattern[str]
+    at: list[int]
+    stubs: list[Component]
+    sheets: Mapping[str, str]
+
+
+def _setup(
+    plan: Plan, packages: tuple[Package, ...], files: Mapping[str, str] | None, stub: Sequence[Component]
+) -> _Setup:
+    classes = {control_name(c): c for p in packages for c in p.registered if issubclass(c, Command | Environment)}
+    if any(issubclass(c, TableRow) for c in classes.values()):
+        stub = [*stub, *_TABLES]
+    classes |= {control_name(c): c for c in stub}
+    if not classes:
+        raise TexmodelError(
+            "no command or environment to stub", code="TM-X033", hint="pass the packages the document loads"
+        )
+    names = "|".join(sorted(map(re.escape, classes), key=len, reverse=True))
+    is_call = re.compile(rf"\s*\\(?:(begin|end)\{{({names})\}}|({names})(?![A-Za-z@]))")
+    at = [i for i, x in enumerate(plan.lines) if is_call.match(x.tex)]
+    sheets = {path: tex for p in packages for path, tex in p.files().items()} | dict(files or {})
+    return _Setup(classes, is_call, at, list(classes.values()), sheets)
+
+
+def _finish(
+    s: _Setup, plan: Plan, text: str, base: list[Call], got: list[Call], file: pathlib.Path | None
+) -> list[Edit]:
+    lines = [plan.lines[i] for i in s.at]
+    if len(base) != len(lines):
+        raise TexmodelError(
+            f"the plan makes {len(base)} calls of stubbed components but {len(lines)} of its lines call one",
+            code="TM-X032",
+            hint="a macro of the hand-written TeX in the plan calls a component; give a `Package` it was written with",
+        )
+    probed = _probed(base, got, plan, s.at, s.classes)
+    return [dataclasses.replace(e, file=file) for e in _merged(plan.edits(text), probed, s.is_call)]
+
+
+def read_written_edits(
+    plan: Plan,
+    text: str,
+    *packages: Package,
+    file: pathlib.Path | None = None,
+    stub: Sequence[Component] = (),
+) -> list[Edit]:
+    """`read_edits` without TeX: the calls are the ones `text` and the plan write, read from their tokens by each
+    component's signature (`_internal.calls`), not the ones a compile of them makes. The same answer for a document
+    whose calls are written in place; it does not see a call a macro of the document makes, and does not need a
+    document that compiles."""
+    s = _setup(plan, packages, None, stub)
+    return _finish(s, plan, text, _written(plan.text, s.stubs), _written(text, s.stubs), file)
+
+
 async def read_edits(
     compiler: Compiler,
     plan: Plan,
@@ -128,29 +193,9 @@ async def read_edits(
     `stub` are components of other packages to stub too. `tblr`, `longtblr` and `talltblr` are stubbed whenever a
     `TableRow` is: a table processes its body four times, which would log each row four times.
     A stubbed macro redefined in `text` is not noticed: its calls vanish."""
-    classes = {control_name(c): c for p in packages for c in p.registered if issubclass(c, Command | Environment)}
-    if any(issubclass(c, TableRow) for c in classes.values()):
-        stub = [*stub, *_TABLES]
-    classes |= {control_name(c): c for c in stub}
-    if not classes:
-        raise TexmodelError(
-            "no command or environment to stub", code="TM-X033", hint="pass the packages the document loads"
-        )
-    names = "|".join(sorted(map(re.escape, classes), key=len, reverse=True))
-    is_call = re.compile(rf"\s*\\(?:(begin|end)\{{({names})\}}|({names})(?![A-Za-z@]))")
-    at = [i for i, x in enumerate(plan.lines) if is_call.match(x.tex)]
-    lines = [plan.lines[i] for i in at]
-    sheets = {path: tex for p in packages for path, tex in p.files().items()} | dict(files or {})
-    stubs = list(classes.values())
-    base = await _calls(compiler, plan.text, stubs, sheets)
-    if len(base) != len(lines):
-        raise TexmodelError(
-            f"the plan makes {len(base)} calls of stubbed components but {len(lines)} of its lines call one",
-            code="TM-X032",
-            hint="a macro of the hand-written TeX in the plan calls a component; give a `Package` it was written with",
-        )
-    probed = _probed(base, await _calls(compiler, text, stubs, sheets), plan, at, classes)
-    return [dataclasses.replace(e, file=file) for e in _merged(plan.edits(text), probed, is_call)]
+    s = _setup(plan, packages, files, stub)
+    base = await _calls(compiler, plan.text, s.stubs, s.sheets)
+    return _finish(s, plan, text, base, await _calls(compiler, text, s.stubs, s.sheets), file)
 
 
-__all__ = ["read_edits"]
+__all__ = ["read_edits", "read_written_edits"]

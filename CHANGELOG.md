@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `texmodel.run.hand_edits.read_written_edits(plan, text, *packages)`: `read_edits` without TeX, from the calls the document
+  writes, read from its tokens by each component's signature.
+
+### Changed
+
+- `texmodel.testing.detokenized` treats a Unicode letter as part of a control word, as LuaTeX does.
+- The adoption scan (`check`, `Package.check_interface`, `declared`) reads tokens, not lines: a comment, `\verb`, a verbatim
+  environment, an `\iffalse ... \fi` and a definer written out with `\string` or `\noexpand` declare nothing, and `@` is a
+  letter only between `\makeatletter` and `\makeatother`. It also reads `\def`, `\gdef`, `\edef` and `\xdef` (a delimited
+  parameter text is `?`): a name defined that way is no longer `TM-C010`, and a public one nothing declares is `TM-C025`.
+
 ## [0.12.0] - 2026-10-30
 
 Typed tables, pictures, package dependencies and fields of several kinds. Generated output of existing packages is unchanged.

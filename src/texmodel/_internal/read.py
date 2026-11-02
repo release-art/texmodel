@@ -11,7 +11,7 @@ from ..types import AsTeX, Length, Raw, escape
 from .render import Arg
 from .values import value_ok, value_text
 
-_CONTROL_WORD = re.compile(r"\\[A-Za-z]+")
+_CONTROL_WORD = re.compile(r"\\[^\W\d_]+")  # LuaTeX: Unicode letters are letters
 _INT = re.compile(r"-?\d+")
 _FLOAT = re.compile(r"-?(\d+\.?\d*|\.\d+)")
 

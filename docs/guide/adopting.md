@@ -43,16 +43,16 @@ The check runs both ways: a public `<prefix>Name` the sources define that nothin
 length or a flag the package defines is a `Command` with no arguments), or name the helper outside the public namespace,
 with an `@` in it.
 
-The scan is regex-level and honest about it. It reads `\newcommand`, `\providecommand`, `\DeclareRobustCommand`,
-`\newenvironment`, the xparse `\NewDocumentCommand` family, `\newlength`, `\newsavebox`, `\newfontfamily`, `\newtoggle`,
-`\newif` (with `\Xtrue` and `\Xfalse`), `\definecolor`, `\colorlet` and `\newcounter`. A name defined any other way (`\def`,
-`\let`, an expl3 definer) counts as missing. Reading TeX beyond that is not planned ([known limitations](../known-limitations.md)).
+The scan reads tokens, not lines, and is honest about it: a comment, a `\verb`, a verbatim environment and an `\iffalse` declare
+nothing, and `@` is a letter only between `\makeatletter` and `\makeatother`. It reads `\newcommand`, `\providecommand`,
+`\DeclareRobustCommand`, `\def` (and `\gdef`, `\edef`, `\xdef`; a delimited parameter text is `?`), `\newenvironment`, the xparse `\NewDocumentCommand` family, `\newlength`, `\newsavebox`, `\newfontfamily`, `\newtoggle`,
+`\newif` (with `\Xtrue` and `\Xfalse`), `\definecolor`, `\colorlet` and `\newcounter`. A name defined any other way (`\let`, `\csname`) counts as missing. Reading TeX beyond that is not planned ([known limitations](../known-limitations.md)).
 
 `declared(text)` is the set of control sequences those forms declare in a text, without the backslash. A colour or a counter
 is not one.
 
 ```python
-assert declared(r"\newcommand{\cdA}[1]{} \newif\ifcdB \def\cdC{}") == {"cdA", "ifcdB", "cdBtrue", "cdBfalse"}
+assert declared(r"\newcommand{\cdA}[1]{} \newif\ifcdB \def\cdC{}") == {"cdA", "ifcdB", "cdBtrue", "cdBfalse", "cdC"}
 ```
 
 A complete example (a hand-written package, the generator it replaces and a three-card deck) is in

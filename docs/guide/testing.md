@@ -63,7 +63,9 @@ and replaces each stub with a macro that writes `texmodel:probe:callN=bkFact{...
 
 `Plan.edits(text)` finds a hand edit by line. `await texmodel.run.hand_edits.read_edits(compiler, plan, text, pkg)` asks TeX
 instead: it stubs every command and environment of the packages, compiles the plan's own text and the edited text, and
-compares the calls.
+compares the calls. `read_written_edits(plan, text, pkg)` gives the same answer without TeX, for a document whose calls are
+written in place: it reads the calls from the tokens by each component's signature (a call a macro of the document makes is
+not seen, and the document need not compile).
 
 ```py
 edits = await read_edits(compiler, plan, hand_edited_text, pkg)

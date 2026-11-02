@@ -86,4 +86,4 @@ def test_declared_is_the_names_the_scanner_reads_and_nothing_else():
         % \newcommand{\bbF}{}
         \def\bbG{} \let\bbH\relax \cs_new:Npn \bbI {} \write\f{\string\providecommand\string\bbJ}
     """
-    assert declared(text) == {"bbA", "bbB", "ifbbC", "bbCtrue", "bbCfalse"}
+    assert declared(text) == {"bbA", "bbB", "ifbbC", "bbCtrue", "bbCfalse", "bbG"}
