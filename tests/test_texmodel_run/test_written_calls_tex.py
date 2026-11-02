@@ -57,6 +57,7 @@ HAND = r"""
 \begin {wrBox} {  T T }\wrPara x
 \end {wrBox}
 \wrPara{a\par b}
+\wrPara{#1 ##2}
 \wrPara{a
 
 b}

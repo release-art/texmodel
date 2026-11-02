@@ -14,10 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `texmodel.testing.detokenized` treats a Unicode letter as part of a control word, as LuaTeX does.
+- `texmodel.testing.detokenized` treats a Unicode letter as part of a control word, shows `#` doubled, and takes only a space,
+  a tab and a line end for spaces (a no-break space is a character), as LuaTeX does.
 - The adoption scan (`check`, `Package.check_interface`, `declared`) reads tokens, not lines: a comment, `\verb`, a verbatim
   environment, an `\iffalse ... \fi` and a definer written out with `\string` or `\noexpand` declare nothing, and `@` is a
-  letter only between `\makeatletter` and `\makeatother`. It also reads `\def`, `\gdef`, `\edef` and `\xdef` (a delimited
+  letter only between `\makeatletter` and `\makeatother` (a group ends the switch, as in TeX); an `\iffalse` that a `\let` copies
+  or a list names (`\let\ifa\iffalse`, `\DoNotIndex{\iffalse}`) starts no dead text. It also reads `\def`, `\gdef`, `\edef` and `\xdef` (a delimited
   parameter text is `?`): a name defined that way is no longer `TM-C010`, and a public one nothing declares is `TM-C025`.
 
 ## [0.12.0] - 2026-10-30

@@ -8,7 +8,7 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   (`check_interface`, a tokenizer) reads `\newcommand`, `\providecommand`, `\DeclareRobustCommand`, `\def`, `\newenvironment`, the xparse `\NewDocumentCommand` family,
   `\newlength`, `\newsavebox`, `\newfontfamily`, `\newtoggle`, `\newif`, `\definecolor`/`\colorlet` and `\newcounter`; a name
   defined another way (`\let`, `\csname`, a macro that defines macros) counts as missing, and a library written in expl3 is not read, and an xparse type it does not model (`v`, `u`, `g`, `e`) is reported as
-  `?` and matches nothing.
+  `?` and matches nothing. `^^` notation (`^^41`, `^^M`) is read as the characters written, not as the character it names.
 - Python 3.15 and LuaLaTeX only. Compiling needs the reference image (or a local TeX Live with `latexmk`).
 - Not built here: releases and migrations, which are texpkg's (§13); trust levels and the injection corpus, the
   sandbox verification, `texmodel-print`, a rules layer, `List[T]` settings (`Value[...]` takes `Length`, `Colour`, `bool`,

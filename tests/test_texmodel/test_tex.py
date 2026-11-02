@@ -5,9 +5,10 @@ from hypothesis import (
     strategies as st,
 )
 
+from texmodel._internal.read import detokenized
 from texmodel._internal.tex import Form, Kind, declarations, tokenize, xparse_letters
 
-TRICKY = st.text(alphabet="\\{}%# \n\t@_:[]*vrbeginmakexplotrue1", max_size=60)
+TRICKY = st.text(alphabet="\\{}%# \n\t\r\f\u00a0@_:[]*vrbeginmakexplotrue1", max_size=60)
 
 
 def kinds(text: str, **options: bool) -> list[tuple[str, str]]:
@@ -138,3 +139,29 @@ def test_xparse_and_expl3_definitions():
 def test_xparse_letters_without_a_default_or_with_one_that_never_closes():
     assert xparse_letters("O m") == "om" and xparse_letters("O{x") == "?"
     assert read(r"\NewDocumentCommand 5 \NewDocumentEnvironment{}") == {}
+
+
+def test_only_tex_spaces_are_spaces():
+    text = "a\u00a0b\u2028c\x0cd"  # a no-break space and a form feed are characters to TeX, not spaces
+    assert [t.kind for t in tokenize(text)] == [Kind.CHAR] * len(text)
+    assert detokenized("\u00a0 a") == "\u00a0 a"
+
+
+def test_an_iffalse_that_let_copies_is_no_test():
+    assert read(r"\let\ifa\iffalse \newcommand\a{} \let\ifb=\iffalse \newcommand\b{}") == {"a": "", "b": ""}
+    assert read(r"\iffalse \let\ifa\iffalse \newcommand\a{} \fi \newcommand\b{}") == {"b": ""}
+
+
+def test_a_catcode_switch_ends_with_its_group():
+    for open_, close in (("{", "}"), (r"\begingroup", r"\endgroup"), (r"\begin{x}", r"\end{x}")):
+        words = [
+            t.text
+            for t in tokenize(f"{open_}\\makeatother\\a@b{close}\\a@b")
+            if t.kind is Kind.WORD and t.text.startswith(r"\a")
+        ]
+        assert words == [r"\a", r"\a@b"], open_
+    assert tokenize(r"}\makeatother \a@b")[-1].text == "b"  # a stray `}` closes nothing
+
+
+def test_an_iffalse_in_a_list_is_no_test():
+    assert read(r"\DoNotIndex{\iffalse,\fi}\newcommand\a{}") == {"a": ""}

@@ -9,6 +9,7 @@ from ..interface import Body, BodyKind
 from ..plan import FieldEdit
 from ..types import AsTeX, Length, Raw, escape
 from .render import Arg
+from .tex import TEX_SPACE
 from .values import value_ok, value_text
 
 _CONTROL_WORD = re.compile(r"\\[^\W\d_]+")  # LuaTeX: Unicode letters are letters
@@ -18,9 +19,9 @@ _FLOAT = re.compile(r"-?(\d+\.?\d*|\.\d+)")
 
 def detokenized(tex: str) -> str:
     """`tex` as `\\detokenize` shows a macro argument: leading spaces gone, a run of spaces one, and a space after
-    each control word (which also swallows the spaces that followed it)."""
+    each control word (which also swallows the spaces that followed it), a `#` doubled."""
     out: list[str] = []
-    i, text = 0, tex.lstrip()
+    i, text = 0, tex.lstrip(TEX_SPACE)
     while i < len(text):
         word = _CONTROL_WORD.match(text, i)
         if word:
@@ -30,10 +31,10 @@ def detokenized(tex: str) -> str:
             out.append(text[i : i + 2])
             i += 2
         else:
-            out.append(" " if text[i].isspace() else text[i])
+            out.append(" " if text[i] in TEX_SPACE else "##" if text[i] == "#" else text[i])
             i += 1
         if out[-1].endswith(" "):  # after a control word or a space: further spaces are skipped
-            while i < len(text) and text[i].isspace():
+            while i < len(text) and text[i] in TEX_SPACE:
                 i += 1
     return "".join(out)
 

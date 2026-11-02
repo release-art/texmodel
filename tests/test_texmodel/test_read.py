@@ -11,6 +11,7 @@ from hypothesis import (
 )
 
 from texmodel._internal.read import detokenized
+from texmodel._internal.tex import TEX_SPACE
 from texmodel.body import RefKind
 from texmodel.components import Command
 from texmodel.interface import PAREN, SQUARE, ColourName, Flag, Star, arg
@@ -139,9 +140,9 @@ def test_an_empty_list_reads_as_empty():
 # --- laws ---------------------------------------------------------------------------------------------------------
 
 
-@given(st.text(string.printable))
+@given(st.text(string.printable.replace("\x0b", "")))  # TeX ignores a vertical tab
 def test_text_reads_back_up_to_the_spaces_tex_collapses(text):
-    assert read(text=text)["text"].value == re.sub(r"\s+", " ", text.lstrip())
+    assert read(text=text)["text"].value == re.sub(r"[ \t\r\n]+", " ", text.lstrip(TEX_SPACE))
 
 
 @given(st.integers(-(10**9), 10**9), st.floats(-1e6, 1e6, allow_nan=False))

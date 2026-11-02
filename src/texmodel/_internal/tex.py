@@ -39,9 +39,10 @@ class Token:
         return self.text[1:]
 
 
+TEX_SPACE = " \t\r\n"  # LuaTeX: any other character, a no-break space and a form feed included, is not a space
 _BLANK = frozenset({Kind.SPACE, Kind.PAR, Kind.COMMENT})
-_BLANKS = re.compile(r"[ \t\r\f]+")
-_LINE_END = re.compile(r"[ \t\r\f]*\n[ \t\r\f]*")  # the end of a line, and the next line's indent, which TeX drops
+_BLANKS = re.compile(r"[ \t\r]+")
+_LINE_END = re.compile(r"[ \t\r]*\n[ \t\r]*")  # the end of a line, and the next line's indent, which TeX drops
 _VERBATIM_BEGIN = re.compile(r"\s*\{(verbatim\*?|Verbatim\*?|lstlisting|comment)\}")
 
 
@@ -55,6 +56,7 @@ class _Lexer:
         self.i = 0
         self.out: list[Token] = []
         self.fresh = True  # at the start of a line, where a line end is an empty line
+        self.scopes: list[tuple[bool, bool]] = []  # the category codes outside each open group, which it restores
 
     def emit(self, kind: Kind, end: int) -> None:
         self.out.append(Token(kind, self.i, end, self.text[self.i : end]))
@@ -76,11 +78,24 @@ class _Lexer:
                 self.control()
             elif c == "%":
                 self.comment()
-            elif c.isspace():
+            elif c == "{":
+                self.push()
+                self.emit(Kind.OPEN, self.i + 1)
+            elif c == "}":
+                self.pop()
+                self.emit(Kind.CLOSE, self.i + 1)
+            elif c in TEX_SPACE:
                 self.space()
             else:
-                self.emit({"{": Kind.OPEN, "}": Kind.CLOSE, "#": Kind.PARAM}.get(c, Kind.CHAR), self.i + 1)
+                self.emit(Kind.PARAM if c == "#" else Kind.CHAR, self.i + 1)
         return self.out
+
+    def push(self) -> None:
+        self.scopes.append((self.at_letter, self.expl3))
+
+    def pop(self) -> None:
+        if self.scopes:
+            self.at_letter, self.expl3 = self.scopes.pop()
 
     def space(self) -> None:
         """Blanks and line ends: the first line end after text is a space, an empty line (a line end that starts a
@@ -115,14 +130,19 @@ class _Lexer:
             case "verb":
                 self.verb()
             case "begin":
+                self.push()  # an environment is a group: a `\\makeatother` in it ends with it
                 self.verbatim_environment()
+            case "begingroup" | "bgroup":
+                self.push()
+            case "end" | "endgroup" | "egroup":
+                self.pop()
             case _:
                 pass
 
     def verb(self) -> None:
         """`\\verb*|text|`: the text runs to the next delimiter, or to the line end."""
         text, k = self.text, self.i + (self.text[self.i : self.i + 1] == "*")
-        if k < len(text) and not text[k].isspace():
+        if k < len(text) and text[k] not in TEX_SPACE:
             close, eol = text.find(text[k], k + 1), text.find("\n", k + 1)
             stop = close + 1 if close != -1 and (eol == -1 or close < eol) else (len(text) if eol == -1 else eol)
             self.emit(Kind.VERBATIM, stop)
@@ -253,7 +273,7 @@ def xparse_letters(spec: str) -> str:
     while i < len(spec):
         c = spec[i]
         i += 1
-        if c.isspace() or c == "+":
+        if c in TEX_SPACE or c == "+":
             continue
         if c in "mos":
             out.append(c)
@@ -285,15 +305,35 @@ def _skip_default(spec: str, i: int) -> int:
     return i
 
 
+def _before(toks: Sequence[Token], j: int) -> int:
+    """The index of the token before `j` that is not a space, a paragraph or a comment; -1 if there is none."""
+    j -= 1
+    while j >= 0 and toks[j].kind in _BLANK:
+        j -= 1
+    return j
+
+
+def _let_value(toks: Sequence[Token], j: int) -> bool:
+    """The token `j` is what `\\let\\x` or `\\let\\x=` copies (`\\let\\ifa\\iffalse`): not a test."""
+    k = _before(toks, j)
+    if k >= 0 and toks[k].kind is Kind.CHAR and toks[k].text == "=":
+        k = _before(toks, k)
+    k = _before(toks, k) if k >= 0 else k  # the control sequence being defined
+    return k >= 0 and toks[k].kind is Kind.WORD and toks[k].name == "let"
+
+
 def dead_end(toks: Sequence[Token], i: int, flags: frozenset[str]) -> int:
-    """After `\\iffalse` at `i - 1`: the index where text is live again, past the `\\fi` or `\\else` ending it."""
+    """After `\\iffalse` at `i - 1`: the index where text is live again, past the `\\fi` or `\\else` ending it. An
+    `\\iffalse` that a `\\let` copies or a list names is no test, and text goes on at `i`."""
+    if _let_value(toks, i - 1) or i < len(toks) and toks[i].text == ",":  # `\\DoNotIndex{\\iffalse,\\fi}`
+        return i
     depth = 0
     for j in range(i, len(toks)):
         if toks[j].kind is not Kind.WORD:
             continue
         name = toks[j].name
         if name in _CONDITIONALS or name.startswith("if@") or name in flags:
-            depth += 1
+            depth += not _let_value(toks, j)
         elif name == "fi" and depth == 0 or name == "else" and depth == 0:
             return j + 1
         elif name == "fi":

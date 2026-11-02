@@ -77,6 +77,10 @@ def test_required_arguments_are_a_group_or_one_token_and_shown_as_detokenize_sho
     assert [c.args for c in got] == [(" a b ",), ("x",), ("R\\& D",), ("\\relax ",), ("{x}",), ("ab",)]
 
 
+def test_a_parameter_character_is_shown_doubled_and_a_no_break_space_is_kept():
+    assert [c.args[0] for c in calls("\\wrPara{#1 ##2}\\wrPara{a\u00a0 b}")] == ["##1 ####2", "a\u00a0 b"]
+
+
 def test_a_blank_line_is_a_paragraph_and_a_comment_a_line_end_that_is_one_too():
     assert calls("\\wrPara{a\n\nb}\\wrPara{a%\n\nb}\\wrPara{a\n\n\nb}")[0].args == ("a \\par b",)
     assert [c.args[0] for c in calls("\\wrPara{a\n\nb}\\wrPara{a%\n\nb}\\wrPara{a\n\n\nb}")] == [
