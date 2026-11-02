@@ -109,7 +109,7 @@ gives the whole control sequence and `colour_name` the colour's name.
 | `TM-C012` | a public `<prefix>Name` the block defines that nothing declares |
 | `TM-C013` | a name defined twice (generation itself refuses it: `TM-P012`) |
 
-An expl3 block is not read; whether TeX really defines a name, with that many arguments, is checked by compiling:
+An expl3 block is read as expl3 (xparse commands and `\cs_new` functions); whether TeX really defines a name, with that many arguments, is checked by compiling:
 `await texmodel.run.testkit.check_library(compiler, pkg)` builds `pkg.test_document(...)` with `export_probes(pkg)`, compiles it, and
 returns `TM-C010` for a name the block does not define and `TM-C011` for another number of arguments (`?` is checked for
 existence only). The arity is the number of `#` in the macro's `\meaning`, so a command defined with `\NewDocumentCommand` or

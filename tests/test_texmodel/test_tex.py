@@ -6,7 +6,18 @@ from hypothesis import (
 )
 
 from texmodel._internal.read import detokenized
-from texmodel._internal.tex import Form, Kind, declarations, tokenize, xparse_letters
+from texmodel._internal.tex import (
+    Form,
+    Kind,
+    call_text,
+    control_words,
+    count_outside_groups,
+    declarations,
+    detokenize,
+    is_balanced,
+    tokenize,
+    xparse_letters,
+)
 
 TRICKY = st.text(alphabet="\\{}%# \n\t\r\f\u00a0@_:[]*vrbeginmakexplotrue1", max_size=60)
 
@@ -165,3 +176,68 @@ def test_a_catcode_switch_ends_with_its_group():
 
 def test_an_iffalse_in_a_list_is_no_test():
     assert read(r"\DoNotIndex{\iffalse,\fi}\newcommand\a{}") == {"a": ""}
+
+
+def test_control_words_are_the_ones_that_run():
+    text = "\\a % \\b\n\\string\\c \\noexpand\\d \\verb|\\e| \\f\\g"
+    assert control_words(text) == ["a", "string", "noexpand", "verb", "f", "g"]
+
+
+def test_characters_are_counted_outside_groups_comments_and_escapes():
+    assert count_outside_groups(r"a & {b & c} \& d % &" + "\n& e", "&") == 2
+
+
+def test_braces_balance_by_tokens():
+    assert is_balanced(r"{a \{ } % }") and is_balanced(r"\verb|{|") and is_balanced("")
+    assert not is_balanced("{") and not is_balanced("}{")
+
+
+def test_a_call_is_its_optional_and_required_argument_and_nothing_else():
+    assert call_text(r"\inc [w=1,a={]}] {p}", "inc") == ("w=1,a={]}", "p")
+    assert call_text(r"\inc{}", "inc") == (None, "")
+    assert call_text(r"\inc[x]", "inc") is None  # no required argument
+    assert call_text(r"\inc{p}{q}", "inc") is None
+    assert call_text(r"\inc[x{p}", "inc") is None  # the [ never closes: it is not an optional argument
+    assert call_text(r"\other{p}", "inc") is None and call_text("", "inc") is None
+
+
+def test_loaders_are_read_with_their_options_and_names():
+    text = r"""
+\RequirePackage[a={]},b]{one, two}\usepackage {three}
+\iffalse \usepackage{dead} \fi
+% \usepackage{comment}
+\usepackage\x \LoadClass[x]{cls} \usepackage{}
+"""
+    loads = [(d.signature, d.name) for d in declarations(text) if d.form is Form.LOAD]
+    assert loads == [("RequirePackage", "one, two"), ("usepackage", "three"), ("LoadClass", "cls"), ("usepackage", "")]
+
+
+@given(st.text())
+def test_any_text_is_tokenized_and_covered(text):
+    """Any characters at all, a no-break space and a line separator included (a real file crashed the tokenizer)."""
+    assert "".join(t.text for t in tokenize(text)) == text
+    declarations(text)
+
+
+def test_detokenize_shows_an_argument_as_tex_does():
+    def shown(text: str) -> str:
+        return detokenize(tokenize(text, at_letter=False))
+
+    assert shown(r"\a  b #1 ##") == r"\a b ##1 ####"
+    assert shown("x% c\n y\n\nz \\relax % c\n w") == r"xy \par z \relax w"  # a comment eats the next line's indent
+    assert shown(r"\  \& a") == r"\ \& a"
+
+
+def test_names_are_read_whole():
+    text = r"\newenvironment{equation*}{}{} \newenvironment{math-function}[1]{}{} \newtoggle{bbx:isbn}"
+    assert read(text) == {"equation*": "", "math-function": "[1]", "bbx:isbn": ""}
+
+
+def test_expl3_functions_are_declared_with_the_arguments_their_name_says():
+    found = {
+        d.name: d.signature
+        for d in declarations(r"\cs_new:Npn \ac_foo:nn #1#2 {} \cs_new_protected:Nn \ac_bar: {}", expl3=True)
+    }
+    assert found == {"ac_foo:nn": "[2]", "ac_bar:": ""}
+    assert read(r"\cs_new:Npn \ac_foo:nn #1#2 {}") == {}  # without expl3 syntax these are not words
+    assert read(r"\ExplSyntaxOn \cs_new:Npn \ac_foo:nn #1#2 {} \ExplSyntaxOff") == {"ac_foo:nn": "[2]"}

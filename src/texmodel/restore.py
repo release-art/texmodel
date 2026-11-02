@@ -233,7 +233,7 @@ def _removals(
 
 def restore(pkg: "Package", document: Document, edits: Sequence[Edit]) -> Restored:
     """The data `edits` restore into `document`, the one `pkg` last wrote; `edits` are `pkg.plan(document).edits(text)`
-    or `texmodel.run.hand_edits.read_edits`'. Every edit comes back once, applied or unapplied, in the order given.
+    or `texmodel.hand_edits.read_edits`'. Every edit comes back once, applied or unapplied, in the order given.
     A changed argument restores as its field's new value; a node's every line removed, or commented out as itself,
     restores as the node removed from its parent. Edits of another document's plan are refused (`TM-X034`)."""
     base = pkg.plan(document)

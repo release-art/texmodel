@@ -14,7 +14,7 @@ hand edits) runs it inside an event loop and must be able to cancel it.
 
 ```
 texmodel/          the core, imports unchanged, never starts a process
-texmodel/run/      what was texmodel_build: compiler, targets, testkit, verify, hand_edits, diagnostics, …
+texmodel/run/      what was texmodel_build: compiler, targets, testkit, verify, diagnostics, …
 texmodel/cli.py    one `texmodel` command: the core's commands, and `texmodel run compile|build|clean|verify|doctor`
 ```
 
@@ -36,7 +36,6 @@ What starts a process is `async def`; what reads text stays a plain function.
 | `Compiler.compile`, `clean`, `versions`, `check_ready`, `missing_files`, `image_info` | `diagnostics`, `logparse`, `fonts.embedded` / `outside` |
 | `targets.build_targets` | `CompileResult`, `BuildSummary`, `Versions` |
 | `testkit.run_probes`, `check_library`, `check_verifier_contract` | `verify.exemption`, `expand_targets`, `registered` |
-| `hand_edits.read_edits` | `engines`, `config` |
 | `verify.verify_file`, `verify_files`, `Verifier.verify` | `Verifier.unavailable` |
 
 - `_internal/spawn.py` uses `asyncio.create_subprocess_exec` (argv only, as now); the timeout is `asyncio.timeout`. On a

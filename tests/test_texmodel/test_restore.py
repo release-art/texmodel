@@ -14,16 +14,15 @@ from hypothesis import (
     settings,
     strategies as st,
 )
-from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 
 import texmodel
 from texmodel.components import Command, Passthrough
 from texmodel.document import Document
 from texmodel.errors import DeclarationError, Violation
+from texmodel.hand_edits import read_edits
 from texmodel.package import Package
 from texmodel.plan import Edit, EditKind, FieldEdit, data_path
 from texmodel.restore import Reason, restore
-from texmodel.run.hand_edits import read_edits
 from texmodel.spec import to_dict
 from texmodel.types import CMYK, Raw, Text, escape
 
@@ -283,11 +282,8 @@ def test_the_restored_data_writes_every_edit_it_holds(reworded, dropped):
     assert model.pkg.plan(found.document).text == written
 
 
-@pytest.mark.tex
-@pytest.mark.timeout(300)
-async def test_edits_read_by_tex_restore_as_the_lines_do(compiler):  # noqa: F811
+def test_edits_read_from_the_calls_restore_as_the_lines_do():
     edited = TEXT.replace(FOX_FACT, FOX_FACT.replace("dark", "night")).replace(FOX_WHERE, f"% {FOX_WHERE.lstrip()}")
-    files = {"res/card-deck.sty": (convert.HERE / "res" / "card-deck.sty").read_text(encoding="utf-8")}
-    by_tex = restore(model.pkg, DECK, await read_edits(compiler, PLAN, edited, model.pkg, files=files))
+    by_calls = restore(model.pkg, DECK, read_edits(PLAN, edited, model.pkg))
     by_lines = restored(edited)
-    assert by_tex.document == by_lines.document != DECK and len(by_tex.applied) == 2 and by_tex.unapplied == ()
+    assert by_calls.document == by_lines.document != DECK and len(by_calls.applied) == 2 and by_calls.unapplied == ()

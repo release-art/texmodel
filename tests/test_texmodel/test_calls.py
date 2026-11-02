@@ -1,15 +1,11 @@
 """The calls a document writes, read from its tokens (`_internal.calls`), and the edits read from them without TeX."""
 
-import typing
-
 from texmodel._internal.calls import ParsedCall, Unreadable, parse_calls
 from texmodel.body import RefKind
-from texmodel.components import Command, Environment, Passthrough, control_name
+from texmodel.components import Command, Environment, control_name
 from texmodel.interface import ANGLE, PAREN, Star, arg
 from texmodel.package import Package
-from texmodel.plan import EditKind
-from texmodel.run.hand_edits import read_written_edits
-from texmodel.testing import Call, expand
+from texmodel.testing import Call
 from texmodel.types import Length, Text
 
 pkg = Package("wr", prefix="wr")
@@ -139,42 +135,3 @@ def test_what_cannot_be_read_is_reported_with_where():
         "text is missing",
     ]
     assert calls("\\wrPara\\wrNote{n}")[0].args == ("\\wrNote ",)  # TeX takes the next token as the argument
-
-
-NODES = (Box(Para(text="a"), title="T"), Note(text="n", label="L"), Para(text="z"))
-PLAN = pkg.plan(*NODES)
-BASE = [c for n in NODES for c in expand(n, [Para, Note, Angle, Stars, Box]) if isinstance(c, Call)]
-
-
-def edits(text: str) -> list[tuple[str, EditKind]]:
-    return [(e.path, e.kind) for e in read_written_edits(PLAN, text, pkg)]
-
-
-def test_the_plan_reads_as_the_calls_the_stub_tier_expects_of_it():
-    assert [p.call for p in read(PLAN.text) if isinstance(p, ParsedCall)] == BASE
-
-
-def test_written_edits_name_the_field_and_the_typed_value_without_a_compile():
-    (edit,) = read_written_edits(PLAN, PLAN.text.replace(r"\wrNote[L]{n}", r"\wrNote[LL]{n}"), pkg)
-    assert (edit.path, edit.kind) == ("Note[1]", EditKind.CHANGED)
-    assert [(f.arg, f.found, f.value) for f in edit.fields] == [("label", "LL", "LL")]
-
-
-def test_written_edits_see_comments_removals_and_calls_tex_will_not_run():
-    z = r"\wrPara{z}"
-    assert edits(PLAN.text.replace(z, z + " % why")) == [("Para[2]", EditKind.UNREAD)]
-    assert edits(PLAN.text.replace(z + "\n", "")) == [("Para[2]", EditKind.REMOVED)]
-    assert edits(PLAN.text.replace(z + "\n", "% " + z + "\n")) == [("Para[2]", EditKind.REMOVED)]
-    assert edits(PLAN.text.replace(z + "\n", z + "\n" + z + "\n")) == [("Para[2]", EditKind.ADDED)]
-    assert edits(PLAN.text.replace(z + "\n", "\\iffalse\n" + z + "\n\\fi\n")).count(("Para[2]", EditKind.REMOVED)) == 1
-
-
-def test_a_package_of_no_components_has_nothing_to_read():
-    import pytest
-
-    from texmodel.errors import TexmodelError
-
-    with pytest.raises(TexmodelError) as raised:
-        read_written_edits(PLAN, PLAN.text)
-    assert raised.value.code == "TM-X033"
-    assert typing.cast("object", Passthrough)  # the grammar of Box allows only Para

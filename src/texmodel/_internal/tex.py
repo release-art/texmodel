@@ -168,6 +168,73 @@ def tokenize(text: str, *, at_letter: bool = True, expl3: bool = False) -> list[
     return _Lexer(text, at_letter, expl3).run()
 
 
+def detokenize(toks: Sequence[Token]) -> str:
+    """The tokens of a macro argument as `\\detokenize` shows them: a space after a control word, which swallows the
+    spaces after it (so does a paragraph), a run of spaces one, a blank line `\\par`, a `#` doubled, a comment gone."""
+    out: list[str] = []
+    skipping = False
+    for t in toks:
+        if t.kind is Kind.COMMENT:
+            continue
+        if t.kind is Kind.SPACE:
+            if not skipping:
+                out.append(" ")
+            skipping = True
+            continue
+        out.append({Kind.PAR: "\\par ", Kind.PARAM: "##", Kind.WORD: f"{t.text} "}.get(t.kind, t.text))
+        skipping = t.kind in {Kind.PAR, Kind.WORD} or t.text == "\\ "
+    return "".join(out)
+
+
+def call_text(text: str, name: str) -> tuple[str | None, str] | None:
+    """`\\name[optional]{required}` and nothing else: the text of the optional argument (None when left out) and of
+    the required one; None for any other text."""
+    toks = [t for t in tokenize(text) if t.kind not in _BLANK]
+    if not toks or toks[0].kind is not Kind.WORD or toks[0].name != name:
+        return None
+    after = _after_brackets(toks, 1)
+    optional = text[toks[1].end : toks[after - 1].start] if after > 1 else None
+    named = _group(toks, after)
+    if named is None or named[1] != len(toks):
+        return None
+    inner = named[0]
+    return optional, text[inner[0].start : inner[-1].end] if inner else ""
+
+
+def control_words(text: str) -> list[str]:
+    """The names of the control words in `text` that run, in order: not in a comment or a verbatim, nor written out
+    with `\\string` or `\\noexpand`."""
+    out: list[str] = []
+    before: Token | None = None
+    for t in tokenize(text):
+        if t.kind is Kind.WORD and not (before and before.kind is Kind.WORD and before.name in _LITERAL):
+            out.append(t.name)
+        if t.kind not in _BLANK:
+            before = t
+    return out
+
+
+def count_outside_groups(text: str, c: str) -> int:
+    """How many times the character `c` stands in `text` outside every `{...}`."""
+    depth = count = 0
+    for t in tokenize(text):
+        depth += t.kind is Kind.OPEN
+        depth -= t.kind is Kind.CLOSE
+        count += depth == 0 and t.kind is Kind.CHAR and t.text == c
+    return count
+
+
+def is_balanced(text: str) -> bool:
+    """Every `{` closes and no `}` comes first; an escaped brace, a comment and a verbatim hold none."""
+    depth = 0
+    for t in tokenize(text):
+        depth += t.kind is Kind.OPEN
+        depth -= t.kind is Kind.CLOSE
+        if depth < 0:
+            return False
+    return depth == 0
+
+
 # --- declarations ---------------------------------------------------------------------------------------------
 
 
@@ -182,6 +249,7 @@ class Form(enum.Enum):
     FUNCTION = "function"  # expl3's `\cs_new:Npn`, `\cs_new:Nn`: `[n]` from the argument specification in the name
     COLOUR = "colour"
     COUNTER = "counter"
+    LOAD = "load"  # `\\RequirePackage[opts]{a,b}` and kin: the name is the names as written, the signature the command
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -203,6 +271,9 @@ _REGISTERS = frozenset({"newlength", "newsavebox", "newfontfamily"})
 _COLOURS = frozenset({"definecolor", "colorlet", "providecolor"})
 _FUNCTIONS = frozenset(
     f"cs_new{p}:{a}" for p in ("", "_protected", "_nopar", "_protected_nopar") for a in ("Npn", "Nn")
+)
+_LOADERS = frozenset(
+    {"RequirePackage", "RequirePackageWithOptions", "usepackage", "LoadClass", "LoadClassWithOptions", "tcbuselibrary"}
 )
 _LITERAL = frozenset({"string", "noexpand"})  # `\string\newcommand` writes the word out and defines nothing
 _CONDITIONALS = frozenset(
@@ -243,6 +314,19 @@ def _plain(text: str, toks: Sequence[Token], i: int) -> tuple[str, int] | None:
     return (name, found[1]) if name else None
 
 
+def _after_brackets(toks: Sequence[Token], i: int) -> int:
+    """The index after the `[...]` at `i` (its `]` outside braces), or `i` if there is none or it never closes."""
+    if not _char(toks, i, "["):
+        return i
+    depth = 0
+    for j in range(i + 1, len(toks)):
+        depth += toks[j].kind is Kind.OPEN
+        depth -= toks[j].kind is Kind.CLOSE
+        if depth == 0 and _char(toks, j, "]"):
+            return j + 1
+    return i
+
+
 def _char(toks: Sequence[Token], i: int, c: str) -> bool:
     return i < len(toks) and toks[i].kind is Kind.CHAR and toks[i].text == c
 
@@ -266,43 +350,53 @@ def _parameter_signature(toks: Sequence[Token], i: int) -> str:
     return "?" if i >= len(toks) else (f"[{n}]" if n else "")
 
 
-def xparse_letters(spec: str) -> str:
-    """`O{}mm` as `omm`; `d()` and `t*` keep their characters; a type texmodel does not model gives `?`."""
+def _skip_group(toks: Sequence[Token], i: int) -> int:
+    """The index after the `{...}` at `i`, or `i` when there is none (a default left out)."""
+    return named[1] if (named := _group(toks, i)) else i
+
+
+def _grouped_type(text: str, toks: Sequence[Token], i: int, c: str) -> tuple[str, int] | None:
+    """The letters and next index of `u{delimiters}`, `e{embellishments}` and `E{embellishments}{defaults}` (one default
+    for each embellishment) whose group starts at `i`; None without the group."""
+    if (named := _group(toks, i)) is None:
+        return None
+    j = named[1]
+    for _ in named[0] if c == "E" else ():
+        j = _skip_group(toks, j)
+    return c.lower() + text[toks[i].start : toks[named[1] - 1].end], j
+
+
+def _xparse_letters(text: str, toks: Sequence[Token]) -> str:
+    """The letters of an xparse argument specification, read from its tokens (no blanks)."""
     out: list[str] = []
     i = 0
-    while i < len(spec):
-        c = spec[i]
+    while i < len(toks):
+        t = toks[i]
         i += 1
-        if c in TEX_SPACE or c == "+":
-            continue
-        if c in "mos":
+        c = t.text if t.kind is Kind.CHAR else ""
+        if c in {"m", "o", "s", "v", "g"}:
             out.append(c)
-        elif c == "O":
-            out.append("o")
-            i = _skip_default(spec, i)
-        elif c in "dDrR" and i + 1 < len(spec):
-            out.append(f"{c.lower()}{spec[i]}{spec[i + 1]}")
-            i += 2
-            if c in "DR":
-                i = _skip_default(spec, i)
-        elif c == "t" and i < len(spec):
-            out.append(f"t{spec[i]}")
+        elif c in {"O", "G"}:
+            out.append(c.lower())
+            i = _skip_group(toks, i)
+        elif c in {"d", "D", "r", "R"} and i + 1 < len(toks):
+            out.append(f"{c.lower()}{toks[i].text}{toks[i + 1].text}")
+            i = _skip_group(toks, i + 2) if c in {"D", "R"} else i + 2
+        elif c == "t" and i < len(toks):
+            out.append(f"t{toks[i].text}")
             i += 1
-        else:
+        elif c in {"u", "e", "E"} and (grouped := _grouped_type(text, toks, i, c)):
+            out.append(grouped[0])
+            i = grouped[1]
+        elif c != "+":
             return "?"
     return "".join(out)
 
 
-def _skip_default(spec: str, i: int) -> int:
-    depth = 0
-    if spec[i : i + 1] != "{":
-        return i
-    for j in range(i, len(spec)):
-        depth += spec[j] == "{"
-        depth -= spec[j] == "}"
-        if depth == 0:
-            return j + 1
-    return i
+def xparse_letters(spec: str) -> str:
+    """`O{}mm` as `omm`; `d()` and `t*` keep their characters, `u{.}` and `e{^_}` their group; a type that is not
+    one of xparse's gives `?`."""
+    return _xparse_letters(spec, [t for t in tokenize(spec) if t.kind not in _BLANK])
 
 
 def _before(toks: Sequence[Token], j: int) -> int:
@@ -344,9 +438,9 @@ def dead_end(toks: Sequence[Token], i: int, flags: frozenset[str]) -> int:
 class _Reader:
     """Walks the tokens that typeset (no space, paragraph or comment) and collects what its definers declare."""
 
-    def __init__(self, text: str) -> None:
+    def __init__(self, text: str, expl3: bool) -> None:
         self.text = text
-        self.toks = [t for t in tokenize(text) if t.kind not in _BLANK]
+        self.toks = [t for t in tokenize(text, expl3=expl3) if t.kind not in _BLANK]
         self.found: list[Declaration] = []
         self.flags: set[str] = set()  # the `\newif` conditionals seen: each ends in `\fi`
         self.i = 0
@@ -385,6 +479,8 @@ class _Reader:
             self.named(t)
         elif word in _FUNCTIONS:
             self.function(t)
+        elif word in _LOADERS:
+            self.load(t)
 
     def command(self, t: Token) -> None:
         toks, word = self.toks, t.name
@@ -406,7 +502,7 @@ class _Reader:
             return
         if spec := _group(toks, named[1]):
             inner = spec[0]
-            letters = xparse_letters(self.text[inner[0].start : inner[-1].end]) if inner else ""
+            letters = _xparse_letters(self.text, inner) if inner else ""
             self.add(Form.XPARSE, named[0], letters, t, spec[1])
         else:
             self.add(Form.XPARSE, named[0], "?", t, named[1])
@@ -429,6 +525,13 @@ class _Reader:
         if named := _plain(self.text, self.toks, self.i):
             self.add(Form.COUNTER if t.name == "newcounter" else Form.COLOUR, named[0], "", t, named[1])
 
+    def load(self, t: Token) -> None:
+        """`\\usepackage[opts]{names}`: the names as written; no group (`\\usepackage\\x`) names nothing."""
+        i = _after_brackets(self.toks, self.i)
+        if (named := _group(self.toks, i)) is not None:
+            inner, end = named
+            self.add(Form.LOAD, self.text[inner[0].start : inner[-1].end] if inner else "", t.name, t, end)
+
     def function(self, t: Token) -> None:
         """expl3's `\\cs_new:Npn \\name:nn`: the argument count is the specification after the colon."""
         if self.i < len(self.toks) and self.toks[self.i].kind is Kind.WORD and ":" in self.toks[self.i].text:
@@ -437,8 +540,9 @@ class _Reader:
             self.add(Form.FUNCTION, name, f"[{n}]" if n else "", t, self.i + 1)
 
 
-def declarations(text: str) -> list[Declaration]:
+def declarations(text: str, *, expl3: bool = False) -> list[Declaration]:
     """What `text` declares, in source order, by the forms in `Form`. A form not listed there is not read, so a name
     defined that way is missing, not guessed at. Text that does not typeset (a comment, a verbatim, an `\\iffalse`) and
-    a definer written out with `\\string` declare nothing."""
-    return _Reader(text).read()
+    a definer written out with `\\string` declare nothing. `expl3` starts the text in expl3 syntax (a library block
+    that texmodel wraps in `\\ExplSyntaxOn`)."""
+    return _Reader(text, expl3).read()

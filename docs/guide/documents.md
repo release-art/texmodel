@@ -264,8 +264,8 @@ assert plan.lines[0].path == "header"
   changed since. `plan.edits(text, ignore_comments=True)` skips lines that are comments on both sides.
 - A changed line says which argument: `edit.fields` is `(FieldEdit("text", "Friendly"),)` when the change is inside one
   argument's text, empty when it is over the command name, a delimiter or several arguments. A baseline saved without
-  `Line.spans` gives no fields. `texmodel.run.hand_edits.read_edits` reads the same edits with TeX, with typed values:
-  [Testing](testing.md#hand-edits-read-by-tex).
+  `Line.spans` gives no fields. `texmodel.hand_edits.read_edits` reads the same edits from the calls, with typed values:
+  [Testing](testing.md#hand-edits-read-from-the-calls).
 - `edit.line` is where the edit is in the file, 1-based (`None` for a removed line), and `edit.file` the file, when
   given: `plan.edits(text, file=path)`. `edit.plan_line` is the plan's line it is about (for an added line, the one it
   follows).

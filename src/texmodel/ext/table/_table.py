@@ -2,13 +2,13 @@
 
 import dataclasses
 import itertools
-import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from decimal import Decimal
 from typing import Any
 
 import pydantic
 
+from ..._internal.tex import count_outside_groups
 from ...components import Passthrough
 from ...errors import DeclarationError, ValidationError
 from ...keyvals import Entry
@@ -62,7 +62,7 @@ def check_cells(layout: type, count: int, rows: Iterable[tuple[str, type]]) -> N
     for where, row in rows:
         tex: list[dict[str, str]] = [vars(k).get("__tm_tex__", {}) for k in row.__mro__]
         text = next((d["body"] for d in tex if "body" in d), "")
-        cells = len(re.findall(r"(?<!\\)&", text)) + 1
+        cells = count_outside_groups(text, "&") + 1
         if text and cells != count:
             raise DeclarationError(
                 f"{where}: {row.__name__} writes {cells} cells, the layout {layout.__name__} has {count} columns",

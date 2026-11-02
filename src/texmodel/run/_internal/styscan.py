@@ -7,11 +7,8 @@ unchecked, never guessed.
 import re
 from collections.abc import Iterable
 
-_COMMENT = re.compile(r"(?<!\\)%.*")
-_LOAD = re.compile(
-    r"\\(?P<cmd>RequirePackage(?:WithOptions)?|usepackage|LoadClass(?:WithOptions)?|tcbuselibrary)"
-    r"\s*(?:\[[^\]]*\])?\s*\{(?P<names>[^}]*)\}"
-)
+from texmodel._internal.tex import Form, declarations
+
 SAFE_NAME = re.compile(r"[A-Za-z0-9._-]+")  # also the only names the toolchain probe will take on a shell line
 
 
@@ -26,12 +23,12 @@ def needed(texts: Iterable[str]) -> tuple[list[str], list[str]]:
     files: dict[str, None] = {}
     unchecked: dict[str, None] = {}
     for text in texts:
-        for m in _LOAD.finditer(_COMMENT.sub("", text)):
-            for name in (n.strip() for n in m["names"].split(",")):
+        for load in (d for d in declarations(text) if d.form is Form.LOAD):
+            for name in (n.strip() for n in load.name.split(",")):
                 if not name:
                     continue
                 if SAFE_NAME.fullmatch(name):
-                    files[_file(m["cmd"], name)] = None
+                    files[_file(load.signature, name)] = None
                 else:
                     unchecked[name] = None
     return list(files), list(unchecked)

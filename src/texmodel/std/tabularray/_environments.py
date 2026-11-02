@@ -1,13 +1,13 @@
 """Table rows and the table environments."""
 
-import re
 from collections.abc import Iterable
 from typing import Any
 
 from texmodel._internal.render import newcommand_fits
+from texmodel._internal.tex import control_words
 from texmodel.components import Anywhere, Command, Environment, Node, Passthrough, control_name
 from texmodel.errors import DeclarationError, Violation
-from texmodel.types import Raw
+from texmodel.types import AsTeX, Raw
 
 from ._commands import (
     Addlinespace,
@@ -76,9 +76,9 @@ def _expanded(table: Environment, path: str) -> list[Violation]:
     """Every row command of a table is in its `expand` (`TM-C027`): otherwise tabularray splits the body at the `&`
     inside the command and fails with a misplaced alignment tab."""
     outer = getattr(table, "outer", None)
-    listed = set(
-        re.findall(r"\\[A-Za-z@]+", " ".join(str(getattr(outer, k, None) or "") for k in ("expand", "expand_plus")))
-    )
+    values = (getattr(outer, k, None) for k in ("expand", "expand_plus"))
+    written = " ".join(v.render() if isinstance(v, AsTeX) else str(v or "") for v in values)
+    listed = {rf"\{word}" for word in control_words(written)}
     return [
         Violation(
             "TM-C027",

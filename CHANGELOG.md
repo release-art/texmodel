@@ -7,14 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+### Removed
 
-- `texmodel.run.hand_edits.read_written_edits(plan, text, *packages)`: `read_edits` without TeX, from the calls the document
-  writes, read from its tokens by each component's signature.
+- `texmodel.run.hand_edits` and its compile: `read_edits(compiler, plan, text, ..., files=)` is gone (see Changed), and so is
+  `TM-X032` (a plan whose lines and calls disagree).
 
 ### Changed
 
+- `read_edits` reads the calls a document writes, from its tokens by each component's signature, and runs no TeX: it is
+  `texmodel.hand_edits.read_edits(plan, text, *packages, file=, stub=)`, synchronous, with no compiler. A call a macro of
+  the document makes is found where the macro is defined; a call that cannot be read is `UNREAD`. The stub compile is a
+  test oracle now (`texmodel.testing.stub_tex` is unchanged).
+- The expl3 libraries of a package are read too (`check_parts`, duplicate names, colours), and `\cs_new:Npn` functions
+  are declarations. xparse's `v`, `g`, `u` and `e` types read as letters, not `?`.
 - `texmodel.testing.detokenized` treats a Unicode letter as part of a control word, shows `#` doubled, and takes only a space,
+  a tab and a line end for spaces (a no-break space is a character), as LuaTeX does.
+- Package-option, library, `Raw` and body checks read tokens, not text: `balanced`, the `\ExplSyntaxOn` check of an expl3
+  block, `TM-M015` (a `\<prefix>Name` in a verbatim or after `\string` is not a use), the `&` count of a table row
+  (`TM-M086`: an `&` inside braces is no cell), `\RequirePackage` and kin, and `\includegraphics` read back from a hand edit.
+ treats a Unicode letter as part of a control word, shows `#` doubled, and takes only a space,
   a tab and a line end for spaces (a no-break space is a character), as LuaTeX does.
 - The adoption scan (`check`, `Package.check_interface`, `declared`) reads tokens, not lines: a comment, `\verb`, a verbatim
   environment, an `\iffalse ... \fi` and a definer written out with `\string` or `\noexpand` declare nothing, and `@` is a

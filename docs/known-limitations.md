@@ -7,7 +7,7 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 - No TeX interpreter (plan N1): TeX texmodel did not write is tokenized, never expanded, and interfaces are declared, not inferred. The adoption scanner
   (`check_interface`, a tokenizer) reads `\newcommand`, `\providecommand`, `\DeclareRobustCommand`, `\def`, `\newenvironment`, the xparse `\NewDocumentCommand` family,
   `\newlength`, `\newsavebox`, `\newfontfamily`, `\newtoggle`, `\newif`, `\definecolor`/`\colorlet` and `\newcounter`; a name
-  defined another way (`\let`, `\csname`, a macro that defines macros) counts as missing, and a library written in expl3 is not read, and an xparse type it does not model (`v`, `u`, `g`, `e`) is reported as
+  defined another way (`\let`, `\csname`, a macro that defines macros) counts as missing, and an xparse type that is not one of xparse's is reported as
   `?` and matches nothing. `^^` notation (`^^41`, `^^M`) is read as the characters written, not as the character it names.
 - Python 3.15 and LuaLaTeX only. Compiling needs the reference image (or a local TeX Live with `latexmk`).
 - Not built here: releases and migrations, which are texpkg's (§13); trust levels and the injection corpus, the
@@ -96,12 +96,11 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 
 - `Edit.fields` is empty when a change is over a delimiter, the command name or several arguments, and for a call over
   several lines. A baseline saved before `Line.spans` gives node-level edits only.
-- `read_written_edits` reads the calls a document writes, not the ones that run: a call inside a definition is found where it is
-  defined, and a component named where its arguments cannot be read (a missing one, a `}` first) is left to the line diff.
-- `read_edits` reads what TeX runs through stubs, so it does not see: an extra argument (`\x{a}{b}`: the group is typeset),
-  an unstubbed line, a body error a value causes (the stubs never run bodies, so a compile that passes is not the document
-  compiling), or a stubbed macro the text redefines (its calls vanish). A missing argument swallows the next call, so one
-  edit reads as two. Those lines come back as `UNREAD` or `ADDED`/`REMOVED` from the line diff, never as clean.
+- `read_edits` reads the calls a document writes, not the ones that run: a call inside a definition (`\newcommand{\x}{\acFact{a}}`)
+  is found where it is defined, not where `\x` is used; a macro that redefines a component's command is not noticed; and a
+  body error a value causes is not seen (nothing compiles). A component named where its arguments cannot be read (a
+  missing one, a `}` first) is `UNREAD`. A missing argument swallows the next token, as in TeX, so one edit may read as two.
+  An extra argument (`\x{a}{b}`) is a group TeX typesets and is not an edit of the call.
 - An omitted optional argument and an empty one (`[]`) are the same call. Spaces in text read back as one. Equal neighbouring
   calls have no identity: a deleted one is named by position. A move across environments reads as the close moved.
 - A key list, a PDF string, a `Raw` subclass and a colour in a `Value` are not read (no value, no violation); a record

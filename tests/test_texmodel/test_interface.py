@@ -494,6 +494,7 @@ XPARSE = r"""
 \DeclareDocumentCommand{\cdParen}{ r() D<>{} t+ }{}
 \NewDocumentEnvironment{cdBox}{o m}{}{}
 \NewDocumentCommand{\cdOdd}{ v }{}
+\NewDocumentCommand{\cdWeird}{ q }{}
 \newcommand{\cdOld}[2][]{}
 % \NewDocumentCommand{\cdGone}{m}{}
 \NewDocumentCommand{\cdOldAgain}{oo}{}
@@ -508,13 +509,16 @@ def test_the_scanner_reads_xparse_definitions_as_letters():
         "cdStar": "som",
         "cdParen": "r()d<>t+",
         "cdBox": "om",
-        "cdOdd": "?",
+        "cdOdd": "v",
+        "cdWeird": "?",
         "cdOld": "[2][]",
         "cdOldAgain": "oo",
         "cdBroken": "?",
     }
     assert xparse_letters("m O{} +m") == "mom"
-    assert xparse_letters("e{^_}") == "?" and xparse_letters("t") == "?"
+    assert xparse_letters("e{^_}") == "e{^_}" and xparse_letters("u{.} g G{x}") == "u{.}gg"
+    assert xparse_letters("E{^_}{ab}m") == "e{^_}m" and xparse_letters("t") == "?" and xparse_letters("q") == "?"
+    assert xparse_letters("u") == "?" and xparse_letters("e m") == "?"  # these types need their group
 
 
 def test_a_declared_xparse_signature_is_checked_against_the_hand_written_one():

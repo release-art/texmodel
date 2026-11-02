@@ -59,25 +59,27 @@ and replaces each stub with a macro that writes `texmodel:probe:callN=bkFact{...
 `await texmodel.run.testkit.run_probes(compiler, tex, files={"base-kit.sty": ...})` compiles it and returns the probes, which
 `Call.parse` reads. Arguments are shown as `\detokenize` shows them (a space after each control word), so both tiers agree.
 
-## Hand edits, read by TeX
+## Hand edits, read from the calls
 
-`Plan.edits(text)` finds a hand edit by line. `await texmodel.run.hand_edits.read_edits(compiler, plan, text, pkg)` asks TeX
-instead: it stubs every command and environment of the packages, compiles the plan's own text and the edited text, and
-compares the calls. `read_written_edits(plan, text, pkg)` gives the same answer without TeX, for a document whose calls are
-written in place: it reads the calls from the tokens by each component's signature (a call a macro of the document makes is
-not seen, and the document need not compile).
+`Plan.edits(text)` finds a hand edit by line. `texmodel.hand_edits.read_edits(plan, text, pkg)` reads the calls of the
+packages' commands and environments in the plan's text and in the edited one, by each component's signature, and compares
+them. No TeX runs, and the edited document need not compile.
 
 ```py
-edits = await read_edits(compiler, plan, hand_edited_text, pkg)
+from texmodel.hand_edits import read_edits
+
+edits = read_edits(plan, hand_edited_text, pkg)
 for e in edits:
     e.path, e.kind                    # "Box[0]/Item[1]", CHANGED
     e.fields[0].arg, e.fields[0].value  # "count", 3: the typed value the argument now holds
     e.fields[0].violation             # TM-C021 when the text is not of the field's type
 ```
 
-An edit TeX reads as the same calls (a comment, spacing, a group around the call, an extra argument, an unstubbed line)
-is `UNREAD`; a call TeX does not run (`\iffalse`, `%`) is `REMOVED`. A document that does not compile raises
-`CompileError`. What it cannot see is in [known limitations](../known-limitations.md#hand-edits).
+An edit that reads as the same calls (a comment, spacing, a group around the call) or whose call cannot be read (a missing
+argument, a `}` first) is `UNREAD`; a call that does not run (`\iffalse`, `%`) is `REMOVED`. It reads what the document
+writes: a call a macro of the document makes is found where the macro is defined, not where it is used. The tests hold the
+reader to the calls real LuaTeX makes through stubs (`texmodel.testing.stub_tex`). What it cannot see is in
+[known limitations](../known-limitations.md#hand-edits).
 
 ## Checking a library block
 

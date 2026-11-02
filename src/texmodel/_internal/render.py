@@ -12,6 +12,7 @@ from ..body import HOLE, Hole, Library, Syntax
 from ..errors import DeclarationError
 from ..interface import BRACE, SQUARE, Body, BodyKind, Delimiter, Gap, SlotGroup
 from ..types import Claim, Colour, Length, Raw, ValueKind, balanced, escape
+from .tex import control_words
 from .values import unprotected, value_ok, value_text
 
 if TYPE_CHECKING:
@@ -20,7 +21,6 @@ if TYPE_CHECKING:
 _HOLE = re.compile(rf"{HOLE.pattern}|#(?P<digit>\d)")
 _BODY_TOKEN = re.compile(r"\\.|##|#(?P<name>[A-Za-z_]\w*)|#(?P<digit>\d)", re.DOTALL)  # `\#` is a character, not a hole
 _CONTROL_WORD = re.compile(r"[A-Z][A-Za-z]*")
-_TOKEN = re.compile(r"%[^\n]*|\\(?P<word>[A-Za-z@]+)|\\.", re.DOTALL)  # comment | control word | control symbol
 
 
 def snake(name: str) -> str:
@@ -354,16 +354,12 @@ def argument_violations(a: Arg, value: object) -> str | None:
     return None if value_ok(a.body, value) else f"expected {a.body.describe()}, got {value!r}"
 
 
-_EXPL_SWITCH = re.compile(r"\\ExplSyntax(?:On|Off)(?![A-Za-z])")
-_COMMENT = re.compile(r"(?<!\\)%.*")
-
-
 def lint_library(lib: Library) -> None:
     """The static checks a library block gets, all of them (§21): balanced braces, and no syntax switch inside an
     expl3 block, which texmodel writes itself. Everything else is the compile's to find."""
     if not balanced(lib.text):
         raise DeclarationError(f"library {lib.name}: unbalanced braces", code="TM-M011", path=lib.name)
-    if lib.syntax is Syntax.EXPL3 and _EXPL_SWITCH.search(_COMMENT.sub("", lib.text)):
+    if lib.syntax is Syntax.EXPL3 and {"ExplSyntaxOn", "ExplSyntaxOff"} & set(control_words(lib.text)):
         raise DeclarationError(
             f"library {lib.name}: \\ExplSyntaxOn / \\ExplSyntaxOff inside an expl3 block",
             code="TM-M034",
@@ -497,8 +493,7 @@ def undeclared(prefix: str, text: str, declared: Mapping[str, str]) -> list[str]
     if not prefix:
         return []
     public = re.compile(rf"{prefix}[A-Z][A-Za-z]*")
-    words = (m["word"] for m in _TOKEN.finditer(text))
-    return [w for w in words if w and public.fullmatch(w) and w not in declared]
+    return [w for w in control_words(text) if public.fullmatch(w) and w not in declared]
 
 
 def check_references(prefix: str, spec: Spec | EnvSpec, text: str, declared: Mapping[str, str]) -> None:

@@ -15,6 +15,7 @@ from fractions import Fraction
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Final, Self
 
+from ._internal.tex import is_balanced
 from .errors import DeclarationError, ValidationError
 
 if TYPE_CHECKING:
@@ -116,23 +117,7 @@ def pdf_escape(text: str) -> str:
 
 def balanced(tex: str) -> bool:
     """Braces balance, ignoring escaped ones and comments: unbalanced TeX would swallow what follows it."""
-    depth = 0
-    i = 0
-    while i < len(tex):
-        c = tex[i]
-        if c == "\\":
-            i += 1  # the escaped character is not a brace
-        elif c == "%":
-            while i < len(tex) and tex[i] != "\n":
-                i += 1
-        elif c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-            if depth < 0:
-                return False
-        i += 1
-    return depth == 0
+    return is_balanced(tex)
 
 
 class AsTeX:

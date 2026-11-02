@@ -8,7 +8,7 @@ import pytest
 import texmodel.run
 
 PUBLIC = {
-    "cli", "compiler", "config", "diagnostics", "engines", "errors", "fonts", "hand_edits", "result", "targets",
+    "cli", "compiler", "config", "diagnostics", "engines", "errors", "fonts", "result", "targets",
     "testkit", "verify",
 }  # fmt: skip
 

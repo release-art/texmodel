@@ -17,7 +17,7 @@ from ..components import Command, Environment
 from ..testing import Call
 from .read import detokenized
 from .render import Arg, default_text, tex_arguments
-from .tex import Kind, Token, dead_end, tokenize
+from .tex import Kind, Token, dead_end, detokenize, tokenize
 
 type Component = type[Command] | type[Environment]
 
@@ -78,22 +78,11 @@ class _Read:
 
     def shown(self, a: int, b: int) -> str:
         """The tokens `a` up to `b` as `\\detokenize` shows an argument: one pair of braces around all of it is the
-        argument's own and goes, a comment is gone, a blank line is `\\par`."""
+        argument's own and goes."""
         toks = self.toks[a:b]
         if toks and toks[0].kind is Kind.OPEN and self.closing(a + 1, None) == b - 1:
             toks = toks[1:-1]
-        text = "".join(
-            " "
-            if t.kind is Kind.SPACE
-            else "\\par "
-            if t.kind is Kind.PAR
-            else t.text + " "
-            if t.kind is Kind.WORD
-            else t.text
-            for t in toks
-            if t.kind is not Kind.COMMENT
-        )
-        return detokenized("x" + text)[1:]  # inside braces a leading space stays, which `detokenized` would drop
+        return detokenize(toks)
 
     def slot(self, a: Arg, i: int) -> tuple[str, tuple[int, int] | None, int] | str:
         """The text of the argument `a` at `i`, where it is, and the index after it; or why it cannot be read."""
