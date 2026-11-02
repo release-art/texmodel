@@ -48,7 +48,7 @@ rules known only to the author; errors that surface as log text far from the cau
 
 ### Non-goals
 
-- N1 Not a TeX interpreter, macro expander or AST of existing TeX. TeX we did not write is *tokenized* (`_internal/tex.py`, §21) to read its declarations, never expanded. We model *interfaces*; TeX we generate may be built from typed
+- N1 Not a TeX interpreter, macro expander or AST of existing TeX. TeX we did not write is *tokenized* (`_internal/tex.py`, §21) to read its declarations and the calls of known components (`_internal/calls.py`), never expanded. We model *interfaces*; TeX we generate may be built from typed
   pieces (bodies built from `Group`, `Seq`, `Cs`, `Lit`, `Hole` and `Ref`), but TeX we did not write is never read back into a tree.
 - N2 No layout solver; whether content fits is *measured* by TeX (C5).
 - N3 Not a replacement for writing LaTeX: bodies are TeX, hand-written TeX can be
@@ -991,7 +991,7 @@ definition), and star forms (`\AddToShipoutPictureBG*`).
 | Environment: fields are keyword arguments, children positional; `children` is the grammar, `.content` the instance's children | decided |
 | `Package.document(...)` renders a `.tex`; values are set by `Value` instances in a `Document`'s `settings`; `texmodel render module:attr` writes a document to a file | decided |
 | A component may name its TeX command with `cs`; a package may have an empty prefix; the kernel is `builtin`; `Package.require` loads a library with options; headers for standard libraries live in `texmodel.std`, one module per package, verified by compiling a call of each | decided |
-| expl3: a syntax mode and verbatim library blocks, verified by compiling; no typed l3 vocabulary, no parser | decided |
+| expl3: a syntax mode and verbatim library blocks, verified by compiling; no typed l3 vocabulary, no parser (the tokenizer reads an expl3 block as expl3) | decided |
 | A library block is verbatim (no `#name` rewriting, no `%`); a component it defines has no body and renders nothing; the arity probe is the `#` count of `\meaning` | decided |
 | `PdfInfo` writes Info strings through `pdfmanagement_add:nnn` and needs `RequireMetadata` (`TM-C009`); a document never contains expl3 syntax | decided |
 | A field cannot be called `type` (data's component name); an unprefixed package needs `cs` everywhere; `Passthrough` TeX is checked for undeclared names | decided |
@@ -1100,7 +1100,7 @@ Each is a candidate, not a decision. `docs/briefs/roadmap.md` orders them.
 16. **Constructive bodies.** A per-piece whitespace policy for a constructive piece (it takes the package's); expl3 bodies.
 17. **Stubbed tests.** Stubs for values and settings, assertions on `Value` state, expl3.
 18. **`Comment`.** Keyed matching of comments (item 6).
-19. **expl3.** Whether a library block may become its own `.sty`; the tokenizer and a call parser over it are built (§21); the stub compile of `read_edits` stays for macros that make calls.
+19. **expl3.** Whether a library block may become its own `.sty`; the tokenizer and a call parser over it are built (§21); `read_edits` does not see a call a macro makes (known limitations).
 20. **Reports from a pipeline.** Business reports (annual and board reports, statements, data sheets) that must be correct,
     reproducible and print-grade, produced by a program rather than drawn in a designer: typed data, a reviewed diff for
     every template change, PDF/X. Pieces, in order: a typed table model that emits `tabularray` (`tblr`, `longtblr`:

@@ -73,7 +73,7 @@ assert pkg.check_parts() == []  # \acFact takes one argument, as declared; nothi
   (`TM-P012`, `TM-C013` in `check`). Name a helper with an `@` (`\ac@helper`) to keep it out of the public namespace.
 - **The scan reads tokens.** It reads `\newcommand`, `\providecommand`, `\DeclareRobustCommand`, `\def`,
   `\newenvironment`, the xparse family, `\newlength` and `\newtoggle`. A name defined any other way (`\let`, `\csname`)
-  counts as missing, and an expl3 part is not read.
+  counts as missing; an expl3 part is read as expl3.
 - **A setting a part defines is a `Value` with `defined_by`.** A flag (`\newif`, with its `\Xtrue` and `\Xfalse`), a
   toggle, a length, a colour (`\definecolor`, `\colorlet`, named with `colour_name`) or a text setting is declared
   once, renders nothing, and is set from a document as any `Value` is. It has no `default`: the part has it. `cs = "..."`

@@ -86,8 +86,9 @@ TEXMODEL_REQUIRE_TEX=1 pdm run pytest -m tex --no-cov   # when output, the scan 
   (`Fact(text="a")`), in code, tests and docs alike; `kw_only=False` on a class is the rare, stated exception.
 - Pydantic is used at the data boundary (`spec`, `KeyVals`, `library(fill=)` models) and is the base of `Command`, `Environment` and `Passthrough`, which are built without validating.
   Lax coercion is fine: pyright catches mismatches at the source.
-- Scanning TeX is regex-level and honest about it (a name defined another way counts as missing); it never silently accepts.
-  Reading hand-written TeX beyond that is parked (plan N1); raise it only if the work needs it.
+- Scanning TeX is token-level (`_internal/tex.py`: a tokenizer with spans, no expansion) and honest about it (a name defined
+  another way counts as missing); it never silently accepts. Read TeX through it, not with a new regex. Reading beyond that
+  (expansion, a call a macro makes) is parked (plan N1); raise it only if the work needs it.
 - Tests: pytest in `tests/`, `hypothesis` where there is a law, `monkeypatch` (no manual `sys.path` edits), temp projects under
   `tmp_path`. Consumer-shaped tests use `tests/consumers/card_deck/` (synthetic data). A test file past ~800 lines becomes a package.
 - Dependencies: `pdm add` (runtime) or `pdm add -dG dev` so `pdm.lock` stays in sync.
