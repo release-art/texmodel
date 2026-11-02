@@ -96,9 +96,11 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 
 - `Edit.fields` is empty when a change is over a delimiter, the command name or several arguments, and for a call over
   several lines. A baseline saved before `Line.spans` gives node-level edits only.
-- `read_edits` reads the calls a document writes, not the ones that run: a call inside a definition (`\newcommand{\x}{\acFact{a}}`)
-  is found where it is defined, not where `\x` is used; a macro that redefines a component's command is not noticed; and a
-  body error a value causes is not seen (nothing compiles). A component named where its arguments cannot be read (a
+- `read_edits` reads the calls a document writes, not the ones that run. A call inside a definition
+  (`\newcommand{\x}{\acFact{a}}`) is one a macro makes: it is `UNREAD` in the edited text and `TM-X035` in the plan, and
+  `\x` is not read as a call (nor is `\let\p\acFact \p{a}`). Not guarded, because they need expansion: a call in a loop
+  (`\loop`, `\@for`) is read once, and in a branch of `\ifnum`, `\ifx` or `\ifdefined` (only `\iffalse` is dead) is read
+  whichever branch runs; `\csname` makes a call that is not seen. A body error a value causes is not seen (nothing compiles). A component named where its arguments cannot be read (a
   missing one, a `}` first) is `UNREAD`. A missing argument swallows the next token, as in TeX, so one edit may read as two.
   An extra argument (`\x{a}{b}`) is a group TeX typesets and is not an edit of the call.
 - An omitted optional argument and an empty one (`[]`) are the same call. Spaces in text read back as one. Equal neighbouring

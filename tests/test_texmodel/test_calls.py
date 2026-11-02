@@ -1,6 +1,6 @@
 """The calls a document writes, read from its tokens (`_internal.calls`), and the edits read from them without TeX."""
 
-from texmodel._internal.calls import ParsedCall, Unreadable, parse_calls
+from texmodel._internal.calls import MADE_BY_MACRO, ParsedCall, Unreadable, parse_calls
 from texmodel.body import RefKind
 from texmodel.components import Command, Environment, control_name
 from texmodel.interface import ANGLE, PAREN, Star, arg
@@ -135,3 +135,39 @@ def test_what_cannot_be_read_is_reported_with_where():
         "text is missing",
     ]
     assert calls("\\wrPara\\wrNote{n}")[0].args == ("\\wrNote ",)  # TeX takes the next token as the argument
+
+
+def test_a_call_inside_a_definition_is_made_by_a_macro_and_is_not_read():
+    text = (
+        r"\newcommand*{\x}[2][d]{\wrPara{#1}}\def\y#1.#2{\wrNote{#1}{#2}}\wrPara{live}"
+        r"\newenvironment{e}[1]{\begin{wrBox}{T}}{\end{wrBox}}"
+        r"\NewDocumentCommand\z{m}{\wrPara{#1}}\NewDocumentEnvironment{f}{}{\wrPara{x}}{\wrPara{y}}\wrPara{after}"
+    )
+    got = [(type(p).__name__, p.name if isinstance(p, Unreadable) else p.call.args[0]) for p in read(text)]
+    assert got == [
+        ("Unreadable", "wrPara"),
+        ("Unreadable", "wrNote"),
+        ("ParsedCall", "live"),
+        ("Unreadable", "wrBox"),
+        ("Unreadable", "wrBox"),
+        ("Unreadable", "wrPara"),
+        ("Unreadable", "wrPara"),
+        ("Unreadable", "wrPara"),
+        ("ParsedCall", "after"),
+    ]
+    assert {p.why for p in read(text) if isinstance(p, Unreadable)} == {MADE_BY_MACRO}
+
+
+def test_a_definition_that_never_closes_holds_the_rest_of_the_text():
+    for text in (
+        r"\newcommand{\x}{\wrPara{a}",
+        r"\def\x#1",
+        r"\newcommand{\x}[1",
+        r"\newcommand",
+        r"\newenvironment{e}{}",
+    ):
+        assert not calls(text + r"\wrPara{b}")
+
+
+def test_a_component_copied_by_let_is_no_call():
+    assert [c.args[0] for c in calls(r"\let\p\wrPara \let\q=\wrPara \let\wrPara\relax \wrPara{b}\let")] == ["b"]

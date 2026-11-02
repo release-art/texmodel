@@ -77,8 +77,8 @@ for e in edits:
 
 An edit that reads as the same calls (a comment, spacing, a group around the call) or whose call cannot be read (a missing
 argument, a `}` first) is `UNREAD`; a call that does not run (`\iffalse`, `%`) is `REMOVED`. It reads what the document
-writes: a call a macro of the document makes is found where the macro is defined, not where it is used. The tests hold the
-reader to the calls real LuaTeX makes through stubs (`texmodel.testing.stub_tex`). What it cannot see is in
+writes: a call inside a definition is one a macro makes, so it is `UNREAD` in the edited text and `TM-X035` in the plan.
+The tests hold the reader to the calls real LuaTeX makes through stubs (`texmodel.testing.stub_tex`). What it cannot see is in
 [known limitations](../known-limitations.md#hand-edits).
 
 ## Checking a library block

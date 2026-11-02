@@ -5,8 +5,9 @@ signature each component declares: a required argument is a group or one token, 
 opening delimiter comes next (spaces before it are skipped, as TeX does), a token slot (`*`) is `\\BooleanTrue` or
 `\\BooleanFalse`. The arguments are shown as `\\detokenize` shows them, so a `Call` equals the stub's.
 
-It reads what is written, not what runs: a call inside a definition (`\\newcommand{\\x}{\\hdPara{a}}`) is found where it
-is defined, not where `\\x` is used, and a call TeX never reaches (`\\iffalse`, a comment, a verbatim) is not found.
+It reads what is written, not what runs. A call inside a definition (`\\newcommand{\\x}{\\hdPara{a}}`) is one a
+macro makes when it runs: it is `Unreadable` (`MADE_BY_MACRO`), and `\\x` is not read as a call. A component copied by
+`\\let` is no call. A call TeX never reaches (`\\iffalse`, a comment, a verbatim) is not found.
 """
 
 import dataclasses
@@ -17,12 +18,20 @@ from ..components import Command, Environment
 from ..testing import Call
 from .read import detokenized
 from .render import Arg, default_text, tex_arguments
-from .tex import Kind, Token, dead_end, detokenize, tokenize
+from .tex import PRIMITIVE_DEFS, XPARSE_COMMANDS, XPARSE_ENVIRONMENTS, Kind, Token, dead_end, detokenize, tokenize
 
 type Component = type[Command] | type[Environment]
 
 _TRUE, _FALSE = r"\BooleanTrue ", r"\BooleanFalse "
 _SKIPPED = frozenset({Kind.SPACE, Kind.COMMENT})
+MADE_BY_MACRO = "a macro makes this call: it is written inside a definition"
+# What follows a definer's name: whether `[n][default]` may, and how many groups (the body, and an environment's end)
+_DEFINERS = (
+    dict.fromkeys(("newcommand", "renewcommand", "providecommand", "DeclareRobustCommand"), (True, 1))
+    | dict.fromkeys(("newenvironment", "renewenvironment"), (True, 2))
+    | dict.fromkeys(XPARSE_COMMANDS, (False, 2))
+    | dict.fromkeys(XPARSE_ENVIRONMENTS, (False, 3))
+)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -54,6 +63,7 @@ class _Read:
         self.i = 0
         self.out: list[ParsedCall | Unreadable] = []
         self.flags: set[str] = set()
+        self.until = 0  # the calls before this token are inside a definition: a macro makes them when it runs
 
     def skip(self, i: int) -> int:
         while i < len(self.toks) and self.toks[i].kind in _SKIPPED:
@@ -110,8 +120,40 @@ class _Read:
             return self.shown(j, end + 1), (t.end, self.toks[end].start), end + 1
         return self.shown(j, j + 1), (t.start, t.end), j + 1
 
+    def group_end(self, i: int) -> int | None:
+        """The index after the `{...}` group at `i` (spaces and comments first), or None."""
+        j = self.skip(i)
+        if j >= len(self.toks) or self.toks[j].kind is not Kind.OPEN:
+            return None
+        end = self.closing(j + 1, None)
+        return None if end is None else end + 1
+
+    def definition_end(self, word: str, i: int) -> int:
+        """The index after the definition a definer `word` ending before `i` makes: its name, parameters and bodies;
+        the end of the text when it never closes."""
+        if word in PRIMITIVE_DEFS:  # `\def\x#1{body}`: the parameter text, up to the first brace
+            j = i
+            while j < len(self.toks) and self.toks[j].kind is not Kind.OPEN:
+                j += 1
+            return self.group_end(j) or len(self.toks)
+        brackets, groups = _DEFINERS[word]
+        j = self.skip(i)
+        j = self.skip(j + 1) if j < len(self.toks) and self.toks[j].text == "*" else j
+        j = self.group_end(j) or j + 1  # the name: `\x` or `{\x}`
+        for _ in range(2 if brackets else 0):
+            j = self.skip(j)
+            if j < len(self.toks) and self.toks[j].kind is Kind.CHAR and self.toks[j].text == "[":
+                end = self.closing(j + 1, "]")
+                j = len(self.toks) if end is None else end + 1
+        for _ in range(groups):
+            j = self.group_end(j) or len(self.toks)
+        return j
+
     def call(self, name: str, kind: RefKind, start: Token, i: int) -> None:
         """The call of `name` whose name ends before `i`: its arguments, unless it is an environment's end."""
+        if self.i <= self.until:
+            self.out.append(Unreadable(name, start.start, MADE_BY_MACRO))
+            return
         shown: list[str] = []
         spans: list[tuple[int, int] | None] = []
         end = start.end if kind is RefKind.CALL else self.toks[i - 1].end
@@ -151,6 +193,12 @@ class _Read:
             match t.name:
                 case "iffalse":
                     self.i = dead_end(self.toks, self.i, frozenset(self.flags))
+                case "let":  # `\let\p\hdPara` copies a component, it does not call it
+                    j = self.skip(self.skip(self.i) + 1)
+                    j = self.skip(j + 1) if j < len(self.toks) and self.toks[j].text == "=" else j
+                    self.i = max(self.i, min(j + 1, len(self.toks)))
+                case word if word in _DEFINERS or word in PRIMITIVE_DEFS:
+                    self.until = max(self.until, self.definition_end(word, self.i))
                 case "newif":
                     j = self.skip(self.i)
                     if j < len(self.toks) and self.toks[j].kind is Kind.WORD:

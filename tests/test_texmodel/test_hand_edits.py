@@ -197,3 +197,16 @@ def test_a_table_is_read_whenever_a_row_is():
 def test_stub_adds_components_of_other_packages():
     (edit,) = read_edits(PLAN, PLAN.text.replace(r"\hdPara{z}", r"\hrEntry{z}{y}"), pkg, stub=[Entry])
     assert edit.kind is EditKind.CHANGED and edit.fields == ()
+
+
+def test_a_plan_with_a_call_inside_a_definition_is_refused():
+    plan = pkg.plan(Passthrough(Raw(r"\newcommand{\x}[1]{\hdPara{#1}}")), Passthrough(Raw(r"\x{one}")))
+    with pytest.raises(TexmodelError) as raised:
+        read_edits(plan, plan.text, pkg)
+    assert raised.value.code == "TM-X035" and "line 5" in str(raised.value)
+
+
+def test_a_call_a_hand_edit_wraps_in_a_macro_is_unread_not_misread():
+    edited = PLAN.text.replace(r"\hdPara{z}", "\\newcommand{\\y}[1]{\\hdPara{#1}}\n\\y{zz}")
+    got = [(e.path, e.kind, e.fields) for e in read(edited)]
+    assert got == [("Para[2]", EditKind.UNREAD, ()), ("Para[2]", EditKind.ADDED, ())]

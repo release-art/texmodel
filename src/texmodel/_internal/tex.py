@@ -262,11 +262,11 @@ class Declaration:
 
 
 _COMMANDS = frozenset({"newcommand", "providecommand", "DeclareRobustCommand"})
-_PRIMITIVE_DEFS = frozenset({"def", "gdef", "edef", "xdef"})
-_XPARSE_COMMANDS = frozenset(
+PRIMITIVE_DEFS = frozenset({"def", "gdef", "edef", "xdef"})
+XPARSE_COMMANDS = frozenset(
     f"{v}{e}DocumentCommand" for v in ("New", "Renew", "Provide", "Declare") for e in ("", "Expandable")
 )
-_XPARSE_ENVIRONMENTS = frozenset(f"{v}DocumentEnvironment" for v in ("New", "Renew", "Provide", "Declare"))
+XPARSE_ENVIRONMENTS = frozenset(f"{v}DocumentEnvironment" for v in ("New", "Renew", "Provide", "Declare"))
 _REGISTERS = frozenset({"newlength", "newsavebox", "newfontfamily"})
 _COLOURS = frozenset({"definecolor", "colorlet", "providecolor"})
 _FUNCTIONS = frozenset(
@@ -467,11 +467,11 @@ class _Reader:
         word = t.name
         if word == "iffalse":
             self.i = dead_end(self.toks, self.i, frozenset(self.flags))
-        elif word in _COMMANDS or word in _PRIMITIVE_DEFS:
+        elif word in _COMMANDS or word in PRIMITIVE_DEFS:
             self.command(t)
         elif word == "newenvironment":
             self.environment(t)
-        elif word in _XPARSE_COMMANDS or word in _XPARSE_ENVIRONMENTS:
+        elif word in XPARSE_COMMANDS or word in XPARSE_ENVIRONMENTS:
             self.xparse(t)
         elif word in _REGISTERS or word in {"newtoggle", "newif"}:
             self.register(t)
@@ -497,7 +497,7 @@ class _Reader:
 
     def xparse(self, t: Token) -> None:
         toks = self.toks
-        named = _control(toks, self.i) if t.name in _XPARSE_COMMANDS else _plain(self.text, toks, self.i)
+        named = _control(toks, self.i) if t.name in XPARSE_COMMANDS else _plain(self.text, toks, self.i)
         if not named:
             return
         if spec := _group(toks, named[1]):

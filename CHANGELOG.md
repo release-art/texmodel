@@ -16,8 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `read_edits` reads the calls a document writes, from its tokens by each component's signature, and runs no TeX: it is
   `texmodel.hand_edits.read_edits(plan, text, *packages, file=, stub=)`, synchronous, with no compiler. A call a macro of
-  the document makes is found where the macro is defined; a call that cannot be read is `UNREAD`. The stub compile is a
-  test oracle now (`texmodel.testing.stub_tex` is unchanged).
+  the document makes is not read: a call written inside a definition (`\newcommand`, `\def`, `\newenvironment`, xparse's
+  definers) is `UNREAD` in the edited text and `TM-X035` in the plan, and a component copied by `\let` is no call; a call
+  that cannot be read is `UNREAD`. The stub compile is a test oracle now (`texmodel.testing.stub_tex` is unchanged).
 - The expl3 libraries of a package are read too (`check_parts`, duplicate names, colours), and `\cs_new:Npn` functions
   are declarations. xparse's `v`, `g`, `u` and `e` types read as letters, not `?`.
 - `texmodel.testing.detokenized` treats a Unicode letter as part of a control word, shows `#` doubled, and takes only a space,

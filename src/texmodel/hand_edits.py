@@ -1,6 +1,6 @@
 """Hand edits read from the calls a document writes: `Plan.edits` sees text, this sees the arguments of the calls of the
 packages' commands and environments (`_internal.calls`, by each component's signature) and the typed value each now
-holds. No TeX runs; a call a macro of the document makes is found where the macro is defined, not where it is used."""
+holds. No TeX runs, so a call a macro makes (one written inside a definition) is not read."""
 
 import dataclasses
 import difflib
@@ -9,7 +9,7 @@ from bisect import bisect_right
 from collections.abc import Mapping, Sequence
 from itertools import accumulate, zip_longest
 
-from ._internal.calls import ParsedCall, Unreadable, parse_calls
+from ._internal.calls import MADE_BY_MACRO, ParsedCall, Unreadable, parse_calls
 from .body import RefKind
 from .components import Command, Environment, control_name
 from .errors import TexmodelError
@@ -147,10 +147,16 @@ def read_edits(
 
     `packages` are the ones the document loads: every command and environment of them is read; `file` is the file `text`
     was read from, which every edit carries. `stub` are components of other packages to read too. `tblr`, `longtblr`
-    and `talltblr` are read whenever a `TableRow` is. The calls are the ones written: a macro of the document that
-    makes a call is found where it is defined (`known-limitations.md`)."""
+    and `talltblr` are read whenever a `TableRow` is. The calls are the ones written: a call inside a definition is one
+    a macro makes, so it is `UNREAD` in `text` and `TM-X035` in the plan (`known-limitations.md`)."""
     classes = _classes(packages, stub)
     made = parse_calls(plan.text, classes)
+    if macro := next((p for p in made if isinstance(p, Unreadable) and p.why == MADE_BY_MACRO), None):
+        raise TexmodelError(
+            f"line {plan.text.count(chr(10), 0, macro.start) + 1} of the plan calls \\{macro.name} inside a definition",
+            code="TM-X035",
+            hint="a macro of the hand-written TeX in the plan makes a call that is not read; write the call in place",
+        )
     base = [p.call for p in made if isinstance(p, ParsedCall)]
     got = list(parse_calls(text, classes))
     probed = _probed(base, got, plan, _lines_of(plan, made), classes)
