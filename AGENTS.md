@@ -46,7 +46,7 @@ pdm run ruff check src tests
 pdm run pyright                 # strict on src, 0 errors
 pdm run lint-imports            # the package contracts (below)
 pdm run pytest                  # coverage over both packages must stay at 100%
-TEXMODEL_REQUIRE_TEX=1 pdm run pytest -m tex --no-cov   # when output, the scan or TeX written by the library changed (needs the reference image: bin/test-image.sh)
+TEXMODEL_REQUIRE_TEX=1 pdm run pytest -m tex --no-cov   # when output, the scan or TeX written by the library changed (needs the `texmodel-test` image: bin/test-image.sh)
 ```
 
 - `bin/autoformat.sh` formats, fixes what ruff can and runs pyright and import-linter; `.githooks/pre-commit` runs the gates
@@ -109,8 +109,8 @@ TEXMODEL_REQUIRE_TEX=1 pdm run pytest -m tex --no-cov   # when output, the scan 
 
 ## Development environment
 
-- `pdm install`; run tools as `pdm run ...` or `.venv/bin/...`. The compile suite needs the reference image
-  (`bin/test-image.sh`, then `TEXMODEL_TEST_IMAGE=texmodel-test`) or a local TeX Live with `latexmk` (LuaLaTeX).
+- `pdm install`; run tools as `pdm run ...` or `.venv/bin/...`. The compile suite runs in the `texmodel-test` image
+  (`bin/test-image.sh` builds it; `TEXMODEL_TEST_IMAGE` names another) or a local TeX Live with `latexmk` (LuaLaTeX).
 - Python is 3.15 only; `.python-version` names it.
 
 ## Known traps
