@@ -10,10 +10,11 @@ from typing import TYPE_CHECKING, Any, cast
 
 from ..body import HOLE, Hole, Library, Syntax
 from ..errors import DeclarationError
-from ..interface import BRACE, SQUARE, Body, BodyKind, Delimiter, Gap, SlotGroup
+from ..interface import BRACE, SQUARE, Delimiter, Gap, SlotGroup
 from ..types import Claim, Colour, Length, Raw, ValueKind, balanced, escape
+from .fieldtypes import FieldType, Style, TokenType
 from .tex import control_words
-from .values import unprotected, value_ok, value_text
+from .values import unprotected
 
 if TYPE_CHECKING:
     from ..package import Package
@@ -30,10 +31,10 @@ def snake(name: str) -> str:
 
 @dataclasses.dataclass(frozen=True)
 class Arg:
-    """One slot of a signature: the field `name`, what it `body` holds and how it is written."""
+    """One slot of a signature: the field `name`, what it holds (`type`) and how it is written."""
 
     name: str
-    body: Body
+    type: FieldType
     optional: bool = False  # may be left out (a field with a default; a token is always optional)
     delimiter: Delimiter = BRACE
     placed: bool = False  # declared with `arg()` (or a token): kept in declaration order, not moved first
@@ -48,8 +49,9 @@ class Arg:
     meta: Mapping[str, object] = dataclasses.field(default_factory=dict[str, object])  # the schema's `x-` keys
 
     @property
-    def token(self) -> bool:
-        return self.body.kind is BodyKind.TOKEN
+    def token(self) -> str | None:
+        """The character of a token flag (`Star`), else None."""
+        return self.type.char if isinstance(self.type, TokenType) else None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -132,11 +134,7 @@ def newcommand_fits(args: tuple[Arg, ...]) -> bool:
 def default_text(a: Arg) -> str:
     """The TeX an unset optional slot reads as in the definition: its default, written as a call writes it, or empty
     (no default, or a key list, list or tuple, which have no single-argument form)."""
-    if (
-        a.optional
-        and a.default is not None
-        and a.body.kind not in (BodyKind.TOKEN, BodyKind.KEYVALS, BodyKind.LIST, BodyKind.TUPLE)
-    ):
+    if a.optional and a.default is not None and a.type.defaultable:
         return argument_text(a, a.default)
     return ""
 
@@ -146,7 +144,7 @@ def xparse_letter(a: Arg, *, defaults: bool) -> str:
     braces, empty unless the field has a `Text` / `Raw` one), as `\\newcommand`'s `[]`; without, the letters alone
     (`o`, `d()`), which is how signatures are compared."""
     if a.token:
-        return "s" if a.body.token == "*" else f"t{a.body.token}"
+        return "s" if a.token == "*" else f"t{a.token}"
     d = a.delimiter
     if not a.optional:
         return "m" if d == BRACE else f"r{d.open}{d.close}"
@@ -281,7 +279,7 @@ def argument_text(arg: Arg, value: object, syntax: Syntax = Syntax.LATEX2E) -> s
     expl3 a space of text is `~`."""
     if isinstance(value, Hole):
         return f"#{value.name}"
-    return value_text(arg.body, value, syntax, booleans=arg.booleans, sep=arg.sep)
+    return arg.type.text(value, Style(syntax, arg.booleans, arg.sep))
 
 
 def wrap(delimiter: Delimiter, text: str, *, key_list: bool = False) -> str:
@@ -297,8 +295,8 @@ def wrap(delimiter: Delimiter, text: str, *, key_list: bool = False) -> str:
 def argument(arg: Arg, value: object, syntax: Syntax = Syntax.LATEX2E) -> str:
     """One call argument in its delimiters; a token is the character itself."""
     if arg.token:
-        return arg.body.token or ""
-    return wrap(arg.delimiter, argument_text(arg, value, syntax), key_list=arg.body.kind is BodyKind.KEYVALS)
+        return arg.token or ""
+    return wrap(arg.delimiter, argument_text(arg, value, syntax), key_list=arg.type.key_list)
 
 
 def written(arg: Arg, value: object) -> bool:
@@ -308,7 +306,7 @@ def written(arg: Arg, value: object) -> bool:
         return value is True
     if value is None:
         return False
-    if arg.optional and arg.body.kind is BodyKind.KEYVALS and not isinstance(value, Hole):
+    if arg.optional and arg.type.key_list and not isinstance(value, Hole):
         return bool(cast("Any", value).render())
     return True
 
@@ -351,7 +349,7 @@ def argument_violations(a: Arg, value: object) -> str | None:
     """Why `value` does not fit the slot, or None."""
     if value is None and a.optional:
         return None
-    return None if value_ok(a.body, value) else f"expected {a.body.describe()}, got {value!r}"
+    return None if a.type.ok(value) else f"expected {a.type.describe()}, got {value!r}"
 
 
 def lint_library(lib: Library) -> None:

@@ -19,8 +19,8 @@ import typing
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
-from ._internal.read import detokenized, read_field
-from ._internal.values import value_ok
+from ._internal.read import read_field
+from ._internal.tex import detokenized
 from .body import Comment
 from .components import Command, Environment, Node
 from .document import Document
@@ -146,7 +146,7 @@ def _update(node: "Command | Environment", edit: Edit) -> Mapping[str, object] |
         read = read_field(a, detokenized(found.found))
         if read.violation is not None:
             return Unapplied(edit, Reason.INVALID_VALUE, read.violation)
-        if read.value is None or not value_ok(a.body, read.value):  # a colour's parts read, but not its model
+        if read.value is None or not a.type.ok(read.value):  # a colour's parts read, but not its model
             return Unapplied(edit, Reason.UNREADABLE)
         update[a.name] = read.value
     return update

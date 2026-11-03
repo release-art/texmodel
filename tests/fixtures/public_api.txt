@@ -164,9 +164,6 @@ texmodel.history.worst(changes: Sequence[Change]) -> Level
 texmodel.interface.ANGLE: Delimiter
 texmodel.interface.ArgOptions(delimiter: Delimiter | None, fill: str | Gap, sep: str | None, group: SlotGroup | None, booleans: tuple[str, str] | None) -> None
 texmodel.interface.BRACE: Delimiter
-texmodel.interface.Body(kind: BodyKind, choice: type[Choice] | None = …, items: tuple['Body', ...] = …, attrs: tuple[str, ...] = …, keyvals: type | None = …, token: str | None = …, expression: type | tuple[type, ...] | None = …) -> None
-texmodel.interface.Body.describe(self) -> str
-texmodel.interface.BodyKind(*values)
 texmodel.interface.ColourName(base: str | type[Any], *, tint: float | None = …, mix: str | type[Any] | None = …) -> ColourName
 texmodel.interface.ColourName.macro(cls, base: str | type[Any]) -> ColourName
 texmodel.interface.ColourName.names: property
@@ -178,13 +175,11 @@ texmodel.interface.ITEM: _Marker
 texmodel.interface.Item: TypeAliasType
 texmodel.interface.OptionalValue: TypeAliasType
 texmodel.interface.PAREN: Delimiter
-texmodel.interface.RAW_BODY: Body
 texmodel.interface.SQUARE: Delimiter
 texmodel.interface.SWITCH: _Marker
 texmodel.interface.SlotGroup(name: str) -> None
 texmodel.interface.Star: _AnnotatedAlias
 texmodel.interface.Switch: _AnnotatedAlias
-texmodel.interface.TEXT_BODY: Body
 texmodel.interface.Token(char: str) -> None
 texmodel.interface.XCOLOR: dict
 texmodel.interface.arg(delimiter: Delimiter | None = …, *, default: Any = …, fill: str | Gap = …, sep: str | None = …, group: SlotGroup | None = …, booleans: tuple[str, str] | None = …, renamed_from: str | None = …, doc: str | None = …, meta: Mapping[str, object] | None = …, kw_only: bool = …) -> Any
@@ -199,7 +194,7 @@ texmodel.keys.XKEYVAL: KeyRules
 texmodel.keyvals.Entry(tex: str) -> None
 texmodel.keyvals.Entry.of(cls, key: str, *groups: KeyVals | Raw) -> Entry
 texmodel.keyvals.ItemKind(*values)
-texmodel.keyvals.KeyItem(name: str, key: str, kind: ItemKind, body: Body | None, repeated: bool = …) -> None
+texmodel.keyvals.KeyItem(name: str, key: str, kind: ItemKind, type: FieldType | None, repeated: bool = …) -> None
 texmodel.keyvals.KeyVals()
 texmodel.keyvals.KeyVals.render(self) -> str
 texmodel.keyvals.key(spelling: str | None = …, *, default: Any = …) -> Any

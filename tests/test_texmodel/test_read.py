@@ -10,8 +10,7 @@ from hypothesis import (
     strategies as st,
 )
 
-from texmodel._internal.read import detokenized
-from texmodel._internal.tex import TEX_SPACE
+from texmodel._internal.tex import TEX_SPACE, detokenized
 from texmodel.body import RefKind
 from texmodel.components import Command
 from texmodel.interface import PAREN, SQUARE, ColourName, Flag, Star, arg

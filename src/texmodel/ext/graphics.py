@@ -18,7 +18,7 @@ from collections.abc import Callable
 from pathlib import PurePosixPath
 from typing import Any, Final, Self
 
-from .._internal.read import read_length, unescaped
+from .._internal.fieldtypes import read_length, unescaped
 from .._internal.tex import call_text
 from ..components import Passthrough
 from ..errors import DeclarationError, ValidationError

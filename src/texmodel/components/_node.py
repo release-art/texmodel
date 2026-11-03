@@ -10,15 +10,15 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, dataclass_transform
 
 import pydantic
 
-from .._internal.bodies import body_of
 from .._internal.emit import NodeKind
 from .._internal.fields import KEYWORD, NOTES, OPTIONS, FieldNotes, field_spec
+from .._internal.fieldtypes import RAW_TYPE, ChoiceType, ColourNameType
+from .._internal.hints import type_of
 from .._internal.pieces import pieces_of, template_text
 from .._internal.render import (
     Arg,
     tex_arguments,
 )
-from .._internal.values import value_ok
 from ..body import (
     Comment,
     Cs,
@@ -36,10 +36,8 @@ from ..body import (
 from ..errors import DeclarationError, Violation
 from ..interface import (
     BRACE,
-    RAW_BODY,
     SQUARE,
     ArgOptions,
-    BodyKind,
     Gap,
     arg,
 )
@@ -210,7 +208,7 @@ class _Node:
         if missing := sorted(f.name for f in cls.__tm_fields__ if _required(f) and f.name not in given):
             raise TypeError(f"{cls.__name__}() missing arguments {missing}")
         for a in cls.__tm_args__:  # a colour value class given for a colour name is that name
-            if a.body.kind is BodyKind.COLOUR_NAME and a.name in given:
+            if isinstance(a.type, ColourNameType) and a.name in given:
                 given[a.name] = colour_named(given[a.name])
         for f in cls.__tm_fields__:
             object.__setattr__(self, f.name, given[f.name] if f.name in given else f.default)
@@ -325,7 +323,7 @@ class Passthrough(_Node, kw_only=False):
 
     __tm_node__ = NodeKind.PASSTHROUGH
     tex: Raw
-    __tm_args__: ClassVar[tuple[Arg, ...]] = (Arg("tex", RAW_BODY, hint=Raw),)
+    __tm_args__: ClassVar[tuple[Arg, ...]] = (Arg("tex", RAW_TYPE, hint=Raw),)
     __tm_doc__: ClassVar[str] = "TeX written as it is."
 
     if TYPE_CHECKING:
@@ -362,8 +360,8 @@ def _ref(cls: type, kind: RefKind, required: tuple[ArgValue, ...], optional: dic
     problems += [f"missing argument {a.name!r}" for a in declared if not a.optional and a.name not in values]
     for a in declared:
         value = values.get(a.name)
-        if value is not None and not (isinstance(value, Hole) or _nested_ok(a, value) or value_ok(a.body, value)):
-            problems.append(f"{a.name!r} must be a Hole or {a.body.describe()}")
+        if value is not None and not (isinstance(value, Hole) or _nested_ok(a, value) or a.type.ok(value)):
+            problems.append(f"{a.name!r} must be a Hole or {a.type.describe()}")
     if problems and kind is not RefKind.CLOSE:
         raise DeclarationError(
             f"{cls.__name__}.{kind.value}(): " + "; ".join(problems),
@@ -375,7 +373,7 @@ def _ref(cls: type, kind: RefKind, required: tuple[ArgValue, ...], optional: dic
 
 def _nested_ok(a: Arg, value: object) -> bool:
     """A `Raw` argument may hold calls (a `Ref`, or a `Seq` of pieces): a conditional's branch is TeX."""
-    return a.body.kind is BodyKind.RAW and a.body.expression is None and isinstance(value, Ref | Seq)
+    return a.type.nests_calls and isinstance(value, Ref | Seq)
 
 
 def _repr(node: Command | Environment | Passthrough) -> str:
@@ -434,8 +432,8 @@ def _arguments(cls: type[Command] | type[Environment]) -> tuple[Arg, ...]:
             continue
         if name == "type":
             raise _reserved_type(cls)
-        body = body_of(hints[name])
-        if body is None:
+        held = type_of(hints[name])
+        if held is None:
             raise DeclarationError(
                 f"{cls.__qualname__}.{name}: unsupported type {hints[name]!r}; "
                 "use Text, PdfString, ColourName, Raw, Length, a colour model, int, bool, a Choice, a KeyVals, "
@@ -443,11 +441,11 @@ def _arguments(cls: type[Command] | type[Environment]) -> tuple[Arg, ...]:
                 code="TM-M004",
                 path=f"{cls.__name__}.{name}",
             )
-        if body.choice is not None:
-            _choice(cls, name, body.choice)
+        if isinstance(held, ChoiceType):
+            _choice(cls, name, held.choice)
         options: ArgOptions | None = f.metadata.get(OPTIONS)
         notes: FieldNotes = f.metadata.get(NOTES, FieldNotes())
-        token = body.kind is BodyKind.TOKEN
+        token = held.is_token
         if token and _required(f):
             raise DeclarationError(
                 f"{cls.__qualname__}.{name}: a token is False unless given",
@@ -460,7 +458,7 @@ def _arguments(cls: type[Command] | type[Environment]) -> tuple[Arg, ...]:
         args.append(
             Arg(
                 name,
-                body,
+                held,
                 optional=optional,
                 delimiter=delimiter,
                 placed=options is not None or token,

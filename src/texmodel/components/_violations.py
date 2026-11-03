@@ -7,6 +7,7 @@ from collections.abc import (
 from typing import TYPE_CHECKING
 
 from .._internal.emit import NodeKind, emit
+from .._internal.fieldtypes import ColourNameType
 from .._internal.render import (
     argument_violations,
     tex_arguments,
@@ -17,7 +18,6 @@ from ..body import (
 )
 from ..errors import DeclarationError, Violation
 from ..interface import (
-    BodyKind,
     ColourName,
     Gap,
 )
@@ -65,7 +65,7 @@ def _colour_violations(node: Command | Environment | Passthrough, path: str) -> 
     out: list[Violation] = []
     for a in type(node).__tm_args__:
         value = getattr(node, a.name)
-        if a.body.kind is not BodyKind.COLOUR_NAME or not isinstance(value, str) or value == "":
+        if not isinstance(a.type, ColourNameType) or not isinstance(value, str) or value == "":
             continue
         where = f"{path}.{a.name}"
         try:

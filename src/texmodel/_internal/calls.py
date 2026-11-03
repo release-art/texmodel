@@ -16,9 +16,18 @@ from collections.abc import Mapping, Sequence
 from ..body import RefKind
 from ..components import Command, Environment
 from ..testing import Call
-from .read import detokenized
 from .render import Arg, default_text, tex_arguments
-from .tex import PRIMITIVE_DEFS, XPARSE_COMMANDS, XPARSE_ENVIRONMENTS, Kind, Token, dead_end, detokenize, tokenize
+from .tex import (
+    PRIMITIVE_DEFS,
+    XPARSE_COMMANDS,
+    XPARSE_ENVIRONMENTS,
+    Kind,
+    Token,
+    dead_end,
+    detokenize,
+    detokenized,
+    tokenize,
+)
 
 type Component = type[Command] | type[Environment]
 
@@ -99,7 +108,7 @@ class _Read:
         j = self.skip(i)
         t = self.toks[j] if j < len(self.toks) else None
         if a.token:
-            if t and t.kind is Kind.CHAR and t.text == a.body.token:
+            if t and t.kind is Kind.CHAR and t.text == a.token:
                 return _TRUE, (t.start, t.end), j + 1
             return _FALSE, None, i
         if a.optional or a.delimiter.open != "{":

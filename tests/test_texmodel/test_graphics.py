@@ -7,7 +7,7 @@ import pytest
 from test_std.test_headers import compile_sample, host_compiler
 from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 
-from texmodel._internal.read import detokenized
+from texmodel._internal.tex import detokenized
 from texmodel.document import Document
 from texmodel.errors import ValidationError
 from texmodel.ext.graphics import Crop, Figure, Picture

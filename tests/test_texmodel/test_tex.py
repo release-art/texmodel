@@ -5,7 +5,6 @@ from hypothesis import (
     strategies as st,
 )
 
-from texmodel._internal.read import detokenized
 from texmodel._internal.tex import (
     Form,
     Kind,
@@ -14,6 +13,7 @@ from texmodel._internal.tex import (
     count_outside_groups,
     declarations,
     detokenize,
+    detokenized,
     is_balanced,
     tokenize,
     xparse_letters,

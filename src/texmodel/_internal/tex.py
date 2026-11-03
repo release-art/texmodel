@@ -186,6 +186,11 @@ def detokenize(toks: Sequence[Token]) -> str:
     return "".join(out)
 
 
+def detokenized(tex: str) -> str:
+    """`tex` as `\\detokenize` shows a macro argument (`detokenize`), leading spaces gone."""
+    return detokenize(tokenize("x" + tex, at_letter=False)[1:]).lstrip(TEX_SPACE)  # "x": the text starts mid-line
+
+
 def call_text(text: str, name: str) -> tuple[str | None, str] | None:
     """`\\name[optional]{required}` and nothing else: the text of the optional argument (None when left out) and of
     the required one; None for any other text."""

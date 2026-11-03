@@ -5,7 +5,7 @@ from pathlib import PurePosixPath
 import pydantic
 import pytest
 
-from texmodel._internal.bodies import body_of
+from texmodel._internal.hints import type_of
 from texmodel.errors import ValidationError
 from texmodel.std.graphicx import IncludeGraphics, IncludeGraphicsOptions
 from texmodel.types import ControlSequence, FilePath, FontName, Length, Macro, Name, NameList, Raw
@@ -52,8 +52,8 @@ def test_a_union_of_raw_subclasses_takes_any_member_and_nothing_else():
     assert Holder.model_validate({"file": r"\figdir{a}"}).file == Macro(r"\figdir{a}")
     with pytest.raises(pydantic.ValidationError):
         Holder.model_validate({"file": "a%.png"})
-    body = body_of(FilePath | Macro)
-    assert body is not None and body.describe() == "FilePath | Macro"
+    held = type_of(FilePath | Macro)
+    assert held is not None and held.describe() == "FilePath | Macro"
 
 
 def test_data_loads_a_typed_field_through_its_check():
@@ -96,3 +96,11 @@ def test_a_control_sequence_is_the_narrowest_macro():
     assert isinstance(ControlSequence(r"\x"), Macro)
     assert IncludeGraphics(path=ControlSequence(r"\jobname")).render() == r"\includegraphics{\jobname}"
     assert not isinstance(Macro(r"\x{y}"), ControlSequence)
+
+
+def test_a_union_of_raws_and_a_raw_subclass_are_not_read_back():
+    for hint in (FilePath | Macro, FilePath):
+        held = type_of(hint)
+        assert held is not None
+        with pytest.raises(NotImplementedError):
+            held.read("a.png")

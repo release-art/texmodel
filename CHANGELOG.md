@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- `Body`, `BodyKind`, `RAW_BODY` and `TEXT_BODY` (`texmodel.interface`): a field's type is a `FieldType` of `texmodel._internal`
+  (see Changed); `KeyItem.body` is `KeyItem.type`.
 - `texmodel.components.Children` (plumbing for the schema; it moved to `texmodel._internal.data`), and the pydantic
   attributes of a node: `model_fields_set`, `model_copy`, `model_dump`, `model_validate`, `model_fields` and
   `model_json_schema` (use `fields_set`, `copy`, `to_dict`, `from_dict`, `json_schema`).
@@ -17,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- What a field holds is one `FieldType` object per kind (`Text`, `Length`, a `Choice`, an `AsTeX` class, a list, a tuple, a
+  union...) that checks, writes and reads a value, in place of a sixteen-valued enum switched on in five places. `Raw`,
+  `KeyVals` and any `AsTeX` class are one type, `Written`. Declarations, output and error codes are unchanged.
 - `Command`, `Environment` and `Passthrough` are frozen dataclasses, no longer pydantic models built through a metaclass.
   Construction, equality, hash, `repr`, `violations()`, `render()`, the schema and `from_dict`/`to_dict` behave as before;
   `node.fields_set` replaces `model_fields_set` and `node.copy(**update)` replaces `model_copy(update=)`. The data of a

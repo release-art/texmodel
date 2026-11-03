@@ -32,7 +32,7 @@ from pydantic_core import core_schema
 
 from ._internal.fields import FieldNotes, field_spec
 from .errors import DeclarationError
-from .types import PROCESS, Choice, Plate, plain_number, plates_of
+from .types import PROCESS, Plate, plain_number, plates_of
 
 
 @dataclasses.dataclass(frozen=True)
@@ -275,65 +275,10 @@ def arg(
     return field_spec(default, notes, ArgOptions(delimiter, fill, sep, group, booleans), keyword=kw_only)
 
 
-@enum.unique
-class BodyKind(enum.Enum):
-    TEXT = "Text"
-    PDF = "PdfString"
-    RAW = "Raw"
-    CHOICE = "Choice"
-    LENGTH = "Length"
-    COLOUR = "Colour"
-    COLOUR_NAME = "ColourName"
-    INT = "int"
-    FLOAT = "float"
-    BOOL = "bool"
-    TUPLE = "tuple"
-    LIST = "list"
-    KEYVALS = "KeyVals"
-    TOKEN = "Token"
-    TEX = "AsTeX"
-    ONE_OF = "union"
-
-
-@dataclasses.dataclass(frozen=True)
-class Body:
-    """What a slot holds, resolved from the field's type."""
-
-    kind: BodyKind
-    choice: type[Choice] | None = None
-    items: tuple["Body", ...] = ()  # TUPLE: one per element; LIST: the one element; ONE_OF: the alternatives
-    attrs: tuple[str, ...] = ()  # TUPLE of a record (NamedTuple, dataclass, model): the attributes in order
-    keyvals: type | None = None
-    token: str | None = None
-    expression: type | tuple[type, ...] | None = (
-        None  # RAW: the `Raw` subclass (or subclasses: a union) it must be; TEX: the type
-    )
-
-    def describe(self) -> str:
-        if self.choice is not None:
-            return f"one of {list(self.choice.__members__)}"
-        if self.keyvals is not None:
-            return self.keyvals.__name__
-        if self.expression is not None:
-            names = self.expression if isinstance(self.expression, tuple) else (self.expression,)
-            return " | ".join(t.__name__ for t in names)
-        if self.kind is BodyKind.ONE_OF:
-            return " | ".join(i.describe() for i in self.items)
-        if self.kind in (BodyKind.TUPLE, BodyKind.LIST):
-            return f"{self.kind.value} of ({', '.join(i.describe() for i in self.items)})"
-        return self.kind.value
-
-
-RAW_BODY: Final = Body(BodyKind.RAW)
-TEXT_BODY: Final = Body(BodyKind.TEXT)
-
-
 __all__ = [
     "ANGLE",
     "ArgOptions",
     "BRACE",
-    "Body",
-    "BodyKind",
     "ColourName",
     "XCOLOR",
     "colour_of",
@@ -346,13 +291,11 @@ __all__ = [
     "Item",
     "OptionalValue",
     "PAREN",
-    "RAW_BODY",
     "SQUARE",
     "SWITCH",
     "SlotGroup",
     "Star",
     "Switch",
-    "TEXT_BODY",
     "Token",
     "arg",
 ]
