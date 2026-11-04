@@ -32,7 +32,7 @@ from .._internal.render import (
     require_lines,
     signature,
 )
-from .._internal.scan import scan_colours, scan_counters, scan_declarations
+from .._internal.scan import scan_colours, scan_counters, scan_declarations, scan_redefinitions
 from .._internal.specs import env_spec_of, spec_of, value_spec_of
 from .._internal.tex import count_outside_groups
 from .._internal.values import fill_text
@@ -107,8 +107,17 @@ def _field_data(spec: object) -> tuple[object, object]:
 
 def declared(text: str) -> frozenset[str]:
     """The control sequences `text` declares (`bbName`, no backslash), by the forms the adoption scanner reads (see
-    `check_interface`), not by `\\def`, `\\let` or an expl3 definer. A colour or a counter is not one."""
+    `check_interface`): `\\def` and expl3 definers inside `\\ExplSyntaxOn` too, not `\\let` or `\\csname`. A colour or a
+    counter is not one."""
     return frozenset(scan_declarations(text))
+
+
+def redefined(text: str) -> frozenset[str]:
+    """The control sequences and environments `text` redefines (`acName`, no backslash): by `\\renewcommand`,
+    `\\renewenvironment` and xparse's `\\RenewDocumentCommand` family, read as `declared` reads. A `\\def` or `\\let`
+    may define or redefine and is not read. Compare with `declared` of the package: a name it lacks is one that is
+    defined another way or not at all."""
+    return scan_redefinitions(text)
 
 
 class Package:
@@ -750,4 +759,4 @@ class Package:
         return {} if self.adopted else {f"{self.name}.sty": self.render(version=version)}
 
 
-__all__ = ["GENERATOR_VERSION", "Package", "declared", "generator_version", "setting_line"]
+__all__ = ["GENERATOR_VERSION", "Package", "declared", "generator_version", "redefined", "setting_line"]

@@ -12,7 +12,7 @@ argument type that texmodel does not model is reported as `?`, which matches no 
 
 from .tex import Declaration, Form, declarations, xparse_letters
 
-__all__ = ["scan_colours", "scan_counters", "scan_declarations", "xparse_letters"]
+__all__ = ["scan_colours", "scan_counters", "scan_declarations", "scan_redefinitions", "xparse_letters"]
 
 _NAMES = frozenset({Form.COMMAND, Form.ENVIRONMENT, Form.XPARSE, Form.REGISTER, Form.FUNCTION})
 
@@ -29,6 +29,11 @@ def scan_colours(text: str, *, expl3: bool = False) -> frozenset[str]:
 def scan_counters(text: str, *, expl3: bool = False) -> frozenset[str]:
     """The counters `\\newcounter` defines: not control sequences either."""
     return _names(declarations(text, expl3=expl3), Form.COUNTER)
+
+
+def scan_redefinitions(text: str) -> frozenset[str]:
+    """The names `\\renewcommand`, `\\renewenvironment` and xparse's `Renew...` definers change."""
+    return _names(declarations(text), Form.REDEFINED)
 
 
 def scan_declarations(text: str, prefix: str = "", *, expl3: bool = False) -> dict[str, str]:

@@ -220,3 +220,27 @@ def test_the_config_reads_sources(project: pathlib.Path):
 def test_describe_gives_an_adopted_component_no_body():
     pkg, name, *_ = hand()
     assert describe(name).body is None
+
+
+OVERRIDE = r"""
+%% \renewcommand{\acCommented}{}
+\renewcommand{\acA}[1]{#1}
+\renewcommand*{\acStar}{}
+\renewenvironment{acEnv}{}{}
+\RenewDocumentCommand\acX{m}{#1}
+\RenewExpandableDocumentCommand{\acY}{}{}
+\RenewDocumentEnvironment{acXEnv}{}{}{}
+\newcommand{\acNew}{}
+\def\acDef{}
+\let\acLet\relax
+\string\renewcommand\string\acString{}
+\iffalse \renewcommand{\acDead}{} \fi
+"""
+
+
+def test_a_renewal_is_redefined_and_never_declared():
+    from texmodel.package import declared, redefined
+
+    assert redefined(OVERRIDE) == {"acA", "acStar", "acEnv", "acX", "acY", "acXEnv"}
+    assert redefined(r"\newcommand\acA{}") == frozenset()
+    assert declared(OVERRIDE) == {"acNew", "acDef"}

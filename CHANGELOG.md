@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `texmodel.package.redefined(text)`: the names `\renewcommand`, `\renewenvironment` and `\RenewDocumentCommand` (and its
+  family) change; `declared` reads what a text introduces, `redefined` what it changes.
 - `texmodel.std.microtype`: the rest of microtype's commands, typed: the settings (`SetExpansion`, `SetTracking`,
   `SetExtraKerning`, `SetExtraSpacing`, `DisableLigatures`), the set commands (`DeclareMicrotypeSet`, `UseMicrotypeSet`,
   `DeclareMicrotypeSetDefault`, `DeclareMicrotypeAlias`, `DeclareMicrotypeVariants`), the context commands, protrusion by
@@ -27,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `texmodel.package.declared` no longer returns a name that only `\RenewDocumentCommand`, `\RenewExpandableDocumentCommand` or
+  `\RenewDocumentEnvironment` renews: a renewal declares nothing (it is `redefined`), as `\renewcommand` never did. Its
+  docstring now says it reads `\def` and expl3 definers.
 - `texmodel.std.microtype`: `MicrotypeSetup.options` is a `MicrotypeOptions` or `DocumentOptions`, and `SetProtrusion`
   takes `options: ProtrusionOptions`, `fonts: FontSet` and `values: list[Sides]` in place of `Raw` `options`, `set` and
   `list`.

@@ -10,7 +10,7 @@ documents are still checked and escaped, and `texmodel check` compares each decl
 
 ```python
 from texmodel.components import Command, Value
-from texmodel.package import Package, declared
+from texmodel.package import Package, declared, redefined
 from texmodel.types import Text
 
 pkg = Package("card-deck", prefix="cd", adopted=True)     # the package name is the hand-written one
@@ -53,6 +53,14 @@ is not one.
 
 ```python
 assert declared(r"\newcommand{\cdA}[1]{} \newif\ifcdB \def\cdC{}") == {"cdA", "ifcdB", "cdBtrue", "cdBfalse", "cdC"}
+```
+
+`redefined(text)` is the set a text changes: `\renewcommand`, `\renewenvironment` and the xparse `\RenewDocumentCommand` family.
+A renewal declares nothing, so a name is in one set or the other (`\def` and `\let` may define or redefine, so `redefined` does not read them). A tool that reads a per-document override file compares it
+with `declared` of the package; a name `declared` lacks is defined another way or not at all, and TeX refuses the renewal.
+
+```python
+assert redefined(r"\renewcommand{\cdA}[1]{x} \newcommand{\cdD}{}") == {"cdA"}
 ```
 
 A complete example (a hand-written package, the generator it replaces and a three-card deck) is in

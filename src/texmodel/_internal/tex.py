@@ -254,6 +254,9 @@ class Form(enum.Enum):
     FUNCTION = "function"  # expl3's `\cs_new:Npn`, `\cs_new:Nn`: `[n]` from the argument specification in the name
     COLOUR = "colour"
     COUNTER = "counter"
+    REDEFINED = (
+        "redefined"  # `\renewcommand`, `\renewenvironment`, `\RenewDocumentCommand` and kin: a name, no signature
+    )
     LOAD = "load"  # `\\RequirePackage[opts]{a,b}` and kin: the name is the names as written, the signature the command
 
 
@@ -272,6 +275,8 @@ XPARSE_COMMANDS = frozenset(
     f"{v}{e}DocumentCommand" for v in ("New", "Renew", "Provide", "Declare") for e in ("", "Expandable")
 )
 XPARSE_ENVIRONMENTS = frozenset(f"{v}DocumentEnvironment" for v in ("New", "Renew", "Provide", "Declare"))
+_RENEWED_COMMANDS = frozenset({"renewcommand", *(w for w in XPARSE_COMMANDS if w.startswith("Renew"))})
+_RENEWALS = _RENEWED_COMMANDS | {"renewenvironment", "RenewDocumentEnvironment"}
 _REGISTERS = frozenset({"newlength", "newsavebox", "newfontfamily"})
 _COLOURS = frozenset({"definecolor", "colorlet", "providecolor"})
 _FUNCTIONS = frozenset(
@@ -476,6 +481,8 @@ class _Reader:
             self.command(t)
         elif word == "newenvironment":
             self.environment(t)
+        elif word in _RENEWALS:
+            self.renewal(t)
         elif word in XPARSE_COMMANDS or word in XPARSE_ENVIRONMENTS:
             self.xparse(t)
         elif word in _REGISTERS or word in {"newtoggle", "newif"}:
@@ -499,6 +506,13 @@ class _Reader:
         self.i += _char(self.toks, self.i, "*")
         if named := _plain(self.text, self.toks, self.i):
             self.add(Form.ENVIRONMENT, named[0], _count_signature(self.toks, named[1]), t, named[1])
+
+    def renewal(self, t: Token) -> None:
+        """A renewal declares nothing, whatever its definer: the name is the package's."""
+        self.i += _char(self.toks, self.i, "*")
+        named = _control(self.toks, self.i) if t.name in _RENEWED_COMMANDS else _plain(self.text, self.toks, self.i)
+        if named:
+            self.add(Form.REDEFINED, named[0], "", t, named[1])
 
     def xparse(self, t: Token) -> None:
         toks = self.toks

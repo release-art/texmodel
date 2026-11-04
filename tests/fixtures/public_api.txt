@@ -228,6 +228,7 @@ texmodel.package.Package.value_named(self, name: str) -> type[AnyValue] | None
 texmodel.package.Package.visible: property
 texmodel.package.declared(text: str) -> frozenset[str]
 texmodel.package.generator_version() -> str
+texmodel.package.redefined(text: str) -> frozenset[str]
 texmodel.package.setting_line(value: AnyValue) -> str
 texmodel.plan.BEGIN_DOCUMENT: Line
 texmodel.plan.Edit(path: str, expected: str, found: str, kind: EditKind, fields: tuple[FieldEdit, ...] = …, line: int | None = …, file: pathlib.Path | None = …, plan_line: int | None = …) -> None
