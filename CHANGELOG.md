@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `texmodel.hand_edits` no longer imports `texmodel.std`: a component names the components `read_edits` reads with it in
+  `read_with` (`TableRow` lists `Tblr`, `Longtblr` and `Talltblr`). Behaviour is unchanged.
 - What a field holds is one `FieldType` object per kind (`Text`, `Length`, a `Choice`, an `AsTeX` class, a list, a tuple, a
   union...) that checks, writes and reads a value, in place of a sixteen-valued enum switched on in five places. `Raw`,
   `KeyVals` and any `AsTeX` class are one type, `Written`. Declarations, output and error codes are unchanged.

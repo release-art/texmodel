@@ -212,3 +212,6 @@ class TblrTikzAbove(Environment):
 
     cs = "tblrtikzabove"
     children = [Anywhere(Passthrough)]
+
+
+TableRow.read_with = (Tblr, Longtblr, Talltblr)  # the tables that hold a row: after them, as they allow `TableRow`

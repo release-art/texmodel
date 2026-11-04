@@ -15,13 +15,9 @@ from .components import Command, Environment, control_name
 from .errors import TexmodelError
 from .package import Package
 from .plan import BEGIN_DOCUMENT, Edit, EditKind, FieldEdit, Line, Plan
-from .std.tabularray import Longtblr, TableRow, Talltblr, Tblr
 from .testing import Call, Component, read_call
 
 type _Parsed = ParsedCall | Unreadable
-
-# The tables of the package itself: a table's begin line is a call too, so an edit of it names its argument.
-_TABLES = (Tblr, Longtblr, Talltblr)
 
 
 def _key(call: Call | Unreadable) -> tuple[RefKind, str, tuple[str, ...] | None]:
@@ -117,9 +113,8 @@ def _merged(line_edits: list[Edit], probed: _Probed, classes: Mapping[str, Compo
 
 def _classes(packages: tuple[Package, ...], stub: Sequence[Component]) -> dict[str, Component]:
     classes = {control_name(c): c for p in packages for c in p.registered if issubclass(c, Command | Environment)}
-    if any(issubclass(c, TableRow) for c in classes.values()):
-        stub = [*stub, *_TABLES]
-    classes |= {control_name(c): c for c in stub}
+    # a holder's begin line is a call too, so an edit of it names its argument
+    classes |= {control_name(c): c for c in (*stub, *(h for c in classes.values() for h in c.read_with))}
     if not classes:
         raise TexmodelError(
             "no command or environment to read", code="TM-X033", hint="pass the packages the document loads"
@@ -146,9 +141,9 @@ def read_edits(
     text (`\\iffalse`) as `REMOVED`.
 
     `packages` are the ones the document loads: every command and environment of them is read; `file` is the file `text`
-    was read from, which every edit carries. `stub` are components of other packages to read too. `tblr`, `longtblr`
-    and `talltblr` are read whenever a `TableRow` is. The calls are the ones written: a call inside a definition is one
-    a macro makes, so it is `UNREAD` in `text` and `TM-X035` in the plan (`known-limitations.md`)."""
+    was read from, which every edit carries. `stub` are components of other packages to read too, as are the
+    `read_with` of every component read (a `TableRow`'s tables). The calls are the ones written: a call inside a
+    definition is one a macro makes, so it is `UNREAD` in `text` and `TM-X035` in the plan (`known-limitations.md`)."""
     classes = _classes(packages, stub)
     made = parse_calls(plan.text, classes)
     if macro := next((p for p in made if isinstance(p, Unreadable) and p.why == MADE_BY_MACRO), None):

@@ -138,6 +138,7 @@ class _Node:
     syntax: ClassVar[Syntax] = Syntax.LATEX2E  # the names `cs` may have: `Syntax.EXPL3` allows `_` and `:`
     defined_by: ClassVar[Library | None] = None  # the library block that defines it, so it renders no definition
     __tm_package__: ClassVar[object]  # the `Package` it was registered with
+    read_with: ClassVar[tuple[type, ...]] = ()  # components `read_edits` reads whenever it reads this one (its holders)
     meta: ClassVar[
         Mapping[str, object]
     ] = {}  # the schema's `x-` keys on this component (`meta = {"audience": "deck"}`)
