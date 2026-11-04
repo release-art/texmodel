@@ -1,5 +1,4 @@
-"""What a slot's value is and how it is written: checking a value against its `Body`
-and turning it into TeX."""
+"""Writing values as TeX: what a hole is filled with, and where a delimiter would be read in written text."""
 
 import dataclasses
 import re
@@ -7,15 +6,12 @@ from collections.abc import (
     Mapping,
     Set as AbstractSet,
 )
-from typing import Any, cast
+from typing import cast
 
 from ..body import Syntax
 from ..errors import DeclarationError
-from ..interface import Body, BodyKind
-from ..types import CMYK, RGB, Gray, Length, Raw, pdf_escape, plain_number, plates_of
+from ..types import CMYK, RGB, Gray, Length, Raw, plain_number, plates_of
 from .inline import text_of
-
-_COLOUR_NAME = re.compile(r"[A-Za-z\\][A-Za-z0-9!.+@\\-]*")
 
 
 def plates_outside(allowed: AbstractSet[str] | None, colour: object) -> str | None:
@@ -40,94 +36,6 @@ def unprotected(text: str, chars: str) -> bool:
             return True
         i += 1
     return False
-
-
-def elements(body: Body, value: Any) -> list[Any]:  # noqa: ANN401
-    """The parts of a tuple value, in order: a plain tuple's items, or a record's attributes."""
-    return [getattr(value, a) for a in body.attrs] if body.attrs else list(value)
-
-
-def value_ok(body: Body, value: Any) -> bool:  # noqa: ANN401, C901
-    """Whether `value` is what the slot holds."""
-    match body.kind:
-        case BodyKind.TEXT | BodyKind.PDF:
-            return isinstance(value, str)
-        case BodyKind.COLOUR_NAME:
-            return isinstance(value, str) and bool(_COLOUR_NAME.fullmatch(value))
-        case BodyKind.RAW:
-            return isinstance(value, body.expression or Raw)
-        case BodyKind.CHOICE:
-            return body.choice is not None and isinstance(value, body.choice)
-        case BodyKind.LENGTH:
-            return isinstance(value, Length)
-        case BodyKind.COLOUR:
-            return isinstance(value, CMYK | RGB | Gray)
-        case BodyKind.INT:
-            return type(value) is int
-        case BodyKind.FLOAT:
-            return isinstance(value, int | float) and not isinstance(value, bool)
-        case BodyKind.BOOL | BodyKind.TOKEN:
-            return isinstance(value, bool)
-        case BodyKind.KEYVALS:
-            return body.keyvals is not None and isinstance(value, body.keyvals)
-        case BodyKind.TEX:
-            return isinstance(value, cast("type", body.expression))
-        case BodyKind.ONE_OF:
-            return any(value_ok(b, value) for b in body.items)
-        case BodyKind.LIST:
-            return isinstance(value, list | tuple) and all(value_ok(body.items[0], v) for v in cast("list[Any]", value))
-        case BodyKind.TUPLE:
-            if body.attrs:
-                return all(hasattr(value, a) for a in body.attrs) and all(
-                    value_ok(b, v) for b, v in zip(body.items, elements(body, value), strict=True)
-                )
-            return (
-                isinstance(value, tuple)
-                and len(cast("tuple[Any, ...]", value)) == len(body.items)
-                and all(value_ok(b, v) for b, v in zip(body.items, cast("tuple[Any, ...]", value), strict=True))
-            )
-
-
-def value_text(  # noqa: C901
-    body: Body,
-    value: Any,  # noqa: ANN401
-    syntax: Syntax = Syntax.LATEX2E,
-    *,
-    booleans: tuple[str, str] = ("true", "false"),
-    sep: str = ",",
-) -> str:
-    """The TeX of a value, without its delimiters: `Text` escaped (a space is `~` in expl3), `Raw` as it is."""
-    match body.kind:
-        case BodyKind.TEXT:
-            return text_of(str(value), syntax)
-        case BodyKind.PDF:
-            pdf = f"\\detokenize{{{pdf_escape(str(value))}}}"
-            return pdf.replace(" ", "~") if syntax is Syntax.EXPL3 else pdf
-        case BodyKind.RAW:
-            return value.tex
-        case BodyKind.CHOICE:
-            member = value.value
-            return member.tex if isinstance(member, Raw) else text_of(str(member), syntax)
-        case BodyKind.BOOL:
-            return booleans[0 if value else 1]
-        case BodyKind.TOKEN:
-            return (body.token or "") if value else ""
-        case BodyKind.KEYVALS | BodyKind.TEX:
-            return value.render()
-        case BodyKind.ONE_OF:
-            held = next(b for b in body.items if value_ok(b, value))
-            return value_text(held, value, syntax, booleans=booleans, sep=sep)
-        case BodyKind.LIST:
-            return sep.join(value_text(body.items[0], v, syntax, booleans=booleans, sep=sep) for v in value)
-        case BodyKind.TUPLE:
-            parts = elements(body, value)
-            return sep.join(
-                value_text(b, v, syntax, booleans=booleans, sep=sep) for b, v in zip(body.items, parts, strict=True)
-            )
-        case BodyKind.FLOAT:
-            return plain_number(value)
-        case BodyKind.LENGTH | BodyKind.COLOUR | BodyKind.COLOUR_NAME | BodyKind.INT:
-            return str(value)
 
 
 _MODEL_HOLE = re.compile(r"<<(?P<path>[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)>>")

@@ -1,14 +1,14 @@
 """The compile suite (V3): the real driver, latexmk and LuaTeX in the reference image.
 
 Skipped without Docker and an image that has latexmk; TEXMODEL_REQUIRE_TEX=1 (CI) makes that a failure (V5).
-The image comes from TEXMODEL_TEST_IMAGE, else `[tool.texmodel.run] image`.
+The image is TEXMODEL_TEST_IMAGE, else `texmodel-test` (`bin/test-image.sh` builds it: the reference image plus the TeX
+packages the suite needs).
 """
 
 import os
 import pathlib
 import shutil
 import textwrap
-import tomllib
 
 import pikepdf
 import pytest
@@ -19,15 +19,12 @@ from texmodel.run.compiler import Compiler
 from texmodel.run.errors import ToolchainError
 
 TEX = pathlib.Path(__file__).parent.parent / "fixtures" / "tex"
-ROOT = pathlib.Path(__file__).parents[2]
 
 pytestmark = [pytest.mark.tex, pytest.mark.timeout(300)]
 
 
 def _image() -> str:
-    if image := os.environ.get("TEXMODEL_TEST_IMAGE"):
-        return image
-    return tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["texmodel"]["run"]["image"]
+    return os.environ.get("TEXMODEL_TEST_IMAGE", "texmodel-test")
 
 
 @pytest.fixture(scope="session")
@@ -42,8 +39,8 @@ async def compiler(fonts: pathlib.Path) -> Compiler:
         await comp.check_ready()
     except ToolchainError as exc:
         if os.environ.get("TEXMODEL_REQUIRE_TEX"):
-            pytest.fail(f"reference image unusable: {exc}")
-        pytest.skip(f"no usable reference image: {exc}")
+            pytest.fail(f"reference image unusable: {exc} (bin/test-image.sh builds {_image()})")
+        pytest.skip(f"no usable reference image: {exc} (bin/test-image.sh builds {_image()})")
     return comp
 
 

@@ -15,8 +15,9 @@ one of the classes the environment's package lists in `Package(comments=)`. Ever
 `ExceptionGroup` of `ValidationError`, each with the path `violations()` would give it; the grammar (counts and order,
 M4) is checked by `violations()` on the result, so a document that loads is not yet a valid one.
 
-A node from data knows which fields the data gave (`model_fields_set`), and `to_dict` writes those, so a round trip
-keeps them.
+A node from data knows which fields the data gave (`fields_set`), and `to_dict` writes those, so a round trip
+keeps them. The data of a component is a pydantic model generated from its arguments (`data_model`); the node itself is
+a plain dataclass.
 
 A `Document` is data too, read with the package its names belong to (`from_dict(package, data)`): its `content` is a
 list of nodes, its `options` a list of strings, its `settings` a list of `{"type": "FactGap", "value": "3mm"}` and its
@@ -30,10 +31,11 @@ from typing import Annotated, Any, Literal
 import pydantic
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode
 
+from ._internal.data import Children, data_model, validated
 from ._internal.preamble_data import PreambleData, preamble_data
 from ._internal.values import plates_outside
 from .body import Comment
-from .components import AnyValue, Children, Command, Environment, Node, Value, concrete_kinds
+from .components import AnyValue, Command, Environment, Node, Value, concrete_kinds
 from .document import OPTION, Document
 from .errors import DeclarationError, Violation
 from .package import Package
@@ -137,7 +139,7 @@ def from_dict(target: type[Command] | type[Environment] | Package, data: Mapping
         return _document_from(target, data)
     cls = target
     try:
-        return cls.model_validate(data)
+        return validated(cls, data)
     except pydantic.ValidationError as exc:
         raise ExceptionGroup(
             f"invalid {cls.__name__}",
@@ -157,7 +159,7 @@ def _setting_data(setting: AnyValue) -> dict[str, object]:
 
 
 def to_dict(node: Node | Document) -> dict[str, object]:
-    """The data of `node`, in the shape `from_dict` reads: the fields it was given (`model_fields_set`), as given. A
+    """The data of `node`, in the shape `from_dict` reads: the fields it was given (`fields_set`), as given. A
     `Document` writes what it holds: options, settings and preamble slots when there are any, and its content."""
     if isinstance(node, Document):
         out: dict[str, object] = {"type": "Document"}
@@ -171,7 +173,9 @@ def to_dict(node: Node | Document) -> dict[str, object]:
     out = {"type": type(node).__name__}
     if isinstance(node, Comment):
         return out | {f: getattr(node, f) for f in node.__tm_fields__}
-    out |= node.model_dump(mode="json", exclude_unset=True, exclude={"content"})
+    given = {n: getattr(node, n) for n in node.fields_set if n != "content"}
+    data = data_model(type(node)).model_construct(_fields_set=set(given), **given)
+    out |= data.model_dump(mode="json", exclude_unset=True)
     if isinstance(node, Environment):
         out["content"] = [to_dict(child) for child in node.content]
     return out
@@ -232,7 +236,7 @@ def _package_schema(package: Package) -> dict[str, Any]:
     """One schema for a package: a `$defs` entry per command and environment, and `Value.<Name>` per value."""
     nodes = [c for c in package.visible if issubclass(c, Command | Environment)]
     inputs: list[tuple[str, JsonSchemaMode, Any]] = [
-        (c.__name__, "validation", pydantic.TypeAdapter(c).core_schema) for c in nodes
+        (c.__name__, "validation", pydantic.TypeAdapter(data_model(c)).core_schema) for c in nodes
     ]
     inputs.append(("Document", "validation", pydantic.TypeAdapter(_document_model(package)).core_schema))
     _, defs = GenerateJsonSchema(ref_template="#/$defs/{model}").generate_definitions(inputs)
@@ -259,7 +263,7 @@ def json_schema(target: type[Command] | type[Environment] | Package) -> dict[str
     with a `$defs` entry for every registered component and value; a renamed field has `x-renamed-from`."""
     if isinstance(target, Package):
         return _package_schema(target)
-    schema = target.model_json_schema()
+    schema = data_model(target).model_json_schema()
     _annotate(schema, [target])
     return schema
 

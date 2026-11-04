@@ -70,10 +70,13 @@ def test_a_library_and_a_rendered_component_may_not_define_one_name():
     ]
 
 
-def test_an_expl3_library_is_not_read():
+def test_an_expl3_library_is_read_as_expl3():
     p = Package("p", prefix="ac")
-    fact(p, p.library("hand", r"\cs_new:Npn \acFact:n #1 {#1}", syntax=Syntax.EXPL3))
+    fact(p, p.library("hand", r"\NewDocumentCommand \acFact {m} {#1}", syntax=Syntax.EXPL3))
     assert p.check_parts() == []
+    q = Package("q", prefix="ac")  # a function `\acFact:n` is not the command `\acFact`
+    fact(q, q.library("hand", r"\cs_new:Npn \acFact:n #1 {#1}", syntax=Syntax.EXPL3))
+    assert [v.code for v in q.check_parts()] == ["TM-C010"]
 
 
 def test_check_reports_the_violations_of_a_generated_package(tmp_path, monkeypatch):

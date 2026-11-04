@@ -10,9 +10,9 @@ bin/test.sh                           # pytest, 100% coverage gate
 ```
 
 - The container compile suite is `pytest -m tex`; it skips without an image that has `latexmk`, and `TEXMODEL_REQUIRE_TEX=1` turns
-  that skip into a failure (`TEXMODEL_TEST_IMAGE` sets the image). `bin/test-image.sh` builds `texmodel-test` from
+  that skip into a failure (the image is `texmodel-test`; `TEXMODEL_TEST_IMAGE` names another). `bin/test-image.sh` builds `texmodel-test` from
   `docker/test/Dockerfile`: the published reference image plus the few TeX packages the suite needs that it does not carry yet
-  (`TEXMODEL_TEST_IMAGE=texmodel-test pdm run pytest -m tex`); CI uses it.
+  (`pdm run pytest -m tex`); CI uses it.
 - Generated output is a contract (plan G7). `tests/fixtures/acme_cards/generated/acme-cards.sty` is the golden; if you change
   rendering on purpose, regenerate it and say so in the changelog: an `Output change: <what>.` line at the top of the
   release's section, with the same text in `texmodel.drift.OUTPUT_CHANGES` (a test keeps them in step). Only a minor

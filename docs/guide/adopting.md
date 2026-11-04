@@ -10,7 +10,7 @@ documents are still checked and escaped, and `texmodel check` compares each decl
 
 ```python
 from texmodel.components import Command, Value
-from texmodel.package import Package, declared
+from texmodel.package import Package, declared, redefined
 from texmodel.types import Text
 
 pkg = Package("card-deck", prefix="cd", adopted=True)     # the package name is the hand-written one
@@ -43,16 +43,24 @@ The check runs both ways: a public `<prefix>Name` the sources define that nothin
 length or a flag the package defines is a `Command` with no arguments), or name the helper outside the public namespace,
 with an `@` in it.
 
-The scan is regex-level and honest about it. It reads `\newcommand`, `\providecommand`, `\DeclareRobustCommand`,
-`\newenvironment`, the xparse `\NewDocumentCommand` family, `\newlength`, `\newsavebox`, `\newfontfamily`, `\newtoggle`,
-`\newif` (with `\Xtrue` and `\Xfalse`), `\definecolor`, `\colorlet` and `\newcounter`. A name defined any other way (`\def`,
-`\let`, an expl3 definer) counts as missing. Reading TeX beyond that is not planned ([known limitations](../known-limitations.md)).
+The scan reads tokens, not lines, and is honest about it: a comment, a `\verb`, a verbatim environment and an `\iffalse` declare
+nothing, and `@` is a letter only between `\makeatletter` and `\makeatother`. It reads `\newcommand`, `\providecommand`,
+`\DeclareRobustCommand`, `\def` (and `\gdef`, `\edef`, `\xdef`; a delimited parameter text is `?`), `\newenvironment`, the xparse `\NewDocumentCommand` family, `\newlength`, `\newsavebox`, `\newfontfamily`, `\newtoggle`,
+`\newif` (with `\Xtrue` and `\Xfalse`), `\definecolor`, `\colorlet` and `\newcounter`. A name defined any other way (`\let`, `\csname`) counts as missing. Reading TeX beyond that is not planned ([known limitations](../known-limitations.md)).
 
 `declared(text)` is the set of control sequences those forms declare in a text, without the backslash. A colour or a counter
 is not one.
 
 ```python
-assert declared(r"\newcommand{\cdA}[1]{} \newif\ifcdB \def\cdC{}") == {"cdA", "ifcdB", "cdBtrue", "cdBfalse"}
+assert declared(r"\newcommand{\cdA}[1]{} \newif\ifcdB \def\cdC{}") == {"cdA", "ifcdB", "cdBtrue", "cdBfalse", "cdC"}
+```
+
+`redefined(text)` is the set a text changes: `\renewcommand`, `\renewenvironment` and the xparse `\RenewDocumentCommand` family.
+A renewal declares nothing, so a name is in one set or the other (`\def` and `\let` may define or redefine, so `redefined` does not read them). A tool that reads a per-document override file compares it
+with `declared` of the package; a name `declared` lacks is defined another way or not at all, and TeX refuses the renewal.
+
+```python
+assert redefined(r"\renewcommand{\cdA}[1]{x} \newcommand{\cdD}{}") == {"cdA"}
 ```
 
 A complete example (a hand-written package, the generator it replaces and a three-card deck) is in
@@ -109,7 +117,7 @@ gives the whole control sequence and `colour_name` the colour's name.
 | `TM-C012` | a public `<prefix>Name` the block defines that nothing declares |
 | `TM-C013` | a name defined twice (generation itself refuses it: `TM-P012`) |
 
-An expl3 block is not read; whether TeX really defines a name, with that many arguments, is checked by compiling:
+An expl3 block is read as expl3 (xparse commands and `\cs_new` functions); whether TeX really defines a name, with that many arguments, is checked by compiling:
 `await texmodel.run.testkit.check_library(compiler, pkg)` builds `pkg.test_document(...)` with `export_probes(pkg)`, compiles it, and
 returns `TM-C010` for a name the block does not define and `TM-C011` for another number of arguments (`?` is checked for
 existence only). The arity is the number of `#` in the macro's `\meaning`, so a command defined with `\NewDocumentCommand` or

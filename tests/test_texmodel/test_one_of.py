@@ -5,12 +5,13 @@ import enum
 
 import pytest
 
-from texmodel._internal.bodies import body_of
-from texmodel._internal.read import detokenized
+from texmodel._internal.fieldtypes import KeyList, Written
+from texmodel._internal.hints import type_of
+from texmodel._internal.tex import detokenized
 from texmodel.components import Command
 from texmodel.errors import DeclarationError, ValidationError
 from texmodel.ext.graphics import Picture
-from texmodel.interface import BodyKind, Flag
+from texmodel.interface import Flag
 from texmodel.keys import PGFKEYS
 from texmodel.keyvals import KeyVals
 from texmodel.package import Package
@@ -175,5 +176,6 @@ def test_raw_and_key_lists_are_astex_and_keep_their_own_kinds():
     assert Raw(r"\x").render() == r"\x" and FilePath("a.png").render() == "a.png"
     assert Opts(center=True).render() == "center"
     assert issubclass(Raw, AsTeX) and issubclass(Opts, AsTeX)
-    kinds = [(b.kind if b else None) for b in map(body_of, (FilePath, Opts, Stamp))]
-    assert kinds == [BodyKind.RAW, BodyKind.KEYVALS, BodyKind.TEX]
+    held = [type_of(t) for t in (FilePath, Opts, Stamp)]
+    assert held == [Written((FilePath,)), KeyList((Opts,)), Written((Stamp,))]
+    assert Written((FilePath,)).verbatim and not Written((Stamp,)).verbatim  # a `Raw` stays as written in a key list

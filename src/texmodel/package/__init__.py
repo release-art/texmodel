@@ -14,8 +14,6 @@ import typing
 from collections.abc import Callable, Mapping, Sequence
 from typing import Annotated, Any
 
-from pydantic.fields import FieldInfo
-
 from .._internal.options import Option, OptionKind, choice_kind
 from .._internal.pieces import template_text
 from .._internal.render import (
@@ -34,8 +32,9 @@ from .._internal.render import (
     require_lines,
     signature,
 )
-from .._internal.scan import scan_colours, scan_counters, scan_declarations
+from .._internal.scan import scan_colours, scan_counters, scan_declarations, scan_redefinitions
 from .._internal.specs import env_spec_of, spec_of, value_spec_of
+from .._internal.tex import count_outside_groups
 from .._internal.values import fill_text
 from ..body import Comment, Library, Syntax, TemplateRef, Whitespace
 from ..components import (
@@ -68,12 +67,12 @@ _BAD_OPTION = re.compile(r"[%\\\n]")  # a comment, a control sequence or a line 
 def _package_option(option: str) -> bool:
     """One package option as written in `[...]`: `table`, `margin=10mm`, `colorprofiles={A=a.icc}`. Braces balance, and
     outside braces nothing ends the option list early."""
-    outside = re.sub(r"\{[^{}]*\}", "", option)
     return (
         bool(option.strip())
         and balanced(option)
         and not _BAD_OPTION.search(option)
-        and not re.search(r"[\[\]]", outside)
+        and not count_outside_groups(option, "[")
+        and not count_outside_groups(option, "]")
     )
 
 
@@ -100,15 +99,25 @@ def _concrete(cls: type[Command] | type[Environment]) -> None:
 
 def _field_data(spec: object) -> tuple[object, object]:
     """What makes two field declarations the same: the default and the `field(doc=, meta=)` data."""
-    if isinstance(spec, FieldInfo):
-        return spec.default, tuple(spec.metadata)
+    if isinstance(spec, dataclasses.Field):
+        field = typing.cast("dataclasses.Field[object]", spec)
+        return field.default, tuple(field.metadata.items())
     return spec, ()
 
 
 def declared(text: str) -> frozenset[str]:
     """The control sequences `text` declares (`bbName`, no backslash), by the forms the adoption scanner reads (see
-    `check_interface`), not by `\\def`, `\\let` or an expl3 definer. A colour or a counter is not one."""
+    `check_interface`): `\\def` and expl3 definers inside `\\ExplSyntaxOn` too, not `\\let` or `\\csname`. A colour or a
+    counter is not one."""
     return frozenset(scan_declarations(text))
+
+
+def redefined(text: str) -> frozenset[str]:
+    """The control sequences and environments `text` redefines (`acName`, no backslash): by `\\renewcommand`,
+    `\\renewenvironment` and xparse's `\\RenewDocumentCommand` family, read as `declared` reads. A `\\def` or `\\let`
+    may define or redefine and is not read. Compare with `declared` of the package: a name it lacks is one that is
+    defined another way or not at all."""
+    return scan_redefinitions(text)
 
 
 class Package:
@@ -493,8 +502,9 @@ class Package:
                     named = typing.cast("type[Value[Any]]", cls)
                     found[colour_of(named)] = constraint_of(named)
             for item in p._items:  # noqa: SLF001
-                if isinstance(item, Library) and item.syntax is Syntax.LATEX2E:
-                    found |= dict.fromkeys(scan_colours(item.text) - found.keys(), PROCESS)
+                if isinstance(item, Library):
+                    names = scan_colours(item.text, expl3=item.syntax is Syntax.EXPL3)
+                    found |= dict.fromkeys(names - found.keys(), PROCESS)
         return found
 
     def _lineage(self) -> list["Package"]:
@@ -652,17 +662,19 @@ class Package:
         return bool(self.prefix) and re.fullmatch(rf"{self.prefix}[A-Z][A-Za-z]*", name) is not None
 
     def _parts(self) -> dict[str, "Defs"]:
-        """What each library defines, by library name, in the forms `scan` reads; a library written in expl3 is not
-        read."""
+        """What each library defines, by library name, in the forms `scan` reads."""
         return {
             i.name: Defs(
-                scan_declarations(i.text),
+                scan_declarations(i.text, expl3=i.syntax is Syntax.EXPL3),
                 frozenset(
-                    [*(("colour", n) for n in scan_colours(i.text)), *(("counter", n) for n in scan_counters(i.text))]
+                    [
+                        *(("colour", n) for n in scan_colours(i.text, expl3=i.syntax is Syntax.EXPL3)),
+                        *(("counter", n) for n in scan_counters(i.text, expl3=i.syntax is Syntax.EXPL3)),
+                    ]
                 ),
             )
             for i in self._items
-            if isinstance(i, Library) and i.syntax is Syntax.LATEX2E
+            if isinstance(i, Library)
         }
 
     def _duplicates(self) -> list[str]:
@@ -747,4 +759,4 @@ class Package:
         return {} if self.adopted else {f"{self.name}.sty": self.render(version=version)}
 
 
-__all__ = ["GENERATOR_VERSION", "Package", "declared", "generator_version", "setting_line"]
+__all__ = ["GENERATOR_VERSION", "Package", "declared", "generator_version", "redefined", "setting_line"]

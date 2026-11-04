@@ -19,8 +19,8 @@ import typing
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
-from ._internal.read import detokenized, read_field
-from ._internal.values import value_ok
+from ._internal.read import read_field
+from ._internal.tex import detokenized
 from .body import Comment
 from .components import Command, Environment, Node
 from .document import Document
@@ -141,12 +141,12 @@ def _update(node: "Command | Environment", edit: Edit) -> Mapping[str, object] |
         if found.violation is not None:
             return Unapplied(edit, Reason.INVALID_VALUE, found.violation)
         if a.optional and not a.token and not found.found:  # left out: the field's default
-            update[a.name] = type(node).model_fields[a.name].get_default(call_default_factory=True)
+            update[a.name] = a.default
             continue
         read = read_field(a, detokenized(found.found))
         if read.violation is not None:
             return Unapplied(edit, Reason.INVALID_VALUE, read.violation)
-        if read.value is None or not value_ok(a.body, read.value):  # a colour's parts read, but not its model
+        if read.value is None or not a.type.ok(read.value):  # a colour's parts read, but not its model
             return Unapplied(edit, Reason.UNREADABLE)
         update[a.name] = read.value
     return update
@@ -162,9 +162,9 @@ def _rebuilt(
         if path in changes and changes[path] is None:
             continue
         if update := changes.get(path):
-            node = typing.cast("Environment", node).model_copy(update=dict(update))
+            node = typing.cast("Command | Environment", node).copy(**update)
         if isinstance(node, Environment) and any(p.startswith(path + "/") for p in changes):
-            node = node.model_copy(update={"content": _rebuilt(node.content, path + "/", changes)})
+            node = node.copy(content=_rebuilt(node.content, path + "/", changes))
         out.append(node)
     return tuple(out)
 
@@ -233,7 +233,7 @@ def _removals(
 
 def restore(pkg: "Package", document: Document, edits: Sequence[Edit]) -> Restored:
     """The data `edits` restore into `document`, the one `pkg` last wrote; `edits` are `pkg.plan(document).edits(text)`
-    or `texmodel.run.hand_edits.read_edits`'. Every edit comes back once, applied or unapplied, in the order given.
+    or `texmodel.hand_edits.read_edits`'. Every edit comes back once, applied or unapplied, in the order given.
     A changed argument restores as its field's new value; a node's every line removed, or commented out as itself,
     restores as the node removed from its parent. Edits of another document's plan are refused (`TM-X034`)."""
     base = pkg.plan(document)

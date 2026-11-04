@@ -11,8 +11,8 @@ from hypothesis import (
     strategies as st,
 )
 
-from texmodel._internal.bodies import body_of
-from texmodel._internal.fields import FieldNotes
+from texmodel._internal.fields import NOTES, FieldNotes
+from texmodel._internal.hints import type_of
 from texmodel._internal.render import canonical, newcommand_fits, signature, xparse_spec
 from texmodel._internal.scan import scan_declarations, xparse_letters
 from texmodel.body import Hole
@@ -323,9 +323,9 @@ def test_each_value_type_is_written_and_checked():
     assert {v.path.rsplit(".", 1)[1] for v in bad.violations()} == {
         "length", "n", "flag", "name", "align", "place", "size", "pair", "many", "fixed", "hole", "ratio",
     }  # fmt: skip
-    assert Everything.__tm_args__[0].body.describe() == "Length"
-    assert Everything.__tm_args__[7].body.describe().startswith("tuple of")
-    assert [a.body.kind.value for a in Everything.__tm_args__][:4] == ["Length", "int", "bool", "Colour"]
+    assert Everything.__tm_args__[0].type.describe() == "Length"
+    assert Everything.__tm_args__[7].type.describe().startswith("tuple of")
+    assert [a.type.describe() for a in Everything.__tm_args__][:4] == ["Length", "int", "bool", "Colour"]
 
 
 def test_a_length_expression_is_a_length_in_tex_and_has_no_size():
@@ -353,28 +353,27 @@ def test_a_length_in_data_is_a_string_or_an_expression():
 
 
 def test_the_rest_of_the_value_helpers():
-    from texmodel._internal.values import value_text
     from texmodel.interface import Item, OptionalValue
 
-    token = body_of(Star)
-    assert value_text(token, True) == "*" and value_text(token, False) == ""  # pyright: ignore[reportArgumentType]
-    assert body_of(Item[int]) == body_of(int) == body_of(OptionalValue[int])
-    assert body_of(typing.Annotated[int, "other"]) == body_of(int)
-    assert body_of(list[typing.Annotated[set[int], "x"]]) is None
+    token = type_of(Star)
+    assert token is not None and token.text(True) == "*" and token.text(False) == ""
+    assert type_of(Item[int]) == type_of(int) == type_of(OptionalValue[int])
+    assert type_of(typing.Annotated[int, "other"]) == type_of(int)
+    assert type_of(list[typing.Annotated[set[int], "x"]]) is None
 
     class Odd(typing.NamedTuple):
         a: set[int]
 
-    assert body_of(Odd) is None
-    assert FieldNotes("old") in arg(renamed_from="old").metadata
+    assert type_of(Odd) is None
+    assert arg(renamed_from="old").metadata[NOTES] == FieldNotes("old")
     assert scan_declarations(r"\NewDocumentCommand{\cdOpen}{m", "cd") == {"cdOpen": "?"}
 
 
-def test_body_of_reads_the_field_types_and_refuses_others():
-    assert body_of(Length | None) is not None and body_of(Colour | None) is not None  # pyright: ignore[reportOptionalOperand]
-    assert body_of(int | str) is None and body_of(set[int]) is None and body_of(list[set[int]]) is None
-    assert body_of(tuple[set[int], int]) is None and body_of(tuple[()]) is None
-    assert body_of(tuple[int, ...]) is not None and body_of(bytes) is None
+def test_type_of_reads_the_field_types_and_refuses_others():
+    assert type_of(Length | None) is not None and type_of(Colour | None) is not None  # pyright: ignore[reportOptionalOperand]
+    assert type_of(int | str) is None and type_of(set[int]) is None and type_of(list[set[int]]) is None
+    assert type_of(tuple[set[int], int]) is None and type_of(tuple[()]) is None
+    assert type_of(tuple[int, ...]) is not None and type_of(bytes) is None
 
 
 def test_data_round_trips_through_the_new_types():
@@ -494,6 +493,7 @@ XPARSE = r"""
 \DeclareDocumentCommand{\cdParen}{ r() D<>{} t+ }{}
 \NewDocumentEnvironment{cdBox}{o m}{}{}
 \NewDocumentCommand{\cdOdd}{ v }{}
+\NewDocumentCommand{\cdWeird}{ q }{}
 \newcommand{\cdOld}[2][]{}
 % \NewDocumentCommand{\cdGone}{m}{}
 \NewDocumentCommand{\cdOldAgain}{oo}{}
@@ -508,13 +508,16 @@ def test_the_scanner_reads_xparse_definitions_as_letters():
         "cdStar": "som",
         "cdParen": "r()d<>t+",
         "cdBox": "om",
-        "cdOdd": "?",
+        "cdOdd": "v",
+        "cdWeird": "?",
         "cdOld": "[2][]",
         "cdOldAgain": "oo",
         "cdBroken": "?",
     }
     assert xparse_letters("m O{} +m") == "mom"
-    assert xparse_letters("e{^_}") == "?" and xparse_letters("t") == "?"
+    assert xparse_letters("e{^_}") == "e{^_}" and xparse_letters("u{.} g G{x}") == "u{.}gg"
+    assert xparse_letters("E{^_}{ab}m") == "e{^_}m" and xparse_letters("t") == "?" and xparse_letters("q") == "?"
+    assert xparse_letters("u") == "?" and xparse_letters("e m") == "?"  # these types need their group
 
 
 def test_a_declared_xparse_signature_is_checked_against_the_hand_written_one():

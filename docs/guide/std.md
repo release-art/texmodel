@@ -58,7 +58,7 @@ assert r"\RequirePackage[protrusion=true]{microtype}" in pkg.render()
 
 ## What is typed
 
-`adjustbox`, `graphicx`, `geometry`, `tcolorbox`, `tikz` and `tabularray` type their key lists. `calc` is a typed expression language:
+`adjustbox`, `graphicx`, `geometry`, `microtype`, `tcolorbox`, `tikz` and `tabularray` type their key lists. `Raw` is the last resort in a header: it stays for content that is TeX and a key list's `extra`. `calc` is a typed expression language:
 `dimen(Length("2cm")) * real(0.5) + widthof("abc")`, with `maxof`, `minof`, `ratio`, `glue`, `integer` and `counter_value`.
 The kernel types `\vspace*`, `\makebox`, `\raisebox` and the sectioning commands. `tabularray` types the whole of the package and its `booktabs`, `diagbox` and `tikz` libraries, and `TableRow`, the base of a package's own rows ([Tables](tables.md#rows-that-are-nodes)): the inner and outer key lists,
 the commands inside a table and the definers. A key that carries arguments (`cell{1}{2}`, `hline{1,Z}`, `note{a}`) is an

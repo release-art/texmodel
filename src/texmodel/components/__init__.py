@@ -80,7 +80,7 @@ the class is defined.
 
 from .._internal.specs import control_name
 from ._describe import ArgumentInfo, Description, describe
-from ._node import ArgValue, Children, Command, Environment, Node, Passthrough, Resolved, Source, concrete_kinds, field
+from ._node import ArgValue, Command, Environment, Node, Passthrough, Resolved, Source, concrete_kinds, field
 from ._terms import Anywhere, Repeat
 from ._values import AnyValue, ColourRef, Value
 
@@ -89,7 +89,6 @@ __all__ = [
     "Anywhere",
     "ArgValue",
     "ArgumentInfo",
-    "Children",
     "ColourRef",
     "Command",
     "Description",

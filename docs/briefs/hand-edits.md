@@ -27,7 +27,7 @@ saved document, so reordering on regeneration cannot misplace an edit.
 |---|---|
 | Each changed line, by the path of the node that wrote it, and kind (`ADDED`, `REMOVED`, `CHANGED`, `UNREAD`) | `Plan.edits(text)` |
 | The argument a change lies in, and its new text | `Edit.fields`, `FieldEdit` |
-| The new text as a typed value of the field's type, or the `Violation` saying it is none (`TM-C021`) | `testing.read_call` (Python); `texmodel.run.hand_edits.read_edits` (through TeX, with stubs) |
+| The new text as a typed value of the field's type, or the `Violation` saying it is none (`TM-C021`) | `testing.read_call` (Python); `texmodel.hand_edits.read_edits` (from the calls the text writes, no TeX) |
 | Refusing to overwrite an edit that was not ingested | texpkg `Document.save()` |
 | A plan path as a data path (`/content/1/content/0`) | `plan.data_path`, `Edit.data_path` |
 | The data that writes the edits, and every other edit with its `Reason` | `restore.restore` |
@@ -46,7 +46,7 @@ restored.unapplied    # Unapplied(edit, reason, violation, writes) for each one 
 ```
 
 - `document` is the one texmodel last wrote (the system keeps it, as texpkg's saved tree, or rebuilds it from its data);
-  `edits` are `Plan.edits` against that document's plan, or `read_edits`' (the same, read by TeX). No process is
+  `edits` are `Plan.edits` against that document's plan, or `read_edits`' (the same, read from the calls). No process is
   started: a typed value comes from the argument's text by the field's type, as `read_call` reads it.
 - Every edit comes back, in `applied` or `unapplied`: none is dropped without a word.
 
@@ -99,7 +99,7 @@ in the same parent, the system finds its record without counting.
 - Unit, on the synthetic card deck: a reworded fact, a corrected name, a dropped slot (deleted and commented out), a
   removed card, each restored and rendered back to the edited text; each unapplied kind with its code.
 - The round-trip law above, over generated decks and generated edits.
-- With TeX (`tex`): the same edits through `read_edits` restore the same document.
+- The same edits through `read_edits` restore the same document.
 
 ## Decisions needed
 
@@ -130,10 +130,10 @@ in the same parent, the system finds its record without counting.
 
 ## Steps
 
-0. `texmodel.run` first (`docs/briefs/run.md`), so `read_edits` is already at its new path.
+0. `texmodel.run` first (`docs/briefs/run.md`), so `read_edits` is already at its new path (now `texmodel.hand_edits`).
 1. `texmodel.restore` with changed arguments and the gate; the `Reason` enum and its registry test.
 2. Removals and comment-outs, against the grammar.
 3. `data_path` in texmodel (built). texpkg, after the release: its `Document.restore()` restores its saved tree with
    it; texpkg's own `data_path` drops its tree's root step (`Deck[0]`), which texmodel's keeps as `/content/0`.
-4. The round-trip law and the `read_edits` compile test.
+4. The round-trip law and the `read_edits` test.
 5. Guide (`documents.md`, `testing.md`), known limitations, the plan's decisions log, changelog.

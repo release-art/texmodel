@@ -4,11 +4,11 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 
 ## Scope
 
-- No TeX parser (plan N1). Interfaces are declared, never read back from TeX texmodel did not write. The adoption scanner
-  (`check_interface`) reads `\newcommand`, `\providecommand`, `\DeclareRobustCommand`, `\newenvironment`, the xparse `\NewDocumentCommand` family,
+- No TeX interpreter (plan N1): TeX texmodel did not write is tokenized, never expanded, and interfaces are declared, not inferred. The adoption scanner
+  (`check_interface`, a tokenizer) reads `\newcommand`, `\providecommand`, `\DeclareRobustCommand`, `\def`, `\newenvironment`, the xparse `\NewDocumentCommand` family,
   `\newlength`, `\newsavebox`, `\newfontfamily`, `\newtoggle`, `\newif`, `\definecolor`/`\colorlet` and `\newcounter`; a name
-  defined another way counts as missing, and a library written in expl3 is not read, and an xparse type it does not model (`v`, `u`, `g`, `e`) is reported as
-  `?` and matches nothing.
+  defined another way (`\let`, `\csname`, a macro that defines macros) counts as missing, and an xparse type that is not one of xparse's is reported as
+  `?` and matches nothing. `^^` notation (`^^41`, `^^M`) is read as the characters written, not as the character it names.
 - Python 3.15 and LuaLaTeX only. Compiling needs the reference image (or a local TeX Live with `latexmk`).
 - Not built here: releases and migrations, which are texpkg's (§13); trust levels and the injection corpus, the
   sandbox verification, `texmodel-print`, a rules layer, `List[T]` settings (`Value[...]` takes `Length`, `Colour`, `bool`,
@@ -79,7 +79,8 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   reads the call it writes, not a path from a macro or a key it does not write.
 - A `Raw` value or `Item[Raw]` is written as given: texmodel checks only that its braces balance.
 - The names `content` (an environment's children) and `type` (the component in data) are not usable as field names, nor
-  any attribute every component has (`copy`, `json`, `render`, a `model_` name: `TM-M045`).
+  any attribute every component has (`copy`, `render`, `violations`, `fields_set`, `meta`, `cs`, `syntax`, `defined_by`, `times`, or an attribute of
+  pydantic's `BaseModel` such as `json`, which the data model of a component would shadow: `TM-M045`).
 - pyright checks a command's and a `Passthrough`'s arguments, not an environment's keywords: `dataclass_transform` cannot
   describe positional children.
 
@@ -96,10 +97,13 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 
 - `Edit.fields` is empty when a change is over a delimiter, the command name or several arguments, and for a call over
   several lines. A baseline saved before `Line.spans` gives node-level edits only.
-- `read_edits` reads what TeX runs through stubs, so it does not see: an extra argument (`\x{a}{b}`: the group is typeset),
-  an unstubbed line, a body error a value causes (the stubs never run bodies, so a compile that passes is not the document
-  compiling), or a stubbed macro the text redefines (its calls vanish). A missing argument swallows the next call, so one
-  edit reads as two. Those lines come back as `UNREAD` or `ADDED`/`REMOVED` from the line diff, never as clean.
+- `read_edits` reads the calls a document writes, not the ones that run. A call inside a definition
+  (`\newcommand{\x}{\acFact{a}}`) is one a macro makes: it is `UNREAD` in the edited text and `TM-X035` in the plan, and
+  `\x` is not read as a call (nor is `\let\p\acFact \p{a}`). Not guarded, because they need expansion: a call in a loop
+  (`\loop`, `\@for`) is read once, and in a branch of `\ifnum`, `\ifx` or `\ifdefined` (only `\iffalse` is dead) is read
+  whichever branch runs; `\csname` makes a call that is not seen. A body error a value causes is not seen (nothing compiles). A component named where its arguments cannot be read (a
+  missing one, a `}` first) is `UNREAD`. A missing argument swallows the next token, as in TeX, so one edit may read as two.
+  An extra argument (`\x{a}{b}`) is a group TeX typesets and is not an edit of the call.
 - An omitted optional argument and an empty one (`[]`) are the same call. Spaces in text read back as one. Equal neighbouring
   calls have no identity: a deleted one is named by position. A move across environments reads as the close moved.
 - A key list, a PDF string, a `Raw` subclass and a colour in a `Value` are not read (no value, no violation); a record

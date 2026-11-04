@@ -21,6 +21,8 @@ A release that changes generated output also gets an `Output change: <what>.` li
 
 - Follow the Zen of Python (`python -c "import this"`). Explicit, simple and flat code is better than clever code; named
   methods and enums, nothing found by name or inferred silently.
+- `Raw` is the last resort in a library: a field is a typed value (`Text`, `Length`, an `int`, a `Choice`, a `KeyVals`,
+  an `AsTeX` record). `Raw` stays for content that is TeX (a body, a cell) and a `KeyVals`' `extra`.
 - DRY: reuse what exists (`grep` first) before adding anything. Delete what a change makes dead.
 - Keep changes small and focused. No speculative abstractions, options or dependencies.
 - Keep docs (README, guide, cookbook, docstrings, comments, this file) brief. Comments say *why*, not *what*. Docs and comments
@@ -46,7 +48,7 @@ pdm run ruff check src tests
 pdm run pyright                 # strict on src, 0 errors
 pdm run lint-imports            # the package contracts (below)
 pdm run pytest                  # coverage over both packages must stay at 100%
-TEXMODEL_REQUIRE_TEX=1 pdm run pytest -m tex --no-cov   # when output, the scan or TeX written by the library changed (needs the reference image: bin/test-image.sh)
+TEXMODEL_REQUIRE_TEX=1 pdm run pytest -m tex --no-cov   # when output, the scan or TeX written by the library changed (needs the `texmodel-test` image: bin/test-image.sh)
 ```
 
 - `bin/autoformat.sh` formats, fixes what ruff can and runs pyright and import-linter; `.githooks/pre-commit` runs the gates
@@ -84,10 +86,12 @@ TEXMODEL_REQUIRE_TEX=1 pdm run pytest -m tex --no-cov   # when output, the scan 
   order in what is rendered. A `Value` is a `ValueKind` (data), not a branch in the renderer.
 - Optional fields are written `arg(default=...)` so a type checker reads them as keyword-only. Component fields are keyword-only
   (`Fact(text="a")`), in code, tests and docs alike; `kw_only=False` on a class is the rare, stated exception.
-- Pydantic is used at the data boundary (`spec`, `KeyVals`, `library(fill=)` models) and is the base of `Command`, `Environment` and `Passthrough`, which are built without validating.
-  Lax coercion is fine: pyright catches mismatches at the source.
-- Scanning TeX is regex-level and honest about it (a name defined another way counts as missing); it never silently accepts.
-  Reading hand-written TeX beyond that is parked (plan N1); raise it only if the work needs it.
+- Pydantic is used at the data boundary (`spec`, `KeyVals`, `library(fill=)` models); `Command`, `Environment` and `Passthrough` are frozen
+  dataclasses built without validating, and `_internal/data.py` generates their pydantic model. Lax coercion is fine: pyright catches
+  mismatches at the source.
+- Scanning TeX is token-level (`_internal/tex.py`: a tokenizer with spans, no expansion) and honest about it (a name defined
+  another way counts as missing); it never silently accepts. Read TeX through it, not with a new regex. Reading beyond that
+  (expansion, a call a macro makes) is parked (plan N1); raise it only if the work needs it.
 - Tests: pytest in `tests/`, `hypothesis` where there is a law, `monkeypatch` (no manual `sys.path` edits), temp projects under
   `tmp_path`. Consumer-shaped tests use `tests/consumers/card_deck/` (synthetic data). A test file past ~800 lines becomes a package.
 - Dependencies: `pdm add` (runtime) or `pdm add -dG dev` so `pdm.lock` stays in sync.
@@ -108,8 +112,8 @@ TEXMODEL_REQUIRE_TEX=1 pdm run pytest -m tex --no-cov   # when output, the scan 
 
 ## Development environment
 
-- `pdm install`; run tools as `pdm run ...` or `.venv/bin/...`. The compile suite needs the reference image
-  (`bin/test-image.sh`, then `TEXMODEL_TEST_IMAGE=texmodel-test`) or a local TeX Live with `latexmk` (LuaLaTeX).
+- `pdm install`; run tools as `pdm run ...` or `.venv/bin/...`. The compile suite runs in the `texmodel-test` image
+  (`bin/test-image.sh` builds it; `TEXMODEL_TEST_IMAGE` names another) or a local TeX Live with `latexmk` (LuaLaTeX).
 - Python is 3.15 only; `.python-version` names it.
 
 ## Known traps

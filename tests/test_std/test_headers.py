@@ -262,9 +262,44 @@ def eso_pic_samples():
 def microtype_samples():
     from texmodel.std import microtype as m
 
-    return [m.SetProtrusion(set=Raw("encoding=*"), list=Raw("A={50,50}"), options=Raw("name=tmset"))], [
-        m.MicrotypeSetup(options=Raw("protrusion=true"))
+    fonts_of = m.FontSet(encoding=m.Everything.ALL, family="cmr,ptm")
+    sides = [m.Sides(("A",), 50, 50), m.Sides(("A", "V"), right=30)]
+    options = m.SettingOptions(name="tmset", factor=900)
+    caps = [m.Feature.PROTRUSION, m.Feature.EXPANSION]
+    pre = [
+        m.SetProtrusion(
+            options=m.ProtrusionOptions(name="tmpr", unit=m.Character.CHARACTER), fonts=fonts_of, values=sides
+        ),
+        m.SetExpansion(options=options, fonts=fonts_of, values=[m.Weight(("A",), 1000)]),
+        m.SetTracking(options=m.TrackingOptions(name="tmtr", unit=Length("1em")), fonts=fonts_of, amount=50),
+        m.SetExtraKerning(options=m.SettingOptions(name="tmkern"), fonts=fonts_of, values=sides),
+        m.SetExtraSpacing(options=m.SettingOptions(name="tmspace"), fonts=fonts_of, values=sides),
+        m.DisableLigatures(ligatures=["f"], fonts=fonts_of),
+        m.DeclareMicrotypeSet(features=caps, name="tmcaps", fonts=fonts_of),
+        m.UseMicrotypeSet(features=caps, name="tmcaps"),
+        m.DeclareMicrotypeSetDefault(features=caps, name="tmcaps"),
+        m.DeclareMicrotypeAlias(font="tmfont", alias="cmr"),
+        m.DeclareMicrotypeVariants(variants=NameList("sc,sl")),
+        m.MicrotypeSetup(options=m.MicrotypeOptions(protrusion=True, expansion=m.Compatibility.COMPATIBILITY)),
+        m.MicrotypeSetup(options=m.MicrotypeOptions(final=True, stretch=20, unit=Length("1em"), patch=m.Patches.NONE)),
+        m.MicrotypeSetup(options=m.MicrotypeOptions(disable=m.DisableWhen.IF_DRAFT, verbose=m.Verbosity.ERRORS)),
     ]
+    text, context = Raw("x"), m.ContextKeys(spacing="nonfrench")
+    nodes = [
+        m.MicrotypeSetup(options=m.DocumentOptions(protrusion=True, patch=m.Patches.NONE)),
+        m.MicrotypeSetup(options=m.DocumentOptions(deactivate=True)),
+        m.MicrotypeSetup(options=m.DocumentOptions(reactivate=True)),
+        m.MicrotypeContext(keys=context),
+        m.TextMicrotypeContext(keys=context, text=text),
+        m.LeftProtrusion(text=text),
+        m.RightProtrusion(text=text),
+        m.NoProtrusion(),
+        m.LetterSpaceStyle(),
+        m.TextLetterSpace(text=text),
+        m.TextLetterSpace(amount=100, text=text),
+        m.TextLetterSpace(starred=True, amount=100, text=text),
+    ]
+    return pre, nodes
 
 
 def pdfrender_samples():
@@ -682,6 +717,14 @@ ERRORS = {"PackageError"}  # declared and called in `test_package_error`: it sto
 def rendered(name: str) -> str:
     pre, nodes = SAMPLES[name]()
     return "\n".join(n.render() if not isinstance(n, Raw) else n.tex for n in [*pre, *nodes])
+
+
+@pytest.mark.parametrize("make", [lambda m: m.Sides(("A",)), lambda m: m.Sides(()), lambda m: m.Weight(("A,V",), 1)])
+def test_microtype_refuses_characters_and_amounts_it_cannot_write(make):
+    from texmodel.std import microtype as m
+
+    with pytest.raises(ValueError, match="give"):
+        make(m)
 
 
 def test_every_sample_set_is_listed_and_calls_every_declared_name():

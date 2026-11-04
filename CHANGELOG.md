@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- `Body`, `BodyKind`, `RAW_BODY` and `TEXT_BODY` (`texmodel.interface`): a field's type is a `FieldType` of `texmodel._internal`
+  (see Changed); `KeyItem.body` is `KeyItem.type`.
+- `texmodel.components.Children` (plumbing for the schema; it moved to `texmodel._internal.data`), and the pydantic
+  attributes of a node: `model_fields_set`, `model_copy`, `model_dump`, `model_validate`, `model_fields` and
+  `model_json_schema` (use `fields_set`, `copy`, `to_dict`, `from_dict`, `json_schema`).
+- `texmodel.run.hand_edits` and its compile: `read_edits(compiler, plan, text, ..., files=)` is gone (see Changed), and so is
+  `TM-X032` (a plan whose lines and calls disagree).
+
+### Added
+
+- `texmodel.package.redefined(text)`: the names `\renewcommand`, `\renewenvironment` and `\RenewDocumentCommand` (and its
+  family) change; `declared` reads what a text introduces, `redefined` what it changes.
+- `texmodel.std.microtype`: the rest of microtype's commands, typed: the settings (`SetExpansion`, `SetTracking`,
+  `SetExtraKerning`, `SetExtraSpacing`, `DisableLigatures`), the set commands (`DeclareMicrotypeSet`, `UseMicrotypeSet`,
+  `DeclareMicrotypeSetDefault`, `DeclareMicrotypeAlias`, `DeclareMicrotypeVariants`), the context commands, protrusion by
+  hand and letterspacing (`TextLetterSpace`, `LetterSpaceStyle`); `FontSet`, `MicrotypeOptions`, `DocumentOptions`,
+  `SettingOptions`, `Sides` and `Weight` type their arguments.
+
+### Changed
+
+- `texmodel.package.declared` no longer returns a name that only `\RenewDocumentCommand`, `\RenewExpandableDocumentCommand` or
+  `\RenewDocumentEnvironment` renews: a renewal declares nothing (it is `redefined`), as `\renewcommand` never did. Its
+  docstring now says it reads `\def` and expl3 definers.
+- `texmodel.std.microtype`: `MicrotypeSetup.options` is a `MicrotypeOptions` or `DocumentOptions`, and `SetProtrusion`
+  takes `options: ProtrusionOptions`, `fonts: FontSet` and `values: list[Sides]` in place of `Raw` `options`, `set` and
+  `list`.
+- `texmodel.hand_edits` no longer imports `texmodel.std`: a component names the components `read_edits` reads with it in
+  `read_with` (`TableRow` lists `Tblr`, `Longtblr` and `Talltblr`). Behaviour is unchanged.
+- What a field holds is one `FieldType` object per kind (`Text`, `Length`, a `Choice`, an `AsTeX` class, a list, a tuple, a
+  union...) that checks, writes and reads a value, in place of a sixteen-valued enum switched on in five places. `Raw`,
+  `KeyVals` and any `AsTeX` class are one type, `Written`. Declarations, output and error codes are unchanged.
+- `Command`, `Environment` and `Passthrough` are frozen dataclasses, no longer pydantic models built through a metaclass.
+  Construction, equality, hash, `repr`, `violations()`, `render()`, the schema and `from_dict`/`to_dict` behave as before;
+  `node.fields_set` replaces `model_fields_set` and `node.copy(**update)` replaces `model_copy(update=)`. The data of a
+  component is a pydantic model generated from its arguments. A field may now start with `model_`; `TM-M045` refuses the
+  attributes a component has (`copy`, `render`, `violations`, `fields_set`, `meta`, `cs`, `syntax`, `defined_by`, `times`,
+  a command's `call`, an environment's `children`, `checks`, `open`, `close`) and pydantic's own (`json`, `dict`...).
+  A row command and a table environment hook their class's creation with `_prepare` and `__init_subclass__`, not
+  pydantic's `__pydantic_init_subclass__`. A `Table` takes a row command as its row model.
+- `read_edits` reads the calls a document writes, from its tokens by each component's signature, and runs no TeX: it is
+  `texmodel.hand_edits.read_edits(plan, text, *packages, file=, stub=)`, synchronous, with no compiler. A call a macro of
+  the document makes is not read: a call written inside a definition (`\newcommand`, `\def`, `\newenvironment`, xparse's
+  definers) is `UNREAD` in the edited text and `TM-X035` in the plan, and a component copied by `\let` is no call; a call
+  that cannot be read is `UNREAD`. The stub compile is a test oracle now (`texmodel.testing.stub_tex` is unchanged).
+- The expl3 libraries of a package are read too (`check_parts`, duplicate names, colours), and `\cs_new:Npn` functions
+  are declarations. xparse's `v`, `g`, `u` and `e` types read as letters, not `?`.
+- Package-option, library, `Raw` and body checks read tokens, not text: `balanced`, the `\ExplSyntaxOn` check of an expl3
+  block, `TM-M015` (a `\<prefix>Name` in a verbatim or after `\string` is not a use), the `&` count of a table row
+  (`TM-M086`: an `&` inside braces is no cell), `\RequirePackage` and kin, and `\includegraphics` read back from a hand edit.
+- `texmodel.testing.detokenized` treats a Unicode letter as part of a control word, shows `#` doubled, and takes only a space,
+  a tab and a line end for spaces (a no-break space is a character), as LuaTeX does.
+- The adoption scan (`check`, `Package.check_interface`, `declared`) reads tokens, not lines: a comment, `\verb`, a verbatim
+  environment, an `\iffalse ... \fi` and a definer written out with `\string` or `\noexpand` declare nothing, and `@` is a
+  letter only between `\makeatletter` and `\makeatother` (a group ends the switch, as in TeX); an `\iffalse` that a `\let` copies
+  or a list names (`\let\ifa\iffalse`, `\DoNotIndex{\iffalse}`) starts no dead text. It also reads `\def`, `\gdef`, `\edef` and `\xdef` (a delimited
+  parameter text is `?`): a name defined that way is no longer `TM-C010`, and a public one nothing declares is `TM-C025`.
+
 ## [0.12.0] - 2026-10-30
 
 Typed tables, pictures, package dependencies and fields of several kinds. Generated output of existing packages is unchanged.

@@ -2,7 +2,7 @@
 
 Follows `docs/briefs/tables.md`. A consumer sets a block of rows (an icon, a label, a bold value) as typed row nodes in
 a table and needs the schema, `Plan.edits`, `restore()` and `hand_edits()` to find one cell of one row. Today
-`Table.node()` writes the rows as one `Passthrough`. Status: **built** (`std/tabularray.py`, `ext/table.py`, `run/hand_edits.py`; guide `docs/guide/tables.md`). Two things changed in the building: `read_edits` stubs `tblr`, `longtblr` and `talltblr` only (a stub cannot redefine the `booktabs` library's tables when the library is not loaded), and a body is derived when a row has none.
+`Table.node()` writes the rows as one `Passthrough`. Status: **built** (`std/tabularray.py`, `ext/table.py`, `hand_edits.py`; guide `docs/guide/tables.md`). Two things changed in the building: `read_edits` stubs `tblr`, `longtblr` and `talltblr` only (a stub cannot redefine the `booktabs` library's tables when the library is not loaded), and a body is derived when a row has none.
 
 ## The finding
 
@@ -19,11 +19,11 @@ the outer key `expand`: `\begin{tblr}[expand=\apRow]{...}` expands the macro onc
 | Row macro that calls another | Expansion is once: list both (`expand=\outer\inner`). |
 | Row macros that do not work | `\NewDocumentCommand` (protected), `\NewExpandableDocumentCommand`, an optional first argument (`[1][]`, `\@ifnextchar`): "Misplaced alignment tab", input stack overflow or a mangled table. `\multicolumn` is refused by tabularray: use `\SetCell[c=2]{l}`. |
 | Derived environment | `\NewTblrEnviron{prof}` with `\SetTblrOuter[prof]{expand=\apRow}` works (`\begin{prof}{}` needs an explicit inner argument). Not needed. |
-| `hand_edits` (rows stubbed to log) | The table processes its body **four times**, so a stubbed row logs each call four times: `TM-X032`. Stubbing the table environment too (`Tblr`) gives exactly one log per call. |
+| `hand_edits` (rows read as calls) | Read from the text, a row is one call however many passes tabularray makes. The table environment is read too (`Tblr`), so an edit of its own line names its argument. |
 
 Alternatives evaluated and dropped:
 
-- **A literal `Row` node** that writes `a & b & c \\` itself: needs a new node kind in the core, and `hand_edits()` cannot stub
+- **A literal `Row` node** that writes `a & b & c \\` itself: needs a new node kind in the core, and `hand_edits()` cannot read
   it (it stubs control sequences). The macro-row route gives the same tree plus TeX-level reading.
 - **Rewriting or absorbing tabularray, or plain `tabular`:** nothing to gain once `expand` works.
 - **LuaLaTeX** (a collect-and-emit environment, counting calls inside the stub, callbacks): the collect-and-emit version typesets
@@ -48,8 +48,8 @@ Alternatives evaluated and dropped:
    first). Refused with a `TM-M` code in this mode: `totals`, `subtotal`, `group_by`, `spans` and a `Format` that matters (the
    row's own body writes the cells); `highlights`, `look`, `caption`, `notes`, `long` and the column keys work. Mixed row kinds in
    one table are built by hand (`Tblr(*rows, outer=TblrOuter(expand=expand_of(rows)), ...)`); `Table` takes one class.
-6. **`read_edits`** stubs the table environment whenever a stubbed class is a `TableRow` (every environment whose grammar holds
-   `Anywhere(TableRow)`), and takes `stub=` for extra components. Without it a caller gets `TM-X032`.
+6. **`read_edits`** reads the table environment whenever a read class is a `TableRow` (every environment whose grammar holds
+   `Anywhere(TableRow)`), and takes `stub=` for extra components.
 
 ## What works afterwards (spiked on a scratch copy)
 
@@ -68,7 +68,7 @@ Alternatives evaluated and dropped:
 | 2 | `components.py` | `_concrete_kinds`; the abstract-aware filter in `_grammar_violations`; `Children` | S |
 | 3 | `spec.py` | `_reachable` uses `_concrete_kinds` | XS |
 | 4 | `components.py` / `std/tabularray.py` | the `expand` check (`TM-C`), the `TableRow` declaration checks (`TM-M`) | S |
-| 5 | `run/hand_edits.py` | stub the table environments of a `TableRow`; `stub=` | S |
+| 5 | `hand_edits.py` | read the table environments of a `TableRow`; `stub=` | S |
 | 6 | `ext/table.py` | `Table(RowClass, ...)` and its refusals; header optional | S-M |
 | 7 | tests, guide (`tables.md`, `std.md`), `known-limitations.md`, plan, changelog, API snapshot | a `tex` compile test with two row classes and `expand`; hand edits through TeX | M |
 

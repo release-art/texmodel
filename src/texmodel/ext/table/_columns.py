@@ -112,7 +112,24 @@ def _default_format(where: str, kinds: set[Any]) -> Format:  # noqa: ANN401
     )
 
 
-def _check_groups(model: type[pydantic.BaseModel], found: Sequence[Column]) -> None:
+type _Row = type[pydantic.BaseModel] | type[t.TableRow]  # a row model: a pydantic model or a row command
+
+
+def _fields(model: _Row) -> dict[str, tuple[Any, tuple[object, ...]]]:
+    """A row model's fields by name: the type and what `Annotated` says about it (a `Col`)."""
+    if issubclass(model, pydantic.BaseModel):
+        return {n: (f.annotation, tuple(f.metadata)) for n, f in model.model_fields.items()}
+    hints = typing.get_type_hints(model, include_extras=True)
+    out: dict[str, tuple[Any, tuple[object, ...]]] = {}
+    for f in model.__tm_fields__:
+        hint = hints[f.name]
+        out[f.name] = (
+            (hint.__origin__, tuple(hint.__metadata__)) if typing.get_origin(hint) is typing.Annotated else (hint, ())
+        )
+    return out
+
+
+def _check_groups(model: _Row, found: Sequence[Column]) -> None:
     for level in range(max(len(c.group) for c in found)):
         runs = [c.group[: level + 1] if len(c.group) > level else None for c in found]
         seen: set[tuple[str, ...]] = set()
@@ -129,15 +146,15 @@ def _check_groups(model: type[pydantic.BaseModel], found: Sequence[Column]) -> N
             seen.add(run)
 
 
-def column_of(model: type[pydantic.BaseModel], name: str) -> Column | None:
+def column_of(model: _Row, name: str) -> Column | None:
     """The column of one field, or `None` when the field is hidden."""
-    info = model.model_fields[name]
+    annotation, metadata = _fields(model)[name]
     where = f"{model.__name__}.{name}"
     node_rows = issubclass(model, t.TableRow)
-    col = next((m for m in info.metadata if isinstance(m, Col)), Col())
+    col = next((m for m in metadata if isinstance(m, Col)), Col())
     if col.hide:
         return None
-    kinds = _kinds(info.annotation)
+    kinds = _kinds(annotation)
     if node_rows and col.fmt is not None:
         raise DeclarationError(
             f"{where}: the row command writes its cells, so a format has nothing to do",
@@ -161,13 +178,16 @@ def column_of(model: type[pydantic.BaseModel], name: str) -> Column | None:
 
 def columns_of(model: object, group_by: str | None) -> tuple[Column, ...]:
     """The visible columns of a row model; a `group_by` field is a group label, not a column."""
-    if not (isinstance(model, type) and issubclass(model, pydantic.BaseModel)):  # a caller may pass anything
-        raise DeclarationError(f"Table: {model!r} is not a pydantic model", code="TM-M077")
-    if group_by is not None and group_by not in model.model_fields:
+    if not (
+        isinstance(model, type) and issubclass(model, pydantic.BaseModel | t.TableRow)
+    ):  # a caller may pass anything
+        raise DeclarationError(f"Table: {model!r} is not a pydantic model or a row command", code="TM-M077")
+    fields = _fields(model)
+    if group_by is not None and group_by not in fields:
         raise DeclarationError(
             f"Table: group_by {group_by!r} is not a field of {model.__name__}", code="TM-M081", path=model.__name__
         )
-    found = [c for name in model.model_fields if name != group_by and (c := column_of(model, name)) is not None]
+    found = [c for name in fields if name != group_by and (c := column_of(model, name)) is not None]
     if not found:
         raise DeclarationError(f"{model.__name__}: no visible column", code="TM-M077", path=model.__name__)
     if sum(c.stub for c in found) > 1:

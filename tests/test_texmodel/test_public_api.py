@@ -16,6 +16,7 @@ PUBLIC = {
     "document",
     "drift",
     "ext",
+    "hand_edits",
     "errors",
     "history",
     "interface",

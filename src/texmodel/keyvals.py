@@ -28,10 +28,11 @@ from typing import Any, ClassVar, cast
 
 import pydantic
 
-from ._internal.bodies import body_of
-from ._internal.values import unprotected, value_text
+from ._internal.fieldtypes import BoolType, FieldType, Style, TokenType, Written
+from ._internal.hints import type_of
+from ._internal.values import unprotected
 from .errors import DeclarationError
-from .interface import FLAG, SWITCH, Body, BodyKind, Item, OptionalValue
+from .interface import FLAG, SWITCH, Item, OptionalValue
 from .keys import KeyRules
 from .types import AsTeX, Raw
 
@@ -51,7 +52,7 @@ class KeyItem:
     name: str  # the field
     key: str  # as TeX spells it
     kind: ItemKind
-    body: Body | None
+    type: FieldType | None
     repeated: bool = False
 
 
@@ -89,7 +90,7 @@ def _classify(cls: type, name: str, spelling: str, hint: Any, rules: KeyRules) -
         return DeclarationError(f"{where}: {why}", code="TM-M004", path=f"{cls.__name__}.{name}", hint=hint_text)
 
     members = _strip_none(hint)
-    h: Any = hint if len(members) > 1 and body_of(hint) is not None else None
+    h: Any = hint if len(members) > 1 and type_of(hint) is not None else None
     if h is None:
         if len(members) != 1:
             raise refuse(f"unsupported type {hint!r}", "use one type, optionally | None")
@@ -113,24 +114,24 @@ def _classify(cls: type, name: str, spelling: str, hint: Any, rules: KeyRules) -
         if repeated:
             raise refuse("an optional-value key cannot repeat")
         kind, inner = ItemKind.OPTIONAL_VALUE, typing.get_args(h)[0]
-    body = body_of(inner)
-    if body is None:
+    held = type_of(inner)
+    if held is None:
         raise refuse(
             f"unsupported type {inner!r}",
             "use Text, Raw, Length, Colour, int, a Choice, a tuple or list, another KeyVals, "
             "or Flag, Switch, Item[...]",
         )
-    if body.kind is BodyKind.BOOL:
+    if isinstance(held, BoolType):
         raise refuse("a plain bool is ambiguous", "use Flag (the bare key) or Switch (key=true / key=false)")
-    if body.kind is BodyKind.KEYVALS:
+    if held.key_list:
         if kind is not ItemKind.VALUE:
             raise refuse("a key list is a value of a key, not an item or optional value")
         if not rules.nesting:
             raise refuse("these KeyRules do not allow a key list as a value", "use rules that set nesting=True")
         kind = ItemKind.NESTED
-    if body.kind is BodyKind.TOKEN:
+    if isinstance(held, TokenType):
         raise refuse("a Token belongs to a component's slots, not a key list")
-    return KeyItem(name, spelling, kind, body, repeated)
+    return KeyItem(name, spelling, kind, held, repeated)
 
 
 class KeyVals(pydantic.BaseModel, AsTeX):
@@ -205,11 +206,11 @@ class KeyVals(pydantic.BaseModel, AsTeX):
         return rules.separator.join(parts)
 
 
-def _protected(text: str, rules: KeyRules, body: Body) -> str:
+def _protected(text: str, rules: KeyRules, held: FieldType) -> str:
     """A value the library would split at a comma, an equals sign or a closing bracket is put in braces, as is an
     empty one. A space at an end is stripped by every library unless the value is in two pairs of braces (and for a
     library that trims whatever it is given, `KeyRules.edge_spaces`, it is left as it is). A `Raw` is as written."""
-    if body.kind is BodyKind.RAW:
+    if isinstance(held, Written) and held.verbatim:
         return f"{{{text}}}" if rules.braced else text
     if text != text.strip() and rules.edge_spaces:
         return f"{{{{{text}}}}}"
@@ -231,18 +232,18 @@ def _parts(item: KeyItem, value: Any, rules: KeyRules) -> list[str]:  # noqa: AN
             return [item.key]
         case _:
             pass
-    assert item.body is not None
+    assert item.type is not None
     values: list[Any] = list(cast("list[Any]", value)) if item.repeated else [value]
     out: list[str] = []
     for v in values:
-        text = value_text(item.body, v, booleans=rules.booleans)
+        text = item.type.text(v, Style(booleans=rules.booleans))
         match item.kind:
             case ItemKind.BARE:
-                out.append(_protected(text, rules, item.body))
+                out.append(_protected(text, rules, item.type))
             case ItemKind.NESTED:
                 out.append(f"{k}{{{text}}}")
             case _:
-                out.append(k + _protected(text, rules, item.body))
+                out.append(k + _protected(text, rules, item.type))
     return out
 
 

@@ -2,7 +2,8 @@
 
 import pytest
 
-from texmodel._internal.bodies import body_of
+from texmodel._internal.fieldtypes import ColourNameType
+from texmodel._internal.hints import type_of
 from texmodel.components import Command, Environment, Passthrough, Value
 from texmodel.errors import DeclarationError
 from texmodel.ext.colourspace import ColourPair, ColourSpace, Dual
@@ -84,9 +85,9 @@ def test_names_are_the_colours_an_expression_uses():
 
 
 def test_a_field_of_the_type_is_a_colour_name():
-    body = body_of(ColourName)
-    assert body is not None and body.kind.value == "ColourName"
-    assert body_of(ColourName | None) == body
+    held = type_of(ColourName)
+    assert held == ColourNameType() and held is not None and held.describe() == "ColourName"
+    assert type_of(ColourName | None) == held
 
 
 def violations(**fields):

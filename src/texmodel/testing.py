@@ -19,11 +19,9 @@ import dataclasses
 import typing
 from collections.abc import Mapping, Sequence
 
-from ._internal.read import (
-    detokenized as detokenized,
-    read_field,
-)
+from ._internal.read import read_field
 from ._internal.render import Arg, argument_text, newcommand_fits, signature, tex_arguments, xparse_spec
+from ._internal.tex import detokenized as detokenized
 from .body import HOLE, Comment, Cs, Group, Hole, Library, Lit, Ref, RefKind, Seq, TexRaw
 from .components import Command, Environment, Node, Passthrough, Resolved, control_name
 from .errors import DeclarationError, Violation

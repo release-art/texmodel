@@ -61,7 +61,7 @@ class EditKind(enum.Enum):
     ADDED = "added"  # in the file, not in the plan
     REMOVED = "removed"  # in the plan, not in the file
     CHANGED = "changed"
-    UNREAD = "unread"  # the line differs, but TeX reads the same calls from it (`texmodel.run.hand_edits`)
+    UNREAD = "unread"  # the line differs, but holds the same calls, or one that cannot be read (`texmodel.hand_edits`)
 
 
 @dataclasses.dataclass(frozen=True)

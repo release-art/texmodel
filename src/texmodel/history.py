@@ -14,6 +14,7 @@ from typing import Any, cast
 
 import pydantic
 
+from ._internal.data import validated
 from .components import Command, Environment
 
 _NODE = re.compile(r"([A-Z][A-Za-z]*)(?:\[(\d+)\])?")
@@ -64,7 +65,7 @@ def problems(
     """Everything that stops `data` from being a valid tree of `model`: pydantic's errors with their constraint (from
     `schema`, the model's `json_schema`), then the grammar's violations."""
     try:
-        tree = model.model_validate(data)
+        tree = validated(model, data)
     except pydantic.ValidationError as exc:
         return [
             Problem(pointer(e["loc"]), e["msg"], e.get("input"), schema_at(schema, e["loc"]))

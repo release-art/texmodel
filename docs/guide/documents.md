@@ -94,13 +94,15 @@ assert from_dict(series, {"settings": [{"type": "Pad", "value": "2mm"}]}).settin
 
 ## What a node is
 
-`Command`, `Environment` and `Passthrough` are frozen pydantic models. Building one does not validate it (`violations()` does);
-assigning to a field raises `pydantic.ValidationError`, and `str(node)` is `repr(node)`. `node.model_fields_set` is the fields
-the caller passed, a default given explicitly included; `to_dict` writes exactly those. A field cannot be named like an
-attribute every component has (`copy`, `json`, `render`, a `model_` name: `TM-M045`).
+`Command`, `Environment` and `Passthrough` are frozen dataclasses. Building one does not validate it (`violations()` does);
+assigning to a field raises `dataclasses.FrozenInstanceError`, and `str(node)` is `repr(node)`. `node.fields_set` is the
+fields the caller passed, a default given explicitly included; `to_dict` writes exactly those, and `node.copy(**update)`
+keeps them and adds the updated ones. A field cannot be named like an attribute every component has (`copy`, `render`,
+`violations`, `fields_set`, `meta`, `cs`, `syntax`, `defined_by`, `times`, or an attribute of pydantic's `BaseModel` such as
+`json`: `TM-M045`).
 
 ```python
-assert Fact(text="a").model_fields_set == {"text"}
+assert Fact(text="a").fields_set == {"text"}
 assert to_dict(Fact(text="a")) == {"type": "Fact", "text": "a"}
 ```
 
@@ -264,8 +266,8 @@ assert plan.lines[0].path == "header"
   changed since. `plan.edits(text, ignore_comments=True)` skips lines that are comments on both sides.
 - A changed line says which argument: `edit.fields` is `(FieldEdit("text", "Friendly"),)` when the change is inside one
   argument's text, empty when it is over the command name, a delimiter or several arguments. A baseline saved without
-  `Line.spans` gives no fields. `texmodel.run.hand_edits.read_edits` reads the same edits with TeX, with typed values:
-  [Testing](testing.md#hand-edits-read-by-tex).
+  `Line.spans` gives no fields. `texmodel.hand_edits.read_edits` reads the same edits from the calls, with typed values:
+  [Testing](testing.md#hand-edits-read-from-the-calls).
 - `edit.line` is where the edit is in the file, 1-based (`None` for a removed line), and `edit.file` the file, when
   given: `plan.edits(text, file=path)`. `edit.plan_line` is the plan's line it is about (for an added line, the one it
   follows).

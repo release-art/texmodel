@@ -213,7 +213,7 @@ A row command is a plain `\newcommand` with mandatory arguments only (`TM-M084`)
 a row command that calls another lists both in `expand`. A table written by hand lists them with `expand_of(rows)`, and a
 row whose command is missing from it is `TM-C027` before TeX fails. The cells are written by the row, so `fmt=`, `totals`,
 `subtotal`, `group_by` and `spans` are refused (`TM-M085`); `highlights`, `look`, `caption`, `notes`, `long` and the column
-keys work. `read_edits` stubs the `tblr` environments too whenever a row is stubbed (a table processes its body four times);
+keys work. `read_edits` reads the `tblr` environments too whenever a row is read (so an edit of the table's own line names its argument);
 `stub=` adds other components. Reordering rows or adding a row line is not restorable (`TM-R006`, `TM-R005`), as for any
 container.
 

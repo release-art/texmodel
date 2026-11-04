@@ -53,11 +53,10 @@ class TableEnvironment(Environment, abstract=True):
     end = _FORWARD_END
 
     @classmethod
-    def __pydantic_init_subclass__(cls, **kwargs: object) -> None:
+    def _prepare(cls) -> None:
         cls.children = [Anywhere(row) for row in cls.rows] or [Anywhere(Passthrough)]
-        if cls.collect is not None:  # the metaclass has taken `begin` and `end`: a class's own are in `__tm_tex__`
-            cls.__dict__["__tm_tex__"].update(begin=_collect_begin(), end=_collect_end(cls.collect))
-        super().__pydantic_init_subclass__(**kwargs)  # pyright: ignore[reportArgumentType]
+        if cls.collect is not None:  # `begin` and `end` are already in `__tm_tex__`: a class's own
+            cls.__tm_tex__.update(begin=_collect_begin(), end=_collect_end(cls.collect))
 
 
 def declare[E: type[TableEnvironment]](pkg: Package) -> Callable[[E], E]:

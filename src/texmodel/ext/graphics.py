@@ -14,12 +14,12 @@ The document's package requires `graphicx` (`std.graphicx`); a cropped picture i
 """
 
 import dataclasses
-import re
 from collections.abc import Callable
 from pathlib import PurePosixPath
 from typing import Any, Final, Self
 
-from .._internal.read import read_length, unescaped
+from .._internal.fieldtypes import read_length, unescaped
+from .._internal.tex import call_text
 from ..components import Passthrough
 from ..errors import DeclarationError, ValidationError
 from ..std import latex
@@ -103,13 +103,14 @@ class Picture(AsTeX):
         body = text.strip()
         if body.startswith("{") and body.endswith("}"):  # the group a key list puts around a value
             body = body[1:-1].strip()
-        call = _CALL.fullmatch(body)
-        if not call:
+        call = call_text(body, "includegraphics")
+        if not call or {"{", "}"} & set(call[1]):
             raise ValueError(f"{body!r} is not an \\includegraphics call")
-        if "\\" in call["path"]:
+        keys, path = call
+        if "\\" in path:
             raise NotImplementedError("a path from a macro")
         given: dict[str, Any] = {}
-        for key, value in _keys(call["keys"] or ""):
+        for key, value in _keys(keys or ""):
             if key in _WRITTEN_WITH_OTHERS:
                 continue
             if key in _FLAGS and value is None:
@@ -120,7 +121,7 @@ class Picture(AsTeX):
             else:
                 raise ValueError(f"{key!r} is not a key of a Picture, or has no value")
         try:
-            return cls(call["path"].strip(), **given)
+            return cls(path.strip(), **given)
         except (ValidationError, DeclarationError) as exc:
             raise ValueError(str(exc)) from exc
 
@@ -141,7 +142,6 @@ _READERS: Final[dict[str, tuple[str, Callable[[str], object]]]] = {
 }
 _FLAGS: Final = {"artifact": "decorative"}
 _WRITTEN_WITH_OTHERS: Final = {"clip", "keepaspectratio"}  # the crop and the box say them
-_CALL: Final = re.compile(r"\\includegraphics\s*(?:\[(?P<keys>.*)\])?\s*\{(?P<path>[^{}]*)\}", re.DOTALL)
 
 
 def _keys(text: str) -> list[tuple[str, str | None]]:
