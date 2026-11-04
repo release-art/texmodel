@@ -21,6 +21,8 @@ A release that changes generated output also gets an `Output change: <what>.` li
 
 - Follow the Zen of Python (`python -c "import this"`). Explicit, simple and flat code is better than clever code; named
   methods and enums, nothing found by name or inferred silently.
+- `Raw` is the last resort in a library: a field is a typed value (`Text`, `Length`, an `int`, a `Choice`, a `KeyVals`,
+  an `AsTeX` record). `Raw` stays for content that is TeX (a body, a cell) and a `KeyVals`' `extra`.
 - DRY: reuse what exists (`grep` first) before adding anything. Delete what a change makes dead.
 - Keep changes small and focused. No speculative abstractions, options or dependencies.
 - Keep docs (README, guide, cookbook, docstrings, comments, this file) brief. Comments say *why*, not *what*. Docs and comments

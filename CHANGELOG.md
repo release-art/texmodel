@@ -17,8 +17,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `texmodel.run.hand_edits` and its compile: `read_edits(compiler, plan, text, ..., files=)` is gone (see Changed), and so is
   `TM-X032` (a plan whose lines and calls disagree).
 
+### Added
+
+- `texmodel.std.microtype`: the rest of microtype's commands, typed: the settings (`SetExpansion`, `SetTracking`,
+  `SetExtraKerning`, `SetExtraSpacing`, `DisableLigatures`), the set commands (`DeclareMicrotypeSet`, `UseMicrotypeSet`,
+  `DeclareMicrotypeSetDefault`, `DeclareMicrotypeAlias`, `DeclareMicrotypeVariants`), the context commands, protrusion by
+  hand and letterspacing (`TextLetterSpace`, `LetterSpaceStyle`); `FontSet`, `MicrotypeOptions`, `DocumentOptions`,
+  `SettingOptions`, `Sides` and `Weight` type their arguments.
+
 ### Changed
 
+- `texmodel.std.microtype`: `MicrotypeSetup.options` is a `MicrotypeOptions` or `DocumentOptions`, and `SetProtrusion`
+  takes `options: ProtrusionOptions`, `fonts: FontSet` and `values: list[Sides]` in place of `Raw` `options`, `set` and
+  `list`.
 - `texmodel.hand_edits` no longer imports `texmodel.std`: a component names the components `read_edits` reads with it in
   `read_with` (`TableRow` lists `Tblr`, `Longtblr` and `Talltblr`). Behaviour is unchanged.
 - What a field holds is one `FieldType` object per kind (`Text`, `Length`, a `Choice`, an `AsTeX` class, a list, a tuple, a
