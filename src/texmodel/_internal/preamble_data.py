@@ -16,6 +16,7 @@ from ..preamble import (
     PdfInfo,
     PreambleSlots,
     RequireMetadata,
+    TrailerId,
 )
 from ..types import Raw
 
@@ -82,10 +83,20 @@ class RequireMetadataEntry(EntryModel):
 
 class PdfInfoEntry(EntryModel):
     type: Literal["PdfInfo"]
-    entries: dict[str, str] = {}
+    title: str | None = None
+    author: str | None = None
+    subject: str | None = None
+    keywords: tuple[str, ...] = ()
+    producer: str | None = None
+    creator: str | None = None
+    trailer_id: str | None = None
+    extra: dict[str, str] = {}
 
     def entry(self) -> Entry:
-        return PdfInfo(**self.entries)
+        return PdfInfo(
+            **self.model_dump(exclude={"type", "trailer_id"}),
+            trailer_id=None if self.trailer_id is None else TrailerId(self.trailer_id),
+        )
 
 
 def item_tag(item: object) -> str:
@@ -143,8 +154,13 @@ def preamble_data(slots: PreambleSlots) -> dict[str, list[object]]:
                 fields = {"name": found.name}
             case GraphicsPath():
                 fields = {"dirs": list(found.dirs), "include_cwd": found.include_cwd}
-            case RequireMetadata() | PdfInfo():
+            case RequireMetadata():
                 fields = {"entries": dict(found.entries)}
+            case PdfInfo():
+                fields = {k: v for k, v in found.texts().items() if k != "keywords"}
+                fields |= {"keywords": list(found.keywords)} if found.keywords else {}
+                fields |= {"trailer_id": found.trailer_id.hex} if found.trailer_id else {}
+                fields |= {"extra": dict(found.extra)} if found.extra else {}
         return {"type": type(found).__name__, **fields}
 
     return {

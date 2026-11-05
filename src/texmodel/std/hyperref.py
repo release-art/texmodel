@@ -31,9 +31,9 @@ class HypersetupOptions(KeyVals, rules=KEYVAL):
 
 @package.command
 class Hypersetup(Command):
-    r"""Set hyperref's options after loading: `\hypersetup{pdftitle={Deck}}`. `pdfproducer` and
-    `pdfcreator` replace the engine's and the format's names in the Info dictionary and the XMP packet alike (`PdfInfo`
-    sets the first only)."""
+    r"""Set hyperref's options after loading: `\hypersetup{pdftitle={Deck}}`. `pdfproducer` and `pdfcreator` replace the
+    engine's and the format's names in the Info dictionary and the XMP packet alike; `preamble.PdfInfo` sets them
+    too, and needs no hyperref."""
 
     cs = "hypersetup"
     options: HypersetupOptions

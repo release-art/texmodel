@@ -7,7 +7,16 @@ from texmodel.components import Passthrough
 from texmodel.document import Document
 from texmodel.errors import DeclarationError
 from texmodel.package import Package
-from texmodel.preamble import GraphicsPath, InputIfExists, InputPath, PassOption, PreambleSlots, RequireMetadata
+from texmodel.preamble import (
+    GraphicsPath,
+    InputIfExists,
+    InputPath,
+    PassOption,
+    PdfInfo,
+    PreambleSlots,
+    RequireMetadata,
+    TrailerId,
+)
 from texmodel.std import hyperref, latex
 from texmodel.types import Raw
 
@@ -76,25 +85,41 @@ async def test_document_metadata_is_accepted_and_reaches_the_pdf(compiler, tmp_p
 
 @pytest.mark.tex
 @pytest.mark.timeout(300)
-async def test_hypersetup_replaces_the_producer_and_the_creator_in_the_info_dictionary_and_the_xmp(compiler, tmp_path):  # noqa: F811
+@pytest.mark.parametrize("package", [latex, hyperref], ids=["kernel", "hyperref"])
+async def test_pdf_info_reaches_the_info_dictionary_the_xmp_and_the_trailer(compiler, tmp_path, package):  # noqa: F811
+    """One declaration, three routes, the same whether or not hyperref is loaded."""
     import pikepdf
 
     await require_files(compiler, "tagpdf-base.sty", "hyperref.sty")
-    options = hyperref.HypersetupOptions(pdfproducer="Acme Press", pdfcreator="Acme Maker")
-    plan = hyperref.package.plan(
-        Document(
-            Passthrough(Raw(hyperref.Hypersetup(options=options).render() + " x")),
-            preamble=PreambleSlots(before_class=(RequireMetadata(lang="en-GB"),)),
-        )
+    title = "Rex & co: 50% <b> (the fox) #1 é 日本"
+    info = PdfInfo(
+        title=title,
+        author="A. Author",
+        keywords=("fox", "quick"),
+        producer="Acme Press",
+        creator="Acme Maker",
+        trailer_id=TrailerId("00112233445566778899AABBCCDDEEFF"),
+        extra={"Trapped": "False"},
     )
+    slots = PreambleSlots(before_class=(RequireMetadata(lang="en-GB"),), after_package=(info,))
+    plan = package.package.plan(Document(Passthrough(Raw("x")), preamble=slots))
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "d.tex").write_text(plan.text, encoding="utf-8")
     result = await compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out", plan=plan)
     assert result.ok, [(d.path, d.message) for d in result.errors]
     with pikepdf.open(result.pdf) as pdf:  # pyright: ignore[reportArgumentType]
-        assert (str(pdf.docinfo.Producer), str(pdf.docinfo.Creator)) == ("Acme Press", "Acme Maker")
+        got = {k: str(pdf.docinfo[k]) for k in ("/Title", "/Author", "/Keywords", "/Producer", "/Creator", "/Trapped")}
+        assert got == {
+            "/Title": title,
+            "/Author": "A. Author",
+            "/Keywords": "fox, quick",
+            "/Producer": "Acme Press",
+            "/Creator": "Acme Maker",
+            "/Trapped": "False",
+        }
         xmp = pdf.open_metadata()
-        assert (xmp["pdf:Producer"], xmp["xmp:CreatorTool"]) == ("Acme Press", "Acme Maker")
+        assert (xmp["pdf:Producer"], xmp["xmp:CreatorTool"], xmp["dc:title"]) == ("Acme Press", "Acme Maker", title)
+        assert [bytes(i).hex().upper() for i in pdf.trailer.ID] == ["00112233445566778899AABBCCDDEEFF"] * 2
 
 
 @pytest.mark.tex

@@ -144,7 +144,7 @@ async def test_pdf_info_entries_read_back_from_the_pdf(compiler, tmp_path: pathl
     await require_files(compiler, "tagpdf-base.sty")
     pkg = Package("info-kit", prefix="ik")
     entries = {f"K{'abcdefghijklmnop'[i]}": text for i, text in enumerate(CORPUS)}
-    slots = PreambleSlots(before_class=(RequireMetadata(),), after_package=(PdfInfo(**entries),))
+    slots = PreambleSlots(before_class=(RequireMetadata(),), after_package=(PdfInfo(extra=entries),))
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "info-kit.sty").write_text(pkg.render(), encoding="utf-8")
     (tmp_path / "src" / "d.tex").write_text(pkg.test_document(Document(preamble=slots)), encoding="utf-8")

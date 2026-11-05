@@ -4,6 +4,7 @@ The compile side (a block that TeX accepts or refuses, exports found in the log)
 """
 
 import pathlib
+import re
 
 import pytest
 from hypothesis import (
@@ -16,7 +17,7 @@ from texmodel.components import Command, Environment
 from texmodel.document import Document
 from texmodel.package import Package
 from texmodel.plan import Plan
-from texmodel.preamble import PdfInfo, PreambleSlots, RequireMetadata
+from texmodel.preamble import PdfInfo, PreambleSlots, RequireMetadata, TrailerId
 from texmodel.run.diagnostics import Measurement
 from texmodel.run.result import CompileResult
 from texmodel.run.testkit import check_library
@@ -414,47 +415,78 @@ def test_an_optional_argument_counts_in_the_declared_arity():
 # --- PdfInfo ----------------------------------------------------------------------------------------------------
 
 
-def test_pdf_info_writes_each_entry_through_pdfmanagement():
-    info = PdfInfo(Title="Rex (the fox)", Author="A & B")
+def test_pdf_info_writes_each_field_to_the_info_dictionary_and_the_xmp_properties():
+    info = PdfInfo(title="Rex (the fox)", keywords=("a", "b"), extra={"Trapped": "False"})
     assert info.raw().tex == (
         "\\csname pdfmanagement_add:nnn\\endcsname{Info}{Title}{(\\detokenize{Rex \\050the fox\\051})}\n"
-        "\\csname pdfmanagement_add:nnn\\endcsname{Info}{Author}{(\\detokenize{A \\046 B})}"
+        "\\AddToDocumentProperties[hyperref]{pdftitle}{\\detokenize{Rex (the fox)}}\n"
+        "\\csname pdfmanagement_add:nnn\\endcsname{Info}{Keywords}{(\\detokenize{a, b})}\n"
+        "\\AddToDocumentProperties[hyperref]{pdfkeywords}{\\detokenize{a, b}}\n"
+        "\\csname pdfmanagement_add:nnn\\endcsname{Info}{Trapped}{(\\detokenize{False})}"
     )
+    assert PdfInfo().raw().tex == "" and not PdfInfo().needs_metadata
+
+
+def test_pdf_info_refuses_a_bad_key_a_duplicate_of_a_field_and_a_bad_id():
     with refused("TM-M035") as failed:
-        PdfInfo(**{"Bad Key": "x"})
+        PdfInfo(extra={"Bad Key": "x"})
     assert failed.value.path == "PdfInfo"
+    with refused("TM-M090"):
+        PdfInfo(extra={"Title": "x"})
+    with refused("TM-M089"):
+        TrailerId("00")
+    assert TrailerId("aa" * 16).hex == "AA" * 16
+    assert TrailerId.of(b"seed") == TrailerId.of(b"seed") != TrailerId.of(b"other")
+
+
+def test_the_trailer_id_is_a_pdfvariable_and_needs_no_metadata():
+    pkg = Package("id-doc", prefix="id")
+    info = PdfInfo(trailer_id=TrailerId("00112233445566778899AABBCCDDEEFF"))
+    assert (
+        info.raw().tex
+        == r"\pdfvariable trailerid{[<00112233445566778899AABBCCDDEEFF><00112233445566778899AABBCCDDEEFF>]}"
+    )
+    assert info.raw().tex in pkg.document(Document(preamble=PreambleSlots(after_package=(info,))))
+
+
+XMP_RUN = re.compile(r"\\detokenize\{([^{}]*)\}|\\csname char_generate:nn\\endcsname\{(\d+)\}\{12\}")
 
 
 @given(st.text(max_size=40))
-def test_a_pdf_info_value_is_the_pdf_escaped_text(value):
-    assert f"{{(\\detokenize{{{pdf_escape(value)}}})}}" in PdfInfo(Title=value).raw().tex
+def test_a_pdf_info_value_reaches_the_info_dictionary_escaped_and_the_xmp_exactly(value):
+    tex = PdfInfo(title=value).raw().tex
+    assert f"{{(\\detokenize{{{pdf_escape(value)}}})}}" in tex
+    xmp = tex.split("\\AddToDocumentProperties[hyperref]{pdftitle}{", 1)[1].removesuffix("}")
+    assert "".join(m[1] or chr(int(m[2])) for m in XMP_RUN.finditer(xmp)) == value
+    assert XMP_RUN.sub("", xmp) == ""
 
 
 def test_a_document_with_pdf_info_needs_metadata_before_the_class():
     pkg = Package("info-doc", prefix="id")
-    managed = PreambleSlots(before_class=(RequireMetadata(),), after_package=(PdfInfo(Title="Rex"),))
+    managed = PreambleSlots(before_class=(RequireMetadata(),), after_package=(PdfInfo(title="Rex"),))
     text = pkg.document(Document(preamble=managed))
     assert text.index("\\DocumentMetadata") < text.index("pdfmanagement_add:nnn") < text.index("\\begin{document}")
     assert "\\detokenize{Rex}" in pkg.document(
-        Document(preamble=PreambleSlots(before_class=(RequireMetadata(),), before_package=(PdfInfo(Title="Rex"),)))
+        Document(preamble=PreambleSlots(before_class=(RequireMetadata(),), before_package=(PdfInfo(title="Rex"),)))
     )
-    bare = PreambleSlots(before_package=(PdfInfo(Title="a"),), after_package=(PdfInfo(Title="b"),))
+    bare = PreambleSlots(before_package=(PdfInfo(title="a"),), after_package=(PdfInfo(title="b"),))
     with pytest.raises(ExceptionGroup) as group:
         pkg.document(Document(preamble=bare))
     assert codes(group) == ["TM-C009", "TM-C009"]
     assert [getattr(e, "path") for e in group.value.exceptions]  # noqa: B009 == ["preamble.before_package[0]", "preamble.after_package[0]"]
     with pytest.raises(ExceptionGroup) as group:
-        pkg.document(Document(preamble=PreambleSlots(before_class=(RequireMetadata(), PdfInfo(Title="a")))))
+        pkg.document(Document(preamble=PreambleSlots(before_class=(RequireMetadata(), PdfInfo(title="a")))))
     assert codes(group) == ["TM-C008"]  # the slot is wrong as well; before_class holds the metadata
 
 
 def test_a_plan_of_a_document_with_pdf_info_names_the_entry():
     plan: Plan = Package("info-plan", prefix="ip").plan(
         Document(
-            preamble=PreambleSlots(before_class=(RequireMetadata(),), after_package=(PdfInfo(Title="a", Author="b"),))
+            preamble=PreambleSlots(before_class=(RequireMetadata(),), after_package=(PdfInfo(title="a", author="b"),))
         )
     )
     assert [x.path for x in plan.lines if "pdfmanagement" in x.tex] == ["preamble.after_package[0]"] * 2
+    assert [x.path for x in plan.lines if "AddToDocumentProperties" in x.tex] == ["preamble.after_package[0]"] * 2
 
 
 # --- check_library without TeX ----------------------------------------------------------------------------------

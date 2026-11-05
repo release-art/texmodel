@@ -281,5 +281,5 @@ A `PdfString` field holds text for the inside of a PDF literal string you write 
 octal escape (`\050`), and text with a non-ASCII character as UTF-16BE. A parenthesis cannot cut the string short, `%` or
 `_` cannot break the TeX, and a reader gets the text back.
 
-It is not for `\hypersetup{pdftitle=...}`: hyperref escapes its own input. For the PDF Info dictionary use `PdfInfo`
-([Documents](documents.md#the-preamble)), which needs no escaping from you.
+It is not for `\hypersetup{pdftitle=...}`: hyperref escapes its own input. For the PDF Info dictionary and the XMP packet use
+`PdfInfo` ([Documents](documents.md#the-preamble)), which needs no escaping from you.

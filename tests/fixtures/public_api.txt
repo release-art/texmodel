@@ -257,12 +257,17 @@ texmodel.preamble.InputPath(*dirs: str) -> None
 texmodel.preamble.InputPath.raw(self) -> Raw
 texmodel.preamble.PassOption(package: str, option: str) -> None
 texmodel.preamble.PassOption.raw(self) -> Raw
-texmodel.preamble.PdfInfo(**entries: str) -> None
+texmodel.preamble.PdfInfo(*, title: str | None = …, author: str | None = …, subject: str | None = …, keywords: tuple[str, ...] = …, producer: str | None = …, creator: str | None = …, trailer_id: TrailerId | None = …, extra: Mapping[str, str] = …) -> None
+texmodel.preamble.PdfInfo.needs_metadata: property
 texmodel.preamble.PdfInfo.raw(self) -> Raw
+texmodel.preamble.PdfInfo.texts(self) -> dict[str, str]
 texmodel.preamble.PreambleSlots(before_class: tuple[Raw | Entry, ...] = …, before_package: tuple[Raw | Entry, ...] = …, after_package: tuple[Raw | Entry, ...] = …) -> None
 texmodel.preamble.PreambleSlots.items(self) -> Iterator[tuple[str, int, Raw | Entry]]
 texmodel.preamble.RequireMetadata(**entries: str) -> None
 texmodel.preamble.RequireMetadata.raw(self) -> Raw
+texmodel.preamble.TrailerId(hex: str) -> None
+texmodel.preamble.TrailerId.of(cls, seed: bytes) -> Self
+texmodel.preamble.TrailerId.tex(self) -> str
 texmodel.restore.Reason(*values)
 texmodel.restore.Restored(document: Document, applied: tuple[Edit, ...], unapplied: tuple[Unapplied, ...]) -> None
 texmodel.restore.Unapplied(edit: Edit, reason: Reason, violation: Violation | None = …, writes: str | None = …, parent: str | None = …, after: str | None = …) -> None

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-05
+
+### Added
+
+- `preamble.TrailerId`: the PDF trailer `/ID` (32 hex digits; `TrailerId.of(seed)` hashes bytes into one). `Compiler(epoch=)`
+  builds its derived ID with it.
+
+### Changed
+
+- `PdfInfo` is typed and fans out: `title`, `author`, `subject`, `keywords`, `producer` and `creator` reach the Info
+  dictionary and the XMP packet (with or without hyperref), `trailer_id` sets the trailer `/ID` and wins over the
+  compiler's, and `extra` takes other Info entries. `PdfInfo(Title="Rex")` is `PdfInfo(title="Rex")`; a key with no
+  field moves to `extra`. In data, `{"type": "PdfInfo", "entries": {…}}` is `{"type": "PdfInfo", "title": …}`. New
+  errors `TM-M089` and `TM-M090`; `TM-C009` applies only when an Info or XMP field is set.
+
 ## [0.17.0] - 2026-11-05
 
 ### Added
@@ -563,9 +578,10 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.17.0...HEAD
-[0.17.0]: https://github.com/release-art/texmodel/compare/v0.15.0...v0.17.0
-[0.16.0]: https://github.com/release-art/texmodel/compare/v0.15.0...e6ad115
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/release-art/texmodel/compare/v0.17.0...v0.18.0
+[0.17.0]: https://github.com/release-art/texmodel/compare/v0.16.0...v0.17.0
+[0.16.0]: https://github.com/release-art/texmodel/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/release-art/texmodel/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/release-art/texmodel/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/release-art/texmodel/compare/v0.12.0...v0.13.0

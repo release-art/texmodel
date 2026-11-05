@@ -8,7 +8,6 @@ output directory writable; without one it runs the tools on this machine (for in
 
 import asyncio
 import dataclasses
-import hashlib
 import logging
 import os
 import pathlib
@@ -20,6 +19,7 @@ from typing import Any
 
 from texmodel.errors import DeclarationError
 from texmodel.plan import Plan
+from texmodel.preamble import TrailerId
 
 from ._internal.converge import aux_diff
 from ._internal.env import build_env
@@ -264,10 +264,8 @@ class Compiler:
         the working directory into it otherwise, so the same source built in two directories would differ."""
         if self.epoch is None:
             return ""
-        digest = (
-            hashlib.sha256(f"{self.epoch}\0{source.stem}\0".encode() + source.read_bytes()).hexdigest()[:32].upper()
-        )
-        return rf" \pdfvariable trailerid{{[<{digest}><{digest}>]}}"
+        seed = f"{self.epoch}\0{source.stem}\0".encode() + source.read_bytes()
+        return f" {TrailerId.of(seed).tex()}"
 
     async def _not_converged(self, source: pathlib.Path, outdir: pathlib.Path, passes: int) -> Diagnostic:
         """One more pass, to see which `.aux` entries still move (C1a)."""

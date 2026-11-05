@@ -157,13 +157,13 @@ Typed entries render to one `Raw` and know their slot. One in another slot is `T
 | `InputPath("res/")` | `before_package` | `\input@path` |
 | `InputIfExists("deck-variant")` | `before_package`, `after_package` | `\InputIfFileExists{deck-variant}{}{}` |
 | `GraphicsPath("images/")` | `after_package` | `\graphicspath{{}{images/}}` (current directory first unless `include_cwd=False`) |
-| `PdfInfo(Title="Rex")` | `before_package`, `after_package` | PDF Info entries, below |
+| `PdfInfo(title="Rex")` | `before_package`, `after_package` | the PDF's title, author, producer, trailer ID and more, below |
 
 ```python
 slots = PreambleSlots(
     before_class=(RequireMetadata(lang="en-GB"),),
     before_package=(InputPath("res/"), PassOption("xcolor", "table"), InputIfExists("deck-options")),
-    after_package=(GraphicsPath("images/"), PdfInfo(Title="Rex (the fox)", Subject="50% & more")),
+    after_package=(GraphicsPath("images/"), PdfInfo(title="Rex (the fox)", subject="50% & more")),
 )
 tex = pkg.document(Document(card, preamble=slots))
 assert tex.index(r"\DocumentMetadata") < tex.index(r"\documentclass") < tex.index(r"\usepackage{deck}")
@@ -174,13 +174,23 @@ path (`TM-M015`, `preamble.after_package[0]`).
 
 ### PdfInfo
 
-`PdfInfo` writes each value PDF-escaped through `\pdfmanagement_add:nnn`. It needs `RequireMetadata` in `before_class`
-(`TM-C009`), and a key is letters only (`TM-M035`). Give it the text as it is; do not trim, balance or escape it first.
-Unbalanced `(` and `)`, `\`, `#`, `%`, `&`, `$`, braces, a trailing or doubled space, newlines and non-ASCII (é, —, CJK, emoji)
-reach the PDF Info dictionary unchanged. A compile test reads a corpus of such values back from the PDF.
+`PdfInfo` is what the PDF says about itself, declared once: `title`, `author`, `subject`, `keywords` (a tuple), `producer`,
+`creator`, `trailer_id` and `extra` (more Info entries, a key of letters only, `TM-M035`, and not one a field has,
+`TM-M090`). The fields reach the PDF by three routes:
 
-`PdfInfo` sets the Info dictionary only. To replace the producer and the creator (`luahbtex-…`, `LaTeX`), also in the
-XMP packet, use `hyperref.HypersetupOptions(pdfproducer=..., pdfcreator=...)`.
+| Field | Info dictionary | XMP packet | How |
+|---|---|---|---|
+| `title`, `author`, `subject`, `keywords`, `producer`, `creator` | yes | yes | `\pdfmanagement_add:nnn` and the document properties hyperref also reads, so hyperref is not needed and, if loaded, agrees |
+| `extra` | yes | no | `\pdfmanagement_add:nnn` |
+| `trailer_id` | the trailer `/ID` | | `\pdfvariable trailerid` |
+
+The first two need `RequireMetadata` in `before_class` (`TM-C009`); a `trailer_id` alone does not. Give the text as it is; do
+not trim, balance or escape it first: unbalanced `(` and `)`, `\`, `#`, `%`, `&`, `$`, braces, a trailing or doubled space,
+newlines and non-ASCII (é, —, CJK, emoji) reach both places unchanged, and a compile test reads them back.
+
+`TrailerId("00112233445566778899AABBCCDDEEFF")` is 32 hex digits (`TM-M089`); `TrailerId.of(seed)` hashes bytes into one.
+LuaTeX hashes the working directory into the ID otherwise, so the same source built in two directories differs.
+`Compiler(epoch=…)` sets one from the epoch, the job name and the source; a `trailer_id` in the document wins.
 
 ## A document from data
 
@@ -200,7 +210,7 @@ Everything wrong comes at once as an `ExceptionGroup` of `ValidationError` (`TM-
 
 `from_dict(pkg, data)` is a `Document`: the package says which components and values the names in the data are.
 `content` is a list of nodes, `options` a list of strings, `settings` a list of `{"type": "Gap", "value": "3mm"}` and
-`preamble` a mapping of slot to a list of TeX strings and typed entries (`{"type": "PdfInfo", "entries": {"Title": "Rex"}}`).
+`preamble` a mapping of slot to a list of TeX strings and typed entries (`{"type": "PdfInfo", "title": "Rex"}`).
 `to_dict(doc)` writes the same shape, leaving out what is empty. An entry in the wrong slot is `TM-C008` when the document
 is rendered.
 

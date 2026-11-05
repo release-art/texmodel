@@ -154,7 +154,9 @@ def plan_of(
             hint="add RequireMetadata() to before_class",
         )
         for slot, i, item in preamble.items()
-        if isinstance(item, PdfInfo) and not any(isinstance(x, RequireMetadata) for x in preamble.before_class)
+        if isinstance(item, PdfInfo)
+        and item.needs_metadata
+        and not any(isinstance(x, RequireMetadata) for x in preamble.before_class)
     ]
     problems += [
         Violation("TM-C006", f"options[{i}]", f"class option {o!r} must match [A-Za-z0-9][A-Za-z0-9=.-]*")

@@ -21,7 +21,7 @@ a plain dataclass.
 
 A `Document` is data too, read with the package its names belong to (`from_dict(package, data)`): its `content` is a
 list of nodes, its `options` a list of strings, its `settings` a list of `{"type": "FactGap", "value": "3mm"}` and its
-`preamble` a mapping of slot to a list of TeX strings and entries (`{"type": "PdfInfo", "entries": {...}}`).
+`preamble` a mapping of slot to a list of TeX strings and entries (`{"type": "PdfInfo", "title": "Rex"}`).
 """
 
 import typing

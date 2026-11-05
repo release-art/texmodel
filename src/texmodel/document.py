@@ -5,7 +5,7 @@ Document(
     Card(Name(text="Rex")),
     options=["a4paper"],
     settings=[FactGap(Length("3mm"))],
-    preamble=PreambleSlots(after_package=(PdfInfo(Title="Rex"),)),
+    preamble=PreambleSlots(after_package=(PdfInfo(title="Rex"),)),
 )
 ```
 

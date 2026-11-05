@@ -18,6 +18,7 @@ from texmodel.preamble import (
     PdfInfo,
     PreambleSlots,
     RequireMetadata,
+    TrailerId,
 )
 from texmodel.spec import from_dict, json_schema, to_dict
 from texmodel.types import CMYK, Colour, Length, Raw, Text
@@ -80,7 +81,11 @@ class Card(Environment):
 SLOTS = PreambleSlots(
     before_class=(RequireMetadata(lang="en-GB"), PassOption("xcolor", "table")),
     before_package=(InputPath("res/", "more/"), InputIfExists("options")),
-    after_package=(GraphicsPath("img/", include_cwd=False), PdfInfo(Title="Rex & co"), Raw(r"\relax")),
+    after_package=(
+        GraphicsPath("img/", include_cwd=False),
+        PdfInfo(title="Rex & co", keywords=("a", "b"), trailer_id=TrailerId("AA" * 16), extra={"Trapped": "False"}),
+        Raw(r"\relax"),
+    ),
 )
 
 
@@ -103,7 +108,13 @@ def test_a_document_round_trips_through_data():
     ]
     assert data["preamble"]["after_package"][:2] == [
         {"type": "GraphicsPath", "dirs": ["img/"], "include_cwd": False},
-        {"type": "PdfInfo", "entries": {"Title": "Rex & co"}},
+        {
+            "type": "PdfInfo",
+            "title": "Rex & co",
+            "keywords": ["a", "b"],
+            "trailer_id": "AA" * 16,
+            "extra": {"Trapped": "False"},
+        },
     ]
     loaded = from_dict(pkg, data)
     assert isinstance(loaded, Document)
@@ -153,7 +164,7 @@ def paths(group: pytest.ExceptionInfo[ExceptionGroup[Exception]]) -> list[tuple[
         ({"settings": [{"type": "Gap", "value": 3.5}]}, [("TM-C020", "settings[0].value")]),
         ({"settings": [{"type": "Draft"}]}, [("TM-C020", "settings[0].value")]),
         (
-            {"preamble": {"after_package": [{"type": "PdfInfo", "entries": {"a b": "x"}}]}},
+            {"preamble": {"after_package": [{"type": "PdfInfo", "extra": {"a b": "x"}}]}},
             [("TM-C020", "preamble.after_package[0]")],
         ),
         ({"preamble": {"after_package": ["{"]}}, [("TM-C020", "preamble.after_package[0]")]),
@@ -214,7 +225,7 @@ def test_the_schema_describes_the_document_and_checks_data():
     assert list(validator.iter_errors(dict[str, Any](to_dict(full())))) == []
     assert list(validator.iter_errors({"options": ["a]b"]}))
     assert list(validator.iter_errors({"settings": [{"type": "Gap", "value": 3}]}))
-    assert list(validator.iter_errors({"preamble": {"after_package": [{"type": "PdfInfo", "entries": {"a": 1}}]}}))
+    assert list(validator.iter_errors({"preamble": {"after_package": [{"type": "PdfInfo", "title": 1}]}}))
     assert list(validator.iter_errors({"colour": "red"}))
 
 
