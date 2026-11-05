@@ -504,7 +504,8 @@ def _check_signature(cls: type, args: tuple[Arg, ...]) -> None:
                 "written when it is left out and the other is set",
                 code="TM-M037",
                 path=f"{cls.__name__}.{a.name}",
-                hint='declare it with arg(fill="") to write empty delimiters, or arg(fill=Gap.REFUSE) to refuse that',
+                hint='declare it with arg(fill="") to write empty delimiters, arg(fill=Gap.OMIT) to write nothing, or '
+                "arg(fill=Gap.REFUSE) to refuse that",
             )
 
 

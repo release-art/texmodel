@@ -84,7 +84,8 @@ assert Put(text=Raw("x"), at=(1, 2)).render() == r"\put(1,2){x}"
 
 - **Delimiters.** `{}` `[]` `()` `<>` or your own `Delimiter`; a `Star` or another token.
 - **Left-out slots.** A slot left out is not written. An optional slot left out before a later optional one writes `fill=`
-  (say `""` for empty brackets) or is refused (`Gap.REFUSE`). Two optionals without saying which is first is `TM-M037`.
+  (say `""` for empty brackets), writes nothing (`Gap.OMIT`, when the later slot has other delimiters: beamer's
+  `\begin{frame}<2->[t]{Title}`) or is refused (`Gap.REFUSE`). Two optionals without saying which is first is `TM-M037`.
 - **Groups.** A `SlotGroup` is written together or not at all.
 - **Definitions.** A signature `\newcommand` can define keeps it. Several optional arguments, other delimiters or a token
   are defined with `\NewDocumentCommand` / `\NewDocumentEnvironment` (xparse, in the kernel). The arguments are `#1`... in

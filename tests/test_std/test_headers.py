@@ -28,7 +28,7 @@ from texmodel.preamble import PreambleSlots
 from texmodel.run.compiler import Compiler
 from texmodel.run.diagnostics import PackageError, Severity
 from texmodel.std import MODULES, TEXLIVE
-from texmodel.types import ControlSequence, FilePath, FontName, Length, Name, NameList, Raw, Text
+from texmodel.types import ControlSequence, FilePath, FontName, Length, Macro, Name, NameList, Raw, Text
 
 
 def header(name: str):  # noqa: ANN201
@@ -53,7 +53,7 @@ def test_a_header_is_an_adopted_package_whose_components_all_name_their_control_
     package = header(name).package
     assert isinstance(package, Package) and package.adopted and package.prefix == ""
     assert package.name == (name.replace("_", "-") if name != "latex" else "latex")
-    assert package.builtin == (name == "latex")
+    assert package.builtin == (name in {"latex", "beamer"})  # the kernel and a class: nothing to load
     for cls in package.registered:
         assert cls.__doc__ and cls.__dict__["cs"] and cls.__tm_cs__ == cls.__dict__["cs"]  # pyright: ignore[reportAttributeAccessIssue]
     if name in {"hyphenat", "anyfontsize", "luacolor"}:
@@ -682,6 +682,90 @@ def pdfpages_samples():
     ]
 
 
+def beamer_samples():
+    from texmodel.std import beamer as b
+
+    def inside(*calls):  # a frame's body is TeX; the calls are written in it
+        return b.Frame(body_of(*(c.render() for c in calls)), title="Calls")
+
+    colour = ColourName("white")
+    return [
+        b.Title(title="T", short="S"),
+        b.Subtitle(subtitle="T"),
+        b.Author(authors="A", short="S"),
+        b.Institute(institute="I"),
+        b.Date(date="D"),
+        b.TitleGraphic(graphic=Raw("x")),
+        b.UseTheme(name=Name("Singapore"), options="compress"),
+        b.UseColorTheme(name=NameList("default")),
+        b.UseFontTheme(name=NameList("default")),
+        b.UseInnerTheme(name=NameList("default")),
+        b.UseOuterTheme(name=NameList("default")),
+        b.SetBeamerColor(
+            element="block title", options=b.ColorOptions(fg=colour, bg=ColourName("black"), parent="structure")
+        ),
+        b.SetBeamerFont(element="frametitle", options=b.FontOptions(series=Macro(r"\bfseries"), size=Macro(r"\large"))),
+        b.SetBeamerTemplate(element="items", style="circle"),
+        b.SetBeamerTemplate(element="navigation symbols", code=Raw("")),
+        b.SetBeamerSize(options=b.SizeOptions(text_margin_left=Length("1cm"), text_margin_right=Length("1cm"))),
+        b.SetBeamerOption(option=b.Option.SHOW_NOTES),
+        b.UseBackgroundTemplate(code=Raw("")),
+        b.Logo(graphic=Raw("x")),
+        b.AtBeginSection(code=Raw(""), star=Raw("")),
+        b.AtBeginSubsection(code=Raw("")),
+    ], [
+        b.Frame(body_of(r"\titlepage"), options=b.FrameOptions(plain=True, label=Name("tm"))),
+        b.Frame(body_of(r"\tableofcontents[currentsection]")),
+        b.Frame(body_of("x"), overlay="1-", options=b.FrameOptions(t=True, shrink=10), title="T", subtitle="S"),
+        b.Frame(body_of("x"), subtitle="S"),
+        inside(
+            b.FrameTitle(title="T", short="S", overlay="1-"),
+            b.FrameSubtitle(subtitle="S"),
+            b.Pause(),
+            b.Pause(slide=2),
+            b.Only(overlay="1-", text=Raw("x")),
+            b.Onslide(overlay="1-"),
+            b.Onslide(overlay="1-", text=Raw("x")),
+            b.Uncover(overlay="1-", text=Raw("x")),
+            b.Visible(overlay="1-", text=Raw("x")),
+            b.Invisible(overlay="2", text=Raw("x")),
+            b.Alert(text=Raw("x")),
+            b.Alert(overlay="1", text=Raw("x")),
+            b.Alt(overlay="1", this=Raw("x"), that=Raw("y")),
+            b.Temporal(overlay="2", before=Raw("x"), during=Raw("y"), after=Raw("z")),
+            b.Note(options="item", overlay="1", text=Raw("x")),
+            b.Note(text=Raw("x")),
+        ),
+        b.Frame(body_of(r"\begin{itemize}", b.ItemOn(overlay="1-", label="x").render(), "x", r"\end{itemize}")),
+        b.Frame(body_of("x"), options=b.FrameOptions(allowframebreaks=True, label=Name("tmb"))),
+        b.Frame(
+            body_of(
+                b.FrameBreak().render(),
+                b.AgainFrame(overlay="1", options=b.FrameOptions(plain=True), label=Name("tm")).render(),
+            )
+        ),
+        b.Frame(
+            body_of(
+                b.Columns(
+                    b.Column(body_of("x"), align=b.Align.TOP, width=Length.expr(r"0.5\textwidth")),
+                    b.Column(body_of("y"), width=Length.expr(r"0.5\textwidth")),
+                    options=b.ColumnsOptions(top_by_first_line=True, onlytextwidth=True),
+                ).render(),
+                b.Columns(b.Column(body_of("x"), width=Length("2cm"))).render(),
+                b.Block(body_of("x"), title="T", overlay="1-").render(),
+                b.AlertBlock(body_of("x"), title="T").render(),
+                b.ExampleBlock(body_of("x"), title="T").render(),
+                b.OnlyEnv(body_of("x"), overlay="1").render(),
+                b.UncoverEnv(body_of("x"), overlay="1").render(),
+                b.VisibleEnv(body_of("x"), overlay="1").render(),
+                b.InvisibleEnv(body_of("x"), overlay="1").render(),
+                b.AlertEnv(body_of("x"), overlay="1").render(),
+                b.Overprint(body_of(b.Onslide(overlay="1").render(), "x"), width=Length.expr(r"\textwidth")).render(),
+            )
+        ),
+    ]
+
+
 SAMPLES = {
     "latex": latex_samples,
     "graphicx": graphicx_samples,
@@ -710,6 +794,7 @@ SAMPLES = {
     "multicol": multicol_samples,
     "pdfpages": pdfpages_samples,
     "luacolor": lambda: ([], []),
+    "beamer": beamer_samples,
 }
 ERRORS = {"PackageError"}  # declared and called in `test_package_error`: it stops the run on purpose
 

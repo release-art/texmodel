@@ -3,7 +3,7 @@
 `texmodel.std` has a typed header for each TeX package a deck loads: `latex` (the kernel), `graphicx`, `xcolor`, `geometry`,
 `etoolbox`, `eso_pic`, `microtype`, `hyphenat`, `anyfontsize`, `calc`, `pdfrender`, `enumitem`, `adjustbox`, `tikz`,
 `tcolorbox`, `fontspec`, `tabularray`, `hyperref`, `setspace`, `fancyhdr`, `caption`, `subcaption`, `babel`,
-`polyglossia`, `multicol`, `pdfpages` and `luacolor`. The blocks on this page run in order, as one module.
+`polyglossia`, `multicol`, `pdfpages`, `luacolor` and `beamer`. The blocks on this page run in order, as one module.
 
 A header is an adopted package with no prefix, whose components name their TeX command with `cs`:
 
@@ -69,3 +69,9 @@ as `\draw (0,0) -- (1,1);`) is written as `Passthrough` or `Raw`.
 
 `tests/test_std` compiles a call of every declared name against the reference image, so a header that names a command TeX
 does not have fails, with the path of the call.
+
+`beamer` is a class, not a package: it is `builtin` (a call requires nothing) and the deck's package says
+`Package(..., document_class="beamer")`; class options (`aspectratio=169`) are the document's `options`. An overlay
+specification is an `overlay` field of `Text`, written in `<>` before the other arguments (`Frame(..., overlay="2-")` is
+`\begin{frame}<2->`); `Gap.OMIT` lets it be left out before `[options]`. Inserts (`\insertframenumber`) are written in a
+template's code, so they are not declared.

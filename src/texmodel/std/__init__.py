@@ -46,4 +46,5 @@ MODULES = (
     "multicol",
     "pdfpages",
     "luacolor",
+    "beamer",
 )

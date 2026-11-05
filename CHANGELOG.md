@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-05
+
+### Added
+
+- `texmodel.std.beamer`: the frame, its title, blocks and columns, the overlay commands and environments (`Only`, `Onslide`,
+  `Uncover`, `Alert`, `Alt`, `Temporal`, `ItemOn` ...), notes, the title page and outline, the themes and `\setbeamercolor`,
+  `\setbeamerfont`, `\setbeamertemplate` and `\setbeamersize`; it is `builtin` and its package has `document_class="beamer"`.
+- `Gap.OMIT` (`texmodel.interface`): `arg(fill=Gap.OMIT)` writes nothing for an optional slot left out before a later optional
+  one with other delimiters, so `<overlay>[options]{title}` can be declared.
+
+### Fixed
+
+- `TM-P012` (and `declared`) took a definer inside a definition's body for a declaration (`\gdef\acItems{}` in the body of
+  `\acOpen` declared `\acItems`) and read `\expandafter\gdef\csname acX\endcsname` as defining `\csname`. A body
+  declares nothing when the text loads, and a `\csname` name, known only expanded, is not read (a name defined that way is
+  missing, as with `\let`).
+
+## [0.13.0] - 2026-11-04
+
 ### Removed
 
 - `Body`, `BodyKind`, `RAW_BODY` and `TEXT_BODY` (`texmodel.interface`): a field's type is a `FieldType` of `texmodel._internal`
@@ -498,7 +517,9 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/release-art/texmodel/compare/v0.13.0...v0.14.0
+[0.13.0]: https://github.com/release-art/texmodel/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/release-art/texmodel/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/release-art/texmodel/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/release-art/texmodel/compare/v0.9.0...v0.10.0

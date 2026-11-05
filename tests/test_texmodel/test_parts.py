@@ -52,6 +52,13 @@ def test_a_name_defined_twice_is_reported_and_refuses_generation():
         p.render()
 
 
+def test_a_reset_in_a_body_and_csname_definitions_are_not_a_second_definition():
+    p = Package("p", prefix="ac")
+    p.library("one", "\\newcommand{\\ac@Items}{}\n\\expandafter\\gdef\\csname acX\\endcsname{1}")
+    p.library("two", "\\newcommand{\\ac@Open}{\\gdef\\ac@Items{}}\n\\expandafter\\gdef\\csname acY\\endcsname{2}")
+    assert p.check_parts() == []
+
+
 def test_a_library_and_a_rendered_component_may_not_define_one_name():
     p = Package("p", prefix="ac")
     p.library("hand", r"\newcommand{\acFact}[1]{#1}")

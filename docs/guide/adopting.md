@@ -49,10 +49,12 @@ nothing, and `@` is a letter only between `\makeatletter` and `\makeatother`. It
 `\newif` (with `\Xtrue` and `\Xfalse`), `\definecolor`, `\colorlet` and `\newcounter`. A name defined any other way (`\let`, `\csname`) counts as missing. Reading TeX beyond that is not planned ([known limitations](../known-limitations.md)).
 
 `declared(text)` is the set of control sequences those forms declare in a text, without the backslash. A colour or a counter
-is not one.
+is not one. A definer inside a definition's body (`\gdef` that resets a name when a macro runs) declares nothing, and a name
+built with `\csname` is not read.
 
 ```python
 assert declared(r"\newcommand{\cdA}[1]{} \newif\ifcdB \def\cdC{}") == {"cdA", "ifcdB", "cdBtrue", "cdBfalse", "cdC"}
+assert declared(r"\newcommand{\cdE}{\gdef\cdF{}} \expandafter\gdef\csname cdG\endcsname{}") == {"cdE"}
 ```
 
 `redefined(text)` is the set a text changes: `\renewcommand`, `\renewenvironment` and the xparse `\RenewDocumentCommand` family.

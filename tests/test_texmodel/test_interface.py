@@ -186,6 +186,17 @@ def test_a_gap_that_is_refused_and_a_group_that_is_all_or_none():
         b: Text | None = arg(SQUARE, group=pair, default=None)
         c: Text
 
+    @p.command
+    class Omitting(Command):
+        """Skipping writes nothing: the later slot has other delimiters."""
+
+        cs = "omitting"
+        a: Text | None = arg(ANGLE, fill=Gap.OMIT, default=None)
+        b: Text | None = arg(SQUARE, default=None)
+        c: Text
+
+    assert Omitting(c="c", b="2").render() == r"\omitting[2]{c}"
+    assert Omitting(c="c", a="1", b="2").render() == r"\omitting<1>[2]{c}" and not Omitting(c="c", b="2").violations()
     assert Strict(c="c", a="1").render() == r"\strict[1]{c}"
     assert [v.code for v in Strict(c="c", b="2").violations()] == ["TM-C005"]
     with pytest.raises(ExceptionGroup):

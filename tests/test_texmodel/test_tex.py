@@ -92,7 +92,7 @@ def test_def_reads_the_parameter_text():
         "d": "?",
         "e": "?",
     }
-    assert read(r"\def\a#1{\newcommand{\inner}[3]{}}") == {"a": "[1]", "inner": "[3]"}
+    assert read(r"\def\a#1{\newcommand{\inner}[3]{}}") == {"a": "[1]"}  # a body runs later: it declares nothing
 
 
 def test_text_that_does_not_typeset_declares_nothing():
@@ -143,7 +143,9 @@ def test_xparse_and_expl3_definitions():
     )
     assert read(text) == {"a": "som", "b": "", "c": "?", "d_e:nnN": "[3]", "f:n": "[1]"}
     assert read(r"\NewDocumentCommand{\a}{m") == {"a": "?"}
-    assert read(r"\newcommand \newcommand{\x}{} \newenvironment{\x}") == {"newcommand": "", "x": ""}  # as TeX reads it
+    assert read(r"\newcommand \newcommand{\x}{} \newenvironment{\x}") == {
+        "newcommand": ""
+    }  # as TeX reads it: `{\x}` is the body
     assert read(r"\newcommand{\a b}\newcommand") == {}
 
 

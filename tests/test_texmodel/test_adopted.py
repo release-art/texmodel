@@ -244,3 +244,24 @@ def test_a_renewal_is_redefined_and_never_declared():
     assert redefined(OVERRIDE) == {"acA", "acStar", "acEnv", "acX", "acY", "acXEnv"}
     assert redefined(r"\newcommand\acA{}") == frozenset()
     assert declared(OVERRIDE) == {"acNew", "acDef"}
+
+
+BODIES = r"""
+\newcommand{\acOpen}[1][{x}]{\gdef\acItems{}\newcommand{\acInner}{}}
+\def\acDef#1#2{\gdef\acInDef{}}
+\newenvironment{acEnv}{\gdef\acInBegin{}}{\gdef\acInEnd{}}
+\NewDocumentCommand\acX{m}{\gdef\acInX{}}
+\NewDocumentEnvironment{acXEnv}{}{\gdef\acInXBegin{}}{\gdef\acInXEnd{}}
+\ExplSyntaxOn
+\cs_new:Npn \ac_f:n #1 { \gdef\acInF{} }
+\ExplSyntaxOff
+\expandafter\gdef\csname acDyn\endcsname{1}
+\expandafter\newcommand\csname acDyn\endcsname{1}
+\newcommand{\acLast}{}
+"""
+
+
+def test_a_definer_inside_a_body_or_after_csname_declares_nothing():
+    from texmodel.package import declared
+
+    assert declared(BODIES) == {"acOpen", "acDef", "acEnv", "acX", "acXEnv", "ac_f:n", "acLast"}

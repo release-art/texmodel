@@ -306,11 +306,13 @@ def _group(toks: Sequence[Token], i: int) -> tuple[Sequence[Token], int] | None:
 
 
 def _control(toks: Sequence[Token], i: int) -> tuple[str, int] | None:
-    """The name of the control word at `i`, bare or in braces (`\\x`, `{\\x}`), and the index after it."""
+    """The name of the control word at `i`, bare or in braces (`\\x`, `{\\x}`), and the index after it. `\\csname`
+    names nothing: the name is only known once it expands."""
     if i < len(toks) and toks[i].kind is Kind.WORD:
-        return toks[i].name, i + 1
-    found = _group(toks, i)
-    if found and len(found[0]) == 1 and found[0][0].kind is Kind.WORD:
+        found: tuple[Sequence[Token], int] | None = toks[i : i + 1], i + 1
+    else:
+        found = _group(toks, i)
+    if found and len(found[0]) == 1 and found[0][0].kind is Kind.WORD and found[0][0].name != "csname":
         return found[0][0].name, found[1]
     return None
 
@@ -358,6 +360,19 @@ def _parameter_signature(toks: Sequence[Token], i: int) -> str:
         else:
             return "?"
     return "?" if i >= len(toks) else (f"[{n}]" if n else "")
+
+
+def _body_end(toks: Sequence[Token], i: int, groups: int = 1) -> int:
+    """The index after the `groups` braced bodies of a definition whose name ends at `i` (its `[n][d]` or parameter text
+    in between); `i` if it has none. A definer inside a body runs when the macro does, not when the text loads."""
+    j = _after_brackets(toks, _after_brackets(toks, i))
+    while j < len(toks) and toks[j].kind is not Kind.OPEN:
+        j += 1
+    for _ in range(groups):
+        if (found := _group(toks, j)) is None:
+            return i
+        j = found[1]
+    return j
 
 
 def _skip_group(toks: Sequence[Token], i: int) -> int:
@@ -501,11 +516,13 @@ class _Reader:
         if named := _control(toks, self.i):
             signature = _count_signature(toks, named[1]) if word in _COMMANDS else _parameter_signature(toks, named[1])
             self.add(Form.COMMAND, named[0], signature, t, named[1])
+            self.i = _body_end(toks, named[1])
 
     def environment(self, t: Token) -> None:
         self.i += _char(self.toks, self.i, "*")
         if named := _plain(self.text, self.toks, self.i):
             self.add(Form.ENVIRONMENT, named[0], _count_signature(self.toks, named[1]), t, named[1])
+            self.i = _body_end(self.toks, named[1], 2)
 
     def renewal(self, t: Token) -> None:
         """A renewal declares nothing, whatever its definer: the name is the package's."""
@@ -523,6 +540,7 @@ class _Reader:
             inner = spec[0]
             letters = _xparse_letters(self.text, inner) if inner else ""
             self.add(Form.XPARSE, named[0], letters, t, spec[1])
+            self.i = _body_end(toks, spec[1], 1 if t.name in XPARSE_COMMANDS else 2)
         else:
             self.add(Form.XPARSE, named[0], "?", t, named[1])
 
@@ -557,6 +575,7 @@ class _Reader:
             name = self.toks[self.i].name
             n = sum(c in "NncVvofxeTF" for c in name.partition(":")[2])
             self.add(Form.FUNCTION, name, f"[{n}]" if n else "", t, self.i + 1)
+            self.i = _body_end(self.toks, self.i + 1)
 
 
 def declarations(text: str, *, expl3: bool = False) -> list[Declaration]:

@@ -240,6 +240,7 @@ class Gap(enum.Enum):
 
     UNDECLARED = "undeclared"  # not said: the declaration is refused when a later optional slot exists
     REFUSE = "refuse"  # the combination is a violation
+    OMIT = "omit"  # nothing is written: the later optional slot has other delimiters, so it cannot be mistaken for this
 
 
 @dataclasses.dataclass(frozen=True)
@@ -268,8 +269,9 @@ def arg(
 
     `delimiter` defaults to `{}` for a required field and `[]` for an optional one (a field with a `default`). `fill`
     is the text between the delimiters written when this optional slot is unset while a later optional slot is set
-    (`Gap.REFUSE` refuses that). `sep` separates the elements of a tuple or list (default `,`); `group` makes the field
-    part of a `SlotGroup`; `booleans` is the literal pair of a `bool`. A field with a default is keyword-only in
+    (`Gap.REFUSE` refuses that; `Gap.OMIT` writes nothing, for a later slot with other delimiters: `\\only<2>[x]`).
+    `sep` separates the elements of a tuple or list (default `,`); `group` makes the field part of a `SlotGroup`;
+    `booleans` is the literal pair of a `bool`. A field with a default is keyword-only in
     Python, wherever it stands among the others; a required field is positional."""
     notes = FieldNotes(renamed_from, doc, dict(meta or {}))
     return field_spec(default, notes, ArgOptions(delimiter, fill, sep, group, booleans), keyword=kw_only)
