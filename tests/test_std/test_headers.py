@@ -620,7 +620,7 @@ def hyperref_samples():
         pdfproducer="P",
         pdfcreator="C",
         colorlinks=True,
-        linkcolor=Raw("blue"),
+        linkcolor=ColourName("blue"),
         extra=Raw("pdfborder={0 0 0}"),
     )
     return [h.Hypersetup(options=options)], [
@@ -629,6 +629,21 @@ def hyperref_samples():
         h.Href(url=Raw("https://example.org"), text="x"),
         h.Url(url=Raw("https://example.org")),
     ]
+
+
+def test_hyperref_colours_are_colour_references():
+    from texmodel.std import hyperref as h
+
+    pkg = Package("ra", prefix="ra")
+
+    @pkg.value
+    class Brand(Value[Colour]):
+        """The link colour."""
+
+        default = RGB(0.1, 0.2, 0.3)
+
+    options = h.HypersetupOptions(colorlinks=True, linkcolor=Brand, urlcolor=ColourName("blue!50"))
+    assert options.render() == "colorlinks,linkcolor=ra-brand,urlcolor=blue!50"
 
 
 def setspace_samples():

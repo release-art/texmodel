@@ -2,7 +2,7 @@ r"""hyperref: Links and PDF metadata.
 
 A header (the package is adopted): it declares the interface, `texmodel` writes calls and never the package."""
 
-from texmodel.components import Command
+from texmodel.components import ColourRef, Command
 from texmodel.interface import Flag, Item
 from texmodel.keys import KEYVAL
 from texmodel.keyvals import KeyVals
@@ -24,8 +24,8 @@ class HypersetupOptions(KeyVals, rules=KEYVAL):
     pdfcreator: Text | None = None
     colorlinks: Flag = False
     hidelinks: Flag = False
-    linkcolor: Raw | None = None
-    urlcolor: Raw | None = None
+    linkcolor: ColourRef | None = None
+    urlcolor: ColourRef | None = None
     bookmarks: Flag = False
     extra: Item[Raw] | None = None
 

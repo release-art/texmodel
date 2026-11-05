@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `OutputIntent.slots()` is `OutputIntent.metadata()`, which returns the `RequireMetadata` for `Document(metadata=)`; `keys()`
   is `metadata().entries()`.
 - `HypersetupOptions`' `pdf*` keys stay as hyperref's own; `PdfInfo` is the one place to declare the PDF's metadata.
+- `HypersetupOptions.linkcolor` and `urlcolor` are colour references (`ColourName("blue")` or a registered colour value),
+  not `Raw`.
 
 ## [0.18.0] - 2026-11-05
 
