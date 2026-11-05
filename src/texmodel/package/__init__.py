@@ -237,6 +237,11 @@ class Package:
         self._items.append(lib)
         return lib
 
+    def at_load(self, name: str, *calls: Node, syntax: Syntax = Syntax.LATEX2E) -> Library:
+        """Calls that run when the package loads: a `library` of their TeX, after the packages they need
+        (`pkg.at_load("fonts", SetMainFont(font=FontName("Skolar.otf")))`)."""
+        return self.library(name, "\n".join(call.render() for call in calls), syntax=syntax)
+
     def _control(self, spec: Spec | EnvSpec) -> str:
         """The control sequence: its `cs`, else prefix + class name (which needs a prefix)."""
         if spec.cs is None and not self.prefix:

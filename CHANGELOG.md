@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-05
+
+### Added
+
+- `texmodel.std.pgfplots`: the axis environments, `PgfplotsSet`, `UsePgfplotsLibrary`, `PgfplotsCreatePlotCycleList`
+  and `AddLegendEntry`, with `PgfplotsOptions` and `PlotStyle` for their keys and `Colormap` and `CycleList` for a colour
+  map and a cycle list. The test image installs pgfplots (`docker/test/Dockerfile`).
+- `texmodel.std.fontspec`: `NewFontFamily`, `NewFontFace`, `FontSpec`, `AddFontFeatures` and `DefaultFontFeatures`;
+  `FontOptions` types the font keys (the files of the faces, `Scale`, `Ligatures`, `Numbers`, `Letters`, `Kerning`, ...).
+- `Package.at_load(name, *calls)`: calls that run when the package loads, as a library of their TeX.
+- `texmodel.std.latex`: `IfPackageLoadedTF`, `IfPackageLoadedT`, `IfPackageLoadedF` and `IfClassLoadedTF`.
+
+### Fixed
+
+- A colour value's class name may have digits (`Cat1`, `Seq3Light`): a colour claims an xcolor name, never a control
+  sequence. Its name puts a hyphen before a digit run, so `Cat1` is `ra-cat-1`. Other values keep letters only (`TM-M001`).
+
+### Changed
+
+- `SetMainFont`, `SetSansFont` and `SetMonoFont` (`texmodel.std.fontspec`) take `options: FontOptions` in place of `Raw`.
+
 ## [0.14.0] - 2026-11-05
 
 ### Added
@@ -517,7 +538,8 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/release-art/texmodel/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/release-art/texmodel/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/release-art/texmodel/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/release-art/texmodel/compare/v0.11.0...v0.12.0

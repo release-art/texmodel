@@ -45,9 +45,10 @@ else:
 """A colour argument: a `ColourName`, or a registered colour value (`bg=Ink`), which is stored as its name."""
 
 
-def document_of(cls: type) -> str:
-    """The docstring of a component, which must be documented and named as a TeX control word would be."""
-    check_name(cls.__name__, "component")
+def document_of(cls: type, *, digits: bool = False) -> str:
+    """The docstring of a component, which must be documented and named as a TeX control word would be (a colour's name
+    may have digits)."""
+    check_name(cls.__name__, "component", digits=digits)
     doc = (cls.__dict__.get("__doc__") or "").strip()
     if not doc:
         raise DeclarationError(f"{cls.__qualname__}: document the component in its docstring", code="TM-M002")
@@ -109,7 +110,6 @@ class Value[T]:
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
-        doc = document_of(cls)
         arg = next(
             (typing.get_args(b)[0] for b in cls.__dict__.get("__orig_bases__", ()) if typing.get_origin(b) is Value),
             None,
@@ -123,6 +123,7 @@ class Value[T]:
                 code="TM-M012",
                 path=cls.__name__,
             )
+        doc = document_of(cls, digits=kind.named)
         defined = cls.defined_by is not None
         if "default" not in cls.__dict__ and not kind.may_omit and not defined:
             raise DeclarationError(f"{cls.__qualname__}: no default", code="TM-M013", path=cls.__name__)

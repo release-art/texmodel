@@ -165,6 +165,10 @@ def latex_samples():
         k.PackageInfo(package=Name("tmpkg"), message=Raw("a note")),
         k.IfFileExists(file=FilePath("tm-nonexistent.tex"), yes=Raw(""), no=Raw("")),
         k.InputIfFileExists(file=FilePath("tm-nonexistent.tex"), yes=Raw(""), no=Raw("")),
+        k.IfPackageLoadedTF(package=Name("tmnone"), yes=Raw(""), no=Raw("")),
+        k.IfPackageLoadedT(package=Name("tmnone"), yes=Raw("")),
+        k.IfPackageLoadedF(package=Name("tmnone"), no=Raw("")),
+        k.IfClassLoadedTF(document_class=Name("article"), yes=Raw(""), no=Raw("")),
         k.Center(body_of("x")),
         k.FlushLeft(body_of("x")),
         k.FlushRight(body_of("x")),
@@ -380,11 +384,35 @@ def tcolorbox_samples():
 def fontspec_samples():
     from texmodel.std import fontspec as f
 
+    face = f.FontOptions(
+        extension=".otf",
+        upright_font=FontName("*regular"),
+        bold_font=FontName("*bold"),
+        italic_font=FontName("*italic"),
+        bold_italic_font=FontName("*bolditalic"),
+        scale=f.Scaling.MATCH_LOWERCASE,
+        ligatures=(f.Ligature.COMMON, f.Ligature.TEX),
+        numbers=(f.Number.OLD_STYLE,),
+        letters=(f.Letter.SMALL_CAPS,),
+        kerning=f.Kerning.ON,
+        stylistic_set=(1, 2),
+        optical_size=10,
+        letter_space=1.5,
+        extra=Raw("RawFeature=+salt"),
+    )
     return [
-        f.SetMainFont(font=FontName("Latin Modern Roman"), options=Raw("Ligatures=TeX")),
-        f.SetSansFont(font=FontName("Latin Modern Sans")),
+        f.SetMainFont(font=FontName("Latin Modern Roman"), options=f.FontOptions(ligatures=(f.Ligature.TEX,))),
+        f.SetSansFont(font=FontName("Latin Modern Sans"), options=f.FontOptions(scale=0.9)),
         f.SetMonoFont(font=FontName("Latin Modern Mono")),
-    ], []
+        f.NewFontFamily(command=ControlSequence(r"\tmlm"), options=face, font=FontName("lmroman10-")),
+        f.NewFontFace(command=ControlSequence(r"\tmlmbold"), font=FontName("lmroman10-bold.otf")),
+        f.DefaultFontFeatures(options=f.FontOptions(kerning=f.Kerning.ON)),
+        f.DefaultFontFeatures(font=FontName("Latin Modern Roman"), options=f.FontOptions(numbers=(f.Number.LINING,))),
+    ], [
+        body_of(r"\tmlm A \textbf{b} \textit{c} \tmlmbold d"),
+        f.FontSpec(font=FontName("Latin Modern Roman"), options=f.FontOptions(color="336699")),
+        f.AddFontFeatures(options=f.FontOptions(letters=(f.Letter.UPPERCASE,))),
+    ]
 
 
 def calc_samples():
@@ -766,6 +794,56 @@ def beamer_samples():
     ]
 
 
+def pgfplots_samples():
+    from texmodel.std import pgfplots as g
+    from texmodel.std.tikz import Tikzpicture
+
+    colormap = g.Colormap("tmmap", ((0, 0, 255), (255, 255, 255), (255, 0, 0)))
+    cycle = g.CycleList(
+        (
+            g.PlotStyle(color=ColourName("red"), mark="*", mark_size=Length("2pt"), solid=True),
+            g.PlotStyle(color=ColourName("blue"), mark="square*", line_width=Length("1pt"), dashed=True),
+            g.PlotStyle(fill=ColourName("black"), opacity=0.5, dotted=True, only_marks=True),
+            g.PlotStyle(no_marks=True, extra=Raw("mark options={fill=white}")),
+        )
+    )
+    options = g.PgfplotsOptions(
+        width=Length("8cm"),
+        height=Length("5cm"),
+        xmin=0,
+        xmax=4,
+        ymin=0,
+        ymax=4,
+        xlabel="x",
+        ylabel="y",
+        title="T",
+        legend_pos="north west",
+        grid=g.Grid.BOTH,
+        axis_lines=g.AxisLines.LEFT,
+        xtick=(0, 2, 4),
+        ytick=(0, 2, 4),
+        scale_only_axis=True,
+        cycle_list_name=Name("tmcycle"),
+        extra=Raw("legend style={draw=none}"),
+    )
+    plot = body_of(r"\addplot coordinates {(0,0) (1,1) (2,4)};", g.AddLegendEntry(text="Series").render())
+    axes = [
+        g.Axis(plot, options=options),
+        g.Axis(plot),
+        g.SemilogxAxis(plot, options=g.PgfplotsOptions(xbar=True, colorbar=True)),
+        g.SemilogyAxis(plot, options=g.PgfplotsOptions(ybar=True)),
+        g.LoglogAxis(plot),
+    ]
+    return [
+        g.UsePgfplotsLibrary(libraries=NameList("groupplots")),
+        g.PgfplotsSet(options=g.PgfplotsOptions(compat="1.18", colormap=colormap)),
+        g.PgfplotsSet(options=g.PgfplotsOptions(colormap_name=Name("tmmap"))),
+        g.PgfplotsCreatePlotCycleList(name=Name("tmcycle"), styles=cycle),
+    ], [
+        Tikzpicture(body_of(*(axis.render() for axis in axes))),
+    ]
+
+
 SAMPLES = {
     "latex": latex_samples,
     "graphicx": graphicx_samples,
@@ -795,6 +873,7 @@ SAMPLES = {
     "pdfpages": pdfpages_samples,
     "luacolor": lambda: ([], []),
     "beamer": beamer_samples,
+    "pgfplots": pgfplots_samples,
 }
 ERRORS = {"PackageError"}  # declared and called in `test_package_error`: it stops the run on purpose
 
@@ -810,6 +889,34 @@ def test_microtype_refuses_characters_and_amounts_it_cannot_write(make):
 
     with pytest.raises(ValueError, match="give"):
         make(m)
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda g: g.Colormap("a_b", ((0, 0, 0), (1, 1, 1))),
+        lambda g: g.Colormap("ab", ((0, 0, 0),)),
+        lambda g: g.Colormap("ab", ((0, 0, 0), (0, 0, 256))),
+        lambda g: g.Colormap("ab", ((0, 0, 0), (0, 0))),
+        lambda g: g.CycleList(()),
+    ],
+)
+def test_pgfplots_refuses_a_colormap_and_a_cycle_list_it_cannot_write(make):
+    from texmodel.std import pgfplots as g
+
+    with pytest.raises(ValueError, match="give"):
+        make(g)
+
+
+def test_at_load_carries_the_calls_into_the_sty_after_the_packages_they_need():
+    from texmodel.std import fontspec as f
+
+    pkg = Package("acfonts", prefix="ac", version="1.0.0", date="2026/11/05")
+    pkg.require(f.package)
+    pkg.at_load("fonts", f.SetMainFont(font=FontName("Skolar.otf")), f.SetSansFont(font=FontName("Nunito.ttf")))
+    sty = pkg.render()
+    assert "\\RequirePackage{fontspec}\n\n% from library fonts" in sty
+    assert "\\setmainfont{Skolar.otf}\n\\setsansfont{Nunito.ttf}" in sty
 
 
 def test_every_sample_set_is_listed_and_calls_every_declared_name():
@@ -896,6 +1003,41 @@ async def test_real_tex_accepts_a_call_of_every_declared_name(name, compiler, tm
             pytest.skip(f"the reference image lacks: {sorted({d.message for d in gaps})}")
         result, errors, gaps = await compile_sample(host, plan, tmp_path / "host")
     assert result.ok and not errors, [(d.path, d.code, d.message) for d in errors]
+
+
+@pytest.mark.tex
+@pytest.mark.timeout(300)
+async def test_calls_given_to_at_load_run_when_the_package_loads(compiler, tmp_path):  # noqa: F811
+    from texmodel.std import fontspec as f
+
+    pkg = Package("acfonts", prefix="ac", version="1.0.0", date="2026/11/05")
+    pkg.require(f.package)
+    pkg.at_load(
+        "fonts",
+        f.SetMainFont(
+            font=FontName("lmroman10-"), options=f.FontOptions(extension=".otf", upright_font=FontName("*regular"))
+        ),
+        f.NewFontFamily(
+            command=ControlSequence(r"\ac@lm"),
+            options=f.FontOptions(
+                extension=".otf",
+                upright_font=FontName("*regular"),
+                bold_font=FontName("*bold"),
+                ligatures=(f.Ligature.COMMON,),
+            ),
+            font=FontName("lmroman10-"),
+        ),
+    )
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "acfonts.sty").write_text(pkg.render(), encoding="utf-8")
+    (src / "d.tex").write_text(
+        "\\documentclass{article}\\usepackage{acfonts}\\makeatletter\n"
+        "\\begin{document}{\\ac@lm A \\textbf{b}} main\\end{document}\n",
+        encoding="utf-8",
+    )
+    result = await compiler.compile(src / "d.tex", tmp_path / "out")
+    assert result.ok and not result.errors, [(d.code, d.message) for d in result.diagnostics]
 
 
 @pytest.mark.tex

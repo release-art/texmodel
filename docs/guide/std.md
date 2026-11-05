@@ -3,7 +3,7 @@
 `texmodel.std` has a typed header for each TeX package a deck loads: `latex` (the kernel), `graphicx`, `xcolor`, `geometry`,
 `etoolbox`, `eso_pic`, `microtype`, `hyphenat`, `anyfontsize`, `calc`, `pdfrender`, `enumitem`, `adjustbox`, `tikz`,
 `tcolorbox`, `fontspec`, `tabularray`, `hyperref`, `setspace`, `fancyhdr`, `caption`, `subcaption`, `babel`,
-`polyglossia`, `multicol`, `pdfpages`, `luacolor` and `beamer`. The blocks on this page run in order, as one module.
+`polyglossia`, `multicol`, `pdfpages`, `luacolor`, `beamer` and `pgfplots`. The blocks on this page run in order, as one module.
 
 A header is an adopted package with no prefix, whose components name their TeX command with `cs`:
 
@@ -75,3 +75,20 @@ does not have fails, with the path of the call.
 specification is an `overlay` field of `Text`, written in `<>` before the other arguments (`Frame(..., overlay="2-")` is
 `\begin{frame}<2->`); `Gap.OMIT` lets it be left out before `[options]`. Inserts (`\insertframenumber`) are written in a
 template's code, so they are not declared.
+
+`fontspec` types its font options (`FontOptions`: the files of the faces, `Scale`, `Ligatures`, `Numbers`, ...) and declares
+`NewFontFamily`, `NewFontFace`, `FontSpec`, `AddFontFeatures` and `DefaultFontFeatures` besides `SetMainFont`. A call that
+should run when your package loads goes in `Package.at_load`, after the packages it `require`s:
+
+```py
+from texmodel.std import fontspec
+
+pkg = Package("acfonts", prefix="ac")
+pkg.require(fontspec.package)
+pkg.at_load("fonts", fontspec.SetMainFont(font=FontName("Skolar.otf"), options=fontspec.FontOptions(
+    upright_font=FontName("Skolar.otf"), bold_font=FontName("Skolar-Bold.otf"))))
+```
+
+`pgfplots` has the axis environments (inside a `tikz.Tikzpicture`), `PgfplotsSet` and `PgfplotsCreatePlotCycleList`;
+`Colormap` and `CycleList` write a colour map and a cycle list. To use it only when the document loads the package, wrap the
+calls in `latex.IfPackageLoadedT` inside `latex.AtBeginDocument`.

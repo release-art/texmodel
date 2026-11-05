@@ -22,11 +22,12 @@ if TYPE_CHECKING:
 _HOLE = re.compile(rf"{HOLE.pattern}|#(?P<digit>\d)")
 _BODY_TOKEN = re.compile(r"\\.|##|#(?P<name>[A-Za-z_]\w*)|#(?P<digit>\d)", re.DOTALL)  # `\#` is a character, not a hole
 _CONTROL_WORD = re.compile(r"[A-Z][A-Za-z]*")
+_COLOUR_WORD = re.compile(r"[A-Z][A-Za-z0-9]*")
 
 
 def snake(name: str) -> str:
-    """`FactGap` -> `fact_gap`."""
-    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+    """`FactGap` -> `fact_gap`, `Cat1` -> `cat_1`."""
+    return re.sub(r"(?<!^)(?=[A-Z])|(?<=[A-Za-z])(?=\d)", "_", name).lower()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -102,9 +103,10 @@ class ValueSpec:
     meta: Mapping[str, object] = dataclasses.field(default_factory=dict[str, object])  # the schema's `x-` keys
 
 
-def check_name(name: str, what: str) -> None:
-    """A TeX control word has letters only, so a component name has no digits or underscores."""
-    if not _CONTROL_WORD.fullmatch(name):
+def check_name(name: str, what: str, *, digits: bool = False) -> None:
+    """A TeX control word has letters only, so a component name has no digits or underscores. A colour is not one: its
+    name is an xcolor name, and may have digits (`digits=True`)."""
+    if not (_COLOUR_WORD if digits else _CONTROL_WORD).fullmatch(name):
         raise DeclarationError(
             f"{what} name {name!r} must be letters only and start with a capital (it becomes a TeX control word)",
             code="TM-M001",

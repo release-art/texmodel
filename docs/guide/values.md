@@ -56,7 +56,7 @@ class Footer(Value[Raw]):
 | `Raw` | `\newcommand{\vlFooter}{...}` | `\renewcommand{\vlFooter}{...}` |
 
 Packages a value needs (`xcolor` for colours) are `\RequirePackage`d once, sorted. A colour's name is `<prefix>-<kebab>`
-unless `colour_name` says otherwise. A `cs` gives a value's whole control sequence when it is not prefix plus class name.
+unless `colour_name` says otherwise; a colour's class name may have digits (`Cat1` is `ra-cat-1`), as it is no control word. A `cs` gives a value's whole control sequence when it is not prefix plus class name.
 A package's own kinds exist too: `texmodel.std.etoolbox.Toggle` is `\newtoggle`.
 
 ## Settings for a document

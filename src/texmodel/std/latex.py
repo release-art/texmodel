@@ -558,6 +558,45 @@ class InputIfFileExists(Command):
     no: Raw
 
 
+@package.command
+class IfPackageLoadedTF(Command):
+    r"""Choose by whether a package is loaded at this point: `\IfPackageLoadedTF{pgfplots}{yes}{no}`. In
+    `AtBeginDocument` it sees every package of the document."""
+
+    cs = "IfPackageLoadedTF"
+    package: Name
+    yes: Raw
+    no: Raw
+
+
+@package.command
+class IfPackageLoadedT(Command):
+    r"""Run `yes` if a package is loaded."""
+
+    cs = "IfPackageLoadedT"
+    package: Name
+    yes: Raw
+
+
+@package.command
+class IfPackageLoadedF(Command):
+    r"""Run `no` if a package is not loaded."""
+
+    cs = "IfPackageLoadedF"
+    package: Name
+    no: Raw
+
+
+@package.command
+class IfClassLoadedTF(Command):
+    r"""Choose by whether a document class is loaded."""
+
+    cs = "IfClassLoadedTF"
+    document_class: Name
+    yes: Raw
+    no: Raw
+
+
 @package.environment
 class Center(Environment):
     r"""Centred paragraphs."""

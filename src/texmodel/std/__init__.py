@@ -47,4 +47,5 @@ MODULES = (
     "pdfpages",
     "luacolor",
     "beamer",
+    "pgfplots",
 )

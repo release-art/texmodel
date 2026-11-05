@@ -297,6 +297,7 @@ def test_inline_body_line_endings_and_trailing_blank_lines_are_normalised():
 def test_snake_and_generator_version(monkeypatch):
     assert repr(TEXT) == "Text"
     assert snake("FactGap") == "fact_gap" and snake("Name") == "name"
+    assert snake("Cat1") == "cat_1" and snake("Seq3Light") == "seq_3_light" and snake("B22") == "b_22"
     assert generator_version().count(".") == 2
     monkeypatch.setattr(importlib.metadata, "version", lambda name: "unversioned")
     assert generator_version() == "0.0.0"

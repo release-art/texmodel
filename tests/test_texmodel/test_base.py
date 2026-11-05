@@ -99,3 +99,39 @@ def test_a_base_must_not_be_builtin():
     kernel = Package("latex", prefix="", builtin=True)
     with pytest.raises(DeclarationError, match="always loaded"):
         Package("x", prefix="x", base=kernel)
+
+
+def test_a_colour_name_may_have_digits_and_a_control_word_may_not():
+    import pytest
+
+    from texmodel.components import Value
+    from texmodel.errors import DeclarationError
+    from texmodel.interface import ColourName
+    from texmodel.package import Package
+    from texmodel.types import RGB, Colour, Length
+
+    pkg = Package("ra", prefix="ra")
+
+    @pkg.value
+    class Cat1(Value[Colour]):
+        """The first category."""
+
+        default = RGB(0.1, 0.2, 0.3)
+
+    @pkg.value
+    class Seq3Light(Value[Colour]):
+        """A light step."""
+
+        default = RGB(0.9, 0.9, 0.9)
+
+    sty = pkg.render()
+    assert r"\definecolor{ra-cat-1}{rgb}" in sty and r"\definecolor{ra-seq-3-light}{rgb}" in sty
+    assert ColourName(Cat1) == ColourName("ra-cat-1")
+    with pytest.raises(DeclarationError, match="letters only") as info:
+
+        class Len1(Value[Length]):
+            """Not a colour."""
+
+            default = Length("1mm")
+
+    assert info.value.code == "TM-M001"
