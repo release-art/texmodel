@@ -13,7 +13,8 @@ package = Package("hyperref", prefix="", adopted=True)
 
 
 class HypersetupOptions(KeyVals, rules=KEYVAL):
-    r"""The keys of `\hypersetup`: `HypersetupOptions(pdftitle="Deck", hidelinks=True)`. Other keys go in `extra`."""
+    r"""The keys of `\hypersetup`: `HypersetupOptions(pdftitle="Deck", hidelinks=True)`. Other keys go in `extra`. The
+    `pdf*` keys set what `preamble.PdfInfo` sets, which needs no hyperref and is the one place to declare them."""
 
     pdftitle: Text | None = None
     pdfauthor: Text | None = None

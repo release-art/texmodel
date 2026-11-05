@@ -1,15 +1,17 @@
 """Typed preamble entries (§21, G3): each renders to one `Raw` and knows which `PreambleSlots` slots it may sit in.
+`RequireMetadata` and `PdfInfo` are not slot entries: a `Document` takes them as `metadata=` and `pdf=`, and the plan
+places them.
 
 ```python
 PreambleSlots(
-    before_class=(RequireMetadata(lang="en-GB", pdfstandard="A-2b"),),
     before_package=(InputPath("res/"), PassOption("xcolor", "table"), InputIfExists("options")),
-    after_package=(GraphicsPath("images/"), PdfInfo(title="Rex")),
+    after_package=(GraphicsPath("images/"),),
 )
 ```
 """
 
 import dataclasses
+import datetime
 import hashlib
 import re
 from collections.abc import Iterator, Mapping
@@ -84,21 +86,51 @@ class GraphicsPath:
         return Raw(f"\\graphicspath{{{groups}}}")
 
 
-@dataclasses.dataclass(frozen=True, init=False)
+_UNSAFE_VALUE = re.compile(r"[{}%\\#]")
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class RequireMetadata:
-    """`\\DocumentMetadata{key=value, ...}`: before `\\documentclass`. A value with `,` `=` or a space is braced."""
+    r"""`\DocumentMetadata{...}`, before `\documentclass`: `RequireMetadata(lang="en-GB", pdfstandard=("A-2b",))`.
+    `colorprofiles` maps an intent's subtype to its profile file, `extra` is any other key (`tagging`, `xmp`; letters,
+    digits, `-` and `/`, not one a field has: `TM-M091`, `TM-M092`). A value has no `{ } % \ #` (`TM-M093`). Set as
+    `Document(metadata=...)`; a document with a `PdfInfo` gets an empty one when it has none."""
 
-    entries: tuple[tuple[str, str], ...]
-    slots: ClassVar[tuple[str, ...]] = (BEFORE_CLASS,)
+    lang: str | None = None
+    pdfversion: str | None = None
+    pdfstandard: tuple[str, ...] = ()
+    colorprofiles: Mapping[str, str] = dataclasses.field(default_factory=dict[str, str])
+    extra: Mapping[str, str] = dataclasses.field(default_factory=dict[str, str])
 
-    def __init__(self, **entries: str) -> None:
-        object.__setattr__(self, "entries", tuple(entries.items()))
+    def __post_init__(self) -> None:
+        if bad := [k for k in self.extra if not re.fullmatch(r"[A-Za-z][A-Za-z0-9/-]*", k)]:
+            raise DeclarationError(f"RequireMetadata key {bad[0]!r}: letters, digits, - and /", code="TM-M091")
+        if clash := [k for k in self.extra if k in _METADATA_FIELDS]:
+            raise DeclarationError(
+                f"RequireMetadata extra key {clash[0]!r}: it has a field", code="TM-M092", hint=f"use {clash[0]}="
+            )
+        texts = [*self.pdfstandard, *self.colorprofiles, *self.colorprofiles.values(), *self.extra.values()]
+        texts += [t for t in (self.lang, self.pdfversion) if t is not None]
+        if bad := [t for t in texts if _UNSAFE_VALUE.search(t)]:
+            raise DeclarationError(
+                f"RequireMetadata value {bad[0]!r}: TeX reads `{{ }} % \\ #` as syntax", code="TM-M093"
+            )
+
+    def entries(self) -> dict[str, str]:
+        """The keys that are set, in the order they are written."""
+        found = {
+            "lang": self.lang,
+            "pdfstandard": ",".join(self.pdfstandard) or None,
+            "pdfversion": self.pdfversion,
+            "colorprofiles": ",".join(f"{k}={v}" for k, v in self.colorprofiles.items()) or None,
+        }
+        return {k: v for k, v in found.items() if v is not None} | dict(self.extra)
 
     def raw(self) -> Raw:
         def value(v: str) -> str:
             return f"{{{v}}}" if any(c in v for c in ",= ") else v
 
-        return Raw(f"\\DocumentMetadata{{{', '.join(f'{k}={value(v)}' for k, v in self.entries)}}}")
+        return Raw(f"\\DocumentMetadata{{{', '.join(f'{k}={value(v)}' for k, v in self.entries().items())}}}")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -124,6 +156,7 @@ class TrailerId:
         return rf"\pdfvariable trailerid{{[<{self.hex}><{self.hex}>]}}"
 
 
+_METADATA_FIELDS = ("lang", "pdfversion", "pdfstandard", "colorprofiles")
 _SAFE = re.compile(r"[A-Za-z0-9.,;:!?'()\[\]+*=/@|-]")
 _INFO = {
     "title": "Title",
@@ -154,13 +187,14 @@ def _xmp_text(text: str) -> str:
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class PdfInfo:
-    """What the PDF says about itself: `PdfInfo(title="Rex", producer="Acme Press", trailer_id=TrailerId(...))`. One
-    declaration, three routes. `title`, `author`, `subject`, `keywords`, `producer` and `creator` go to the Info
-    dictionary, PDF-escaped through `pdfmanagement_add:nnn` (§21), and to the XMP packet, through the document
-    properties hyperref also uses, so they agree whether or not hyperref is loaded; `extra` is more Info entries
-    (a key is letters only, `TM-M035`, and not one a field above has, `TM-M090`). `trailer_id` is
-    `\\pdfvariable trailerid`, which wins over the one `Compiler(epoch=)` derives. The metadata routes need
-    `\\DocumentMetadata`, so a document with them has a `RequireMetadata` in `before_class` (`TM-C009`)."""
+    r"""What the PDF says about itself: `PdfInfo(title="Rex", producer="Acme Press", trailer_id=TrailerId(...))`, set
+    as `Document(pdf=...)`. One declaration, three routes. `title`, `author`, `subject`, `keywords`, `producer` and
+    `creator` go to the Info dictionary, PDF-escaped through `pdfmanagement_add:nnn` (§21), and to the XMP packet,
+    through the document properties hyperref also uses, so they agree whether or not hyperref is loaded. `created` and
+    `modified` (with a time zone, stored as UTC: `TM-M094`) are `CreationDate` and `ModDate` in both. `extra` is more
+    Info entries (a key is letters only, `TM-M035`, and not one a field has, `TM-M090`). `trailer_id` is
+    `\pdfvariable trailerid`, which wins over the one `Compiler(epoch=)` derives. The metadata routes need
+    `\DocumentMetadata`, which the plan writes empty when the document has no `metadata`."""
 
     title: str | None = None
     author: str | None = None
@@ -168,19 +202,27 @@ class PdfInfo:
     keywords: tuple[str, ...] = ()
     producer: str | None = None
     creator: str | None = None
+    created: datetime.datetime | None = None
+    modified: datetime.datetime | None = None
     trailer_id: TrailerId | None = None
     extra: Mapping[str, str] = dataclasses.field(default_factory=dict[str, str])
-    slots: ClassVar[tuple[str, ...]] = (BEFORE_PACKAGE, AFTER_PACKAGE)
 
     def __post_init__(self) -> None:
         if bad := [k for k in self.extra if not re.fullmatch(r"[A-Za-z]+", k)]:
             raise DeclarationError(f"PdfInfo key {bad[0]!r}: letters only", code="TM-M035", path="PdfInfo")
-        if clash := [k for k in self.extra if k in _INFO.values()]:
+        if clash := [k for k in self.extra if k in (*_INFO.values(), "CreationDate", "ModDate")]:
             raise DeclarationError(
                 f"PdfInfo extra key {clash[0]!r}: it has a field",
                 code="TM-M090",
                 path="PdfInfo",
                 hint=f"use {clash[0].lower()}=",
+            )
+        if naive := [n for n in ("created", "modified") if (d := getattr(self, n)) is not None and d.tzinfo is None]:
+            raise DeclarationError(
+                f"PdfInfo {naive[0]}: give a time zone",
+                code="TM-M094",
+                path="PdfInfo",
+                hint="datetime(..., tzinfo=UTC); the PDF stores UTC",
             )
 
     def texts(self) -> dict[str, str]:
@@ -191,7 +233,7 @@ class PdfInfo:
 
     @property
     def needs_metadata(self) -> bool:
-        return bool(self.texts() or self.extra)
+        return bool(self.texts() or self.extra or self.created or self.modified)
 
     def raw(self) -> Raw:
         def info(key: str, text: str) -> str:
@@ -201,19 +243,22 @@ class PdfInfo:
         for name, text in self.texts().items():
             lines += [info(_INFO[name], text), f"\\AddToDocumentProperties[hyperref]{{pdf{name}}}{{{_xmp_text(text)}}}"]
         lines += [info(key, text) for key, text in self.extra.items()]
+        for name, moment in (("creationdate", self.created), ("moddate", self.modified)):
+            if moment is not None:
+                stamp = moment.astimezone(datetime.UTC).strftime("D:%Y%m%d%H%M%SZ")
+                lines.append(f"\\AddToDocumentProperties[document]{{{name}}}{{{stamp}}}")
         if self.trailer_id is not None:
             lines.append(self.trailer_id.tex())
         return Raw("\n".join(lines))
 
 
-type Entry = PassOption | InputPath | InputIfExists | GraphicsPath | RequireMetadata | PdfInfo
+type Entry = PassOption | InputPath | InputIfExists | GraphicsPath
 
 
 @dataclasses.dataclass(frozen=True)
 class PreambleSlots:
     """TeX a document places around its class and package lines (D3), each slot a tuple of `Raw` or a typed entry
-    (`InputPath`, `GraphicsPath`, `PassOption`, `RequireMetadata`, `PdfInfo`; one in a slot it does not belong in is
-    `TM-C008`).
+    (`InputPath`, `GraphicsPath`, `PassOption`, `InputIfExists`; one in a slot it does not belong in is `TM-C008`).
 
     `before_class` is where `\\DocumentMetadata` must go; `before_package` is for what the package needs when it
     loads (`\\input@path`, package options); `after_package` is for what needs it loaded (`\\graphicspath`,

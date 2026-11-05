@@ -755,9 +755,7 @@ class Package:
         document = document_of(body)
         slots = document.preamble
         stubs = dataclasses.replace(slots, after_package=(*slots.after_package, Raw(stub_tex(stub))))
-        return self.document(
-            Document(*document.content, options=document.options, settings=document.settings, preamble=stubs)
-        )
+        return self.document(document.replace(preamble=stubs))
 
     def files(self, *, version: str | None = None) -> dict[str, str]:
         """Every generated file, by path relative to the output directory; an adopted package generates none."""

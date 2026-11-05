@@ -20,23 +20,23 @@ INTENT = OutputIntent(CONDITION, standards=(Standard.X4, Standard.A2B), language
 
 
 def test_the_keys_are_one_metadata_with_a_subtype_pair_for_each_standard():
-    assert INTENT.keys("res/icc") == {
+    assert INTENT.metadata("res/icc").entries() == {
         "lang": "en-GB",
         "pdfstandard": "X-4,A-2b",
         "pdfversion": "1.7",
         "colorprofiles": "X=res/icc/Acme_coated.icc,A=res/icc/Acme_coated.icc",
     }
-    assert OutputIntent(CONDITION, standards=(Standard.A2B,), pdf_version="1.4").keys() == {
+    assert OutputIntent(CONDITION, standards=(Standard.A2B,), pdf_version="1.4").metadata().entries() == {
         "pdfstandard": "A-2b",
         "pdfversion": "1.4",
         "colorprofiles": "A=Acme_coated.icc",
     }
-    assert OutputIntent(CONDITION).keys() == {}
+    assert OutputIntent(CONDITION).metadata().entries() == {}
 
 
-def test_the_slots_put_the_metadata_before_the_class():
+def test_the_metadata_goes_before_the_class():
     pkg = Package("acme-intent", prefix="ai")
-    tex = pkg.document(Document(preamble=INTENT.slots("res/icc")))
+    tex = pkg.document(Document(metadata=INTENT.metadata("res/icc")))
     assert tex.index(r"\DocumentMetadata{lang=en-GB, pdfstandard={X-4,A-2b}") < tex.index(r"\documentclass")
     assert "colorprofiles={X=res/icc/Acme_coated.icc,A=res/icc/Acme_coated.icc}" in tex
 
@@ -116,7 +116,9 @@ async def test_the_registered_condition_reaches_the_pdf_as_an_output_intent(comp
     (tmp_path / "Acme_srgb.icc").write_bytes(data)
     (tmp_path / "acme-intent.sty").write_text(pkg.render())
     src = tmp_path / "doc.tex"
-    src.write_text(pkg.document(Document(preamble=intent.slots())).replace(r"\begin{document}", "\\begin{document}\nx"))
+    src.write_text(
+        pkg.document(Document(metadata=intent.metadata())).replace(r"\begin{document}", "\\begin{document}\nx")
+    )
     comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(tmp_path,))
     result = await comp.compile(src, tmp_path / "out")
     assert result.ok and result.pdf, result.diagnostics
@@ -127,7 +129,7 @@ async def test_the_registered_condition_reaches_the_pdf_as_an_output_intent(comp
     (tmp_path / "acme-bare.sty").write_text(bare.render())
     plain = tmp_path / "bare.tex"
     plain.write_text(
-        bare.document(Document(preamble=intent.slots())).replace(r"\begin{document}", "\\begin{document}\nx")
+        bare.document(Document(metadata=intent.metadata())).replace(r"\begin{document}", "\\begin{document}\nx")
     )
     unregistered = await comp.compile(plain, tmp_path / "out2")
     assert unregistered.pdf

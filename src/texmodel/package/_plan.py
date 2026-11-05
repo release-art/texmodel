@@ -22,7 +22,7 @@ from ..document import OPTION, Document
 from ..drift import stamp
 from ..errors import DeclarationError, Violation
 from ..plan import BEGIN_DOCUMENT, Line, Plan, Span
-from ..preamble import Entry, PdfInfo, RequireMetadata
+from ..preamble import Entry, RequireMetadata
 from ..types import Raw
 
 if TYPE_CHECKING:
@@ -147,18 +147,6 @@ def plan_of(
         if not isinstance(item, Raw) and slot not in type(item).slots
     ]
     problems += [
-        Violation(
-            "TM-C009",
-            f"preamble.{slot}[{i}]",
-            "PdfInfo needs \\DocumentMetadata, which no RequireMetadata in before_class provides",
-            hint="add RequireMetadata() to before_class",
-        )
-        for slot, i, item in preamble.items()
-        if isinstance(item, PdfInfo)
-        and item.needs_metadata
-        and not any(isinstance(x, RequireMetadata) for x in preamble.before_class)
-    ]
-    problems += [
         Violation("TM-C006", f"options[{i}]", f"class option {o!r} must match [A-Za-z0-9][A-Za-z0-9=.-]*")
         for i, o in enumerate(options)
         if not OPTION.fullmatch(o)
@@ -191,15 +179,19 @@ def plan_of(
     def values() -> list[Line]:
         return [Line(f"settings[{i}]", setting_line(v)) for i, v, found in routed if not found]
 
+    # `pdf` needs `\\DocumentMetadata`, which is empty when the document has no `metadata`
+    metadata = document.metadata or (RequireMetadata() if document.pdf and document.pdf.needs_metadata else None)
     return Plan(
         (
             Line("header", f"% {package.name} document -- {stamp(version)}. Do not edit."),
+            *([Line("metadata", metadata.raw().tex)] if metadata else []),
             *slot("before_class"),
             Line("document", f"\\documentclass{opts}{{{package.document_class}}}"),
             *slot("before_package"),
             *passed,
             *([] if package.builtin else uses),
             *values(),
+            *[Line("pdf", tex) for tex in (document.pdf.raw().tex.splitlines() if document.pdf else [])],
             *slot("after_package"),
             BEGIN_DOCUMENT,
             *(

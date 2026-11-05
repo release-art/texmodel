@@ -13,7 +13,7 @@ from test_texmodel_run.test_compile_tex import compiler, fonts, require_files  #
 from texmodel.components import Command, Value
 from texmodel.document import Document
 from texmodel.package import Package
-from texmodel.preamble import PreambleSlots, RequireMetadata
+from texmodel.preamble import RequireMetadata
 from texmodel.spec import from_dict, json_schema, to_dict
 from texmodel.types import PDF, PdfString, Raw, Text, pdf_escape
 
@@ -188,8 +188,8 @@ async def test_the_info_dictionary_holds_exactly_the_text(compiler, tmp_path: pa
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "info-demo.sty").write_text(pkg.render(), encoding="utf-8")
     nodes = [put(key=f"K{i}", text=text) for i, text in enumerate(CORPUS)]
-    managed = PreambleSlots(before_class=(RequireMetadata(),)) if route == "pdfmanagement" else None
-    (tmp_path / "src" / "d.tex").write_text(pkg.document(Document(*nodes, preamble=managed)), encoding="utf-8")
+    managed = RequireMetadata() if route == "pdfmanagement" else None
+    (tmp_path / "src" / "d.tex").write_text(pkg.document(Document(*nodes, metadata=managed)), encoding="utf-8")
     result = await compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out")
     assert result.ok, [(x.message, x.code) for x in result.diagnostics]
     with pikepdf.open(result.pdf) as pdf:  # pyright: ignore[reportArgumentType]

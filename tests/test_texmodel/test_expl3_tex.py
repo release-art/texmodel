@@ -10,7 +10,7 @@ from texmodel.body import Cs, Group, Hole, Lit, Seq, Syntax, TexRaw
 from texmodel.components import Command
 from texmodel.document import Document
 from texmodel.package import Package
-from texmodel.preamble import PdfInfo, PreambleSlots, RequireMetadata
+from texmodel.preamble import PdfInfo, PreambleSlots
 from texmodel.run.errors import CompileError
 from texmodel.run.testkit import check_library, run_probes
 from texmodel.testing import export_probes
@@ -144,10 +144,9 @@ async def test_pdf_info_entries_read_back_from_the_pdf(compiler, tmp_path: pathl
     await require_files(compiler, "tagpdf-base.sty")
     pkg = Package("info-kit", prefix="ik")
     entries = {f"K{'abcdefghijklmnop'[i]}": text for i, text in enumerate(CORPUS)}
-    slots = PreambleSlots(before_class=(RequireMetadata(),), after_package=(PdfInfo(extra=entries),))
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "info-kit.sty").write_text(pkg.render(), encoding="utf-8")
-    (tmp_path / "src" / "d.tex").write_text(pkg.test_document(Document(preamble=slots)), encoding="utf-8")
+    (tmp_path / "src" / "d.tex").write_text(pkg.test_document(Document(pdf=PdfInfo(extra=entries))), encoding="utf-8")
     result = await compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out")
     assert result.ok, [(x.message, x.code) for x in result.diagnostics]
     with pikepdf.open(result.pdf) as pdf:  # pyright: ignore[reportArgumentType]

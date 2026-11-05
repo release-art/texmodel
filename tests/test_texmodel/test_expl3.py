@@ -6,7 +6,6 @@ The compile side (a block that TeX accepts or refuses, exports found in the log)
 import pathlib
 import re
 
-import pytest
 from hypothesis import (
     given,
     strategies as st,
@@ -17,14 +16,14 @@ from texmodel.components import Command, Environment
 from texmodel.document import Document
 from texmodel.package import Package
 from texmodel.plan import Plan
-from texmodel.preamble import PdfInfo, PreambleSlots, RequireMetadata, TrailerId
+from texmodel.preamble import PdfInfo, RequireMetadata, TrailerId
 from texmodel.run.diagnostics import Measurement
 from texmodel.run.result import CompileResult
 from texmodel.run.testkit import check_library
 from texmodel.testing import check_exports, export_probes
 from texmodel.types import PdfString, Raw, Text, pdf_escape
 
-from .test_document import codes, refused
+from .test_document import refused
 
 BLOCK = r"""
 
@@ -446,7 +445,7 @@ def test_the_trailer_id_is_a_pdfvariable_and_needs_no_metadata():
         info.raw().tex
         == r"\pdfvariable trailerid{[<00112233445566778899AABBCCDDEEFF><00112233445566778899AABBCCDDEEFF>]}"
     )
-    assert info.raw().tex in pkg.document(Document(preamble=PreambleSlots(after_package=(info,))))
+    assert info.raw().tex in pkg.document(Document(pdf=info))
 
 
 XMP_RUN = re.compile(r"\\detokenize\{([^{}]*)\}|\\csname char_generate:nn\\endcsname\{(\d+)\}\{12\}")
@@ -461,32 +460,18 @@ def test_a_pdf_info_value_reaches_the_info_dictionary_escaped_and_the_xmp_exactl
     assert XMP_RUN.sub("", xmp) == ""
 
 
-def test_a_document_with_pdf_info_needs_metadata_before_the_class():
+def test_a_document_with_a_pdf_gets_its_metadata_before_the_class_and_the_info_after_the_packages():
     pkg = Package("info-doc", prefix="id")
-    managed = PreambleSlots(before_class=(RequireMetadata(),), after_package=(PdfInfo(title="Rex"),))
-    text = pkg.document(Document(preamble=managed))
-    assert text.index("\\DocumentMetadata") < text.index("pdfmanagement_add:nnn") < text.index("\\begin{document}")
-    assert "\\detokenize{Rex}" in pkg.document(
-        Document(preamble=PreambleSlots(before_class=(RequireMetadata(),), before_package=(PdfInfo(title="Rex"),)))
-    )
-    bare = PreambleSlots(before_package=(PdfInfo(title="a"),), after_package=(PdfInfo(title="b"),))
-    with pytest.raises(ExceptionGroup) as group:
-        pkg.document(Document(preamble=bare))
-    assert codes(group) == ["TM-C009", "TM-C009"]
-    assert [getattr(e, "path") for e in group.value.exceptions]  # noqa: B009 == ["preamble.before_package[0]", "preamble.after_package[0]"]
-    with pytest.raises(ExceptionGroup) as group:
-        pkg.document(Document(preamble=PreambleSlots(before_class=(RequireMetadata(), PdfInfo(title="a")))))
-    assert codes(group) == ["TM-C008"]  # the slot is wrong as well; before_class holds the metadata
+    for meta in (None, RequireMetadata(lang="en")):
+        text = pkg.document(Document(metadata=meta, pdf=PdfInfo(title="Rex")))
+        assert text.index("\\DocumentMetadata") < text.index("\\documentclass") < text.index("pdfmanagement_add:nnn")
+        assert text.index("pdfmanagement_add:nnn") < text.index("\\begin{document}")
 
 
-def test_a_plan_of_a_document_with_pdf_info_names_the_entry():
-    plan: Plan = Package("info-plan", prefix="ip").plan(
-        Document(
-            preamble=PreambleSlots(before_class=(RequireMetadata(),), after_package=(PdfInfo(title="a", author="b"),))
-        )
-    )
-    assert [x.path for x in plan.lines if "pdfmanagement" in x.tex] == ["preamble.after_package[0]"] * 2
-    assert [x.path for x in plan.lines if "AddToDocumentProperties" in x.tex] == ["preamble.after_package[0]"] * 2
+def test_a_plan_of_a_document_with_a_pdf_names_the_lines():
+    plan: Plan = Package("info-plan", prefix="ip").plan(Document(pdf=PdfInfo(title="a", author="b")))
+    assert [x.path for x in plan.lines if "pdfmanagement" in x.tex] == ["pdf"] * 2
+    assert [x.path for x in plan.lines if "AddToDocumentProperties" in x.tex] == ["pdf"] * 2
 
 
 # --- check_library without TeX ----------------------------------------------------------------------------------

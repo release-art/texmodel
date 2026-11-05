@@ -48,7 +48,8 @@ texmodel.components.describe(cls: type) -> Description
 texmodel.components.field(*, renamed_from: str | None = …, doc: str | None = …, meta: Mapping[str, object] | None = …, default: Any = …) -> Any
 texmodel.config.Config(*, package: str | Sequence[str] = …, schema_output: str = …, output: str = …, documents: Mapping[str, str] = …, sources: Sequence[str] = …) -> None
 texmodel.config.load_config(pyproject: pathlib.Path) -> Config
-texmodel.document.Document(*content: Node, options: Sequence[str] = …, settings: Sequence[AnyValue] = …, preamble: PreambleSlots | None = …) -> None
+texmodel.document.Document(*content: Node, options: Sequence[str] = …, settings: Sequence[AnyValue] = …, metadata: RequireMetadata | None = …, pdf: PdfInfo | None = …, preamble: PreambleSlots | None = …) -> None
+texmodel.document.Document.replace(self, *, content: Sequence[Node] | None = …, preamble: PreambleSlots | None = …) -> Document
 texmodel.document.OPTION: Pattern
 texmodel.drift.Drift(stale: tuple[str, ...] = …, missing: tuple[str, ...] = …, orphaned: tuple[str, ...] = …, notes: tuple[str, ...] = …) -> None
 texmodel.drift.Drift.ok: property
@@ -87,8 +88,7 @@ texmodel.ext.intent.OutputCondition(profile: str, identifier: str, info: str, re
 texmodel.ext.intent.OutputCondition.check_profile(self, data: bytes) -> list[Violation]
 texmodel.ext.intent.OutputIntent(condition: OutputCondition, standards: Sequence[Standard] = …, language: str | None = …, pdf_version: str | None = …) -> None
 texmodel.ext.intent.OutputIntent.declare(self, package: Package, directory: str = …) -> None
-texmodel.ext.intent.OutputIntent.keys(self, directory: str = …) -> dict[str, str]
-texmodel.ext.intent.OutputIntent.slots(self, directory: str = …) -> PreambleSlots
+texmodel.ext.intent.OutputIntent.metadata(self, directory: str = …) -> RequireMetadata
 texmodel.ext.intent.Standard(*values)
 texmodel.ext.intent.Standard.key: property
 texmodel.ext.intent.Standard.newest: property
@@ -257,13 +257,14 @@ texmodel.preamble.InputPath(*dirs: str) -> None
 texmodel.preamble.InputPath.raw(self) -> Raw
 texmodel.preamble.PassOption(package: str, option: str) -> None
 texmodel.preamble.PassOption.raw(self) -> Raw
-texmodel.preamble.PdfInfo(*, title: str | None = …, author: str | None = …, subject: str | None = …, keywords: tuple[str, ...] = …, producer: str | None = …, creator: str | None = …, trailer_id: TrailerId | None = …, extra: Mapping[str, str] = …) -> None
+texmodel.preamble.PdfInfo(*, title: str | None = …, author: str | None = …, subject: str | None = …, keywords: tuple[str, ...] = …, producer: str | None = …, creator: str | None = …, created: datetime.datetime | None = …, modified: datetime.datetime | None = …, trailer_id: TrailerId | None = …, extra: Mapping[str, str] = …) -> None
 texmodel.preamble.PdfInfo.needs_metadata: property
 texmodel.preamble.PdfInfo.raw(self) -> Raw
 texmodel.preamble.PdfInfo.texts(self) -> dict[str, str]
 texmodel.preamble.PreambleSlots(before_class: tuple[Raw | Entry, ...] = …, before_package: tuple[Raw | Entry, ...] = …, after_package: tuple[Raw | Entry, ...] = …) -> None
 texmodel.preamble.PreambleSlots.items(self) -> Iterator[tuple[str, int, Raw | Entry]]
-texmodel.preamble.RequireMetadata(**entries: str) -> None
+texmodel.preamble.RequireMetadata(*, lang: str | None = …, pdfversion: str | None = …, pdfstandard: tuple[str, ...] = …, colorprofiles: Mapping[str, str] = …, extra: Mapping[str, str] = …) -> None
+texmodel.preamble.RequireMetadata.entries(self) -> dict[str, str]
 texmodel.preamble.RequireMetadata.raw(self) -> Raw
 texmodel.preamble.TrailerId(hex: str) -> None
 texmodel.preamble.TrailerId.of(cls, seed: bytes) -> Self

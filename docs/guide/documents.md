@@ -7,8 +7,9 @@ module.
 from texmodel.components import Command, Environment, Value, field
 from texmodel.document import Document
 from texmodel.package import Package
-from texmodel.preamble import PreambleSlots
-from texmodel.preamble import GraphicsPath, InputIfExists, InputPath, PassOption, PdfInfo, RequireMetadata
+import datetime
+
+from texmodel.preamble import GraphicsPath, InputIfExists, InputPath, PassOption, PdfInfo, PreambleSlots, RequireMetadata, TrailerId
 from texmodel.spec import from_dict, json_schema, to_dict
 from texmodel.types import Length, Raw, Text
 
@@ -123,6 +124,8 @@ assert r"\setlength{\dkGap}{3mm}" in tex
 | `content` (the positional arguments) | the nodes of the body |
 | `options` | class options, `[A-Za-z0-9][A-Za-z0-9=.-]*` (`TM-C006`) |
 | `settings` | `Value` instances, written after the package ([Values](values.md#settings-for-a-document)) |
+| `metadata` | a `RequireMetadata`: the `\DocumentMetadata` keys, written before the class ([Metadata](#metadata)) |
+| `pdf` | a `PdfInfo`: what the PDF says about itself, written after the packages ([PdfInfo](#pdfinfo)) |
 | `preamble` | a `PreambleSlots`, below |
 
 ## Layout
@@ -144,47 +147,53 @@ needs it:
 
 | Slot | For |
 |---|---|
-| `before_class` | `\DocumentMetadata` |
+| `before_class` | options passed before the class loads |
 | `before_package` | `\input@path`, options passed to packages |
-| `after_package` | `\graphicspath`, PDF info, per-document `\renewcommand`s |
+| `after_package` | `\graphicspath`, per-document `\renewcommand`s |
 
 Typed entries render to one `Raw` and know their slot. One in another slot is `TM-C008`.
 
 | Entry | Slot | Writes |
 |---|---|---|
-| `RequireMetadata(lang="en-GB")` | `before_class` | `\DocumentMetadata{lang=en-GB}` |
 | `PassOption("xcolor", "table")` | `before_class`, `before_package` | `\PassOptionsToPackage{table}{xcolor}` |
 | `InputPath("res/")` | `before_package` | `\input@path` |
 | `InputIfExists("deck-variant")` | `before_package`, `after_package` | `\InputIfFileExists{deck-variant}{}{}` |
 | `GraphicsPath("images/")` | `after_package` | `\graphicspath{{}{images/}}` (current directory first unless `include_cwd=False`) |
-| `PdfInfo(title="Rex")` | `before_package`, `after_package` | the PDF's title, author, producer, trailer ID and more, below |
 
 ```python
 slots = PreambleSlots(
-    before_class=(RequireMetadata(lang="en-GB"),),
     before_package=(InputPath("res/"), PassOption("xcolor", "table"), InputIfExists("deck-options")),
-    after_package=(GraphicsPath("images/"), PdfInfo(title="Rex (the fox)", subject="50% & more")),
+    after_package=(GraphicsPath("images/"),),
 )
 tex = pkg.document(Document(card, preamble=slots))
-assert tex.index(r"\DocumentMetadata") < tex.index(r"\documentclass") < tex.index(r"\usepackage{deck}")
+assert tex.index(r"\PassOptionsToPackage") < tex.index(r"\usepackage{deck}") < tex.index(r"\graphicspath")
 ```
 
 Raw TeX is also accepted in a slot. A public name of the package used there that no component declares is refused with its
 path (`TM-M015`, `preamble.after_package[0]`).
 
+### Metadata
+
+`Document(metadata=RequireMetadata(lang="en-GB", pdfstandard=("A-2b",)))` is `\DocumentMetadata{lang=en-GB, pdfstandard=A-2b}`,
+which the plan writes first, before the class. The fields are `lang`, `pdfversion`, `pdfstandard` (a tuple), `colorprofiles`
+(subtype to profile file) and `extra` for any other key (`tagging`; letters, digits, `-` and `/`, not one a field has:
+`TM-M091`, `TM-M092`). A value has none of `{ } % \ #` (`TM-M093`). The key set is the kernel's, so the sources, not texmodel,
+say which a given LaTeX knows.
+
 ### PdfInfo
 
 `PdfInfo` is what the PDF says about itself, declared once: `title`, `author`, `subject`, `keywords` (a tuple), `producer`,
-`creator`, `trailer_id` and `extra` (more Info entries, a key of letters only, `TM-M035`, and not one a field has,
+`creator`, `created` and `modified` (with a time zone, stored as UTC: `TM-M094`), `trailer_id` and `extra` (more Info entries, a key of letters only, `TM-M035`, and not one a field has,
 `TM-M090`). The fields reach the PDF by three routes:
 
 | Field | Info dictionary | XMP packet | How |
 |---|---|---|---|
 | `title`, `author`, `subject`, `keywords`, `producer`, `creator` | yes | yes | `\pdfmanagement_add:nnn` and the document properties hyperref also reads, so hyperref is not needed and, if loaded, agrees |
+| `created`, `modified` | `CreationDate`, `ModDate` | `CreateDate`, `ModifyDate` | the document properties `creationdate`, `moddate`; they replace the `SOURCE_DATE_EPOCH` dates |
 | `extra` | yes | no | `\pdfmanagement_add:nnn` |
 | `trailer_id` | the trailer `/ID` | | `\pdfvariable trailerid` |
 
-The first two need `RequireMetadata` in `before_class` (`TM-C009`); a `trailer_id` alone does not. Give the text as it is; do
+These routes need `\DocumentMetadata`, which the plan writes (empty) when the document has a `pdf` and no `metadata`; a `trailer_id` alone needs none. Give the text as it is; do
 not trim, balance or escape it first: unbalanced `(` and `)`, `\`, `#`, `%`, `&`, `$`, braces, a trailing or doubled space,
 newlines and non-ASCII (é, —, CJK, emoji) reach both places unchanged, and a compile test reads them back.
 
@@ -209,17 +218,26 @@ Everything wrong comes at once as an `ExceptionGroup` of `ValidationError` (`TM-
 `Card/Fact[2].text`.
 
 `from_dict(pkg, data)` is a `Document`: the package says which components and values the names in the data are.
-`content` is a list of nodes, `options` a list of strings, `settings` a list of `{"type": "Gap", "value": "3mm"}` and
-`preamble` a mapping of slot to a list of TeX strings and typed entries (`{"type": "PdfInfo", "title": "Rex"}`).
+`content` is a list of nodes, `options` a list of strings, `settings` a list of `{"type": "Gap", "value": "3mm"}`,
+`metadata` and `pdf` objects of their fields (`{"lang": "en-GB"}`, `{"title": "Rex"}`) and `preamble` a mapping of slot to a
+list of TeX strings and typed entries (`{"type": "InputPath", "dirs": ["res/"]}`).
 `to_dict(doc)` writes the same shape, leaving out what is empty. An entry in the wrong slot is `TM-C008` when the document
 is rendered.
 
 ```python
-saved = to_dict(Document(card, settings=[Gap(Length("3mm"))], preamble=slots))
+made = Document(
+    card,
+    settings=[Gap(Length("3mm"))],
+    metadata=RequireMetadata(lang="en-GB"),
+    pdf=PdfInfo(title="Rex", created=datetime.datetime(2026, 1, 2, 3, 4, 5, tzinfo=datetime.UTC)),
+    preamble=slots,
+)
+saved = to_dict(made)
 assert saved["settings"] == [{"type": "Gap", "value": "3mm"}]
-assert saved["preamble"]["before_class"] == [{"type": "RequireMetadata", "entries": {"lang": "en-GB"}}]
+assert saved["metadata"] == {"lang": "en-GB"}
+assert saved["pdf"] == {"title": "Rex", "created": "2026-01-02T03:04:05+00:00"}
 again = from_dict(pkg, saved)
-assert pkg.document(again) == pkg.document(Document(card, settings=[Gap(Length("3mm"))], preamble=slots))
+assert pkg.document(again) == pkg.document(made)
 ```
 
 A renamed field keeps loading under its old key. `text: Text = field(renamed_from="body")` loads `{"body": "..."}`, writes
@@ -266,7 +284,7 @@ assert worst(schema_changes(schema, shorter)) is Level.BREAKING
 ## Where a line came from
 
 `pkg.plan(...)` takes the arguments of `pkg.document(...)` and returns a `Plan`: every output line with the path of what
-wrote it (`Card[1]/Fact[0]`, `settings[0]`, `preamble.after_package[0]`).
+wrote it (`Card[1]/Fact[0]`, `settings[0]`, `metadata`, `pdf`, `preamble.after_package[0]`).
 
 ```python
 plan = pkg.plan(Document(card, preamble=slots))

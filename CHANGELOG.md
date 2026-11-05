@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `PdfInfo.created` and `modified` (with a time zone; stored as UTC) set `CreationDate` and `ModDate` in the Info
+  dictionary and `CreateDate` and `ModifyDate` in the XMP packet, in place of the `SOURCE_DATE_EPOCH` dates.
+- `Document(metadata=, pdf=)` and `Document.replace(content=, preamble=)`.
+
+### Changed
+
+- `RequireMetadata` is typed: `lang`, `pdfversion`, `pdfstandard` (a tuple), `colorprofiles` and `extra` for other keys.
+  `RequireMetadata(pdfstandard="A-2b")` is `RequireMetadata(pdfstandard=("A-2b",))`; `RequireMetadata(tagging="on")` is
+  `RequireMetadata(extra={"tagging": "on"})`. New errors `TM-M091` to `TM-M093`; in data it is the `metadata` object.
+- `RequireMetadata` and `PdfInfo` are set on the `Document` (`metadata=`, `pdf=`) and the plan places them, so they are no
+  longer `PreambleSlots` entries and a `PdfInfo` needs no `RequireMetadata` beside it: the plan writes an empty
+  `\DocumentMetadata{}` when there is none. `TM-C009` is removed. In data, `{"type": "PdfInfo", …}` in a slot is the `pdf`
+  object and `{"type": "RequireMetadata", …}` the `metadata` object. New error `TM-M094`.
+- `OutputIntent.slots()` is `OutputIntent.metadata()`, which returns the `RequireMetadata` for `Document(metadata=)`; `keys()`
+  is `metadata().entries()`.
+- `HypersetupOptions`' `pdf*` keys stay as hyperref's own; `PdfInfo` is the one place to declare the PDF's metadata.
+
 ## [0.18.0] - 2026-11-05
 
 ### Added

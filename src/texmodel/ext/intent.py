@@ -10,7 +10,7 @@ condition = OutputCondition(
     "FOGRA39L_coated.icc", identifier="FOGRA39", info="Coated FOGRA39 (ISO 12647-2:2004)", colorants=4
 )
 intent = OutputIntent(condition, standards=(Standard.X4, Standard.A2B), language="en-GB")
-slots = intent.slots(directory="res/icc")   # a Document's `preamble=`
+metadata = intent.metadata(directory="res/icc")   # a Document's `metadata=`
 intent.declare(pkg, directory="res/icc")    # the registration, in the package's .sty
 ```
 """
@@ -23,7 +23,7 @@ from collections.abc import Sequence
 from ..body import Syntax
 from ..errors import DeclarationError, Violation
 from ..package import Package
-from ..preamble import PreambleSlots, RequireMetadata
+from ..preamble import RequireMetadata
 from ..types import Raw
 
 _UNSAFE = re.compile(r"[,=%\\{}#]")
@@ -151,25 +151,17 @@ class OutputIntent:
                     hint=f"pdf_version={'.'.join(map(str, standard.newest))!r}: the engine writes 2.0 unasked",
                 )
 
-    def keys(self, directory: str = "") -> dict[str, str]:
-        """The `\\DocumentMetadata` keys, in the order a document writes them. `directory` is where the profile is."""
+    def metadata(self, directory: str = "") -> RequireMetadata:
+        """The `\\DocumentMetadata` a document starts with, as `Document(metadata=...)`. `directory` is where the
+        profile is."""
         path = f"{directory.rstrip('/')}/{self.condition.profile}" if directory else self.condition.profile
-        out: dict[str, str] = {}
-        if self.language:
-            out["lang"] = self.language
-        if self.standards:
-            out["pdfstandard"] = ",".join(s.key for s in self.standards)
-        if self.pdf_version:
-            out["pdfversion"] = self.pdf_version
-        if self.standards:  # `subtype=path` pairs: the bare file name is a key without a value, and writes no intent
-            out["colorprofiles"] = ",".join(
-                f"{kind}={path}" for kind in dict.fromkeys(s.subtype for s in self.standards)
-            )
-        return out
-
-    def slots(self, directory: str = "") -> PreambleSlots:
-        """What a document starts with: the metadata, before `\\documentclass`."""
-        return PreambleSlots(before_class=(RequireMetadata(**self.keys(directory)),))
+        return RequireMetadata(
+            lang=self.language,
+            pdfstandard=tuple(s.key for s in self.standards),
+            pdfversion=self.pdf_version,
+            # `subtype=path` pairs: the bare file name is a key without a value, and writes no intent
+            colorprofiles={s.subtype: path for s in self.standards},
+        )
 
     def declare(self, package: Package, directory: str = "") -> None:
         """Register the condition for the profile under both spellings a document may reach it by: the bare file name

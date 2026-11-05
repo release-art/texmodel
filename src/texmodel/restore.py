@@ -171,7 +171,7 @@ def _rebuilt(
 
 def _with(document: Document, changes: Sequence[_Change]) -> Document:
     rebuilt = _rebuilt(document.content, "", {c.path: c.update for c in changes})
-    return Document(*rebuilt, options=document.options, settings=document.settings, preamble=document.preamble)
+    return document.replace(content=rebuilt)
 
 
 def _checked(

@@ -2,6 +2,8 @@
 the check, so what an entry refuses is a data error too."""
 
 import abc
+import dataclasses
+import datetime
 from typing import Annotated, Literal
 
 import pydantic
@@ -21,22 +23,31 @@ from ..preamble import (
 from ..types import Raw
 
 
-class EntryModel(pydantic.BaseModel):
-    """An entry as data: `{"type": "PassOption", "package": ..., "option": ...}` (§21). Building the entry is the check,
-    so a `PdfInfo` key or an `InputIfExists` name that the entry refuses is a data error too."""
+class Built(pydantic.BaseModel):
+    """Data that builds a value: building it is the check, so what the value refuses is a data error too."""
 
     model_config = pydantic.ConfigDict(frozen=True, extra="forbid")
 
     @abc.abstractmethod
-    def entry(self) -> Entry: ...
+    def build(self) -> object: ...
 
     @pydantic.model_validator(mode="after")
-    def _constructible(self) -> "EntryModel":
+    def _constructible(self) -> "Built":
         try:
-            self.entry()
+            self.build()
         except DeclarationError as exc:
             raise ValueError(str(exc)) from exc
         return self
+
+
+class EntryModel(Built):
+    """An entry as data: `{"type": "PassOption", "package": ..., "option": ...}` (§21)."""
+
+    @abc.abstractmethod
+    def entry(self) -> Entry: ...
+
+    def build(self) -> object:
+        return self.entry()
 
 
 class PassOptionEntry(EntryModel):
@@ -73,30 +84,70 @@ class GraphicsPathEntry(EntryModel):
         return GraphicsPath(*self.dirs, include_cwd=self.include_cwd)
 
 
-class RequireMetadataEntry(EntryModel):
-    type: Literal["RequireMetadata"]
-    entries: dict[str, str] = {}
+class MetadataData(Built):
+    """`Document.metadata` as data: `{"lang": "en-GB", "pdfstandard": ["A-2b"]}`."""
 
-    def entry(self) -> Entry:
-        return RequireMetadata(**self.entries)
+    lang: str | None = None
+    pdfversion: str | None = None
+    pdfstandard: tuple[str, ...] = ()
+    colorprofiles: dict[str, str] = {}
+    extra: dict[str, str] = {}
+
+    def build(self) -> RequireMetadata:
+        return RequireMetadata(
+            lang=self.lang,
+            pdfversion=self.pdfversion,
+            pdfstandard=self.pdfstandard,
+            colorprofiles=self.colorprofiles,
+            extra=self.extra,
+        )
 
 
-class PdfInfoEntry(EntryModel):
-    type: Literal["PdfInfo"]
+class PdfInfoData(Built):
+    """`Document.pdf` as data: `{"title": "Rex", "trailer_id": "00112233445566778899AABBCCDDEEFF"}`."""
+
     title: str | None = None
     author: str | None = None
     subject: str | None = None
     keywords: tuple[str, ...] = ()
     producer: str | None = None
     creator: str | None = None
+    created: datetime.datetime | None = None
+    modified: datetime.datetime | None = None
     trailer_id: str | None = None
     extra: dict[str, str] = {}
 
-    def entry(self) -> Entry:
+    def build(self) -> PdfInfo:
         return PdfInfo(
-            **self.model_dump(exclude={"type", "trailer_id"}),
+            title=self.title,
+            author=self.author,
+            subject=self.subject,
+            keywords=self.keywords,
+            producer=self.producer,
+            creator=self.creator,
+            created=self.created,
+            modified=self.modified,
             trailer_id=None if self.trailer_id is None else TrailerId(self.trailer_id),
+            extra=self.extra,
         )
+
+
+def _plain(found: dict[str, object]) -> dict[str, object]:
+    return {k: list(v) if isinstance(v, tuple) else v for k, v in found.items()}  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
+
+
+def metadata_data(metadata: RequireMetadata) -> dict[str, object]:
+    """The data `MetadataData` reads back to `metadata`: the keys that are set."""
+    return _plain({k: v for k, v in dataclasses.asdict(metadata).items() if v})
+
+
+def pdf_data(info: PdfInfo) -> dict[str, object]:
+    """The data `PdfInfoData` reads back to `info`: the fields that are set, a date as ISO 8601."""
+    found: dict[str, object] = {k: v for k, v in dataclasses.asdict(info).items() if v and k != "trailer_id"}
+    found |= {k: v.isoformat() for k in ("created", "modified") if (v := getattr(info, k)) is not None}
+    if info.trailer_id:
+        found["trailer_id"] = info.trailer_id.hex
+    return _plain(found)
 
 
 def item_tag(item: object) -> str:
@@ -112,9 +163,7 @@ Item = Annotated[
     | Annotated[PassOptionEntry, pydantic.Tag("PassOption")]
     | Annotated[InputPathEntry, pydantic.Tag("InputPath")]
     | Annotated[InputIfExistsEntry, pydantic.Tag("InputIfExists")]
-    | Annotated[GraphicsPathEntry, pydantic.Tag("GraphicsPath")]
-    | Annotated[RequireMetadataEntry, pydantic.Tag("RequireMetadata")]
-    | Annotated[PdfInfoEntry, pydantic.Tag("PdfInfo")],
+    | Annotated[GraphicsPathEntry, pydantic.Tag("GraphicsPath")],
     pydantic.Discriminator(item_tag),
 ]
 
@@ -154,13 +203,6 @@ def preamble_data(slots: PreambleSlots) -> dict[str, list[object]]:
                 fields = {"name": found.name}
             case GraphicsPath():
                 fields = {"dirs": list(found.dirs), "include_cwd": found.include_cwd}
-            case RequireMetadata():
-                fields = {"entries": dict(found.entries)}
-            case PdfInfo():
-                fields = {k: v for k, v in found.texts().items() if k != "keywords"}
-                fields |= {"keywords": list(found.keywords)} if found.keywords else {}
-                fields |= {"trailer_id": found.trailer_id.hex} if found.trailer_id else {}
-                fields |= {"extra": dict(found.extra)} if found.extra else {}
         return {"type": type(found).__name__, **fields}
 
     return {

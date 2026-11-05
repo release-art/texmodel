@@ -21,7 +21,8 @@ a plain dataclass.
 
 A `Document` is data too, read with the package its names belong to (`from_dict(package, data)`): its `content` is a
 list of nodes, its `options` a list of strings, its `settings` a list of `{"type": "FactGap", "value": "3mm"}` and its
-`preamble` a mapping of slot to a list of TeX strings and entries (`{"type": "PdfInfo", "title": "Rex"}`).
+`metadata` and `pdf` objects of their fields (`{"title": "Rex"}`) and `preamble` a mapping of slot to a list of TeX
+strings and entries.
 """
 
 import typing
@@ -32,7 +33,14 @@ import pydantic
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode
 
 from ._internal.data import Children, data_model, validated
-from ._internal.preamble_data import PreambleData, preamble_data
+from ._internal.preamble_data import (
+    MetadataData,
+    PdfInfoData,
+    PreambleData,
+    metadata_data,
+    pdf_data,
+    preamble_data,
+)
 from ._internal.values import plates_outside
 from .body import Comment
 from .components import AnyValue, Command, Environment, Node, Value, concrete_kinds
@@ -92,6 +100,8 @@ def _document_model(package: Package) -> type[pydantic.BaseModel]:
     fields: dict[str, Any] = {
         "type": (Literal["Document"], "Document"),
         "options": (tuple[Annotated[str, pydantic.Field(pattern=f"^{OPTION.pattern}$")], ...], ()),
+        "metadata": (MetadataData | None, None),
+        "pdf": (PdfInfoData | None, None),
         "preamble": (PreambleData, PreambleData()),
         "content": (tuple[Annotated[Node, Children(package)], ...], ()),
     }
@@ -124,6 +134,8 @@ def _document_from(package: Package, data: Mapping[str, object]) -> Document:
         *found.content,
         options=found.options,
         settings=[values[s.type](s.value) for s in getattr(found, "settings", ())],
+        metadata=found.metadata.build() if found.metadata else None,
+        pdf=found.pdf.build() if found.pdf else None,
         preamble=found.preamble.slots(),
     )
 
@@ -160,13 +172,18 @@ def _setting_data(setting: AnyValue) -> dict[str, object]:
 
 def to_dict(node: Node | Document) -> dict[str, object]:
     """The data of `node`, in the shape `from_dict` reads: the fields it was given (`fields_set`), as given. A
-    `Document` writes what it holds: options, settings and preamble slots when there are any, and its content."""
+    `Document` writes what it holds: options, settings, `metadata`, `pdf` and preamble slots when there are any, and its
+    content."""
     if isinstance(node, Document):
         out: dict[str, object] = {"type": "Document"}
         if node.options:
             out["options"] = list(node.options)
         if node.settings:
             out["settings"] = [_setting_data(v) for v in node.settings]
+        if node.metadata:
+            out["metadata"] = metadata_data(node.metadata)
+        if node.pdf:
+            out["pdf"] = pdf_data(node.pdf)
         if preamble := preamble_data(node.preamble):
             out["preamble"] = preamble
         return out | {"content": [to_dict(child) for child in node.content]}

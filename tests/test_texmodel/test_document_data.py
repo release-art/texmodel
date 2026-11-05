@@ -1,5 +1,6 @@
 """A `Document` as data (D1a, §21): settings, options and preamble round-trip and are in the schema and the plan."""
 
+import datetime
 from typing import Any
 
 import jsonschema
@@ -79,13 +80,20 @@ class Card(Environment):
 
 
 SLOTS = PreambleSlots(
-    before_class=(RequireMetadata(lang="en-GB"), PassOption("xcolor", "table")),
+    before_class=(PassOption("xcolor", "table"),),
     before_package=(InputPath("res/", "more/"), InputIfExists("options")),
     after_package=(
         GraphicsPath("img/", include_cwd=False),
-        PdfInfo(title="Rex & co", keywords=("a", "b"), trailer_id=TrailerId("AA" * 16), extra={"Trapped": "False"}),
         Raw(r"\relax"),
     ),
+)
+METADATA = RequireMetadata(lang="en-GB", pdfstandard=("A-2b",), colorprofiles={"A": "a.icc"}, extra={"tagging": "on"})
+PDF = PdfInfo(
+    title="Rex & co",
+    keywords=("a", "b"),
+    created=datetime.datetime(2020, 1, 2, 3, 4, 5, tzinfo=datetime.UTC),
+    trailer_id=TrailerId("AA" * 16),
+    extra={"Trapped": "False"},
 )
 
 
@@ -95,6 +103,8 @@ def full() -> Document:
         Card(Fact(text="a"), Passthrough(Raw(r"\vspace{1mm}"))),
         options=["a4paper", "11pt"],
         settings=[Gap(Length("3mm")), Ink(CMYK(0, 0.5, 1, 0)), Draft(True), Title("A & B"), Footer(Raw(r"\textbf{f}"))],
+        metadata=METADATA,
+        pdf=PDF,
         preamble=SLOTS,
     )
 
@@ -106,21 +116,34 @@ def test_a_document_round_trips_through_data():
         {"type": "Gap", "value": "3mm"},
         {"type": "Ink", "value": {"c": 0.0, "m": 0.5, "y": 1.0, "k": 0.0}},
     ]
-    assert data["preamble"]["after_package"][:2] == [
-        {"type": "GraphicsPath", "dirs": ["img/"], "include_cwd": False},
-        {
-            "type": "PdfInfo",
-            "title": "Rex & co",
-            "keywords": ["a", "b"],
-            "trailer_id": "AA" * 16,
-            "extra": {"Trapped": "False"},
-        },
-    ]
+    assert data["preamble"]["after_package"][:1] == [{"type": "GraphicsPath", "dirs": ["img/"], "include_cwd": False}]
+    assert data["metadata"] == {
+        "lang": "en-GB",
+        "pdfstandard": ["A-2b"],
+        "colorprofiles": {"A": "a.icc"},
+        "extra": {"tagging": "on"},
+    }
+    assert data["pdf"] == {
+        "title": "Rex & co",
+        "keywords": ["a", "b"],
+        "created": "2020-01-02T03:04:05+00:00",
+        "trailer_id": "AA" * 16,
+        "extra": {"Trapped": "False"},
+    }
     loaded = from_dict(pkg, data)
     assert isinstance(loaded, Document)
     assert to_dict(loaded) == data
     assert pkg.plan(loaded) == pkg.plan(full())
-    assert loaded.preamble == SLOTS
+    assert (loaded.preamble, loaded.metadata, loaded.pdf) == (SLOTS, METADATA, PDF)
+
+
+def test_replace_changes_the_content_or_the_preamble_and_keeps_the_rest():
+    document = full()
+    assert document.replace().content == document.content
+    emptied = document.replace(content=())
+    assert emptied.content == () and (emptied.options, emptied.settings) == (document.options, document.settings)
+    assert (emptied.metadata, emptied.pdf, emptied.preamble) == (METADATA, PDF, SLOTS)
+    assert document.replace(preamble=PreambleSlots()).preamble == PreambleSlots()
 
 
 def test_an_empty_document_writes_only_its_content():
@@ -132,7 +155,7 @@ def test_the_plan_names_every_line_of_a_loaded_document():
     plan = pkg.plan(from_dict(pkg, to_dict(full())))  # pyright: ignore[reportArgumentType]
     paths = [x.path for x in plan.lines]
     assert paths.count("settings[0]") == paths.count("settings[4]") == 1
-    assert "preamble.before_class[1]" in paths and "preamble.after_package[2]" in paths
+    assert "metadata" in paths and "pdf" in paths and "preamble.before_class[0]" in paths
     assert plan.lines[next(i for i, x in enumerate(plan.lines) if x.path == "Card[1]")].path == "Card[1]"
 
 
@@ -140,7 +163,7 @@ def test_a_hand_edit_of_a_setting_or_a_preamble_line_is_found_by_path():
     plan = pkg.plan(full())
     text = plan.text.replace(r"\setlength{\ddGap}{3mm}", r"\setlength{\ddGap}{9mm}").replace(r"\relax", r"\relax\relax")
     found = {e.path: e.kind for e in Plan.from_json(plan.to_json()).edits(text)}
-    assert found == {"settings[0]": EditKind.CHANGED, "preamble.after_package[2]": EditKind.CHANGED}
+    assert found == {"settings[0]": EditKind.CHANGED, "preamble.after_package[1]": EditKind.CHANGED}
 
 
 def test_an_entry_in_the_wrong_slot_is_still_tm_c008():
@@ -164,8 +187,8 @@ def paths(group: pytest.ExceptionInfo[ExceptionGroup[Exception]]) -> list[tuple[
         ({"settings": [{"type": "Gap", "value": 3.5}]}, [("TM-C020", "settings[0].value")]),
         ({"settings": [{"type": "Draft"}]}, [("TM-C020", "settings[0].value")]),
         (
-            {"preamble": {"after_package": [{"type": "PdfInfo", "extra": {"a b": "x"}}]}},
-            [("TM-C020", "preamble.after_package[0]")],
+            {"pdf": {"extra": {"a b": "x"}}},
+            [("TM-C020", "pdf")],
         ),
         ({"preamble": {"after_package": ["{"]}}, [("TM-C020", "preamble.after_package[0]")]),
         ({"preamble": {"after_package": [{"type": "Nope"}]}}, [("TM-C020", "preamble.after_package[0]")]),
@@ -219,13 +242,21 @@ def test_the_schema_describes_the_document_and_checks_data():
     schema = json_schema(pkg)
     jsonschema.Draft202012Validator.check_schema(schema)
     assert schema["$ref"] == "#/$defs/Document"
-    assert {"GapSetting", "PdfInfoEntry", "PreambleData", "Card", "Passthrough"} <= set(schema["$defs"])
-    assert set(schema["$defs"]["Document"]["properties"]) == {"type", "options", "settings", "preamble", "content"}
+    assert {"GapSetting", "PdfInfoData", "PreambleData", "Card", "Passthrough"} <= set(schema["$defs"])
+    assert set(schema["$defs"]["Document"]["properties"]) == {
+        "type",
+        "options",
+        "settings",
+        "metadata",
+        "pdf",
+        "preamble",
+        "content",
+    }
     validator = jsonschema.Draft202012Validator(schema)
     assert list(validator.iter_errors(dict[str, Any](to_dict(full())))) == []
     assert list(validator.iter_errors({"options": ["a]b"]}))
     assert list(validator.iter_errors({"settings": [{"type": "Gap", "value": 3}]}))
-    assert list(validator.iter_errors({"preamble": {"after_package": [{"type": "PdfInfo", "title": 1}]}}))
+    assert list(validator.iter_errors({"pdf": {"title": 1}}))
     assert list(validator.iter_errors({"colour": "red"}))
 
 

@@ -282,4 +282,4 @@ octal escape (`\050`), and text with a non-ASCII character as UTF-16BE. A parent
 `_` cannot break the TeX, and a reader gets the text back.
 
 It is not for `\hypersetup{pdftitle=...}`: hyperref escapes its own input. For the PDF Info dictionary and the XMP packet use
-`PdfInfo` ([Documents](documents.md#the-preamble)), which needs no escaping from you.
+`PdfInfo` ([Documents](documents.md#pdfinfo)), which needs no escaping from you.

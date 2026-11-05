@@ -103,7 +103,7 @@ condition = OutputCondition(
 )
 intent = OutputIntent(condition, standards=(Standard.X4, Standard.A2B), language="en-GB", pdf_version="1.7")
 intent.declare(pkg, directory="res/icc")
-tex = pkg.document(Document(preamble=intent.slots(directory="res/icc")))
+tex = pkg.document(Document(metadata=intent.metadata(directory="res/icc")))
 assert "colorprofiles={X=res/icc/FOGRA39L_coated.icc,A=res/icc/FOGRA39L_coated.icc}" in tex
 assert tex.index(r"\DocumentMetadata") < tex.index(r"\documentclass")
 ```
