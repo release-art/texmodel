@@ -8,6 +8,7 @@ output directory writable; without one it runs the tools on this machine (for in
 
 import asyncio
 import dataclasses
+import hashlib
 import logging
 import os
 import pathlib
@@ -241,6 +242,7 @@ class Compiler:
     async def _latexmk(self, source: pathlib.Path, outdir: pathlib.Path, extra: Sequence[str] = ()) -> Proc:
         args = [
             *self.engine.latexmk_args,
+            f"-pretex={self.engine.pretex}{self._trailer_id(source)}",
             "-interaction=nonstopmode",
             "-file-line-error",
             *(["-halt-on-error"] if self.halt_on_error else []),
@@ -256,6 +258,16 @@ class Compiler:
             who = "docker could not start the container" if proc.returncode == 125 else "could not run latexmk"
             raise ToolchainError(f"{who}: {_tail(proc.stderr)}", code="TM-T004", hint="run `texmodel run doctor`")
         return proc
+
+    def _trailer_id(self, source: pathlib.Path) -> str:
+        r"""In reproducible mode, the PDF's trailer `/ID` set from the epoch, the job name and the source: LuaTeX hashes
+        the working directory into it otherwise, so the same source built in two directories would differ."""
+        if self.epoch is None:
+            return ""
+        digest = (
+            hashlib.sha256(f"{self.epoch}\0{source.stem}\0".encode() + source.read_bytes()).hexdigest()[:32].upper()
+        )
+        return rf" \pdfvariable trailerid{{[<{digest}><{digest}>]}}"
 
     async def _not_converged(self, source: pathlib.Path, outdir: pathlib.Path, passes: int) -> Diagnostic:
         """One more pass, to see which `.aux` entries still move (C1a)."""

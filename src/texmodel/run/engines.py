@@ -15,6 +15,7 @@ class Engine:
     binary: str
     # latexmk options choosing this engine; shell escape is off, and a package must declare it to get it (C3).
     latexmk_args: tuple[str, ...]
+    pretex: str  # TeX run before the document (latexmk's `-pretex`, `%P`), on one line: it is a command-line argument
     parse_log: Callable[[str, Sequence[Measure]], tuple[Diagnostic, ...]]
 
 
@@ -45,8 +46,8 @@ LUALATEX = Engine(
     latexmk_args=(
         "-pdf",
         "-pdflatex=lualatex --no-shell-escape %O %P",
-        "-pretex=" + " ".join(_FILE_MARKS.split()),  # one line: it is a command-line argument
     ),
+    pretex=" ".join(_FILE_MARKS.split()),
     parse_log=parse_log,
 )
 

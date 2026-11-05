@@ -86,7 +86,9 @@ A font inside an included PDF is not in the log.
 
 ## Reproducibility
 
-Reproducibility is the image's job. `--epoch` pins `SOURCE_DATE_EPOCH`. There is no sandbox or cache here.
+Reproducibility is the image's job. `--epoch` pins `SOURCE_DATE_EPOCH` and sets the PDF's trailer `/ID` from the epoch,
+the job name and the source, since LuaTeX otherwise hashes the working directory into it (the same source built in
+two directories differs). There is no sandbox or cache here.
 
 A generated file's header records the texmodel version. A copy of texmodel embedded in a wheel has no installed metadata to
 read it from; set `texmodel.package.GENERATOR_VERSION` in the copy.

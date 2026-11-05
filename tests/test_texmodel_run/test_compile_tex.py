@@ -241,3 +241,17 @@ async def test_every_example_golden_compiles(compiler, tmp_path, tex):
     comp = Compiler(image=compiler.image, font_cache=compiler.font_cache, roots=(tex.parent,))
     result = await comp.compile(src, tmp_path / "out")
     assert result.ok and result.pages == 1 and not result.errors, [str(x) for x in result.diagnostics]
+
+
+@pytest.mark.skipif(shutil.which("lualatex") is None or shutil.which("latexmk") is None, reason="no TeX on this host")
+async def test_reproducible_mode_builds_the_same_bytes_in_two_directories(tmp_path):
+    """On the host the working directory is the source's, which LuaTeX hashes into the trailer ID unless it is set."""
+    pdfs = []
+    for name in ("a", "b"):
+        source = tmp_path / name / "d.tex"
+        source.parent.mkdir()
+        source.write_text("\\documentclass{article}\\begin{document}x\\end{document}")
+        result = await Compiler(epoch=1700000000).compile(source, tmp_path / f"out-{name}")
+        assert result.ok and result.pdf
+        pdfs.append(result.pdf.read_bytes())
+    assert pdfs[0] == pdfs[1]

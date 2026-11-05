@@ -179,6 +179,9 @@ path (`TM-M015`, `preamble.after_package[0]`).
 Unbalanced `(` and `)`, `\`, `#`, `%`, `&`, `$`, braces, a trailing or doubled space, newlines and non-ASCII (é, —, CJK, emoji)
 reach the PDF Info dictionary unchanged. A compile test reads a corpus of such values back from the PDF.
 
+`PdfInfo` sets the Info dictionary only. To replace the producer and the creator (`luahbtex-…`, `LaTeX`), also in the
+XMP packet, use `hyperref.HypersetupOptions(pdfproducer=..., pdfcreator=...)`.
+
 ## A document from data
 
 `texmodel.spec` loads a document from plain data (what TOML or JSON gives), using pydantic. A child names its component with

@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import pathlib
+import re
 import subprocess
 import time
 
@@ -43,6 +44,33 @@ async def test_local_compile_builds_a_safe_argv_in_the_source_dir(toolchain, src
     assert f"-outdir={tmp_path / 'out'}" in argv and "$max_repeat=3;" in argv and "-file-line-error" in argv
     assert (result.engine, result.latexmk_version) == ("lualatex", "4.87")
     assert result.engine_version.startswith("This is LuaHBTeX")
+
+
+async def test_reproducible_mode_sets_the_trailer_id_from_the_epoch_the_job_name_and_the_source(
+    toolchain, src, tmp_path
+):
+    def pretex(fake) -> str:
+        return next(a for a in latexmk_call(fake) if a.startswith("-pretex="))
+
+    await Compiler(epoch=1700000000).compile(src, tmp_path / "out")
+    first = pretex(toolchain)
+    assert re.search(r" \\pdfvariable trailerid\{\[<([0-9A-F]{32})><\1>\]\}$", first)
+    toolchain.calls.clear()
+    other = tmp_path / "other" / "a.tex"  # the same source in another directory: the same ID
+    other.parent.mkdir()
+    other.write_bytes(src.read_bytes())
+    await Compiler(epoch=1700000000).compile(other, tmp_path / "out2")
+    assert pretex(toolchain) == first
+    toolchain.calls.clear()
+    other.write_text("\\documentclass{book}")  # other content, or another epoch, another ID
+    await Compiler(epoch=1700000000).compile(other, tmp_path / "out2")
+    changed = pretex(toolchain)
+    toolchain.calls.clear()
+    await Compiler(epoch=1700000001).compile(src, tmp_path / "out")
+    assert len({first, changed, pretex(toolchain)}) == 3
+    toolchain.calls.clear()
+    await Compiler().compile(src, tmp_path / "out")
+    assert "trailerid" not in pretex(toolchain)
 
 
 async def test_container_compile_mounts_sources_read_only_and_runs_as_the_user(toolchain, src, tmp_path):

@@ -615,7 +615,13 @@ def hyperref_samples():
     from texmodel.std import hyperref as h
 
     options = h.HypersetupOptions(
-        pdftitle="Deck", pdfauthor="A", colorlinks=True, linkcolor=Raw("blue"), extra=Raw("pdfborder={0 0 0}")
+        pdftitle="Deck",
+        pdfauthor="A",
+        pdfproducer="P",
+        pdfcreator="C",
+        colorlinks=True,
+        linkcolor=Raw("blue"),
+        extra=Raw("pdfborder={0 0 0}"),
     )
     return [h.Hypersetup(options=options)], [
         h.HyperTarget(name=Raw("tmt"), text="x"),

@@ -306,7 +306,7 @@ texmodel.run.diagnostics.diagnostic_from_dict(data: dict[str, Any]) -> Diagnosti
 texmodel.run.diagnostics.overset(item: str, needs: str, has: str, **where: Any) -> Overset | None
 texmodel.run.diagnostics.points(text: str) -> float
 texmodel.run.engines.ENGINES: dict
-texmodel.run.engines.Engine(name: str, binary: str, latexmk_args: tuple[str, ...], parse_log: Callable[[str, Sequence[Measure]], tuple[Diagnostic, ...]]) -> None
+texmodel.run.engines.Engine(name: str, binary: str, latexmk_args: tuple[str, ...], pretex: str, parse_log: Callable[[str, Sequence[Measure]], tuple[Diagnostic, ...]]) -> None
 texmodel.run.engines.LUALATEX: Engine
 texmodel.run.engines.get_engine(name: str) -> Engine
 texmodel.run.errors.CompileError(message: str, *, diagnostics: tuple[Diagnostic, ...] = …, **kwargs: str) -> None

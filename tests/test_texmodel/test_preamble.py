@@ -8,7 +8,7 @@ from texmodel.document import Document
 from texmodel.errors import DeclarationError
 from texmodel.package import Package
 from texmodel.preamble import GraphicsPath, InputIfExists, InputPath, PassOption, PreambleSlots, RequireMetadata
-from texmodel.std import latex
+from texmodel.std import hyperref, latex
 from texmodel.types import Raw
 
 
@@ -72,6 +72,29 @@ async def test_document_metadata_is_accepted_and_reaches_the_pdf(compiler, tmp_p
     assert result.ok, [(d.path, d.message) for d in result.errors]
     with pikepdf.open(result.pdf) as pdf:  # pyright: ignore[reportArgumentType]
         assert pdf.pdf_version == "1.7" and str(pdf.Root.Lang) == "en-GB"
+
+
+@pytest.mark.tex
+@pytest.mark.timeout(300)
+async def test_hypersetup_replaces_the_producer_and_the_creator_in_the_info_dictionary_and_the_xmp(compiler, tmp_path):  # noqa: F811
+    import pikepdf
+
+    await require_files(compiler, "tagpdf-base.sty", "hyperref.sty")
+    options = hyperref.HypersetupOptions(pdfproducer="Acme Press", pdfcreator="Acme Maker")
+    plan = hyperref.package.plan(
+        Document(
+            Passthrough(Raw(hyperref.Hypersetup(options=options).render() + " x")),
+            preamble=PreambleSlots(before_class=(RequireMetadata(lang="en-GB"),)),
+        )
+    )
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "d.tex").write_text(plan.text, encoding="utf-8")
+    result = await compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out", plan=plan)
+    assert result.ok, [(d.path, d.message) for d in result.errors]
+    with pikepdf.open(result.pdf) as pdf:  # pyright: ignore[reportArgumentType]
+        assert (str(pdf.docinfo.Producer), str(pdf.docinfo.Creator)) == ("Acme Press", "Acme Maker")
+        xmp = pdf.open_metadata()
+        assert (xmp["pdf:Producer"], xmp["xmp:CreatorTool"]) == ("Acme Press", "Acme Maker")
 
 
 @pytest.mark.tex
