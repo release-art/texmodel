@@ -7,13 +7,14 @@ stands in a `tikz.Tikzpicture`. A plot (`\addplot coordinates {...};`) has its o
 
 import dataclasses
 import enum
+import re
 
 from texmodel.components import Anywhere, ColourRef, Command, Environment, Passthrough
-from texmodel.interface import Flag, Item
+from texmodel.interface import ColourName, Flag, Item
 from texmodel.keys import PGFKEYS
 from texmodel.keyvals import KeyVals
 from texmodel.package import Package
-from texmodel.types import AsTeX, Choice, Length, Name, NameList, Raw, Text
+from texmodel.types import AsTeX, Choice, Length, NameList, Raw, Text
 
 package = Package("pgfplots", prefix="", adopted=True)
 
@@ -39,22 +40,47 @@ class AxisLines(Choice):
     NONE = "none"
 
 
-@dataclasses.dataclass(frozen=True)
-class Colormap(AsTeX):
-    r"""A colour map of evenly spaced colours, each as three values from 0 to 255: the value of the `colormap` key.
-    `Colormap("brand", ((0, 0, 255), (255, 0, 0)))` is `{brand}{rgb255=(0,0,255) rgb255=(255,0,0)}`."""
+_PLOT_NAME = re.compile(r"[A-Za-z][A-Za-z0-9-]*(?: [A-Za-z0-9-]+)*")
 
-    name: str
-    colours: tuple[tuple[int, int, int], ...]
+
+@dataclasses.dataclass(frozen=True)
+class PlotName(Raw):
+    """The name of a cycle list or a colour map, as pgfplots takes it: words of letters, digits and `-` with single
+    spaces between, starting with a letter (`PlotName("brand bars")`)."""
 
     def __post_init__(self) -> None:
-        if not self.name.replace(" ", "").isalnum():
-            raise ValueError(f"colormap name {self.name!r}: give letters, digits and spaces")
-        if len(self.colours) < 2 or any(len(c) != 3 or not all(0 <= x <= 255 for x in c) for c in self.colours):
-            raise ValueError(f"colormap {self.name!r}: give two or more colours of three values from 0 to 255")
+        super().__post_init__()
+        if not _PLOT_NAME.fullmatch(self.tex):
+            raise ValueError(f"plot name {self.tex!r}: give words of letters, digits and `-` with single spaces")
+
+
+type Stop = tuple[int, int, int] | ColourRef
+"""A colour of a colour map: three values from 0 to 255, or a colour by name."""
+
+
+@dataclasses.dataclass(frozen=True)
+class Colormap(AsTeX):
+    r"""A colour map of evenly spaced colours, each as three values from 0 to 255 or a colour by name, the value of the
+    `colormap` key. `Colormap(PlotName("brand"), ((0, 0, 255), ColourName("red")))` is
+    `{brand}{rgb255=(0,0,255) color=(red)}`. A named stop follows the colour's definition, so it keeps the colour model
+    the package loads with (`[cmyk]`), where a triple is always RGB."""
+
+    name: PlotName
+    colours: tuple[Stop, ...]
+
+    def __post_init__(self) -> None:
+        stops = tuple(c if isinstance(c, tuple) else ColourName(c) for c in self.colours)
+        if len(stops) < 2 or any(
+            isinstance(c, tuple) and (len(c) != 3 or not all(0 <= x <= 255 for x in c)) for c in stops
+        ):
+            raise ValueError(
+                f"colormap {self.name.tex!r}: give two or more colours, each three values from 0 to 255 or a name"
+            )
+        object.__setattr__(self, "colours", stops)
 
     def render(self) -> str:
-        return f"{{{self.name}}}{{{' '.join('rgb255=(%d,%d,%d)' % c for c in self.colours)}}}"
+        stops = (f"rgb255=({c[0]},{c[1]},{c[2]})" if isinstance(c, tuple) else f"color=({c})" for c in self.colours)
+        return f"{{{self.name.tex}}}{{{' '.join(stops)}}}"
 
 
 class PlotStyle(KeyVals, rules=PGFKEYS):
@@ -65,6 +91,7 @@ class PlotStyle(KeyVals, rules=PGFKEYS):
     mark_size: Length | None = None
     line_width: Length | None = None
     fill: ColourRef | None = None
+    draw: ColourRef | None = None
     opacity: float | None = None
     solid: Flag = False
     dashed: Flag = False
@@ -111,8 +138,8 @@ class PgfplotsOptions(KeyVals, rules=PGFKEYS):
     ybar: Flag = False
     scale_only_axis: Flag = False
     colorbar: Flag = False
-    cycle_list_name: Name | None = None
-    colormap_name: Name | None = None
+    cycle_list_name: PlotName | None = None
+    colormap_name: PlotName | None = None
     colormap: Colormap | None = None
     extra: Item[Raw] | None = None
 
@@ -174,7 +201,7 @@ class PgfplotsCreatePlotCycleList(Command):
     r"""Name a cycle list, to use as `cycle list name=`."""
 
     cs = "pgfplotscreateplotcyclelist"
-    name: Name
+    name: PlotName
     styles: CycleList
 
 

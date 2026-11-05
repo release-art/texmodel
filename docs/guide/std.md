@@ -90,5 +90,7 @@ pkg.at_load("fonts", fontspec.SetMainFont(font=FontName("Skolar.otf"), options=f
 ```
 
 `pgfplots` has the axis environments (inside a `tikz.Tikzpicture`), `PgfplotsSet` and `PgfplotsCreatePlotCycleList`;
-`Colormap` and `CycleList` write a colour map and a cycle list. To use it only when the document loads the package, wrap the
+`Colormap` and `CycleList` write a colour map and a cycle list: a map's stops are triples of 0 to 255 or colours by name
+(`ColourName("ra-seq-1")`, a registered colour value), which follow the colour's definition and so the `cmyk` model. Cycle
+list and colour map names are `PlotName`s, which may have spaces (`PlotName("ra brand")`). To use it only when the document loads the package, wrap the
 calls in `latex.IfPackageLoadedT` inside `latex.AtBeginDocument`.

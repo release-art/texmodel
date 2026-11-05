@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-05
+
+### Added
+
+- `std.pgfplots`: a `Colormap` stop may be a colour by name or a registered colour value (`color=(ra-seq-1)`), which keeps
+  the colour model the package loads with; `PlotStyle.draw`; `PlotName`, a cycle list or colour map name with spaces.
+
+### Changed
+
+- `std.pgfplots`: `Colormap.name`, `PgfplotsCreatePlotCycleList.name`, `PgfplotsOptions.cycle_list_name` and
+  `colormap_name` are `PlotName`s, not `str` or `Name`.
+
 ## [0.15.0] - 2026-11-05
 
 ### Added
@@ -538,7 +550,8 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/release-art/texmodel/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/release-art/texmodel/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/release-art/texmodel/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/release-art/texmodel/compare/v0.12.0...v0.13.0

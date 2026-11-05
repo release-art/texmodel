@@ -20,7 +20,7 @@ import pytest
 from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 
 from texmodel.body import Hole
-from texmodel.components import Command, Passthrough
+from texmodel.components import Command, Passthrough, Value
 from texmodel.document import Document
 from texmodel.interface import ColourName
 from texmodel.package import Package
@@ -28,7 +28,7 @@ from texmodel.preamble import PreambleSlots
 from texmodel.run.compiler import Compiler
 from texmodel.run.diagnostics import PackageError, Severity
 from texmodel.std import MODULES, TEXLIVE
-from texmodel.types import ControlSequence, FilePath, FontName, Length, Macro, Name, NameList, Raw, Text
+from texmodel.types import RGB, Colour, ControlSequence, FilePath, FontName, Length, Macro, Name, NameList, Raw, Text
 
 
 def header(name: str):  # noqa: ANN201
@@ -798,12 +798,12 @@ def pgfplots_samples():
     from texmodel.std import pgfplots as g
     from texmodel.std.tikz import Tikzpicture
 
-    colormap = g.Colormap("tmmap", ((0, 0, 255), (255, 255, 255), (255, 0, 0)))
+    colormap = g.Colormap(g.PlotName("tm map"), ((0, 0, 255), ColourName("white"), (255, 0, 0), ColourName("red!50")))
     cycle = g.CycleList(
         (
             g.PlotStyle(color=ColourName("red"), mark="*", mark_size=Length("2pt"), solid=True),
             g.PlotStyle(color=ColourName("blue"), mark="square*", line_width=Length("1pt"), dashed=True),
-            g.PlotStyle(fill=ColourName("black"), opacity=0.5, dotted=True, only_marks=True),
+            g.PlotStyle(fill=ColourName("black"), draw=ColourName("red"), opacity=0.5, dotted=True, only_marks=True),
             g.PlotStyle(no_marks=True, extra=Raw("mark options={fill=white}")),
         )
     )
@@ -823,7 +823,7 @@ def pgfplots_samples():
         xtick=(0, 2, 4),
         ytick=(0, 2, 4),
         scale_only_axis=True,
-        cycle_list_name=Name("tmcycle"),
+        cycle_list_name=g.PlotName("tm cycle"),
         extra=Raw("legend style={draw=none}"),
     )
     plot = body_of(r"\addplot coordinates {(0,0) (1,1) (2,4)};", g.AddLegendEntry(text="Series").render())
@@ -837,8 +837,8 @@ def pgfplots_samples():
     return [
         g.UsePgfplotsLibrary(libraries=NameList("groupplots")),
         g.PgfplotsSet(options=g.PgfplotsOptions(compat="1.18", colormap=colormap)),
-        g.PgfplotsSet(options=g.PgfplotsOptions(colormap_name=Name("tmmap"))),
-        g.PgfplotsCreatePlotCycleList(name=Name("tmcycle"), styles=cycle),
+        g.PgfplotsSet(options=g.PgfplotsOptions(colormap_name=g.PlotName("tm map"))),
+        g.PgfplotsCreatePlotCycleList(name=g.PlotName("tm cycle"), styles=cycle),
     ], [
         Tikzpicture(body_of(*(axis.render() for axis in axes))),
     ]
@@ -894,10 +894,13 @@ def test_microtype_refuses_characters_and_amounts_it_cannot_write(make):
 @pytest.mark.parametrize(
     "make",
     [
-        lambda g: g.Colormap("a_b", ((0, 0, 0), (1, 1, 1))),
-        lambda g: g.Colormap("ab", ((0, 0, 0),)),
-        lambda g: g.Colormap("ab", ((0, 0, 0), (0, 0, 256))),
-        lambda g: g.Colormap("ab", ((0, 0, 0), (0, 0))),
+        lambda g: g.PlotName("a_b"),
+        lambda g: g.PlotName("a  b"),
+        lambda g: g.PlotName("a b "),
+        lambda g: g.PlotName("1a"),
+        lambda g: g.Colormap(g.PlotName("ab"), ((0, 0, 0),)),
+        lambda g: g.Colormap(g.PlotName("ab"), ((0, 0, 0), (0, 0, 256))),
+        lambda g: g.Colormap(g.PlotName("ab"), ((0, 0, 0), (0, 0))),
         lambda g: g.CycleList(()),
     ],
 )
@@ -906,6 +909,23 @@ def test_pgfplots_refuses_a_colormap_and_a_cycle_list_it_cannot_write(make):
 
     with pytest.raises(ValueError, match="give"):
         make(g)
+
+
+def test_pgfplots_writes_named_colours_as_stops_and_spaces_in_names():
+    from texmodel.std import pgfplots as g
+
+    pkg = Package("ra", prefix="ra")
+
+    @pkg.value
+    class Seq1(Value[Colour]):
+        """A colour of the map."""
+
+        default = RGB(0.1, 0.2, 0.3)
+
+    colormap = g.Colormap(g.PlotName("ra sequential"), (Seq1, ColourName("ra-seq-2"), (1, 2, 3)))
+    assert colormap.render() == "{ra sequential}{color=(ra-seq-1) color=(ra-seq-2) rgb255=(1,2,3)}"
+    style = g.PlotStyle(fill=ColourName("ra-cat-1"), draw=ColourName("ra-cat-1"))
+    assert style.render() == "fill=ra-cat-1,draw=ra-cat-1"
 
 
 def test_at_load_carries_the_calls_into_the_sty_after_the_packages_they_need():
