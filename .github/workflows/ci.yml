@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.15"
-      - run: python -m pip install pdm
+      - run: python -m pip install pdm "hishel<2" # pdm does not support hishel 2 yet (pdm-project/pdm#3995)
       - run: pdm install --with dev --with docs
       - run: pdm run ruff check src tests
       - run: pdm run ruff format --check src tests
@@ -44,7 +44,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.15"
-      - run: python -m pip install pdm
+      - run: python -m pip install pdm "hishel<2" # pdm does not support hishel 2 yet (pdm-project/pdm#3995)
       - run: pdm install --with dev
       - run: bin/test-image.sh
       - run: pdm run pytest -m tex --no-cov
