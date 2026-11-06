@@ -81,7 +81,8 @@ document with `metadata` or `pdf` for a package whose class is beamer is `TM-C05
 so the plan always writes one (empty unless `metadata` or `pdf` say more): `Package(metadata=MetadataPolicy.REQUIRED)`; beamer says
 `REFUSED`, every other class `ALLOWED`. Class options are typed (`TalkOptions` gives the `options` of a document, `AspectRatio(4, 3)` is
 `4:3`). The package always passes `frame-title-arg=true` (`Package(class_options=)`), so a `Frame` always writes its title
-argument, `{}` when it has none: the class reads the argument as text of the frame otherwise. `MakeTitle` goes inside a `Frame`. The styling is `\EditInstance`, one command for the
+argument, `{}` when it has none: the class reads the argument as text of the frame otherwise. A `Frame`, a `Block` and the overlay
+environments take any command or environment (a deck's own too). `MakeTitle` goes inside a `Frame`. The styling is `\EditInstance`, one command for the
 class's templates: `template` says which and `keys` is that template's keys class, or `TM-C049`.
 
 ```python

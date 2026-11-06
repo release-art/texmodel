@@ -97,8 +97,9 @@ class Panel(Environment):
 ```
 
 `X.times(2, 3)` is two to three, `X.times.any()` zero or more, `X.times.at_least_one()` one or more. Terms are in order, so a `Passthrough` listed last goes after the facts.
-`Anywhere(Heading)` allows a component anywhere among the other children and does not count against the ordered terms
-(`TM-M029` if it is also an ordered term). `Passthrough(Raw(...))` writes its TeX as it is and is accepted only where a
+`Anywhere(Heading)` allows a component (or a subclass of it) anywhere among the other children and does not count against
+the ordered terms (`TM-M029` if it is also an ordered term). `Anywhere(Command)` and `Anywhere(Environment)` allow any
+command or environment of any package; data lists none of them, so only the components named in the grammar load from data. `Passthrough(Raw(...))` writes its TeX as it is and is accepted only where a
 grammar lists it:
 
 ```python

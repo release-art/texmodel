@@ -228,7 +228,15 @@ def geometry_samples():
     return [
         g.Geometry(
             options=g.GeometryOptions(a4paper=True, margin=Length("10mm"), includehead=True, extra=Raw("heightrounded"))
-        )
+        ),
+        g.Geometry(
+            options=g.GeometryOptions(
+                hmargin=Length("12mm"),
+                vmargin=Length("15mm"),
+                headheight=Length("14pt"),
+                marginparwidth=Length("20mm"),
+            )
+        ),
     ], []
 
 
@@ -1217,6 +1225,7 @@ def test_ltx_talk_writes_its_class_options_and_checks_what_an_edit_instance_is_g
     assert plan.lines[-3].tex == r"\documentclass[frame-title-arg=true,%s]{ltx-talk}" % ",".join(options)
     assert t.Frame().render() == "\\begin{frame}{}\n\\end{frame}"
     assert t.Frame(title="T").render() == "\\begin{frame}{T}\n\\end{frame}"
+    assert t.Frame(t.Pause(), t.Block(title="B")).violations() == []  # any component is a slide's content
     with pytest.raises(ValueRuleError) as failed:
         t.AspectRatio(0, 9)
     assert failed.value.code == "TM-C048"

@@ -531,6 +531,13 @@ class Package:
         """Control sequence -> declarer, over the base chain; this package's own replace a base's."""
         return {k: v for p in self._lineage() for k, v in p._controls.items()}  # noqa: SLF001
 
+    @property
+    def callable_controls(self) -> dict[str, str]:
+        """The names a body or a document's TeX may call: `known_controls` and what the packages in `requires=` (and
+        their bases) declare, an adopted one included."""
+        required = {k: v for r, _ in self._requires for k, v in r.known_controls.items()}
+        return required | self.known_controls
+
     def require(self, package: "Package", *, options: Sequence[str] = ()) -> None:
         """Load `package` with `\\RequirePackage[options]{name}` in this package's `.sty`, before the packages its
         components need. For a library whose commands bodies do not call (microtype, hyphenat) or that takes options."""
@@ -605,9 +612,9 @@ class Package:
             raise DeclarationError(duplicates[0], code="TM-P012", path=self.name, hint="define each name once")
         for s in self._items:
             if isinstance(s, Spec):
-                check_references(self.prefix, s, s.body, self._controls)
+                check_references(self.prefix, s, s.body, self.callable_controls)
             elif isinstance(s, EnvSpec):
-                check_references(self.prefix, s, s.begin + "\n" + s.end, self._controls)
+                check_references(self.prefix, s, s.begin + "\n" + s.end, self.callable_controls)
         head = header_lines(
             self.name, self.version, self.date, self.description, stamp(version or generator_version()), self.header
         )

@@ -4,6 +4,7 @@ import pytest
 
 from texmodel.components import field
 from texmodel.errors import DeclarationError
+from texmodel.interface import SQUARE, arg
 from texmodel.package import Package, declared
 from texmodel.types import CMYK, Colour, Length, Raw, Text
 
@@ -87,3 +88,16 @@ def test_declared_is_the_names_the_scanner_reads_and_nothing_else():
         \def\bbG{} \let\bbH\relax \cs_new:Npn \bbI {} \write\f{\string\providecommand\string\bbJ}
     """
     assert declared(text) == {"bbA", "bbB", "ifbbC", "bbCtrue", "bbCfalse", "bbG"}
+
+
+def test_a_made_command_takes_an_optional_argument_that_is_written_only_when_set():
+    pkg = Package("bb-demo", prefix="bb")
+    closing = pkg.make_command(
+        "Closing",
+        "a closing slide",
+        fields={"title": (Text, arg(doc="the title")), "colophon": (Text | None, arg(SQUARE, default=None))},
+        body=r"\textbf{#title}#colophon",
+    )
+    assert closing(title="T").render() == r"\bbClosing{T}"
+    assert closing(title="T", colophon="C").render() == r"\bbClosing{T}[C]"
+    assert r"\NewDocumentCommand{\bbClosing}{mO{}}" in pkg.render()

@@ -109,3 +109,35 @@ def test_data_round_trip_and_schema_know_both():
     assert from_dict(Sheet, data) == node
     assert set(json_schema(Sheet)["$defs"]) >= {"Head", "Item", "Passthrough"}
     assert str(Anywhere(Head)) == "Head anywhere"
+
+
+@pkg.environment
+class Slide(Environment):
+    """Anything: TeX as it is and the commands and environments of any package."""
+
+    children = [Anywhere(Passthrough), Anywhere(Command), Anywhere(Environment)]
+    begin = r"\begin{center}"
+    end = r"\end{center}"
+
+
+def test_anywhere_a_command_or_environment_takes_any_component_and_nothing_else():
+    other = Package("elsewhere", prefix="el")
+
+    @other.command
+    class Foreign(Command):
+        """Declared by another package."""
+
+        body = "#text"
+        text: Text
+
+    slide = Slide(V, Head(text="h"), Foreign(text="f"), Page(Head(text="p"), Item(text="a"), Item(text="b")))
+    assert slide.violations() == []
+    assert pkg.document(slide).count(r"\elForeign{f}") == 1
+    assert str(Anywhere(Command)) == "Command anywhere"
+    bad = Slide(Page(Head(text="h")))  # the child's own grammar still applies
+    assert [v.code for v in bad.violations()] == ["TM-C002"]
+
+
+def test_data_lists_no_component_for_a_wildcard_term_and_the_schema_still_builds():
+    assert set(json_schema(Slide)["$defs"]) >= {"Passthrough"}
+    assert from_dict(Slide, to_dict(Slide(V))) == Slide(V)

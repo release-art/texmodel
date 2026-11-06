@@ -65,6 +65,10 @@ however many packages need it: in a generated `.sty` that calls it as `\RequireP
 `\usepackage` lines. A `std` header does this where the real package needs another to do its work (`tabularray` needs
 `xcolor` for its colours).
 
+The names a required package declares (an adopted one too) are the package's own to call: a body or a document's TeX that
+uses `\raFoo` passes `TM-M015` when a package in `requires=` declares it. Declare the hand-written package's commands as an
+adopted `Package` with the same prefix, and require it.
+
 Two packages that need one package with different options (a set of options is compared, not its order) are an error
 (`TM-P013`), since only one load can win. The way out is the top level: `pkg.require(shared, options=[...])` on the package
 being generated, or on the adopted package being planned, gives the list that is used and ends the conflict.

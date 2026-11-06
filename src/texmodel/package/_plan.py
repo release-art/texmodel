@@ -136,7 +136,7 @@ def plan_of(
         Violation("TM-M015", path, f"\\{word} is not declared by this package", hint="declare it, or fix the name")
         for i, node in enumerate(document.content)
         for path, passthrough in passthroughs(node, f"{type(node).__name__}[{i}]")
-        for word in undeclared(package.prefix, passthrough.tex.tex, package.known_controls)
+        for word in undeclared(package.prefix, passthrough.tex.tex, package.callable_controls)
     ]
     problems += [
         Violation(
@@ -146,7 +146,7 @@ def plan_of(
             hint="declare it, or fix the name",
         )
         for slot, i, item in preamble.items()
-        for word in undeclared(package.prefix, tex_of(item).tex, package.known_controls)
+        for word in undeclared(package.prefix, tex_of(item).tex, package.callable_controls)
     ]
     problems += [
         Violation(

@@ -333,7 +333,10 @@ class Passthrough(_Node, kw_only=False):
 
 
 def concrete_kinds(kind: type) -> list[type]:
-    """A kind, or for an abstract base the registered classes under it (a package's own rows of a table)."""
+    """A kind, or for an abstract base the registered classes under it (a package's own rows of a table). `Command`
+    and `Environment` stand for any component, which data does not list."""
+    if kind in (Command, Environment):
+        return []
     if not getattr(kind, "__tm_abstract__", False):
         return [kind]
     found: list[type] = []

@@ -24,7 +24,8 @@ class Repeat:
 @dataclasses.dataclass(frozen=True)
 class Anywhere:
     """A grammar term (B3): zero or more `kind` between any two other terms and at both ends, in any number of
-    places: `children = [Name, Anywhere(Heading), Fact.times(2, 3)]`. The kind may not also be an ordered term."""
+    places: `children = [Name, Anywhere(Heading), Fact.times(2, 3)]`. A subclass of the kind counts, so
+    `Anywhere(Command)` is any command of any package. The kind may not also be an ordered term."""
 
     kind: type
 

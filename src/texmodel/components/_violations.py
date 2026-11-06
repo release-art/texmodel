@@ -129,14 +129,9 @@ def _grammar_violations(node: Environment, path: str) -> list[Violation]:
     """Match the children against the grammar: each term takes its run of that component, in order. A `Comment` and
     a child of an `Anywhere` kind are skipped (B3), and every path keeps the child's real position."""
     grammar = type(node).__tm_grammar__
-    floating = {t.kind for t in grammar if isinstance(t, Anywhere)}
+    floating = tuple(t.kind for t in grammar if isinstance(t, Anywhere))
     ordered = [t for t in grammar if isinstance(t, Repeat)]
-    abstract = tuple(k for k in floating if getattr(k, "__tm_abstract__", False))
-    content = [
-        (j, c)
-        for j, c in enumerate(node.content)
-        if not isinstance(c, Comment) and type(c) not in floating and not isinstance(c, abstract)
-    ]
+    content = [(j, c) for j, c in enumerate(node.content) if not isinstance(c, (Comment, *floating))]
     allowed = ", ".join(map(str, grammar)) or "nothing"
     out: list[Violation] = []
     i = 0

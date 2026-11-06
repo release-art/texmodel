@@ -198,6 +198,10 @@ class MakeTitle(Command):
 # --- frames ------------------------------------------------------------------------------------------------------
 
 
+# What a slide holds: TeX as it is, and the commands and environments of any package, this one's or a deck's own.
+_ANY_CONTENT = [Anywhere(Passthrough), Anywhere(Command), Anywhere(Environment)]
+
+
 class FrameOptions(KeyVals, rules=KEYVAL):
     r"""The options of a frame: `FrameOptions(vertical_alignment=Alignment.TOP)`. Other keys go in `extra`."""
 
@@ -211,7 +215,7 @@ class Frame(Environment):
     none): the package sets the class option `frame-title-arg`."""
 
     cs = "frame"
-    children = [Anywhere(Passthrough), Anywhere(MakeTitle)]
+    children = _ANY_CONTENT
     overlay: Text | None = arg(ANGLE, default=None, fill=Gap.OMIT)
     options: FrameOptions | None = arg(SQUARE, default=None, fill=Gap.OMIT)
     title: Text = arg(BRACE, default="")
@@ -245,7 +249,7 @@ class Block(Environment):
     r"""A titled block: `\begin{block}<2>{Title}`."""
 
     cs = "block"
-    children = [Anywhere(Passthrough)]
+    children = _ANY_CONTENT
     overlay: Text | None = arg(ANGLE, default=None)
     title: Text
 
@@ -261,7 +265,7 @@ class Column(Environment):
     r"""A column of `Columns`: `\begin{column}[vertical-alignment=top]{0.5\textwidth}`."""
 
     cs = "column"
-    children = [Anywhere(Passthrough)]
+    children = _ANY_CONTENT
     overlay: Text | None = arg(ANGLE, default=None, fill=Gap.OMIT)
     options: ColumnOptions | None = arg(SQUARE, default=None)
     width: Length
@@ -382,7 +386,7 @@ class OnlyEnv(Environment):
     r"""The environment form of `Only`."""
 
     cs = "onlyenv"
-    children = [Anywhere(Passthrough)]
+    children = _ANY_CONTENT
     overlay: Text = arg(ANGLE)
 
 
@@ -391,7 +395,7 @@ class ActionEnv(Environment):
     r"""The environment form of `Action`."""
 
     cs = "actionenv"
-    children = [Anywhere(Passthrough)]
+    children = _ANY_CONTENT
     overlay: Text = arg(ANGLE)
 
 
@@ -400,7 +404,7 @@ class UncoverEnv(Environment):
     r"""The environment form of `Uncover`."""
 
     cs = "uncoverenv"
-    children = [Anywhere(Passthrough)]
+    children = _ANY_CONTENT
     overlay: Text = arg(ANGLE)
 
 
@@ -409,7 +413,7 @@ class VisibleEnv(Environment):
     r"""The environment form of `Visible`."""
 
     cs = "visibleenv"
-    children = [Anywhere(Passthrough)]
+    children = _ANY_CONTENT
     overlay: Text = arg(ANGLE)
 
 
@@ -418,7 +422,7 @@ class InvisibleEnv(Environment):
     r"""The environment form of `Invisible`."""
 
     cs = "invisibleenv"
-    children = [Anywhere(Passthrough)]
+    children = _ANY_CONTENT
     overlay: Text = arg(ANGLE)
 
 
@@ -427,7 +431,7 @@ class AlertEnv(Environment):
     r"""The environment form of `Alert`."""
 
     cs = "alertenv"
-    children = [Anywhere(Passthrough)]
+    children = _ANY_CONTENT
     overlay: Text = arg(ANGLE)
 
 

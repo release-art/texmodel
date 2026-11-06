@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-06
+
+### Added
+
+- `Anywhere(Command)` and `Anywhere(Environment)`: a grammar term for any command or environment of any package. A subclass counts as its kind. In data they list no component.
+- `Package.callable_controls`: the names a body or a document's TeX may call, `known_controls` and those of the packages in `requires=`.
+- `std.geometry.GeometryOptions`: `headheight`, `hmargin`, `vmargin`, `marginparwidth`.
+
+### Changed
+
+- `std.ltx_talk`: `Frame`, `Block`, `Column` and the overlay environments take any command or environment (a deck package's own too), not only `Passthrough`.
+- `TM-M015` accepts a name that a package in `requires=` declares (an adopted package's too), in a body and in a document's TeX.
+
 ## [0.21.0] - 2026-11-06
 
 ### Added
@@ -649,7 +662,8 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/release-art/texmodel/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/release-art/texmodel/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/release-art/texmodel/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/release-art/texmodel/compare/v0.18.0...v0.19.0

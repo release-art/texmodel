@@ -60,6 +60,28 @@ def hand() -> tuple[Package, Any, Any, Any]:
     return pkg, Name, Slot, Card
 
 
+def test_what_a_required_package_declares_may_be_called_by_a_body_and_a_document():
+    hand_pkg, *_ = hand()
+    needs = Package("deck", prefix="hd", requires=[hand_pkg])
+    alone = Package("alone", prefix="hd")
+    for pkg in (needs, alone):
+
+        @pkg.command
+        class Closing(Command):
+            """A closing slide."""
+
+            body = r"\hdName{#text}"
+            text: Text
+
+    assert r"\hdName{#1}" in needs.render()
+    with refused("TM-M015"):
+        alone.render()
+    assert needs.plan(Document(preamble=PreambleSlots(after_package=(Raw(r"\hdName{x}"),)))).text
+    with pytest.raises(ExceptionGroup) as group:
+        alone.plan(Document(preamble=PreambleSlots(after_package=(Raw(r"\hdName{x}"),))))
+    assert codes(group) == ["TM-M015"]
+
+
 def test_the_scanner_reads_the_declaration_forms_and_nothing_else():
     assert scan_declarations(STY, "hd") == {
         "hdName": "[1]",
