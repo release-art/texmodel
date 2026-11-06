@@ -7,6 +7,7 @@ import dataclasses
 import enum
 
 from texmodel.components import Command
+from texmodel.errors import ValueRuleError
 from texmodel.interface import SQUARE, Flag, Item, Star, Switch, arg
 from texmodel.keys import KEYVAL
 from texmodel.keyvals import KeyVals
@@ -176,7 +177,11 @@ class ContextKeys(KeyVals, rules=KEYVAL):
 
 def _chars(chars: tuple[str, ...]) -> str:
     if not chars or any(not c or set(c) & set(",={}") for c in chars):
-        raise ValueError(f"characters {chars!r}: give them as strings with none of `,={{}}`")
+        raise ValueRuleError(
+            f"characters {chars!r}: give them as strings with none of `,={{}}`",
+            code="TM-C040",
+            hint="one or more characters, none of , = { }",
+        )
     return chars[0] if len(chars) == 1 else "{" + ",".join(chars) + "}"
 
 
@@ -192,7 +197,9 @@ class Sides(AsTeX):
     def __post_init__(self) -> None:
         _chars(self.chars)
         if self.left is None and self.right is None:
-            raise ValueError(f"{self.chars!r}: give a left or a right amount")
+            raise ValueRuleError(
+                f"{self.chars!r}: give a left or a right amount", code="TM-C041", hint="left=, right= or both"
+            )
 
     def render(self) -> str:
         left, right = ("" if x is None else str(x) for x in (self.left, self.right))

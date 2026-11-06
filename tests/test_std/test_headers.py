@@ -22,6 +22,7 @@ from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 from texmodel.body import Hole
 from texmodel.components import Command, Passthrough, Value
 from texmodel.document import Document
+from texmodel.errors import ValueRuleError
 from texmodel.interface import ColourName
 from texmodel.package import Package
 from texmodel.preamble import PreambleSlots
@@ -125,12 +126,12 @@ def latex_samples():
         k.NoIndent(),
         k.Par(),
         k.NewPage(),
-        k.ThisPageStyle(style=Raw("empty")),
-        k.PageStyle(style=Raw("plain")),
+        k.ThisPageStyle(style=Name("empty")),
+        k.PageStyle(style=Name("plain")),
         k.Null(),
         k.IgnoreSpaces(),
         k.FrenchSpacing(),
-        k.FontSize(size=Raw("10pt"), skip=Raw("12pt")),
+        k.FontSize(size=Length("10pt"), skip=Length("12pt")),
         k.SelectFont(),
         k.Bfseries(),
         k.Centering(),
@@ -185,7 +186,7 @@ def graphicx_samples():
     from texmodel.std import graphicx as g
 
     return [], [
-        g.GraphicsPath(directories=Raw("{}{img/}")),
+        g.GraphicsPath(directories=g.Directories((FilePath("img/"),))),
         g.IncludeGraphics(
             path=FilePath("tm-pic.png"),
             options=g.IncludeGraphicsOptions(
@@ -195,7 +196,7 @@ def graphicx_samples():
                 scale=0.5,
                 angle=0,
                 clip=True,
-                trim=Raw("0pt 0pt 0pt 0pt"),
+                trim=g.Trim(Length("0.1pt"), Length("0.2pt"), Length("0.1pt"), Length("0.2pt")),
                 alt="A white pixel",
                 extra=Raw("interpolate"),
             ),
@@ -318,7 +319,16 @@ def pdfrender_samples():
 def enumitem_samples():
     from texmodel.std import enumitem as e
 
-    return [], [e.SetList(options=Raw("noitemsep"), lists=Raw("itemize")), e.SetList(options=Raw("noitemsep"))]
+    return [], [
+        e.SetList(
+            options=e.ListOptions(
+                noitemsep=True, leftmargin=Length("1em"), label=Raw("\\alph*"), extra=Raw("before=\\relax")
+            ),
+            lists=e.Lists((Name("enumerate"),), (1,)),
+        ),
+        e.SetList(options=e.ListOptions(nosep=True, topsep=Length("1pt"), start=2, resume=True)),
+        e.SetList(options=e.ListOptions(noitemsep=True), lists=e.Lists((Name("itemize"),))),
+    ]
 
 
 def adjustbox_samples():
@@ -671,20 +681,21 @@ def test_xcolor_renders_names_and_models_and_checks_that_they_fit():
 
 
 @pytest.mark.parametrize(
-    "make",
+    ("make", "code"),
     [
-        lambda s: s.of(),
-        lambda s: s.of(-1),
-        lambda s: s.of(float("nan")),
-        lambda s: s.html("12345"),
-        lambda s: s.html("22334z"),
+        (lambda s: s.of(), "TM-C042"),
+        (lambda s: s.of(-1), "TM-C042"),
+        (lambda s: s.of(float("nan")), "TM-C042"),
+        (lambda s: s.html("12345"), "TM-C043"),
+        (lambda s: s.html("22334z"), "TM-C043"),
     ],
 )
-def test_xcolor_refuses_a_spec_it_cannot_write(make):
+def test_xcolor_refuses_a_spec_it_cannot_write(make, code):
     from texmodel.std import xcolor as c
 
-    with pytest.raises(ValueError, match="give"):
+    with pytest.raises(ValueRuleError) as failed:
         make(c.ColourSpec)
+    assert failed.value.code == code and isinstance(failed.value, ValueError)
 
 
 def test_hyperref_colours_are_colour_references():
@@ -719,20 +730,39 @@ def fancyhdr_samples():
         latex as k,
     )
 
-    return [f.Fancyhf(text=Raw("")), f.Fancyhead(where=Raw("L"), text=Raw("x")), f.Fancyfoot(text=Raw("x"))], [
-        k.PageStyle(style=Raw("fancy")),
-        f.Fancyhf(where=Raw("C"), text=Raw("x")),
+    return [
+        f.Fancyhf(text=Raw("")),
+        f.Fancyhead(where=f.Places(("L", "RE")), text=Raw("x")),
+        f.Fancyfoot(text=Raw("x")),
+    ], [
+        k.PageStyle(style=Name("fancy")),
+        f.Fancyhf(where=f.Places(("CH", "CF")), text=Raw("x")),
         f.Fancyhead(text=Raw("x")),
-        f.Fancyfoot(where=Raw("C"), text=Raw("x")),
+        f.Fancyfoot(where=f.Places(("C",)), text=Raw("x")),
     ]
 
 
 def caption_samples():
     from texmodel.std import caption as c
 
-    return [c.CaptionSetup(options=Raw("font=small,labelfont=bf"))], [
-        c.CaptionOf(kind=Raw("figure"), text="x"),
-        c.CaptionOf(kind=Raw("figure"), short="s", text="x"),
+    return [
+        c.CaptionSetup(
+            options=c.CaptionOptions(
+                font=("small",),
+                labelfont=("bf", "it"),
+                labelsep=c.LabelSeparator.COLON,
+                justification=c.Justification.CENTERING,
+                format=c.CaptionFormat.HANG,
+                position=c.Position.BELOW,
+                singlelinecheck=False,
+                skip=Length("4pt"),
+                width=Length("8cm"),
+                extra=Raw("labelfont=bf"),
+            )
+        )
+    ], [
+        c.CaptionOf(kind=Name("figure"), text="x"),
+        c.CaptionOf(kind=Name("figure"), short="s", text="x"),
     ]
 
 
@@ -763,7 +793,7 @@ def polyglossia_samples():
 
     return [
         p.SetMainLanguage(language=Name("english")),
-        p.SetOtherLanguage(options=Raw("variant=german"), language=Name("german")),
+        p.SetOtherLanguage(options=p.LanguageOptions(variant="german", babelshorthands=False), language=Name("german")),
     ], []
 
 
@@ -781,7 +811,13 @@ def pdfpages_samples():
         p.IncludePdf(
             path=FilePath("tm-doc.pdf"),
             options=p.IncludePdfOptions(
-                pages=Raw("1"), nup=Raw("1x1"), angle=0, scale=1, landscape=True, frame=True, extra=Raw("noautoscale")
+                pages=p.PageRanges(("1", "last")),
+                nup=p.Nup(1, 1),
+                angle=0,
+                scale=1,
+                landscape=True,
+                frame=True,
+                extra=Raw("noautoscale"),
             ),
         ),
     ]
@@ -960,32 +996,41 @@ def rendered(name: str) -> str:
     return "\n".join(n.render() if not isinstance(n, Raw) else n.tex for n in [*pre, *nodes])
 
 
-@pytest.mark.parametrize("make", [lambda m: m.Sides(("A",)), lambda m: m.Sides(()), lambda m: m.Weight(("A,V",), 1)])
-def test_microtype_refuses_characters_and_amounts_it_cannot_write(make):
+@pytest.mark.parametrize(
+    ("make", "code"),
+    [
+        (lambda m: m.Sides(("A",)), "TM-C041"),
+        (lambda m: m.Sides(()), "TM-C040"),
+        (lambda m: m.Weight(("A,V",), 1), "TM-C040"),
+    ],
+)
+def test_microtype_refuses_characters_and_amounts_it_cannot_write(make, code):
     from texmodel.std import microtype as m
 
-    with pytest.raises(ValueError, match="give"):
+    with pytest.raises(ValueRuleError) as failed:
         make(m)
+    assert failed.value.code == code
 
 
 @pytest.mark.parametrize(
-    "make",
+    ("make", "code"),
     [
-        lambda g: g.PlotName("a_b"),
-        lambda g: g.PlotName("a  b"),
-        lambda g: g.PlotName("a b "),
-        lambda g: g.PlotName("1a"),
-        lambda g: g.Colormap(g.PlotName("ab"), ((0, 0, 0),)),
-        lambda g: g.Colormap(g.PlotName("ab"), ((0, 0, 0), (0, 0, 256))),
-        lambda g: g.Colormap(g.PlotName("ab"), ((0, 0, 0), (0, 0))),
-        lambda g: g.CycleList(()),
+        (lambda g: g.PlotName("a_b"), "TM-C037"),
+        (lambda g: g.PlotName("a  b"), "TM-C037"),
+        (lambda g: g.PlotName("a b "), "TM-C037"),
+        (lambda g: g.PlotName("1a"), "TM-C037"),
+        (lambda g: g.Colormap(g.PlotName("ab"), ((0, 0, 0),)), "TM-C038"),
+        (lambda g: g.Colormap(g.PlotName("ab"), ((0, 0, 0), (0, 0, 256))), "TM-C038"),
+        (lambda g: g.Colormap(g.PlotName("ab"), ((0, 0, 0), (0, 0))), "TM-C038"),
+        (lambda g: g.CycleList(()), "TM-C039"),
     ],
 )
-def test_pgfplots_refuses_a_colormap_and_a_cycle_list_it_cannot_write(make):
+def test_pgfplots_refuses_a_colormap_and_a_cycle_list_it_cannot_write(make, code):
     from texmodel.std import pgfplots as g
 
-    with pytest.raises(ValueError, match="give"):
+    with pytest.raises(ValueRuleError) as failed:
         make(g)
+    assert failed.value.code == code
 
 
 def test_pgfplots_writes_named_colours_as_stops_and_spaces_in_names():
@@ -1003,6 +1048,52 @@ def test_pgfplots_writes_named_colours_as_stops_and_spaces_in_names():
     assert colormap.render() == "{ra sequential}{color=(ra-seq-1) color=(ra-seq-2) rgb255=(1,2,3)}"
     style = g.PlotStyle(fill=ColourName("ra-cat-1"), draw=ColourName("ra-cat-1"))
     assert style.render() == "fill=ra-cat-1,draw=ra-cat-1"
+
+
+@pytest.mark.parametrize(
+    ("make", "code"),
+    [
+        (lambda m: m["fancyhdr"].Places(()), "TM-C044"),
+        (lambda m: m["fancyhdr"].Places(("LR",)), "TM-C044"),
+        (lambda m: m["fancyhdr"].Places(("EE",)), "TM-C044"),
+        (lambda m: m["fancyhdr"].Places(("X",)), "TM-C044"),
+        (lambda m: m["pdfpages"].PageRanges(()), "TM-C045"),
+        (lambda m: m["pdfpages"].PageRanges(("1,2",)), "TM-C045"),
+        (lambda m: m["pdfpages"].PageRanges(("a",)), "TM-C045"),
+        (lambda m: m["enumitem"].Lists(), "TM-C046"),
+        (lambda m: m["enumitem"].Lists(levels=(7,)), "TM-C046"),
+        (lambda m: m["pdfpages"].Nup(0, 1), "TM-C047"),
+    ],
+)
+def test_typed_header_values_refuse_what_the_package_cannot_read(make, code):
+    modules = {n: importlib.import_module(f"texmodel.std.{n}") for n in ("fancyhdr", "pdfpages", "enumitem")}
+    with pytest.raises(ValueRuleError) as failed:
+        make(modules)
+    assert failed.value.code == code
+
+
+def test_typed_header_values_render_what_the_package_reads():
+    from texmodel.std import enumitem, fancyhdr, graphicx, pdfpages
+
+    assert fancyhdr.Places(("LE", "RO", "CH")).render() == "LE,RO,CH"
+    assert (
+        pdfpages.PageRanges(("1-3", "5-", "-2", "-", "last", "last-1", "{}")).render() == "1-3,5-,-2,-,last,last-1,{}"
+    )
+    assert pdfpages.Nup(2, 3).render() == "2x3"
+    assert enumitem.Lists((Name("itemize"), Name("enumerate")), (1, 2)).render() == "itemize,enumerate,1,2"
+    assert graphicx.Trim(left=Length("1cm"), top=Length("2mm")).render() == "1cm 0pt 0pt 2mm"
+    assert graphicx.Directories((FilePath("a/"), FilePath("b/")), include_cwd=False).render() == "{a/}{b/}"
+    options = pdfpages.IncludePdfOptions(pages=pdfpages.PageRanges(("1", "3")), nup=pdfpages.Nup(2, 1))
+    assert options.render() == "pages={1,3},nup=2x1"
+
+
+def test_a_value_type_that_refuses_is_a_data_error_with_its_field():
+    import pydantic
+
+    from texmodel.std import pgfplots
+
+    with pytest.raises(pydantic.ValidationError, match="plot name"):
+        pgfplots.PgfplotsOptions.model_validate({"colormap_name": "a_b"})
 
 
 def test_at_load_carries_the_calls_into_the_sty_after_the_packages_they_need():

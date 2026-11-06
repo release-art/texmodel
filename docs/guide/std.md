@@ -89,6 +89,10 @@ pkg.at_load("fonts", fontspec.SetMainFont(font=FontName("Skolar.otf"), options=f
     upright_font=FontName("Skolar.otf"), bold_font=FontName("Skolar-Bold.otf"))))
 ```
 
+A value a header takes is a type, not TeX: `fancyhdr.Places(("LE", "RO"))`, `pdfpages.PageRanges(("1-3", "last"))` and `Nup(2, 1)`,
+`graphicx.Trim(left=Length("1cm"))`, `enumitem.ListOptions` and `caption.CaptionOptions`. One that refuses its value raises a
+`ValueRuleError` with a code (`TM-C037` to `TM-C047`), which is also a `ValueError`.
+
 `xcolor` takes a colour as a `ColourSpec`: `ColourSpec.named(ColourName("ink", tint=0.5))`, or components with the model they
 belong to (`Color(spec=ColourSpec.of(1, 0, 0), model=ColourModel.RGB_UNIT)`); a model and spec that do not fit are `TM-C036`.
 

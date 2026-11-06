@@ -10,6 +10,7 @@ import enum
 import re
 
 from texmodel.components import Anywhere, ColourRef, Command, Environment, Passthrough
+from texmodel.errors import ValueRuleError
 from texmodel.interface import ColourName, Flag, Item
 from texmodel.keys import PGFKEYS
 from texmodel.keyvals import KeyVals
@@ -51,7 +52,11 @@ class PlotName(Raw):
     def __post_init__(self) -> None:
         super().__post_init__()
         if not _PLOT_NAME.fullmatch(self.tex):
-            raise ValueError(f"plot name {self.tex!r}: give words of letters, digits and `-` with single spaces")
+            raise ValueRuleError(
+                f"plot name {self.tex!r}: give words of letters, digits and `-` with single spaces",
+                code="TM-C037",
+                hint='PlotName("brand bars")',
+            )
 
 
 type Stop = tuple[int, int, int] | ColourRef
@@ -73,8 +78,10 @@ class Colormap(AsTeX):
         if len(stops) < 2 or any(
             isinstance(c, tuple) and (len(c) != 3 or not all(0 <= x <= 255 for x in c)) for c in stops
         ):
-            raise ValueError(
-                f"colormap {self.name.tex!r}: give two or more colours, each three values from 0 to 255 or a name"
+            raise ValueRuleError(
+                f"colormap {self.name.tex!r}: give two or more colours, each three values from 0 to 255 or a name",
+                code="TM-C038",
+                hint="(0, 0, 255) or ColourName('ink')",
             )
         object.__setattr__(self, "colours", stops)
 
@@ -110,7 +117,7 @@ class CycleList(AsTeX):
 
     def __post_init__(self) -> None:
         if not self.styles:
-            raise ValueError("a cycle list: give it a style")
+            raise ValueRuleError("a cycle list: give it a style", code="TM-C039", hint="CycleList((PlotStyle(...),))")
 
     def render(self) -> str:
         return "".join("{" + style.render() + r"}\\" for style in self.styles)

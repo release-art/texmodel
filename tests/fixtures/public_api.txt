@@ -60,6 +60,7 @@ texmodel.errors.DeclarationError(message: str, *, code: str = …, path: str = �
 texmodel.errors.MigrationError(message: str, *, code: str = …, path: str = …, hint: str = …) -> None
 texmodel.errors.TexmodelError(message: str, *, code: str = …, path: str = …, hint: str = …) -> None
 texmodel.errors.ValidationError(message: str, *, code: str = …, path: str = …, hint: str = …) -> None
+texmodel.errors.ValueRuleError(message: str, *, code: str = …, path: str = …, hint: str = …) -> None
 texmodel.errors.Violation(code: str, path: str, message: str, hint: str = …) -> None
 texmodel.errors.Violation.error(self) -> ValidationError
 texmodel.ext.colourspace.Build(*values)
@@ -75,11 +76,10 @@ texmodel.ext.fit.Fit.declare(self, package: Package) -> FitParts
 texmodel.ext.fit.FitParts(record: type[Command], fit: type[Command], target: type[Value[Any]], floor: type[Value[Any]], room: type[Value[Any]], size: type[Value[Any]], line_size: type[Value[Any]])
 texmodel.ext.fit.LIBRARY: str
 texmodel.ext.fit.choose_sizes(each: Sequence[float], own: float, *, target: float, floor: float, reduced_sizes: int) -> tuple[float, float]
-texmodel.ext.graphics.Crop(left: Length = …, bottom: Length = …, right: Length = …, top: Length = …) -> None
 texmodel.ext.graphics.Figure(picture: Picture, *, caption: str | None = …, short: str | None = …, label: str | None = …, placement: str | None = …) -> None
 texmodel.ext.graphics.Figure.node(self) -> latex.Figure
 texmodel.ext.graphics.Figure.render(self) -> str
-texmodel.ext.graphics.Picture(path: str | PurePosixPath | FilePath | Macro, *, alt: str | None = …, decorative: bool = …, width: Length | None = …, height: Length | None = …, scale: float | None = …, crop: Crop | None = …, rotate: float | None = …, page: int | None = …) -> None
+texmodel.ext.graphics.Picture(path: str | PurePosixPath | FilePath | Macro, *, alt: str | None = …, decorative: bool = …, width: Length | None = …, height: Length | None = …, scale: float | None = …, crop: Trim | None = …, rotate: float | None = …, page: int | None = …) -> None
 texmodel.ext.graphics.Picture.from_tex(cls, text: str) -> Self
 texmodel.ext.graphics.Picture.node(self) -> IncludeGraphics
 texmodel.ext.graphics.Picture.render(self) -> str

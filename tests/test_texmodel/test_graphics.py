@@ -10,8 +10,9 @@ from test_texmodel_run.test_compile_tex import compiler, fonts  # noqa: F401
 from texmodel._internal.tex import detokenized
 from texmodel.document import Document
 from texmodel.errors import ValidationError
-from texmodel.ext.graphics import Crop, Figure, Picture
+from texmodel.ext.graphics import Figure, Picture
 from texmodel.std import graphicx, latex
+from texmodel.std.graphicx import Trim
 from texmodel.types import FilePath, Length
 
 
@@ -22,7 +23,7 @@ def test_a_picture_fits_its_box_and_keeps_its_proportions():
 
 
 def test_a_picture_is_cropped_rotated_and_scaled():
-    text = Picture("a.png", alt="x", scale=0.5, rotate=90, page=2, crop=Crop(left=Length("1mm"))).render()
+    text = Picture("a.png", alt="x", scale=0.5, rotate=90, page=2, crop=Trim(left=Length("1mm"))).render()
     assert text == r"\includegraphics[scale=0.5,angle=90,page=2,clip,trim=1mm 0pt 0pt 0pt,alt=x]{a.png}"
 
 
@@ -69,7 +70,7 @@ PICTURES = [
     Picture("a.png", alt="x"),
     Picture("img/a_b.png", decorative=True, scale=0.5, rotate=90, page=2),
     Picture("a.png", alt="A, B = {c} 100% & $", width=Length("3cm"), height=Length.expr(r"0.5\linewidth")),
-    Picture("a.png", alt="Cut", crop=Crop(Length("1mm"), Length("0pt"), Length("2cm"), Length("3pt"))),
+    Picture("a.png", alt="Cut", crop=Trim(Length("1mm"), Length("0pt"), Length("2cm"), Length("3pt"))),
 ]
 
 
@@ -107,7 +108,7 @@ async def test_real_tex_sets_the_pictures_and_the_figure(compiler, tmp_path):  #
     pictures = [
         Picture("tm-pic.png", alt="A, B", width=Length("3cm"), height=Length("2cm")),
         Picture("tm-pic.png", decorative=True, scale=2, rotate=90),
-        Picture("tm-pic.png", alt="Cut", crop=Crop(), width=Length.expr(r"0.5\linewidth")),
+        Picture("tm-pic.png", alt="Cut", crop=Trim(), width=Length.expr(r"0.5\linewidth")),
     ]
     nodes = [*(p.node() for p in pictures), Figure(pictures[0], caption="Cap", label="fig:a").node(), latex.Null()]
     plan = graphicx.package.plan(Document(*nodes))

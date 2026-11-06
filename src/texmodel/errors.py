@@ -21,6 +21,11 @@ class ValidationError(TexmodelError):
     """A Doc or spec breaks a rule."""
 
 
+class ValueRuleError(ValidationError, ValueError):
+    """A value type refuses its own value when built. It is also a `ValueError`, so pydantic reports it with the field
+    when the value is read from data."""
+
+
 class MigrationError(TexmodelError):
     """A spec cannot be migrated to the current schema."""
 
@@ -38,4 +43,4 @@ class Violation:
         return ValidationError(self.message, code=self.code, path=self.path, hint=self.hint)
 
 
-__all__ = ["DeclarationError", "MigrationError", "TexmodelError", "ValidationError", "Violation"]
+__all__ = ["DeclarationError", "MigrationError", "TexmodelError", "ValidationError", "ValueRuleError", "Violation"]

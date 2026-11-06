@@ -12,7 +12,7 @@ import re
 from typing import Any
 
 from texmodel.components import Command
-from texmodel.errors import Violation
+from texmodel.errors import ValueRuleError, Violation
 from texmodel.interface import ColourName
 from texmodel.package import Package
 from texmodel.types import AsTeX, Choice, Name, Text, plain_number
@@ -76,14 +76,20 @@ class ColourSpec(AsTeX):
     def of(cls, *components: float) -> "ColourSpec":
         """The components of a model, comma separated: `ColourSpec.of(0.1, 0.2, 0.3)`. Finite and not negative."""
         if not components or not all(math.isfinite(c) and c >= 0 for c in components):
-            raise ValueError("ColourSpec.of: give one or more finite components, not negative")
+            raise ValueRuleError(
+                "ColourSpec.of: give one or more finite components, not negative",
+                code="TM-C042",
+                hint="of(0.1, 0.2, 0.3)",
+            )
         return cls(SpecKind.NUMBERS, ",".join(plain_number(c) for c in components))
 
     @classmethod
     def html(cls, digits: str) -> "ColourSpec":
         """Six hex digits: `ColourSpec.html("223344")`, for `ColourModel.HTML`."""
         if not _HTML.fullmatch(digits):
-            raise ValueError(f"ColourSpec.html({digits!r}): give six hex digits")
+            raise ValueRuleError(
+                f"ColourSpec.html({digits!r}): give six hex digits", code="TM-C043", hint='html("223344")'
+            )
         return cls(SpecKind.HTML, digits.upper())
 
     def render(self) -> str:

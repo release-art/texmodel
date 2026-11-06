@@ -228,7 +228,7 @@ class ThisPageStyle(Command):
     r"""Page style of the current page."""
 
     cs = "thispagestyle"
-    style: Raw
+    style: Name
 
 
 @package.command
@@ -236,7 +236,7 @@ class PageStyle(Command):
     r"""Page style from here on."""
 
     cs = "pagestyle"
-    style: Raw
+    style: Name
 
 
 @package.command
@@ -265,8 +265,8 @@ class FontSize(Command):
     r"""Font size and line skip, in effect after `\selectfont`."""
 
     cs = "fontsize"
-    size: Raw
-    skip: Raw
+    size: Length
+    skip: Length
 
 
 @package.command

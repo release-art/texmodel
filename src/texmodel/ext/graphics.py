@@ -10,7 +10,7 @@ picture = Picture("img/logo.png", width=Length.expr(r"0.8\linewidth"), alt="The 
 Document(Figure(picture, caption="The logo", label="fig:logo").node())
 ```
 
-The document's package requires `graphicx` (`std.graphicx`); a cropped picture is `crop=Crop(left=Length("2mm"))`.
+The document's package requires `graphicx` (`std.graphicx`); a cropped picture is `crop=Trim(left=Length("2mm"))`.
 """
 
 import dataclasses
@@ -23,20 +23,8 @@ from .._internal.tex import call_text
 from ..components import Passthrough
 from ..errors import DeclarationError, ValidationError
 from ..std import latex
-from ..std.graphicx import IncludeGraphics, IncludeGraphicsOptions
+from ..std.graphicx import IncludeGraphics, IncludeGraphicsOptions, Trim
 from ..types import AsTeX, FilePath, Length, Macro, Name, Raw
-
-_ZERO = Length("0pt")
-
-
-@dataclasses.dataclass(frozen=True)
-class Crop:
-    """What is cut off each edge of a picture."""
-
-    left: Length = _ZERO
-    bottom: Length = _ZERO
-    right: Length = _ZERO
-    top: Length = _ZERO
 
 
 def _file(path: "str | PurePosixPath | FilePath | Macro") -> FilePath | Macro:
@@ -59,7 +47,7 @@ class Picture(AsTeX):
     width: Length | None = None
     height: Length | None = None
     scale: float | None = None
-    crop: Crop | None = None
+    crop: Trim | None = None
     rotate: float | None = None
     page: int | None = None
 
@@ -87,7 +75,7 @@ class Picture(AsTeX):
             angle=self.rotate,
             page=self.page,
             clip=crop is not None,
-            trim=Raw(" ".join(str(x) for x in (crop.left, crop.bottom, crop.right, crop.top))) if crop else None,
+            trim=crop,
             alt=self.alt,
             artifact=self.decorative,
         )
@@ -126,9 +114,9 @@ class Picture(AsTeX):
             raise ValueError(str(exc)) from exc
 
 
-def _crop(text: str) -> Crop:
+def _crop(text: str) -> Trim:
     left, bottom, right, top = (read_length(p) for p in text.split())
-    return Crop(left, bottom, right, top)
+    return Trim(left, bottom, right, top)
 
 
 _READERS: Final[dict[str, tuple[str, Callable[[str], object]]]] = {
@@ -194,4 +182,4 @@ class Figure:
         return self.node().render()
 
 
-__all__ = ["Crop", "Figure", "Picture"]
+__all__ = ["Figure", "Picture"]

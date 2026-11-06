@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-06
+
+### Added
+
+- `errors.ValueRuleError`: a value type refusing its own value, a `ValidationError` that is also a `ValueError`, so pydantic
+  reports it with its field when the value is read from data.
+- Typed values in place of `Raw` in `std`: `graphicx.Trim` and `Directories`, `fancyhdr.Places`, `pdfpages.PageRanges` and
+  `Nup`, `enumitem.Lists` and `ListOptions`, `caption.CaptionOptions`, `polyglossia.LanguageOptions`.
+
+### Changed
+
+- The `std` value types raise `ValueRuleError` with a code, not a bare `ValueError`: `PlotName` (`TM-C037`), `Colormap`
+  (`TM-C038`), `CycleList` (`TM-C039`), microtype's `Sides` and `Weight` (`TM-C040`, `TM-C041`), `ColourSpec` (`TM-C042`,
+  `TM-C043`), and the new `Places` (`TM-C044`), `PageRanges` (`TM-C045`), `Lists` (`TM-C046`) and `Nup` (`TM-C047`).
+- `graphicx.IncludeGraphicsOptions.trim` is a `Trim` (four lengths) and `GraphicsPath.directories` a `Directories`.
+  `ext.graphics.Crop` is `graphicx.Trim`.
+- `fancyhdr`'s `where` is `Places`; `pdfpages`' `pages` and `nup` are `PageRanges` and `Nup`; `enumitem.SetList` takes
+  `ListOptions` and `Lists`; `caption.CaptionSetup` takes `CaptionOptions` and `CaptionOf.kind` is a `Name`;
+  `polyglossia`'s `options` is `LanguageOptions`; `latex.PageStyle` and `ThisPageStyle` take a `Name` and `FontSize` two
+  lengths.
+
 ## [0.19.0] - 2026-11-06
 
 ### Added
@@ -606,7 +627,8 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/release-art/texmodel/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/release-art/texmodel/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/release-art/texmodel/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/release-art/texmodel/compare/v0.16.0...v0.17.0
