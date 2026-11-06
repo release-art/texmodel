@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A command's `checks` run for every node, not only an environment's.
 - `PdfInfo.created` and `modified` (with a time zone; stored as UTC) set `CreationDate` and `ModDate` in the Info
   dictionary and `CreateDate` and `ModifyDate` in the XMP packet, in place of the `SOURCE_DATE_EPOCH` dates.
 - `Document(metadata=, pdf=)` and `Document.replace(content=, preamble=)`.
@@ -27,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `HypersetupOptions`' `pdf*` keys stay as hyperref's own; `PdfInfo` is the one place to declare the PDF's metadata.
 - `HypersetupOptions.linkcolor` and `urlcolor` are colour references (`ColourName("blue")` or a registered colour value),
   not `Raw`.
+- `std.xcolor` is typed. A colour argument is a `ColourSpec` (`ColourSpec.named(...)`, `.of(0.1, 0.2, 0.3)` or `.html("223344")`)
+  and the model a `ColourModel`: `Color(spec=, model=)`, `TextColor(spec=, text=, model=)`, `DefineColor(name=, model=,
+  spec=)`, `ColorLet(name=, spec=)`. `Color(name=Raw("tmink"))` is `Color(spec=ColourSpec.named("tmink"))`. A model and a spec that
+  do not fit are `TM-C036`.
 
 ## [0.18.0] - 2026-11-05
 

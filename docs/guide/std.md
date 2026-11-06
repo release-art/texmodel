@@ -89,6 +89,9 @@ pkg.at_load("fonts", fontspec.SetMainFont(font=FontName("Skolar.otf"), options=f
     upright_font=FontName("Skolar.otf"), bold_font=FontName("Skolar-Bold.otf"))))
 ```
 
+`xcolor` takes a colour as a `ColourSpec`: `ColourSpec.named(ColourName("ink", tint=0.5))`, or components with the model they
+belong to (`Color(spec=ColourSpec.of(1, 0, 0), model=ColourModel.RGB_UNIT)`); a model and spec that do not fit are `TM-C036`.
+
 `pgfplots` has the axis environments (inside a `tikz.Tikzpicture`), `PgfplotsSet` and `PgfplotsCreatePlotCycleList`;
 `Colormap` and `CycleList` write a colour map and a cycle list: a map's stops are triples of 0 to 255 or colours by name
 (`ColourName("ra-seq-1")`, a registered colour value), which follow the colour's definition and so the `cmyk` model. Cycle

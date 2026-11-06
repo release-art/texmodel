@@ -65,6 +65,7 @@ What texmodel does not do or does not check today. Planned work is ordered in th
 - Verbatim and delimited-by-token arguments are not modelled. Neither is an optional braced group (xparse `g`).
 - A colour model (`CMYK`, `RGB`, `Gray`) writes its components, `0,0,0,1`, which suits `\definecolor` and
   `\color[cmyk]{...}`; a macro that wants a name takes `ColourName`, which the package checks (`TM-C022`).
+- `std.xcolor` checks that a model and its components fit in count (`TM-C036`), not their range (`rgb` 0 to 1, `RGB` 0 to 255).
 - A `KeyVals` that fails its own checks (`exclusive`, `requires`, a wrong type) raises pydantic's `ValidationError` when it
   is built, not a `Violation` from `violations()`.
 - Key libraries differ in ways the presets only partly capture. `KeyRules` was measured against pgfkeys, xkeyval, keyval

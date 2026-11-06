@@ -37,11 +37,11 @@ def violations_of(node: Command | Environment | Passthrough, path: str) -> list[
             out.append(Violation("TM-C003", f"{path}.{a.name}", f"{a.name}: {why}"))
     out += _slot_violations(node, path)
     out += _colour_violations(node, path)
+    for check in node.checks:
+        out += check(node, path)
     if node.__tm_node__ is NodeKind.ENVIRONMENT:
         env = typing.cast("Environment", node)
         out += _grammar_violations(env, path)
-        for check in env.checks:
-            out += check(env, path)
         for i, child in enumerate(env.content):
             if hasattr(child, "__tm_node__"):  # a stray value in `content` is the grammar's to report
                 out += violations_of(

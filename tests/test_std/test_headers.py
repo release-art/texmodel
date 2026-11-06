@@ -208,13 +208,16 @@ def graphicx_samples():
 def xcolor_samples():
     from texmodel.std import xcolor as c
 
+    named = c.ColourSpec.named
     return [], [
-        c.DefineColor(name=Name("tmink"), model=Raw("HTML"), spec=Raw("223344")),
-        c.ColorLet(name=Name("tmb"), spec=Raw("tmink!50")),
-        c.Color(name=Raw("tmink")),
-        c.Color(name=Raw("1,0,0"), model=Raw("rgb")),
-        c.TextColor(name=Raw("tmink"), text="x"),
-        c.TextColor(name=Raw("1,0,0"), text="x", model=Raw("rgb")),
+        c.DefineColor(name=Name("tmink"), model=c.ColourModel.HTML, spec=c.ColourSpec.html("223344")),
+        c.DefineColor(name=Name("tmcmyk"), model=c.ColourModel.CMYK, spec=c.ColourSpec.of(0, 0.5, 1, 0)),
+        c.ColorLet(name=Name("tmb"), spec=named(ColourName("tmink", tint=0.5))),
+        c.Color(spec=named("tmink")),
+        c.Color(spec=c.ColourSpec.of(1, 0, 0), model=c.ColourModel.RGB_UNIT),
+        c.TextColor(spec=named("tmink"), text="x"),
+        c.TextColor(spec=c.ColourSpec.of(255, 0, 0), text="x", model=c.ColourModel.RGB_255),
+        c.TextColor(spec=c.ColourSpec.of(0.5), text="x", model=c.ColourModel.GRAY),
     ]
 
 
@@ -629,6 +632,59 @@ def hyperref_samples():
         h.Href(url=Raw("https://example.org"), text="x"),
         h.Url(url=Raw("https://example.org")),
     ]
+
+
+def test_xcolor_renders_names_and_models_and_checks_that_they_fit():
+    from texmodel.std import xcolor as c
+
+    spec = c.ColourSpec
+    assert c.Color(spec=spec.named("ink!50")).render() == "\\color{ink!50}"
+    assert c.Color(spec=spec.of(1, 0.25, 0), model=c.ColourModel.RGB_UNIT).render() == "\\color[rgb]{1,0.25,0}"
+    assert c.TextColor(spec=spec.html("22aa44"), text="x", model=c.ColourModel.HTML).render() == (
+        "\\textcolor[HTML]{22AA44}{x}"
+    )
+    assert c.DefineColor(name=Name("ink"), model=c.ColourModel.GRAY, spec=spec.of(0.5)).render() == (
+        "\\definecolor{ink}{gray}{0.5}"
+    )
+    fits = [
+        c.Color(spec=spec.named("red")),
+        c.ColorLet(name=Name("a"), spec=spec.named("red!50")),
+        c.TextColor(spec=spec.of(0, 0, 0, 1), text="x", model=c.ColourModel.CMYK),
+    ]
+    assert [v for node in fits for v in node.violations()] == []
+    misfits = [
+        c.Color(spec=spec.of(1, 0, 0)),  # numbers without a model
+        c.Color(spec=spec.named("red"), model=c.ColourModel.RGB_UNIT),  # a name with a model
+        c.Color(spec=spec.of(1, 0), model=c.ColourModel.RGB_UNIT),  # two components of three
+        c.TextColor(spec=spec.of(1, 0, 0), text="x", model=c.ColourModel.HTML),  # numbers for HTML
+        c.DefineColor(name=Name("a"), model=c.ColourModel.CMYK, spec=spec.html("223344")),
+        c.ColorLet(name=Name("a"), spec=spec.of(1)),
+    ]
+    assert [[(v.code, v.path) for v in node.violations()] for node in misfits] == [
+        [("TM-C036", "Color.spec")],
+        [("TM-C036", "Color.spec")],
+        [("TM-C036", "Color.spec")],
+        [("TM-C036", "TextColor.spec")],
+        [("TM-C036", "DefineColor.spec")],
+        [("TM-C036", "ColorLet.spec")],
+    ]
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda s: s.of(),
+        lambda s: s.of(-1),
+        lambda s: s.of(float("nan")),
+        lambda s: s.html("12345"),
+        lambda s: s.html("22334z"),
+    ],
+)
+def test_xcolor_refuses_a_spec_it_cannot_write(make):
+    from texmodel.std import xcolor as c
+
+    with pytest.raises(ValueError, match="give"):
+        make(c.ColourSpec)
 
 
 def test_hyperref_colours_are_colour_references():

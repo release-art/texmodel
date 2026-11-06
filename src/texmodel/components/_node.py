@@ -118,6 +118,7 @@ class _Node:
     data, `repr`, `violations` and `render`. It is not validated when built (`violations()` checks it, E2); data is
     read by `texmodel.spec`, which builds a model from the class's arguments."""
 
+    checks: ClassVar[Sequence[Callable[[Any, str], list[Violation]]]] = ()  # more checks of a node, given its path
     __tm_abstract__: ClassVar[
         bool
     ]  # a shared base (`abstract=True`): fields and a body for subclasses, never registered
@@ -293,7 +294,6 @@ class Environment(_Node):
     __tm_node__ = NodeKind.ENVIRONMENT
     content: tuple[Node, ...]
     children: ClassVar[Sequence[type | Repeat | Anywhere]] = ()  # the grammar: components in order, with counts (M4)
-    checks: ClassVar[Sequence[Callable[[Any, str], list[Violation]]]] = ()  # more checks of a node, given its path
     __tm_inline__: ClassVar[tuple[Source | None, Source | None]]
     __tm_grammar__: ClassVar[tuple[Repeat | Anywhere, ...]]
 
