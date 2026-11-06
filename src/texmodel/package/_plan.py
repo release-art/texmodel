@@ -22,7 +22,7 @@ from ..document import OPTION, Document
 from ..drift import stamp
 from ..errors import DeclarationError, Violation
 from ..plan import BEGIN_DOCUMENT, Line, Plan, Span
-from ..preamble import Entry, RequireMetadata
+from ..preamble import Entry, MetadataPolicy, RequireMetadata
 from ..types import Raw
 
 if TYPE_CHECKING:
@@ -119,7 +119,19 @@ def plan_of(
     """The plan of `document` for `package` (`Package.plan`). `option_of` finds the package and option a settings value
     sets, and `version` is the generator's, stamped in the header."""
     preamble, settings, options = document.preamble, document.settings, document.options
+    # `pdf` needs `\\DocumentMetadata`, which is empty when the document has no `metadata`
+    needs = package.metadata is MetadataPolicy.REQUIRED or bool(document.pdf and document.pdf.needs_metadata)
+    metadata = document.metadata or (RequireMetadata() if needs else None)
     problems = [v for node in document.content for v in node.violations()]
+    if metadata and package.metadata is MetadataPolicy.REFUSED:
+        problems.append(
+            Violation(
+                "TM-C050",
+                "metadata" if document.metadata else "pdf",
+                f"the {package.document_class} class refuses \\DocumentMetadata, which this document needs",
+                hint="drop metadata and pdf, or use a class that takes it (std.ltx_talk replaces beamer)",
+            )
+        )
     problems += [
         Violation("TM-M015", path, f"\\{word} is not declared by this package", hint="declare it, or fix the name")
         for i, node in enumerate(document.content)
@@ -147,13 +159,14 @@ def plan_of(
         if not isinstance(item, Raw) and slot not in type(item).slots
     ]
     problems += [
-        Violation("TM-C006", f"options[{i}]", f"class option {o!r} must match [A-Za-z0-9][A-Za-z0-9=.-]*")
+        Violation("TM-C006", f"options[{i}]", f"class option {o!r} must match [A-Za-z0-9][A-Za-z0-9=.:-]*")
         for i, o in enumerate(options)
         if not OPTION.fullmatch(o)
     ]
     if problems:
         raise ExceptionGroup("invalid document", [v.error() for v in problems])
-    opts = f"[{','.join(options)}]" if options else ""
+    every = (*package.class_options, *options)
+    opts = f"[{','.join(every)}]" if every else ""
 
     def slot(name: str) -> list[Line]:
         return [
@@ -179,8 +192,6 @@ def plan_of(
     def values() -> list[Line]:
         return [Line(f"settings[{i}]", setting_line(v)) for i, v, found in routed if not found]
 
-    # `pdf` needs `\\DocumentMetadata`, which is empty when the document has no `metadata`
-    metadata = document.metadata or (RequireMetadata() if document.pdf and document.pdf.needs_metadata else None)
     return Plan(
         (
             Line("header", f"% {package.name} document -- {stamp(version)}. Do not edit."),

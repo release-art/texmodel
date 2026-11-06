@@ -2,7 +2,8 @@ r"""beamer: Presentations.
 
 A header (the class is adopted): it declares the interface, `texmodel` writes calls and never the class. The package
 that builds the deck is `Package(..., document_class="beamer")`. An overlay specification (`<2->`) is a `Text` field
-named `overlay`, written in angle brackets before the other arguments."""
+named `overlay`, written in angle brackets before the other arguments. The class refuses `\DocumentMetadata`, so a
+document with `metadata` or `pdf` is `TM-C050`: use `std.ltx_talk`."""
 
 import enum
 
@@ -11,9 +12,12 @@ from texmodel.interface import ANGLE, BRACE, SQUARE, Flag, Gap, Item, arg
 from texmodel.keys import KEYVAL
 from texmodel.keyvals import KeyVals, key
 from texmodel.package import Package
+from texmodel.preamble import MetadataPolicy
 from texmodel.types import Choice, Length, Macro, Name, NameList, Raw, Text
 
-package = Package("beamer", prefix="", adopted=True, builtin=True, document_class="beamer")
+package = Package(
+    "beamer", prefix="", adopted=True, builtin=True, document_class="beamer", metadata=MetadataPolicy.REFUSED
+)
 
 
 @enum.unique

@@ -47,5 +47,6 @@ MODULES = (
     "pdfpages",
     "luacolor",
     "beamer",
+    "ltx_talk",
     "pgfplots",
 )

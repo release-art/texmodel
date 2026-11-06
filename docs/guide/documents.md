@@ -122,7 +122,7 @@ assert r"\setlength{\dkGap}{3mm}" in tex
 | Field | Is |
 |---|---|
 | `content` (the positional arguments) | the nodes of the body |
-| `options` | class options, `[A-Za-z0-9][A-Za-z0-9=.-]*` (`TM-C006`) |
+| `options` | class options, `[A-Za-z0-9][A-Za-z0-9=.:-]*` (`TM-C006`) |
 | `settings` | `Value` instances, written after the package ([Values](values.md#settings-for-a-document)) |
 | `metadata` | a `RequireMetadata`: the `\DocumentMetadata` keys, written before the class ([Metadata](#metadata)) |
 | `pdf` | a `PdfInfo`: what the PDF says about itself, written after the packages ([PdfInfo](#pdfinfo)) |
@@ -179,6 +179,9 @@ which the plan writes first, before the class. The fields are `lang`, `pdfversio
 (subtype to profile file) and `extra` for any other key (`tagging`; letters, digits, `-` and `/`, not one a field has:
 `TM-M091`, `TM-M092`). A value has none of `{ } % \ #` (`TM-M093`). The key set is the kernel's, so the sources, not texmodel,
 say which a given LaTeX knows.
+
+A document class's attitude to `\DocumentMetadata` is `Package(metadata=MetadataPolicy.ALLOWED)` (the default), `REQUIRED` (the plan
+writes an empty one: `ltx-talk`) or `REFUSED` (`beamer`: a `metadata` or a `pdf` that needs one is `TM-C050`).
 
 ### PdfInfo
 

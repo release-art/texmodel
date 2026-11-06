@@ -54,7 +54,7 @@ def test_a_header_is_an_adopted_package_whose_components_all_name_their_control_
     package = header(name).package
     assert isinstance(package, Package) and package.adopted and package.prefix == ""
     assert package.name == (name.replace("_", "-") if name != "latex" else "latex")
-    assert package.builtin == (name in {"latex", "beamer"})  # the kernel and a class: nothing to load
+    assert package.builtin == (name in {"latex", "beamer", "ltx_talk"})  # the kernel and a class: nothing to load
     for cls in package.registered:
         assert cls.__doc__ and cls.__dict__["cs"] and cls.__tm_cs__ == cls.__dict__["cs"]  # pyright: ignore[reportAttributeAccessIssue]
     if name in {"hyphenat", "anyfontsize", "luacolor"}:
@@ -907,6 +907,116 @@ def beamer_samples():
     ]
 
 
+def ltx_talk_samples():
+    from texmodel.std import ltx_talk as t
+
+    colour = ColourName("white")
+    inside = body_of(
+        t.FrameTitle(title="T", short="S", overlay="1-").render(),
+        t.FrameSubtitle(subtitle="S").render(),
+        t.Pause().render(),
+        t.Only(overlay="1-", text=Raw("x")).render(),
+        t.Onslide(overlay="1-").render(),
+        t.Action(overlay="1-", text=Raw("x")).render(),
+        t.Uncover(overlay="1-", text=Raw("x")).render(),
+        t.Visible(overlay="1-", text=Raw("x")).render(),
+        t.Invisible(overlay="2", text=Raw("x")).render(),
+        t.Alert(text=Raw("x")).render(),
+        t.Alert(overlay="1", text=Raw("x")).render(),
+        t.Alt(overlay="1", this=Raw("x"), that=Raw("y")).render(),
+        t.Temporal(overlay="2", before=Raw("x"), during=Raw("y"), after=Raw("z")).render(),
+    )
+    return [
+        t.Title(title="T", short="S"),
+        t.Subtitle(subtitle="T"),
+        t.Author(authors="A", short="S"),
+        t.Institute(institute="I"),
+        t.Date(date="D"),
+        t.EditInstance(
+            template=t.Template.HEADER,
+            instance=Name("std"),
+            keys=t.HeaderKeys(
+                background_color=ColourName("blue", tint=0.5),
+                color=colour,
+                font=Raw(r"\small"),
+                height=Length("1cm"),
+                left_hspace=Length("3mm"),
+                print_frame_title=True,
+                right_hspace=Length("3mm"),
+            ),
+        ),
+        t.EditInstance(
+            template=t.Template.FOOTER,
+            instance=Name("std"),
+            keys=t.FooterKeys(
+                background_color=ColourName("black", tint=0.5),
+                color=colour,
+                element_order=(t.FooterElement.DATE, t.FooterElement.FRAME_NUMBER, t.FooterElement.TOTAL_FRAMES),
+                font=Raw(r"\tiny"),
+                left_hspace=Length("3mm"),
+                right_hspace=Length("3mm"),
+                separator=Raw(r"\hfill|\hfill"),
+            ),
+        ),
+        t.EditInstance(
+            template=t.Template.FRAME_TITLE,
+            instance=Name("header"),
+            keys=t.FrameTitleKeys(
+                after_vspace=Length("2mm"), before_vspace=Length("1mm"), color=colour, font=Raw(r"\Large\bfseries")
+            ),
+        ),
+        t.EditInstance(
+            template=t.Template.FOOTER_ELEMENT,
+            instance=Name("date"),
+            keys=t.FooterElementKeys(
+                color=colour, font=Raw(r"\tiny"), left_hspace=Length("1mm"), right_hspace=Length("1mm")
+            ),
+        ),
+        t.EditInstance(
+            template=t.Template.TITLE_PAGE_ELEMENT,
+            instance=Name("title"),
+            keys=t.TitlePageElementKeys(
+                after_skip=Length("1mm"), before_skip=Length("1mm"), color=colour, font=Raw(r"\Large")
+            ),
+        ),
+    ], [
+        t.Frame(
+            t.MakeTitle(
+                options=t.TitlePageKeys(framestyle=Name("empty"), horizontal_alignment=t.HorizontalAlignment.LEFT)
+            )
+        ),
+        t.Frame(body_of("x")),
+        t.Frame(body_of("x"), overlay="1-", options=t.FrameOptions(vertical_alignment=t.Alignment.TOP)),
+        t.Frame(
+            body_of("x"), options=t.FrameOptions(vertical_alignment=t.Alignment.STRETCH, extra=Raw("tag-slides=n"))
+        ),
+        t.Frame(inside),
+        t.Frame(
+            body_of(
+                t.Columns(
+                    t.Column(
+                        body_of("x"),
+                        options=t.ColumnOptions(vertical_alignment=t.ColumnAlignment.TOP),
+                        width=Length("4cm"),
+                    ),
+                    t.Column(body_of("y"), overlay="1-", width=Length.expr(r"0.5\textwidth")),
+                    options=t.ColumnsOptions(
+                        width=Length.expr(r"\textwidth"), vertical_alignment=t.ColumnAlignment.BOTTOM
+                    ),
+                ).render(),
+                t.Columns(t.Column(body_of("x"), width=Length("2cm")), overlay="1-").render(),
+                t.Block(body_of("x"), title="T", overlay="1-").render(),
+                t.OnlyEnv(body_of("x"), overlay="1").render(),
+                t.ActionEnv(body_of("x"), overlay="1").render(),
+                t.UncoverEnv(body_of("x"), overlay="1").render(),
+                t.VisibleEnv(body_of("x"), overlay="1").render(),
+                t.InvisibleEnv(body_of("x"), overlay="1").render(),
+                t.AlertEnv(body_of("x"), overlay="1").render(),
+            )
+        ),
+    ]
+
+
 def pgfplots_samples():
     from texmodel.std import pgfplots as g
     from texmodel.std.tikz import Tikzpicture
@@ -986,6 +1096,7 @@ SAMPLES = {
     "pdfpages": pdfpages_samples,
     "luacolor": lambda: ([], []),
     "beamer": beamer_samples,
+    "ltx_talk": ltx_talk_samples,
     "pgfplots": pgfplots_samples,
 }
 ERRORS = {"PackageError"}  # declared and called in `test_package_error`: it stops the run on purpose
@@ -1094,6 +1205,25 @@ def test_a_value_type_that_refuses_is_a_data_error_with_its_field():
 
     with pytest.raises(pydantic.ValidationError, match="plot name"):
         pgfplots.PgfplotsOptions.model_validate({"colormap_name": "a_b"})
+
+
+def test_ltx_talk_writes_its_class_options_and_checks_what_an_edit_instance_is_given():
+    from texmodel.std import ltx_talk as t
+
+    assert t.TalkOptions().options() == ()
+    options = t.TalkOptions(aspect_ratio=t.AspectRatio(4, 3), font_size=Length("12pt"), mode=t.Mode.HANDOUT).options()
+    assert options == ("aspect-ratio=4:3", "font-size=12pt", "mode=handout")
+    plan = t.package.plan(Document(options=options))  # the class option every talk needs comes first
+    assert plan.lines[-3].tex == r"\documentclass[frame-title-arg=true,%s]{ltx-talk}" % ",".join(options)
+    assert t.Frame().render() == "\\begin{frame}{}\n\\end{frame}"
+    assert t.Frame(title="T").render() == "\\begin{frame}{T}\n\\end{frame}"
+    with pytest.raises(ValueRuleError) as failed:
+        t.AspectRatio(0, 9)
+    assert failed.value.code == "TM-C048"
+    wrong = t.EditInstance(template=t.Template.FOOTER, instance=Name("std"), keys=t.HeaderKeys(color=ColourName("red")))
+    assert [v.code for v in wrong.violations()] == ["TM-C049"]
+    right = t.EditInstance(template=t.Template.HEADER, instance=Name("std"), keys=t.HeaderKeys(color=ColourName("red")))
+    assert right.violations() == [] and right.render() == r"\EditInstance{header}{std}{color=red}"
 
 
 def test_at_load_carries_the_calls_into_the_sty_after_the_packages_they_need():

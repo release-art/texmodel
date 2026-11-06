@@ -12,6 +12,7 @@ PreambleSlots(
 
 import dataclasses
 import datetime
+import enum
 import hashlib
 import re
 from collections.abc import Iterator, Mapping
@@ -84,6 +85,16 @@ class GraphicsPath:
     def raw(self) -> Raw:
         groups = ("{}" if self.include_cwd else "") + "".join(f"{{{d}}}" for d in self.dirs)
         return Raw(f"\\graphicspath{{{groups}}}")
+
+
+@enum.unique
+class MetadataPolicy(enum.Enum):
+    r"""What a document class does with `\\DocumentMetadata` (`Package(metadata=...)`): `ALLOWED` takes it, `REQUIRED`
+    needs it (the plan writes an empty one when the document has none), `REFUSED` stops the plan (`beamer`)."""
+
+    ALLOWED = "allowed"
+    REQUIRED = "required"
+    REFUSED = "refused"
 
 
 _UNSAFE_VALUE = re.compile(r"[{}%\\#]")
@@ -281,6 +292,7 @@ class PreambleSlots:
 
 
 __all__ = [
+    "MetadataPolicy",
     "Entry",
     "GraphicsPath",
     "InputIfExists",

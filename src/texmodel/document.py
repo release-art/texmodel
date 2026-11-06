@@ -21,7 +21,7 @@ from collections.abc import Sequence
 from .components import AnyValue, Node
 from .preamble import PdfInfo, PreambleSlots, RequireMetadata
 
-OPTION = re.compile(r"[A-Za-z0-9][A-Za-z0-9=.-]*")  # a class option (`TM-C006`)
+OPTION = re.compile(r"[A-Za-z0-9][A-Za-z0-9=.:-]*")  # a class option (`TM-C006`)
 
 
 @dataclasses.dataclass(frozen=True, init=False)

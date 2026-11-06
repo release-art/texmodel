@@ -76,6 +76,40 @@ specification is an `overlay` field of `Text`, written in `<>` before the other 
 `\begin{frame}<2->`); `Gap.OMIT` lets it be left out before `[options]`. Inserts (`\insertframenumber`) are written in a
 template's code, so they are not declared.
 
+`ltx_talk` is beamer's replacement for a deck that needs `\DocumentMetadata` (PDF/A, PDF/X, tagging): beamer refuses it, so a
+document with `metadata` or `pdf` for a package whose class is beamer is `TM-C050`. The class needs `\DocumentMetadata` itself,
+so the plan always writes one (empty unless `metadata` or `pdf` say more): `Package(metadata=MetadataPolicy.REQUIRED)`; beamer says
+`REFUSED`, every other class `ALLOWED`. Class options are typed (`TalkOptions` gives the `options` of a document, `AspectRatio(4, 3)` is
+`4:3`). The package always passes `frame-title-arg=true` (`Package(class_options=)`), so a `Frame` always writes its title
+argument, `{}` when it has none: the class reads the argument as text of the frame otherwise. `MakeTitle` goes inside a `Frame`. The styling is `\EditInstance`, one command for the
+class's templates: `template` says which and `keys` is that template's keys class, or `TM-C049`.
+
+```python
+from texmodel.components import Passthrough
+from texmodel.document import Document
+from texmodel.interface import ColourName
+from texmodel.preamble import RequireMetadata
+from texmodel.std import ltx_talk as talk
+from texmodel.types import Name, Raw
+
+deck = Document(
+    talk.EditInstance(
+        template=talk.Template.FOOTER,
+        instance=Name("std"),
+        keys=talk.FooterKeys(color=ColourName("white"), element_order=(talk.FooterElement.TITLE, talk.FooterElement.FRAME_NUMBER)),
+    ),
+    talk.Frame(Passthrough(Raw("Hello")), title="Hi"),
+    options=talk.TalkOptions(aspect_ratio=talk.AspectRatio(4, 3)).options(),
+    metadata=RequireMetadata(lang="en-GB"),
+)
+tex = talk.package.document(deck)
+assert r"\documentclass[frame-title-arg=true,aspect-ratio=4:3]{ltx-talk}" in tex
+assert r"\EditInstance{footer}{std}{color=white,element-order={title,framenumber}}" in tex
+```
+
+The class is experimental (ltx-talk 0.4, "design support is lower priority"), so its template names may move: this header is where
+that shows. It loads a New Computer Modern font; the test image installs `newcomputermodern`.
+
 `fontspec` types its font options (`FontOptions`: the files of the faces, `Scale`, `Ligatures`, `Numbers`, ...) and declares
 `NewFontFamily`, `NewFontFace`, `FontSpec`, `AddFontFeatures` and `DefaultFontFeatures` besides `SetMainFont`. A call that
 should run when your package loads goes in `Package.at_load`, after the packages it `require`s:

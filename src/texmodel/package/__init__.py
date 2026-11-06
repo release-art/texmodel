@@ -44,11 +44,12 @@ from ..components import (
     Node,
     Value,
 )
-from ..document import Document
+from ..document import OPTION, Document
 from ..drift import stamp
 from ..errors import DeclarationError, Violation
 from ..interface import XCOLOR, ColourName, colour_of, constraint_of
 from ..plan import Line, Plan
+from ..preamble import MetadataPolicy
 from ..testing import Component, stub_tex
 from ..types import PROCESS, Choice, Length, Raw, balanced
 from ._check import Defs, compare, name_shown
@@ -131,6 +132,8 @@ class Package:
         description: str = "",
         header: str = "",
         document_class: str = "article",
+        class_options: Sequence[str] = (),
+        metadata: MetadataPolicy = MetadataPolicy.ALLOWED,
         adopted: bool = False,
         builtin: bool = False,
         whitespace: Whitespace = Whitespace.KEEP,
@@ -146,9 +149,16 @@ class Package:
             raise DeclarationError(f"date {date!r} must be YYYY/MM/DD (\\ProvidesPackage's date slot)", code="TM-P003")
         if not _NAME.fullmatch(document_class):
             raise DeclarationError(f"document class {document_class!r} must match [a-z][a-z0-9-]*", code="TM-P004")
+        for option in class_options:
+            if not OPTION.fullmatch(option):
+                raise DeclarationError(
+                    f"class option {option!r} must match {OPTION.pattern}", code="TM-P014", hint="frame-title-arg=true"
+                )
         self.name, self.prefix, self.version, self.date, self.description = name, prefix, version, date, description
         self.header = header  # comment lines under the generator's line, for what the file's readers should know
         self.document_class = document_class
+        self.class_options = tuple(class_options)  # always passed to the class, before the document's own
+        self.metadata = metadata  # what the class does with \\DocumentMetadata
         self.whitespace = whitespace  # the policy of a body piece that names none (M8)
         self.adopted = adopted  # the `.sty` is hand-written; components only declare it (M9)
         self.builtin = builtin  # always loaded (the LaTeX kernel): calling it requires no package

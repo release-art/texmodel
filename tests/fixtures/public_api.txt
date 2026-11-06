@@ -199,7 +199,7 @@ texmodel.keyvals.KeyVals()
 texmodel.keyvals.KeyVals.render(self) -> str
 texmodel.keyvals.key(spelling: str | None = …, *, default: Any = …) -> Any
 texmodel.package.GENERATOR_VERSION: NoneType
-texmodel.package.Package(name: str, *, prefix: str, version: str = …, date: str | None = …, description: str = …, header: str = …, document_class: str = …, adopted: bool = …, builtin: bool = …, whitespace: Whitespace = …, comments: Sequence[type[Comment]] = …, base: Package | None = …, requires: Sequence[Package] = …) -> None
+texmodel.package.Package(name: str, *, prefix: str, version: str = …, date: str | None = …, description: str = …, header: str = …, document_class: str = …, class_options: Sequence[str] = …, metadata: MetadataPolicy = …, adopted: bool = …, builtin: bool = …, whitespace: Whitespace = …, comments: Sequence[type[Comment]] = …, base: Package | None = …, requires: Sequence[Package] = …) -> None
 texmodel.package.Package.at_load(self, name: str, *calls: Node, syntax: Syntax = …) -> Library
 texmodel.package.Package.check_interface(self, *sources: str) -> list[Violation]
 texmodel.package.Package.check_parts(self) -> list[Violation]
@@ -255,6 +255,7 @@ texmodel.preamble.InputIfExists(name: str) -> None
 texmodel.preamble.InputIfExists.raw(self) -> Raw
 texmodel.preamble.InputPath(*dirs: str) -> None
 texmodel.preamble.InputPath.raw(self) -> Raw
+texmodel.preamble.MetadataPolicy(*values)
 texmodel.preamble.PassOption(package: str, option: str) -> None
 texmodel.preamble.PassOption.raw(self) -> Raw
 texmodel.preamble.PdfInfo(*, title: str | None = …, author: str | None = …, subject: str | None = …, keywords: tuple[str, ...] = …, producer: str | None = …, creator: str | None = …, created: datetime.datetime | None = …, modified: datetime.datetime | None = …, trailer_id: TrailerId | None = …, extra: Mapping[str, str] = …) -> None

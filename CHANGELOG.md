@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-06
+
+### Added
+
+- `std.ltx_talk`: a header for the `ltx-talk` class, which accepts `\DocumentMetadata` (beamer refuses it). `TalkOptions` and
+  `AspectRatio` are the class options (`TalkOptions(...).options()` is the document's `options`); `frame-title-arg=true` is always
+  passed, so a `Frame` always writes its title argument. Also `Frame`, `FrameTitle`, `FrameSubtitle`, `Title`, `MakeTitle` (inside a
+  `Frame`), `Block`, `Columns`, the overlay commands and environments, and `EditInstance` with a keys class per template
+  (`HeaderKeys`, `FooterKeys`, `FooterElementKeys`, `FrameTitleKeys`, `TitlePageElementKeys`).
+- `Package(class_options=)`: options always passed to the document class, before the document's own (`TM-P014` for one that is not an option).
+- `preamble.MetadataPolicy` and `Package(metadata=)`: what a document class does with `\DocumentMetadata`. `REQUIRED` writes an
+  empty one when the document has none (`ltx-talk`), `REFUSED` stops the plan.
+- `TM-C048` (`AspectRatio`), `TM-C049` (the keys of an `EditInstance` are not its template's) and `TM-C050` (a document that needs
+  `\DocumentMetadata` for a class that refuses it).
+
+### Changed
+
+- A class option may contain `:` (`aspect-ratio=4:3`).
+- `std.beamer` is `MetadataPolicy.REFUSED`: `Document(pdf=PdfInfo(title=...))` or `metadata=` for a beamer package is `TM-C050`
+  when planned, not `TM-X020` when compiled. A `trailer_id` alone still plans.
+- The `texmodel-test` image installs `newcomputermodern`, which `ltx-talk` loads.
+
 ## [0.20.0] - 2026-11-06
 
 ### Added
@@ -627,7 +649,8 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/release-art/texmodel/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/release-art/texmodel/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/release-art/texmodel/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/release-art/texmodel/compare/v0.17.0...v0.18.0

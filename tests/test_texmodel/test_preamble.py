@@ -8,6 +8,7 @@ from test_texmodel_run.test_compile_tex import compiler, fonts, require_files  #
 from texmodel.components import Passthrough
 from texmodel.document import Document
 from texmodel.errors import DeclarationError
+from texmodel.interface import ColourName
 from texmodel.package import Package
 from texmodel.preamble import (
     GraphicsPath,
@@ -19,8 +20,8 @@ from texmodel.preamble import (
     RequireMetadata,
     TrailerId,
 )
-from texmodel.std import hyperref, latex
-from texmodel.types import Raw
+from texmodel.std import beamer, hyperref, latex, ltx_talk
+from texmodel.types import Name, Raw
 
 
 def test_entries_render_to_the_tex_a_hand_written_line_would_have():
@@ -158,6 +159,57 @@ async def test_pdf_info_reaches_the_info_dictionary_the_xmp_and_the_trailer(comp
         assert (str(pdf.docinfo.CreationDate), str(pdf.docinfo.ModDate)) == ("D:20200102030405Z", "D:20210203040506Z")
         assert (xmp["xmp:CreateDate"], xmp["xmp:ModifyDate"]) == ("2020-01-02T03:04:05Z", "2021-02-03T04:05:06Z")
         assert [bytes(i).hex().upper() for i in pdf.trailer.ID] == ["00112233445566778899AABBCCDDEEFF"] * 2
+
+
+def test_a_class_that_refuses_document_metadata_stops_the_plan_and_one_that_needs_it_gets_it():
+    for document, path in (
+        (Document(metadata=RequireMetadata(lang="en")), "metadata"),
+        (Document(pdf=PdfInfo(title="T")), "pdf"),
+    ):
+        with pytest.raises(ExceptionGroup) as group:
+            beamer.package.plan(document)
+        assert [(e.code, e.path) for e in group.value.exceptions] == [("TM-C050", path)]  # pyright: ignore[reportAttributeAccessIssue]
+    beamer.package.plan(Document(pdf=PdfInfo(trailer_id=TrailerId("AA" * 16))))  # a trailer ID needs no metadata
+    assert [x.tex for x in ltx_talk.package.plan(Document()).lines if x.path == "metadata"] == [r"\DocumentMetadata{}"]
+    plan = ltx_talk.package.plan(Document(metadata=RequireMetadata(lang="en"), options=["aspect-ratio=4:3"]))
+    assert [x.tex for x in plan.lines if x.path in ("metadata", "document")][:2] == [
+        r"\DocumentMetadata{lang=en}",
+        r"\documentclass[frame-title-arg=true,aspect-ratio=4:3]{ltx-talk}",
+    ]
+
+
+def test_class_options_of_a_package_come_before_the_documents_and_are_checked():
+    pkg = Package("pre", prefix="pr", adopted=True, class_options=("a=1",))
+    assert pkg.plan(Document(options=["b"])).lines[1].tex == r"\documentclass[a=1,b]{article}"
+    assert pkg.plan(Document()).lines[1].tex == r"\documentclass[a=1]{article}"
+    with pytest.raises(DeclarationError) as failed:
+        Package("pre", prefix="pr", class_options=("a b",))
+    assert failed.value.code == "TM-P014"
+
+
+@pytest.mark.tex
+@pytest.mark.timeout(300)
+async def test_a_talk_takes_document_metadata_class_options_titles_and_styling(compiler, tmp_path):  # noqa: F811
+    import pikepdf
+
+    await require_files(compiler, "tagpdf-base.sty", "ltx-talk.cls", "NewCMSans10-Regular.otf")
+    t = ltx_talk
+    document = Document(
+        t.EditInstance(template=t.Template.HEADER, instance=Name("std"), keys=t.HeaderKeys(color=ColourName("white"))),
+        t.Frame(Passthrough(Raw("x")), title="Title", options=t.FrameOptions(vertical_alignment=t.Alignment.TOP)),
+        t.Frame(Passthrough(Raw("untitled"))),
+        options=t.TalkOptions(aspect_ratio=t.AspectRatio(4, 3)).options(),
+        metadata=RequireMetadata(lang="en-GB"),
+        pdf=PdfInfo(title="A talk"),
+    )
+    plan = t.package.plan(document)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "d.tex").write_text(plan.text, encoding="utf-8")
+    result = await compiler.compile(tmp_path / "src" / "d.tex", tmp_path / "out", plan=plan)
+    assert result.ok, [(d.path, d.message) for d in result.errors]
+    with pikepdf.open(result.pdf) as pdf:  # pyright: ignore[reportArgumentType]
+        width, height = (float(x) for x in pdf.pages[0].MediaBox[2:])
+        assert str(pdf.docinfo["/Title"]) == "A talk" and abs(width / height - 4 / 3) < 0.01
 
 
 @pytest.mark.tex

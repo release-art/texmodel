@@ -131,6 +131,10 @@ What texmodel does not do or does not check today. Planned work is ordered in th
   no number alignment by decimal point at mixed precision. A `Table` is a builder, not a component, so it is not in a document's data or schema.
 - `ext.graphics`: a figure holds one picture, with no sub-figures, side-by-side pictures or maximum size (that is `adjustbox`);
   `alt` and `artifact` are LaTeX 2024-11 keys, an older kernel refuses them.
+- `ltx_talk`: the class is experimental and its template names may move. `EditInstance` covers the `header`, `footer`, `footer-element`, `frametitle`
+  and `titlepage-element` templates (not `floatenv`, `hidden`, `block` or the `wallpaper` frame style's own keys); a `font`, a `separator` and
+  a list of fonts are `Raw` TeX. `frame*` (verbatim frames), `\tableofcontents` and notes are not declared. `MakeTitle` belongs inside a `Frame` (the class's `\maketitle` opens a frame of its own, which with `frame-title-arg` reads the next token as a title: a compile error); a `MakeTitle` at the top of a document is not refused. No shared binding with `beamer`: the two
+  headers declare the same names separately.
 - `tests/test_std` proves a call is accepted by TeX, not that it does what the name suggests. A library the reference image
   lacks makes its test skip (a failure under `TEXMODEL_REQUIRE_TEX=1`).
 - TikZ paths (`\draw`, `\node`) are written as `Passthrough` or `Raw`.
