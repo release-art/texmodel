@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-11-16
+
+### Added
+
+- `errors.CheckContext`: what a check of many nodes reuses, the colours each package allows. `node.violations(context)` takes one; without it a call makes its own.
+
+### Fixed
+
+- Checking colour names re-read every LaTeX library of the package for each node it checked (a small deck built 35 times slower than in 0.12). A check, a `plan` and `restore` now work the colours out once per package.
+
 ## [0.22.0] - 2026-11-06
 
 ### Added
@@ -662,7 +672,8 @@ First release (0.1.0 was never published).
 - `texmodel_build` and the `texmodel-build` command: a `latexmk` driver with typed diagnostics, and verifier plugins
   (`texmodel[proof-pdf]`).
 
-[Unreleased]: https://github.com/release-art/texmodel/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/release-art/texmodel/compare/v0.22.1...HEAD
+[0.22.1]: https://github.com/release-art/texmodel/compare/v0.22.0...v0.22.1
 [0.22.0]: https://github.com/release-art/texmodel/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/release-art/texmodel/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/release-art/texmodel/compare/v0.19.0...v0.20.0

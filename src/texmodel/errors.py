@@ -1,6 +1,7 @@
 """The error hierarchy (E1): every error carries a stable code, a path into the Doc and a fix hint."""
 
 import dataclasses
+from typing import Protocol
 
 
 class TexmodelError(Exception):
@@ -43,4 +44,35 @@ class Violation:
         return ValidationError(self.message, code=self.code, path=self.path, hint=self.hint)
 
 
-__all__ = ["DeclarationError", "MigrationError", "TexmodelError", "ValidationError", "ValueRuleError", "Violation"]
+type _Colours = dict[str, frozenset[str] | None]
+
+
+class _Coloured(Protocol):
+    def colour_constraints(self) -> _Colours: ...
+
+
+@dataclasses.dataclass(eq=False)
+class CheckContext:
+    """What one check of a tree reuses between its nodes: the colours each package allows, which cost a read of the
+    package's LaTeX libraries. Make one for a check of many nodes (`node.violations(context)` for each of a document's
+    nodes) and drop it after; the checks that are given none make their own. It is not shared between threads, and it
+    does not see a package declared or changed after it first asked."""
+
+    _colours: dict[_Coloured, _Colours] = dataclasses.field(default_factory=dict[_Coloured, _Colours], repr=False)
+
+    def colours_of(self, package: _Coloured) -> _Colours:
+        """`package.colour_constraints()`, worked out once for this context."""
+        if package not in self._colours:
+            self._colours[package] = package.colour_constraints()
+        return self._colours[package]
+
+
+__all__ = [
+    "CheckContext",
+    "DeclarationError",
+    "MigrationError",
+    "TexmodelError",
+    "ValidationError",
+    "ValueRuleError",
+    "Violation",
+]

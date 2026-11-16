@@ -3,7 +3,7 @@ texmodel.body.BodyT: TypeAliasType
 texmodel.body.Comment(text: str) -> None
 texmodel.body.Comment.lines(self) -> tuple[str, ...]
 texmodel.body.Comment.render(self) -> str
-texmodel.body.Comment.violations(self) -> list[Violation]
+texmodel.body.Comment.violations(self, context: CheckContext | None = …) -> list[Violation]
 texmodel.body.Cs(name: str, syntax: Syntax = …) -> None
 texmodel.body.Group(*pieces: Inline) -> None
 texmodel.body.HOLE: Pattern
@@ -56,6 +56,8 @@ texmodel.drift.Drift.ok: property
 texmodel.drift.OUTPUT_CHANGES: dict
 texmodel.drift.check_drift(expected: Mapping[str, str | bytes], root: pathlib.Path, owned: Sequence[str] = …, *, version: str | None = …) -> Drift
 texmodel.drift.stamp(version: str) -> str
+texmodel.errors.CheckContext(_colours: dict[_Coloured, _Colours] = …) -> None
+texmodel.errors.CheckContext.colours_of(self, package: _Coloured) -> _Colours
 texmodel.errors.DeclarationError(message: str, *, code: str = …, path: str = …, hint: str = …) -> None
 texmodel.errors.MigrationError(message: str, *, code: str = …, path: str = …, hint: str = …) -> None
 texmodel.errors.TexmodelError(message: str, *, code: str = …, path: str = …, hint: str = …) -> None

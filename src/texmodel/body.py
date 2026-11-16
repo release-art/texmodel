@@ -23,7 +23,7 @@ from collections.abc import Generator, Iterator, Sequence
 from pathlib import Path
 from typing import ClassVar, dataclass_transform
 
-from .errors import DeclarationError, Violation
+from .errors import CheckContext, DeclarationError, Violation
 from .types import Raw
 
 
@@ -177,7 +177,7 @@ class Comment:
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.text!r})"
 
-    def violations(self) -> list[Violation]:
+    def violations(self, context: CheckContext | None = None) -> list[Violation]:  # noqa: ARG002  # as a node's
         """A comment breaks no rule."""
         return []
 

@@ -20,7 +20,7 @@ from ..components import (
 )
 from ..document import OPTION, Document
 from ..drift import stamp
-from ..errors import DeclarationError, Violation
+from ..errors import CheckContext, DeclarationError, Violation
 from ..plan import BEGIN_DOCUMENT, Line, Plan, Span
 from ..preamble import Entry, MetadataPolicy, RequireMetadata
 from ..types import Raw
@@ -122,7 +122,8 @@ def plan_of(
     # `pdf` needs `\\DocumentMetadata`, which is empty when the document has no `metadata`
     needs = package.metadata is MetadataPolicy.REQUIRED or bool(document.pdf and document.pdf.needs_metadata)
     metadata = document.metadata or (RequireMetadata() if needs else None)
-    problems = [v for node in document.content for v in node.violations()]
+    context = CheckContext()
+    problems = [v for node in document.content for v in node.violations(context)]
     if metadata and package.metadata is MetadataPolicy.REFUSED:
         problems.append(
             Violation(

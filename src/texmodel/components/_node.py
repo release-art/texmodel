@@ -33,7 +33,7 @@ from ..body import (
     TemplateRef,
     TexRaw,
 )
-from ..errors import DeclarationError, Violation
+from ..errors import CheckContext, DeclarationError, Violation
 from ..interface import (
     BRACE,
     SQUARE,
@@ -233,10 +233,10 @@ class _Node:
     def __str__(self) -> str:
         return repr(self)
 
-    def violations(self) -> list[Violation]:
+    def violations(self, context: CheckContext | None = None) -> list[Violation]:
         """Every broken rule at once (E2), with its path into the tree: argument types and, for an environment, the
-        children against the grammar (M4)."""
-        return violations_of(self, type(self).__name__)  # pyright: ignore[reportArgumentType]
+        children against the grammar (M4). Checking many nodes, pass each the same `CheckContext`."""
+        return violations_of(context or CheckContext(), self, type(self).__name__)  # pyright: ignore[reportArgumentType]
 
     def render(self) -> str:
         """The TeX for this node (`\\acFact{...}`, or `\\begin{acCardBack}` ... `\\end{acCardBack}`): pure and

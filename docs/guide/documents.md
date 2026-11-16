@@ -55,6 +55,9 @@ assert r"\dkFact{Friendly \& loyal.}" in tex
 
 `Text` fields are escaped; a `Raw` field passes TeX through. `card.violations()` lists every broken rule at once, each with a
 code and a path such as `Card/Fact[2].text`; `pkg.document` raises the same list as an `ExceptionGroup` of `ValidationError`.
+Checking a node reads the package's LaTeX libraries for its colours; to check many nodes, make one `CheckContext` and pass it
+to each: `context = CheckContext(); [v for n in nodes for v in n.violations(context)]` reads them once. `plan` does this for
+a document's nodes. A context belongs to one check and one thread.
 
 ## Packages that need packages
 

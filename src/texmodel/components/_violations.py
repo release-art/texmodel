@@ -16,7 +16,7 @@ from .._internal.render import (
 from ..body import (
     Comment,
 )
-from ..errors import DeclarationError, Violation
+from ..errors import CheckContext, DeclarationError, Violation
 from ..interface import (
     ColourName,
     Gap,
@@ -29,14 +29,14 @@ if TYPE_CHECKING:  # the nodes import this module, so it names them for the type
     from ._node import Command, Environment, Passthrough
 
 
-def violations_of(node: Command | Environment | Passthrough, path: str) -> list[Violation]:
+def violations_of(context: CheckContext, node: Command | Environment | Passthrough, path: str) -> list[Violation]:
     cls = type(node)
     out: list[Violation] = []
     for a in cls.__tm_args__:
         if why := argument_violations(a, getattr(node, a.name)):
             out.append(Violation("TM-C003", f"{path}.{a.name}", f"{a.name}: {why}"))
     out += _slot_violations(node, path)
-    out += _colour_violations(node, path)
+    out += _colour_violations(context, node, path)
     for check in node.checks:
         out += check(node, path)
     if node.__tm_node__ is NodeKind.ENVIRONMENT:
@@ -45,7 +45,9 @@ def violations_of(node: Command | Environment | Passthrough, path: str) -> list[
         for i, child in enumerate(env.content):
             if hasattr(child, "__tm_node__"):  # a stray value in `content` is the grammar's to report
                 out += violations_of(
-                    typing.cast("Command | Environment | Passthrough", child), f"{path}/{type(child).__name__}[{i}]"
+                    context,
+                    typing.cast("Command | Environment | Passthrough", child),
+                    f"{path}/{type(child).__name__}[{i}]",
                 )
     return out
 
@@ -55,13 +57,13 @@ def _plates_shown(plates: AbstractSet[str]) -> str:
     return "+".join([*(p for p in Plate if p in plates), *sorted(plates - set(Plate))]) if plates else "none"
 
 
-def _colour_violations(node: Command | Environment | Passthrough, path: str) -> list[Violation]:
+def _colour_violations(context: CheckContext, node: Command | Environment | Passthrough, path: str) -> list[Violation]:
     """A colour argument names colours its package declares (`TM-C022`) and mixes only colours that ink the same plates
     (`TM-C024`); an expression that is not `name!50!name` is `TM-C023`. A node outside a package is not checked."""
     package = typing.cast("Package | None", getattr(type(node), "__tm_package__", None))
     if package is None:
         return []
-    known = package.colour_constraints()
+    known = context.colours_of(package)
     out: list[Violation] = []
     for a in type(node).__tm_args__:
         value = getattr(node, a.name)
@@ -159,6 +161,6 @@ def _grammar_violations(node: Environment, path: str) -> list[Violation]:
 
 
 def render_of(node: Command | Environment | Passthrough) -> str:
-    if violations := violations_of(node, type(node).__name__):
+    if violations := violations_of(CheckContext(), node, type(node).__name__):
         raise ExceptionGroup(f"invalid {type(node).__name__}", [v.error() for v in violations])
     return emit(node)

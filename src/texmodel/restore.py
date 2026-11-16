@@ -24,7 +24,7 @@ from ._internal.tex import detokenized
 from .body import Comment
 from .components import Command, Environment, Node
 from .document import Document
-from .errors import DeclarationError, Violation
+from .errors import CheckContext, DeclarationError, Violation
 from .plan import BEGIN_DOCUMENT, Edit, EditKind, Plan, data_path
 
 if TYPE_CHECKING:
@@ -183,7 +183,8 @@ def _checked(
     # changed node's lines if a large document with many edits is slow.
     alone = _with(document, [change])
     edit = edits[change.edits[0]]
-    if problems := [v for node in alone.content for v in node.violations()]:
+    context = CheckContext()
+    if problems := [v for node in alone.content for v in node.violations(context)]:
         return Unapplied(edit, Reason.GRAMMAR if change.update is None else Reason.INVALID_VALUE, problems[0])
     found = {i: edits[k].found for i, k in zip(change.lines, change.edits, strict=True)}
     want = [found.get(i, line.tex) for i, line in enumerate(base.lines) if change.update is not None or i not in found]

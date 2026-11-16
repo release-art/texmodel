@@ -253,3 +253,22 @@ def test_a_colour_value_given_for_a_colour_field_is_stored_as_its_name():
     assert t.CellSpec(bg=Ink, fg=ColourName("red")).render() == "bg=ab-ink,fg=red"
     with pytest.raises(DeclarationError):
         Opts(bg=Chip)  # pyright: ignore[reportArgumentType]  # not a colour value, on purpose
+
+
+def test_a_check_context_works_out_the_colours_of_a_package_once_for_all_the_nodes_it_checks(monkeypatch):
+    from texmodel.errors import CheckContext
+
+    calls: list[Package] = []
+    original = Package.colour_constraints
+
+    def counted(self: Package):
+        calls.append(self)
+        return original(self)
+
+    monkeypatch.setattr(Package, "colour_constraints", counted)
+    nodes = [Label(text="a", colour=ColourName("abFoil")) for _ in range(20)]
+    context = CheckContext()
+    assert [v for node in nodes for v in node.violations(context)] == []
+    assert len(calls) == 1
+    assert [v for node in nodes for v in node.violations()] == [] and len(calls) == 21  # each without a context asks
+    assert series.plan(*nodes).text and len(calls) == 22  # a plan makes its own, once
